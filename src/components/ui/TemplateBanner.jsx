@@ -91,13 +91,13 @@ const TemplateBanner = ({ visible }) => {
                   transition={{ duration: 0.2 }}
                   className="border-t border-[#e5e3dc] px-4 py-4 overflow-hidden"
                 >
-                  <div className="flex items-stretch gap-3 overflow-x-auto pb-1">
+                  <div className="flex items-stretch gap-0 overflow-x-auto pb-1">
                     {TEMPLATES.map((t) => {
                       const Icon = t.icon;
                       return (
                         <button
                           key={t.id}
-                          className="flex flex-col items-center gap-2 min-w-[88px] p-3 rounded-[10px] border border-[#e5e3dc] hover:border-[#1a1a1c] hover:bg-[#f4f3ef] transition-all cursor-pointer group"
+                          className="flex flex-col items-center gap-2 w-[200px] p-3 rounded-none border border-[#e5e3dc] border-r-0 last:border-r hover:bg-[#f9f8f7] hover:shadow-md hover:z-10 hover:scale-y-110 transition-all cursor-pointer group"
                         >
                           <div
                             className="w-10 h-10 rounded-[10px] flex items-center justify-center"
