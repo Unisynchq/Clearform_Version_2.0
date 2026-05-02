@@ -24,6 +24,9 @@ import FormOverlayModal from '../components/ui/FormOverlayModal';
 import NewWorkspaceEmpty from '../components/ui/NewWorkspaceEmpty';
 import CreateWorkspaceModal from '../components/ui/CreateWorkspaceModal';
 import ShareFormModal from '../components/ui/ShareFormModal';
+import WorkspaceContextMenu from '../components/ui/WorkspaceContextMenu';
+import RenameWorkspaceModal from '../components/ui/RenameWorkspaceModal';
+import DeleteWorkspaceModal from '../components/ui/DeleteWorkspaceModal';
 
 /* ── Empty state: no forms from filter ── */
 const FilterEmptyState = ({ hasFilters, onClearFilters }) => (
@@ -159,26 +162,41 @@ const AllFormsPage = () => {
       <FormOverlayModal />
       <CreateWorkspaceModal />
       <ShareFormModal />
+      <WorkspaceContextMenu />
+      <RenameWorkspaceModal />
+      <DeleteWorkspaceModal />
       <div className="flex flex-col h-full overflow-hidden">
         <Topbar />
         {/* Page heading + CTA */}
         <div className="flex items-end justify-between px-6 py-4">
-          <div>
-            <h2 className="text-[30px] font-semibold text-[#111110] leading-[36px] tracking-[-0.3px]">
-              What are you building today?
-            </h2>
-            <p className="text-[16px] font-normal text-[#6e6d67] leading-[24px]">
-              Start with a template or create a form from scratch
-            </p>
-          </div>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="flex items-center gap-2 bg-[#1a1a1c] text-white text-[14px] font-medium px-[17px] py-[9px] rounded-lg border border-[#1a1a1c] hover:bg-[#2c2c2e] transition-colors cursor-pointer shrink-0"
-          >
-            <RiAddLine size={14} />
-            New Form
-          </motion.button>
+          {isLoading ? (
+            <>
+              <div className="flex flex-col gap-[10px]">
+                <div className="relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_1.5s_infinite] before:bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.6),transparent)] h-[36px] w-[320px] bg-[#ece9e3] rounded-[8px]" />
+                <div className="relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_1.5s_infinite] before:bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.6),transparent)] h-[20px] w-[260px] bg-[#ece9e3] rounded-[6px]" />
+              </div>
+              <div className="relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_1.5s_infinite] before:bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.6),transparent)] h-[38px] w-[104px] bg-[#ece9e3] rounded-[8px] shrink-0" />
+            </>
+          ) : (
+            <>
+              <div>
+                <h2 className="text-[30px] font-semibold text-[#111110] leading-[36px] tracking-[-0.3px]">
+                  What are you building today?
+                </h2>
+                <p className="text-[16px] font-normal text-[#6e6d67] leading-[24px]">
+                  Start with a template or create a form from scratch
+                </p>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="flex items-center gap-2 bg-[#1a1a1c] text-white text-[14px] font-medium px-[17px] py-[9px] rounded-lg border border-[#1a1a1c] hover:bg-[#2c2c2e] transition-colors cursor-pointer shrink-0"
+              >
+                <RiAddLine size={14} />
+                New Form
+              </motion.button>
+            </>
+          )}
         </div>
 
         {/* Template banner */}

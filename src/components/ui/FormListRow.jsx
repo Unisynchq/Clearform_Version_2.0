@@ -2,6 +2,7 @@ import { useDispatch } from 'react-redux';
 import { motion } from 'motion/react';
 import { RiMore2Fill } from 'react-icons/ri';
 import { openContextMenu, openFormOverlay } from '../../redux/slices/uiSlice';
+import { formatResponseCount } from '../../constants';
 
 const StatusBadge = ({ status }) => {
   const isLive = status === 'live';
@@ -60,7 +61,7 @@ const FormListRow = ({ form, index }) => {
       {/* Responses */}
       <span className={`text-[13px] leading-[19.5px] ${form.responses > 0 ? 'text-[#1a1a1c]' : 'text-[#a8a6a0]'}`}>
         {form.responses > 0
-          ? `${form.responses} ${form.responses === 1 ? 'response' : 'responses'}`
+          ? `${formatResponseCount(form.responses)} ${form.responses === 1 ? 'response' : 'responses'}`
           : 'No responses yet'}
       </span>
 

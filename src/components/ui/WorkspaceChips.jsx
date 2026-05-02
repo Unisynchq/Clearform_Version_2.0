@@ -1,12 +1,25 @@
 import { useDispatch, useSelector } from 'react-redux';
 import { setActiveWorkspace } from '../../redux/slices/formsSlice';
 
+const shimmer = 'relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_1.5s_infinite] before:bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.6),transparent)]';
+const Sk = ({ className }) => <div className={`bg-[#ece9e3] ${shimmer} ${className}`} />;
+
 const ALL_CHIP = { id: 'all', label: 'All workspaces', color: null, count: null };
 
 const WorkspaceChips = () => {
   const dispatch = useDispatch();
-  const { activeWorkspace, workspaces } = useSelector((state) => state.forms);
+  const { activeWorkspace, workspaces, isLoading } = useSelector((state) => state.forms);
   const chips = [ALL_CHIP, ...workspaces];
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 px-6 py-3 flex-wrap">
+        {[108, 84, 96, 78, 90].map((w, i) => (
+          <Sk key={i} className="h-[28px] rounded-full" style={{ width: w }} />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-2 px-6 py-3 flex-wrap">

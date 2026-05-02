@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { RiNotification3Line } from 'react-icons/ri';
 import { openFormOverlay } from '../../redux/slices/uiSlice';
 import SearchDropdown from '../ui/SearchPalette';
+
+const shimmer = 'relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_1.5s_infinite] before:bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.6),transparent)]';
+const Sk = ({ className }) => <div className={`bg-[#ece9e3] ${shimmer} ${className}`} />;
 
 const SearchIcon = () => (
   <svg width="10" height="14" viewBox="0 0 10 14" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
@@ -13,6 +16,7 @@ const SearchIcon = () => (
 
 const Topbar = () => {
   const dispatch = useDispatch();
+  const isLoading = useSelector((s) => s.forms.isLoading);
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const containerRef = useRef(null);
@@ -46,6 +50,16 @@ const Topbar = () => {
     close();
     dispatch(openFormOverlay(form.id));
   };
+
+  if (isLoading) {
+    return (
+      <header className="h-[52px] shrink-0 bg-white border-b border-[#e5e3dc] flex items-center justify-between px-6 relative z-10">
+        <Sk className="h-[20px] w-[80px] rounded-[6px]" />
+        <Sk className="h-[38px] w-[400px] rounded-[8px]" />
+        <Sk className="h-8 w-8 rounded-[6px]" />
+      </header>
+    );
+  }
 
   return (
     <header className="h-[52px] shrink-0 bg-white border-b border-[#e5e3dc] flex items-center justify-between px-6 relative z-10">

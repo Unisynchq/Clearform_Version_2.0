@@ -38,6 +38,22 @@ const initialState = {
     formId: null,
     formTitle: '',
   },
+  workspaceContextMenu: {
+    open: false,
+    workspaceId: null,
+    x: 0,
+    y: 0,
+  },
+  renameWorkspaceModal: {
+    open: false,
+    workspaceId: null,
+    workspaceName: '',
+  },
+  deleteWorkspaceModal: {
+    open: false,
+    workspaceId: null,
+    workspaceName: '',
+  },
 };
 
 const uiSlice = createSlice({
@@ -101,6 +117,29 @@ const uiSlice = createSlice({
     closeShareModal(state) {
       state.shareModal = { open: false, formId: null, formTitle: '' };
     },
+    openWorkspaceContextMenu(state, action) {
+      const { workspaceId, x, y } = action.payload;
+      state.workspaceContextMenu = { open: true, workspaceId, x, y };
+    },
+    closeWorkspaceContextMenu(state) {
+      state.workspaceContextMenu = { open: false, workspaceId: null, x: 0, y: 0 };
+    },
+    openRenameWorkspaceModal(state, action) {
+      const { workspaceId, workspaceName } = action.payload;
+      state.renameWorkspaceModal = { open: true, workspaceId, workspaceName };
+      state.workspaceContextMenu = { open: false, workspaceId: null, x: 0, y: 0 };
+    },
+    closeRenameWorkspaceModal(state) {
+      state.renameWorkspaceModal = { open: false, workspaceId: null, workspaceName: '' };
+    },
+    openDeleteWorkspaceModal(state, action) {
+      const { workspaceId, workspaceName } = action.payload;
+      state.deleteWorkspaceModal = { open: true, workspaceId, workspaceName };
+      state.workspaceContextMenu = { open: false, workspaceId: null, x: 0, y: 0 };
+    },
+    closeDeleteWorkspaceModal(state) {
+      state.deleteWorkspaceModal = { open: false, workspaceId: null, workspaceName: '' };
+    },
   },
 });
 
@@ -121,6 +160,12 @@ export const {
   closeArchiveModal,
   openShareModal,
   closeShareModal,
+  openWorkspaceContextMenu,
+  closeWorkspaceContextMenu,
+  openRenameWorkspaceModal,
+  closeRenameWorkspaceModal,
+  openDeleteWorkspaceModal,
+  closeDeleteWorkspaceModal,
 } = uiSlice.actions;
 
 export default uiSlice.reducer;

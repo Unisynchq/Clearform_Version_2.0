@@ -38,10 +38,10 @@ const formsSlice = createSlice({
       state.forms.unshift(action.payload);
     },
     setFormPause(state, action) {
-      const { formId, endLabel, viewYear, viewMonth, selDay } = action.payload;
+      const { formId, endLabel, endTimestamp, pauseType, viewYear, viewMonth, selDay, hour, minute, ampm } = action.payload;
       const form = state.forms.find((f) => f.id === formId);
       if (form) {
-        form.pauseSettings = { confirmed: true, endLabel, viewYear, viewMonth, selDay };
+        form.pauseSettings = { confirmed: true, endLabel, endTimestamp: endTimestamp ?? null, pauseType, viewYear, viewMonth, selDay, hour, minute, ampm };
       }
     },
     clearFormPause(state, action) {
@@ -55,12 +55,26 @@ const formsSlice = createSlice({
       state.workspaces.push({ id, label, color, count: 0 });
       state.activeWorkspace = id;
     },
+    renameWorkspace(state, action) {
+      const { workspaceId, newName } = action.payload;
+      const ws = state.workspaces.find((w) => w.id === workspaceId);
+      if (ws) ws.label = newName;
+    },
+    deleteWorkspace(state, action) {
+      const workspaceId = action.payload;
+      state.workspaces = state.workspaces.filter((w) => w.id !== workspaceId);
+      if (state.activeWorkspace === workspaceId) state.activeWorkspace = 'all';
+    },
     deleteForm(state, action) {
       state.forms = state.forms.filter((f) => f.id !== action.payload);
     },
     archiveForm(state, action) {
       const form = state.forms.find((f) => f.id === action.payload);
       if (form) form.status = 'archived';
+    },
+    unarchiveForm(state, action) {
+      const form = state.forms.find((f) => f.id === action.payload);
+      if (form) form.status = 'live';
     },
   },
 });
@@ -76,15 +90,19 @@ export const {
   setFormPause,
   clearFormPause,
   addWorkspace,
+  renameWorkspace,
+  deleteWorkspace,
   deleteForm,
   archiveForm,
+  unarchiveForm,
 } = formsSlice.actions;
 
 export const selectFilteredForms = (state) => {
   const { forms, activeFilter, activeWorkspace, searchQuery } = state.forms;
   return forms.filter((form) => {
-    const matchesFilter =
-      activeFilter === 'all' || form.status === activeFilter;
+    const matchesFilter = activeFilter === 'archived'
+      ? form.status === 'archived'
+      : (activeFilter === 'all' || form.status === activeFilter) && form.status !== 'archived';
     const matchesWorkspace =
       activeWorkspace === 'all' || form.workspace === activeWorkspace;
     const matchesSearch =

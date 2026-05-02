@@ -1,11 +1,41 @@
 import { useDispatch, useSelector } from 'react-redux';
-import { RiFilter3Line, RiTimeLine, RiLayoutGridLine, RiMenuLine } from 'react-icons/ri';
+import { RiFilter3Line, RiTimeLine, RiLayoutGridLine, RiMenuLine, RiSettings3Line } from 'react-icons/ri';
 import { setActiveFilter, setViewMode } from '../../redux/slices/formsSlice';
+import { openWorkspaceContextMenu } from '../../redux/slices/uiSlice';
 import { FILTER_TABS } from '../../constants';
+
+const shimmer = 'relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_1.5s_infinite] before:bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.6),transparent)]';
+const Sk = ({ className }) => <div className={`bg-[#ece9e3] ${shimmer} ${className}`} />;
 
 const FilterTabs = () => {
   const dispatch = useDispatch();
-  const { activeFilter, viewMode } = useSelector((state) => state.forms);
+  const { activeFilter, viewMode, isLoading, activeWorkspace } = useSelector((state) => state.forms);
+
+  const handleSettingsClick = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    dispatch(openWorkspaceContextMenu({
+      workspaceId: activeWorkspace,
+      x: rect.left,
+      y: rect.bottom + 4,
+    }));
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-between px-6">
+        <div className="flex items-center gap-1 py-3">
+          {[64, 52, 72, 58].map((w, i) => (
+            <Sk key={i} className="h-[14px] rounded-[4px] mx-3" style={{ width: w }} />
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <Sk className="h-[32px] w-[74px] rounded-[8px]" />
+          <Sk className="h-[32px] w-[100px] rounded-[8px]" />
+          <Sk className="h-[32px] w-[58px] rounded-[8px]" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-between px-6">
@@ -64,6 +94,17 @@ const FilterTabs = () => {
             <RiMenuLine size={14} className="text-[#6b6966]" />
           </button>
         </div>
+
+        {/* Workspace settings — only visible when a specific workspace is selected */}
+        {activeWorkspace !== 'all' && (
+          <button
+            onClick={handleSettingsClick}
+            className="flex items-center justify-center w-[32px] h-[32px] bg-white border border-[#e5e3dc] rounded-lg hover:bg-[#f4f3ef] transition-colors cursor-pointer"
+            title="Workspace settings"
+          >
+            <RiSettings3Line size={14} className="text-[#6b6966]" />
+          </button>
+        )}
       </div>
     </div>
   );

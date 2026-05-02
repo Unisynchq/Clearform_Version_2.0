@@ -2,6 +2,7 @@ import { useDispatch } from 'react-redux';
 import { motion } from 'motion/react';
 import { RiFileTextLine } from 'react-icons/ri';
 import { openContextMenu, openFormOverlay } from '../../redux/slices/uiSlice';
+import { formatResponseCount } from '../../constants';
 
 const StatusBadge = ({ status }) => {
   const isLive = status === 'live';
@@ -72,7 +73,7 @@ const FormCard = ({ form }) => {
           <div className="flex items-center gap-1">
             <RiFileTextLine size={11} className="text-[#646464]" />
             <span className="text-[11px] font-normal text-[#646464] leading-[16.5px]">
-              {form.responses} {form.responses === 1 ? 'response' : 'responses'}
+              {formatResponseCount(form.responses)} {form.responses === 1 ? 'response' : 'responses'}
             </span>
           </div>
           <span className="text-[11px] font-normal text-[#646464] leading-[16.5px]">

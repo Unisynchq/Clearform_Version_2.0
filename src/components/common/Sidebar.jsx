@@ -1,7 +1,7 @@
 import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useState, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
   RiLayoutGridLine,
   RiAddLine,
@@ -11,7 +11,7 @@ import {
   RiQuestionLine,
 } from 'react-icons/ri';
 import { setActiveWorkspace } from '../../redux/slices/formsSlice';
-import { openCreateWorkspaceModal } from '../../redux/slices/uiSlice';
+import { openCreateWorkspaceModal, openWorkspaceContextMenu } from '../../redux/slices/uiSlice';
 import clearformLogo from '../../assets/clearform-high-resolution-logo-transparent.png';
 import SidebarSkeleton from '../ui/SidebarSkeleton';
 
@@ -43,10 +43,11 @@ const NavItem = ({ icon: Icon, label, badge, active, onClick }) => (
   </motion.button>
 );
 
-const WorkspaceItem = ({ workspace, active, onClick }) => (
+const WorkspaceItem = ({ workspace, active, onClick, onContextMenu }) => (
   <motion.button
     whileHover={{ backgroundColor: '#f4f3ef' }}
     onClick={onClick}
+    onContextMenu={onContextMenu}
     className={`w-full flex items-center justify-between px-4 py-2 rounded-lg cursor-pointer transition-colors ${
       active ? 'bg-[#f4f3ef]' : ''
     }`}
@@ -73,21 +74,23 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { activeWorkspace, workspaces } = useSelector((state) => state.forms);
+
+  const handleWorkspaceContextMenu = (e, wsId) => {
+    e.preventDefault();
+    dispatch(openWorkspaceContextMenu({ workspaceId: wsId, x: e.clientX, y: e.clientY }));
+  };
   const totalForms = useSelector((state) => state.forms.forms.length);
 
   const isTemplatesActive = location.pathname === '/dashboard/templates';
   const isDashboardActive = !isTemplatesActive;
 
-  const [loading, setLoading] = useState(false);
-  const timerRef = useRef(null);
+  const [loading, setLoading] = useState(true);
 
-  /* Trigger skeleton on any nav click, then reveal after SKELETON_DURATION ms */
-  const nav = (callback) => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setLoading(true);
-    callback();
-    timerRef.current = setTimeout(() => setLoading(false), SKELETON_DURATION);
-  };
+  /* Show skeleton only on initial page load/refresh, then hide after duration */
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), SKELETON_DURATION);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <aside className="w-[196px] shrink-0 bg-white border-r border-[#e5e3dc] flex flex-col h-full overflow-hidden">
@@ -129,10 +132,10 @@ const Sidebar = () => {
                 label="All forms"
                 badge={totalForms}
                 active={isDashboardActive && activeWorkspace === 'all'}
-                onClick={() => nav(() => {
+                onClick={() => {
                   navigate('/dashboard');
                   dispatch(setActiveWorkspace('all'));
-                })}
+                }}
               />
 
               {/* Divider */}
@@ -144,10 +147,11 @@ const Sidebar = () => {
                   key={ws.id}
                   workspace={ws}
                   active={isDashboardActive && activeWorkspace === ws.id}
-                  onClick={() => nav(() => {
+                  onClick={() => {
                     navigate('/dashboard');
                     dispatch(setActiveWorkspace(ws.id));
-                  })}
+                  }}
+                  onContextMenu={(e) => handleWorkspaceContextMenu(e, ws.id)}
                 />
               ))}
 
@@ -171,7 +175,7 @@ const Sidebar = () => {
                 icon={RiLayoutMasonryLine}
                 label="Templates"
                 active={isTemplatesActive}
-                onClick={() => nav(() => navigate('/dashboard/templates'))}
+                onClick={() => navigate('/dashboard/templates')}
               />
 
               {/* Intelligence section */}
@@ -185,7 +189,7 @@ const Sidebar = () => {
               <NavItem
                 icon={RiBarChartLine}
                 label="Analytics"
-                onClick={() => nav(() => {})}
+                onClick={() => {}}
               />
             </div>
 
@@ -194,12 +198,12 @@ const Sidebar = () => {
               <NavItem
                 icon={RiUserLine}
                 label="Profile"
-                onClick={() => nav(() => {})}
+                onClick={() => {}}
               />
               <NavItem
                 icon={RiQuestionLine}
                 label="Help & Support"
-                onClick={() => nav(() => {})}
+                onClick={() => {}}
               />
             </div>
           </motion.div>
