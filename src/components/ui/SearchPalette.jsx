@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -231,7 +232,7 @@ const SearchDropdown = ({ open, query, anchorRef, onClose, onSelectRecent, onFor
     onFormClick(form);
   };
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {open && (
         <>
@@ -274,7 +275,8 @@ const SearchDropdown = ({ open, query, anchorRef, onClose, onSelectRecent, onFor
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
 
