@@ -118,16 +118,16 @@ const StatCard = ({ label, value, sub, subNeutral, note }) => (
   </div>
 );
 
-/* ── Progress ring ── */
+/* ── Progress ring (62×62 outer, 8px stroke) ── */
 const ProgressRing = ({ pct }) => {
-  const r = 21;
+  const r = 23;
   const circ = 2 * Math.PI * r;
   const offset = circ - (pct / 100) * circ;
   return (
-    <svg width="56" height="56" className="block -rotate-90">
-      <circle cx="28" cy="28" r={r} strokeWidth="8" stroke="#e8e6e0" fill="none" />
+    <svg width="62" height="62" className="block -rotate-90">
+      <circle cx="31" cy="31" r={r} strokeWidth="8" stroke="#ede7ff" fill="none" />
       <circle
-        cx="28" cy="28" r={r}
+        cx="31" cy="31" r={r}
         strokeWidth="8" stroke="#7c3aed" fill="none"
         strokeLinecap="round"
         strokeDasharray={circ}
@@ -358,9 +358,9 @@ const FormOverlayModal = () => {
                     </p>
                     <div className="flex items-center gap-2 mt-[3px]">
                       <span className="text-[10.7px] text-[#888]">Draft</span>
-                      <span className="text-[#d4d2cc]">·</span>
+                      <span className="text-[11px] text-[#d4d2cc] leading-none">·</span>
                       <span className="text-[11.1px] text-[#888] capitalize">{form.workspace}</span>
-                      <span className="text-[#d4d2cc]">·</span>
+                      <span className="text-[11px] text-[#d4d2cc] leading-none">·</span>
                       <span className="text-[11.1px] text-[#767676]">Updated {form.timeAgo}</span>
                     </div>
                   </div>
@@ -461,9 +461,9 @@ const FormOverlayModal = () => {
                   )}
                   {!confirmedPause && (
                     <>
-                      <span className="text-[#d4d2cc]">·</span>
+                      <span className="text-[12px] text-[#d4d2cc] leading-none">·</span>
                       <span className="text-[12px] text-[#6b6966] capitalize">{form.workspace}</span>
-                      <span className="text-[#d4d2cc]">·</span>
+                      <span className="text-[12px] text-[#d4d2cc] leading-none">·</span>
                       <span className="text-[12px] text-[#a8a6a0]">Updated {form.timeAgo}</span>
                     </>
                   )}
@@ -492,7 +492,7 @@ const FormOverlayModal = () => {
                     Unarchive
                   </button>
                 ) : (
-                  <button className="flex items-center gap-1.5 px-3 py-[6px] text-[12px] font-medium text-white bg-[#1a1a1c] rounded-[7px] hover:bg-[#2c2c2e] transition-colors cursor-pointer whitespace-nowrap">
+                  <button className="flex items-center gap-1.5 px-3 py-[6px] text-[12px] font-medium text-white bg-[#1a1a1c] rounded-[8px] hover:bg-[#2c2c2e] transition-colors cursor-pointer whitespace-nowrap">
                     <RiBarChartLine size={12} />
                     View analytics
                   </button>
@@ -611,7 +611,7 @@ const FormOverlayModal = () => {
                 )}
 
                 {/* KPI row */}
-                <div className={`flex gap-[16px] items-start w-full transition-opacity ${confirmedPause || form.status === 'archived' || fetchError ? 'opacity-40 pointer-events-none' : ''}`}>
+                <div className={`flex gap-[16px] items-start w-[calc(100%-15px)] transition-opacity ${confirmedPause || form.status === 'archived' || fetchError ? 'opacity-40 pointer-events-none' : ''}`}>
                   <StatCard
                     label="Responses"
                     value={formatResponseCount(form.responses)}
@@ -640,20 +640,20 @@ const FormOverlayModal = () => {
                 )}
 
                 {/* Survey Target + Live Since row — hidden when paused, archived, or fetch error */}
-                <div className={`flex gap-[10px] items-stretch w-full ${confirmedPause || form.status === 'archived' || fetchError ? 'hidden' : ''}`}>
+                <div className={`flex gap-[10px] items-stretch w-[calc(100%-10px)] ${confirmedPause || form.status === 'archived' || fetchError ? 'hidden' : ''}`}>
 
-                  {/* Survey Target card */}
-                  <div className="bg-[#fafaf8] border border-[rgba(0,0,0,0.05)] rounded-[10px] p-[12px] flex flex-col gap-[10px] flex-1">
-                    <div className="flex items-center gap-[24px]">
-                      <div className="flex flex-col gap-[3px] w-[94px]">
-                        <p className="text-[13px] font-medium text-[#1a1814] leading-[19px]">Survey Target</p>
-                        <p className="text-[11px] font-medium text-[#737373] leading-[17px] whitespace-nowrap">
+                  {/* Survey Target card — matches Figma node 1138:29677 */}
+                  <div className="bg-[#fafaf8] border border-[rgba(0,0,0,0.05)] rounded-[10px] p-[16px] flex flex-col gap-[16px] justify-between flex-1">
+                    <div className="flex items-center justify-between gap-[12px]">
+                      <div className="flex flex-col gap-[4px] min-w-0 pl-[4px]">
+                        <p className="text-[14px] font-medium text-[#1a1814] leading-[19.5px]">Survey Target</p>
+                        <p className="text-[12px] font-medium text-[#737373] leading-[19.5px] whitespace-nowrap">
                           {form.responses} of 500 filled
                         </p>
                       </div>
-                      <div className="relative w-[56px] h-[56px] shrink-0">
+                      <div className="relative w-[62px] h-[62px] shrink-0">
                         <ProgressRing pct={completionPct} />
-                        <span className="absolute inset-0 flex items-center justify-center text-[11px] font-semibold leading-none tabular-nums text-[#1a1814]">
+                        <span className="absolute inset-0 flex items-center justify-center text-[12px] font-semibold leading-none tabular-nums text-[#1a1814]">
                           {completionPct}%
                         </span>
                       </div>
@@ -661,18 +661,18 @@ const FormOverlayModal = () => {
                     <PillRow text={`${Math.max(0, 500 - form.responses)} more responses needed`} />
                   </div>
 
-                  {/* Live Since card */}
-                  <div className="bg-[#fafaf8] border border-[rgba(0,0,0,0.05)] rounded-[10px] p-[12px] flex flex-col gap-[10px] flex-1">
-                    <div className="flex items-center gap-[24px] justify-center">
-                      <div className="flex flex-col gap-[3px] w-[94px]">
-                        <p className="text-[13px] font-medium text-[#1a1814] leading-[19px]">Live Since</p>
-                        <p className="text-[11px] font-medium text-[#737373] leading-[17px] whitespace-nowrap">
+                  {/* Live Since card — paddings/gaps mirrored to keep the row aligned with Survey Target */}
+                  <div className="bg-[#fafaf8] border border-[rgba(0,0,0,0.05)] rounded-[10px] p-[16px] flex flex-col gap-[16px] justify-between flex-1">
+                    <div className="flex items-center justify-between gap-[12px]">
+                      <div className="flex flex-col gap-[4px] min-w-0 pl-[4px]">
+                        <p className="text-[14px] font-medium text-[#1a1814] leading-[19.5px]">Live Since</p>
+                        <p className="text-[12px] font-medium text-[#737373] leading-[19.5px] whitespace-nowrap">
                           2 March 2026
                         </p>
                       </div>
-                      {/* 7 Days badge */}
+                      {/* 7 Days badge — sized to match the 64×64 progress ring */}
                       <div
-                        className="bg-[#f6f1ff] rounded-[10px] overflow-hidden shrink-0 w-[56px] h-[56px] flex items-end justify-center pb-[8px]"
+                        className="bg-[#f6f1ff] rounded-[10px] overflow-hidden shrink-0 w-[64px] h-[64px] flex items-end justify-center pb-[10px]"
                         style={{ borderTop: '10px solid #897dff' }}
                       >
                         <span className="text-[11px] font-semibold text-[#1a1814] leading-normal">
@@ -687,7 +687,7 @@ const FormOverlayModal = () => {
 
                 {/* AI insight — hidden when paused, archived, fetch error, or dismissed */}
                 {!confirmedPause && form.status !== 'archived' && !fetchError && !aiInsightDismissed && (
-                  <div className="bg-[#f5f3ff] border border-[#e0daff] rounded-[12px] p-[13px] flex flex-col gap-[10px] w-full">
+                  <div className="bg-[#f5f3ff] border border-[#e0daff] rounded-[12px] p-[13px] flex flex-col gap-[10px] w-[calc(100%-5px)]">
                     <p className="text-[12.1px] font-normal text-[#374151] leading-[20.8px]">
                       Sentiment positive, completion above benchmark — but Step 3 is losing 28% of respondents. Improve it to gain ~30 more completions.
                     </p>
