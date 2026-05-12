@@ -4,6 +4,7 @@ import SignupPage from '../pages/SignupPage';
 import SignInPage from '../pages/SignInPage';
 import AllFormsPage from '../pages/AllFormsPage';
 import TemplatesPage from '../pages/TemplatesPage';
+import AnalyticsPage from '../pages/AnalyticsPage';
 
 const AppRoutes = () => {
   return (
@@ -18,6 +19,7 @@ const AppRoutes = () => {
       <Route path="/dashboard" element={<MainLayout />}>
         <Route index element={<AllFormsPage />} />
         <Route path="templates" element={<TemplatesPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
       </Route>
     </Routes>
   );

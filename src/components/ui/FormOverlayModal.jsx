@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   RiEditLine, RiBarChartLine, RiCloseLine, RiSparklingLine,
@@ -191,6 +192,7 @@ function buildCalendarGrid(year, month) {
 
 const FormOverlayModal = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { open, formId } = useSelector((s) => s.ui.formOverlay);
   const form = useSelector((s) => s.forms.forms.find((f) => f.id === formId));
   const [isLoading, setIsLoading]             = useState(false);
@@ -491,7 +493,14 @@ const FormOverlayModal = () => {
                     Unarchive
                   </button>
                 ) : (
-                  <button className="flex items-center gap-1.5 px-3 py-[6px] text-[12px] font-medium text-white bg-[#1a1a1c] rounded-[8px] hover:bg-[#2c2c2e] transition-colors cursor-pointer whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      dispatch(closeFormOverlay());
+                      navigate(`/dashboard/analytics?form=${form.id}`);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-[6px] text-[12px] font-medium text-white bg-[#1a1a1c] rounded-[8px] hover:bg-[#2c2c2e] transition-colors cursor-pointer whitespace-nowrap"
+                  >
                     <RiBarChartLine size={12} />
                     View analytics
                   </button>

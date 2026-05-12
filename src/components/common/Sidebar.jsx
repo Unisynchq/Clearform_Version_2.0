@@ -82,7 +82,8 @@ const Sidebar = () => {
   const totalForms = useSelector((state) => state.forms.forms.length);
 
   const isTemplatesActive = location.pathname === '/dashboard/templates';
-  const isDashboardActive = !isTemplatesActive;
+  const isAnalyticsActive = location.pathname === '/dashboard/analytics';
+  const isDashboardActive = !isTemplatesActive && !isAnalyticsActive;
 
   const [loading, setLoading] = useState(true);
 
@@ -189,7 +190,8 @@ const Sidebar = () => {
               <NavItem
                 icon={RiBarChartLine}
                 label="Analytics"
-                onClick={() => {}}
+                active={isAnalyticsActive}
+                onClick={() => navigate('/dashboard/analytics')}
               />
             </div>
 
