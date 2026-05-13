@@ -41,7 +41,7 @@ const FormCard = ({ form }) => {
   const compareModeActive = useSelector((s) => s.ui.compareMode.active);
   const selectedFormIds = useSelector((s) => s.ui.compareMode.selectedFormIds);
   const isSelected = selectedFormIds.includes(form.id);
-  const isMaxed = selectedFormIds.length >= 4;
+  const isMaxed = selectedFormIds.length >= 2;
   const isDisabled = compareModeActive && isMaxed && !isSelected;
   const isTargetReached = !!form.responseLimit && form.responses >= form.responseLimit;
 

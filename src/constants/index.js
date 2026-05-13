@@ -28,6 +28,8 @@ export const FORMS_DATA = [
   {
     id: 1,
     title: 'NPS Survey Q1 2026',
+    /** Demo: 10 questions → Figma “scenario 1” river variant. */
+    questionCount: 10,
     status: 'live',
     responses: 500,
     responseLimit: 500,
@@ -41,6 +43,8 @@ export const FORMS_DATA = [
   {
     id: 2,
     title: 'Onboarding Feedback',
+    /** Demo: short form → compact river (8 columns). */
+    questionCount: 8,
     status: 'live',
     responses: 91,
     timeAgo: '5d ago',
@@ -55,6 +59,8 @@ export const FORMS_DATA = [
   {
     id: 3,
     title: 'Bug Report Template',
+    /** Demo: 5-question wide connected river (New folder (2)). */
+    questionCount: 5,
     status: 'draft',
     responses: 0,
     timeAgo: '7h ago',
@@ -95,6 +101,8 @@ export const FORMS_DATA = [
   {
     id: 6,
     title: 'Marketing CSAT Q1',
+    /** Demo: four questions — river shows “not enough data” (form still has responses). */
+    questionCount: 4,
     status: 'live',
     responses: 34,
     timeAgo: '3d ago',

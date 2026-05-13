@@ -1,0 +1,239 @@
+import { useCallback, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
+import { RiArrowLeftSLine, RiArrowRightSLine } from 'react-icons/ri';
+
+const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+function stripTime(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function sameDay(a, b) {
+  if (!a || !b) return false;
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function beforeDay(a, b) {
+  return stripTime(a).getTime() < stripTime(b).getTime();
+}
+
+/** Up to 42 cells (6×7), Sunday-first; null = padding. */
+function monthGrid(year, month) {
+  const first = new Date(year, month, 1);
+  const pad = first.getDay();
+  const dim = new Date(year, month + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < pad; i++) cells.push(null);
+  for (let d = 1; d <= dim; d++) cells.push(new Date(year, month, d));
+  while (cells.length % 7 !== 0) cells.push(null);
+  while (cells.length < 42) cells.push(null);
+  return cells;
+}
+
+function monthTitle(d) {
+  return d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+}
+
+/**
+ * Figma-aligned custom range picker (node 2286:3579): month header, Su–Sa row, grid, range highlight.
+ */
+export default function CustomRangeDatePicker({
+  initialStart = null,
+  initialEnd = null,
+  onApply,
+  onCancel,
+}) {
+  const now = useMemo(() => new Date(), []);
+  const [view, setView] = useState(() => {
+    const base = initialStart ? stripTime(initialStart) : stripTime(now);
+    return { y: base.getFullYear(), m: base.getMonth() };
+  });
+  const [start, setStart] = useState(() => (initialStart ? stripTime(initialStart) : null));
+  const [end, setEnd] = useState(() => (initialEnd ? stripTime(initialEnd) : null));
+
+  const cells = useMemo(() => monthGrid(view.y, view.m), [view.y, view.m]);
+
+  const handleDayClick = useCallback(
+    (date) => {
+      if (!date) return;
+      const d = stripTime(date);
+      if (!start || (start && end)) {
+        setStart(d);
+        setEnd(null);
+        return;
+      }
+      if (beforeDay(d, start)) {
+        setStart(d);
+        setEnd(null);
+        return;
+      }
+      setEnd(d);
+    },
+    [start, end],
+  );
+
+  const prevMonth = () => {
+    setView((v) => {
+      const d = new Date(v.y, v.m - 1, 1);
+      return { y: d.getFullYear(), m: d.getMonth() };
+    });
+  };
+  const nextMonth = () => {
+    setView((v) => {
+      const d = new Date(v.y, v.m + 1, 1);
+      return { y: d.getFullYear(), m: d.getMonth() };
+    });
+  };
+
+  const canApply = Boolean(start && end);
+  const rangeLo =
+    start && end ? (beforeDay(start, end) ? stripTime(start) : stripTime(end)) : null;
+  const rangeHi =
+    start && end ? (beforeDay(start, end) ? stripTime(end) : stripTime(start)) : null;
+
+  const getDayButtonClass = (date) => {
+    const d = stripTime(date);
+    const t = d.getTime();
+    const base =
+      'relative min-h-[32px] flex w-full max-w-[36px] items-center justify-center text-[12px] font-medium text-[#0a0a0a] transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-[rgba(74,79,237,0.35)]';
+
+    if (!start) {
+      return `${base} rounded-[8px] hover:bg-[#fafaf8]`;
+    }
+    if (!end) {
+      if (sameDay(d, start)) return `${base} rounded-[8px] bg-[#e9e7e0]`;
+      return `${base} rounded-[8px] hover:bg-[#fafaf8]`;
+    }
+    const loT = rangeLo.getTime();
+    const hiT = rangeHi.getTime();
+    if (t < loT || t > hiT) return `${base} rounded-[8px] hover:bg-[#fafaf8]`;
+    if (loT === hiT) return `${base} rounded-[8px] bg-[#e9e7e0]`;
+    if (t === loT) return `${base} rounded-l-[8px] bg-[#e9e7e0]`;
+    if (t === hiT) return `${base} rounded-r-[8px] bg-[#e9e7e0]`;
+    return `${base} rounded-none bg-[#f0efe9]`;
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 6, scale: 0.98 }}
+      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+      className="w-[min(272px,calc(100vw-20px))] rounded-[10px] border border-[#dedede] bg-white p-3.5 shadow-[0px_3px_2px_rgba(0,0,0,0.08),0px_1px_2px_rgba(0,0,0,0.06)]"
+      role="dialog"
+      aria-label="Custom date range"
+    >
+      <h2 className="text-center text-[13px] font-semibold leading-snug text-[#0a0a0a] tracking-tight">
+        Custom range
+      </h2>
+      <p className="mt-0.5 text-center text-[10px] leading-snug text-[#6b6860]">
+        {start && !end
+          ? 'Select end date'
+          : !start
+            ? 'Select start date'
+            : 'Tap dates to adjust range'}
+      </p>
+
+      <div className="mt-3 flex items-center justify-between gap-1.5">
+        <motion.button
+          type="button"
+          whileTap={{ scale: 0.92 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+          className="flex size-8 shrink-0 items-center justify-center rounded-[8px] text-[#0a0a0a] hover:bg-[#f4f3ef] cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[rgba(74,79,237,0.35)]"
+          onClick={prevMonth}
+          aria-label="Previous month"
+        >
+          <RiArrowLeftSLine size={16} />
+        </motion.button>
+        <div className="min-w-0 flex-1 text-center">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.p
+              key={`${view.y}-${view.m}`}
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="truncate text-[13px] font-semibold leading-snug text-[#0a0a0a]"
+            >
+              {monthTitle(new Date(view.y, view.m, 1))}
+            </motion.p>
+          </AnimatePresence>
+        </div>
+        <motion.button
+          type="button"
+          whileTap={{ scale: 0.92 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+          className="flex size-8 shrink-0 items-center justify-center rounded-[8px] text-[#0a0a0a] hover:bg-[#f4f3ef] cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[rgba(74,79,237,0.35)]"
+          onClick={nextMonth}
+          aria-label="Next month"
+        >
+          <RiArrowRightSLine size={16} />
+        </motion.button>
+      </div>
+
+      <div className="mt-2.5 grid grid-cols-7 gap-y-0.5">
+        {WEEKDAYS.map((w) => (
+          <div
+            key={w}
+            className="flex h-7 items-center justify-center text-[10px] font-normal text-[#6b6860]"
+          >
+            {w}
+          </div>
+        ))}
+        {cells.map((date, idx) => (
+          <div key={idx} className="flex min-h-[32px] items-stretch justify-center p-px">
+            {date ? (
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.94 }}
+                transition={{ type: 'spring', stiffness: 550, damping: 32 }}
+                onClick={() => handleDayClick(date)}
+                className={`${getDayButtonClass(date)} cursor-pointer`}
+              >
+                {date.getDate()}
+              </motion.button>
+            ) : (
+              <span className="min-h-[32px] w-full max-w-[36px]" aria-hidden />
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center justify-end gap-1.5 border-t border-[#eceae4] pt-2.5">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-[6px] px-3 py-1.5 text-[11px] font-medium text-[#6b6860] hover:bg-[#f4f3ef] cursor-pointer transition-colors"
+        >
+          Cancel
+        </button>
+        <motion.button
+          type="button"
+          disabled={!canApply}
+          whileTap={canApply ? { scale: 0.98 } : {}}
+          onClick={() => canApply && onApply?.({ start: rangeLo, end: rangeHi })}
+          className="rounded-[6px] bg-[#17160e] px-3 py-1.5 text-[11px] font-medium text-white hover:bg-[#2c2c2e] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer transition-opacity"
+        >
+          Apply
+        </motion.button>
+      </div>
+    </motion.div>
+  );
+}
+
+export function formatCustomRangeLabel(start, end) {
+  const lo = beforeDay(start, end) ? stripTime(start) : stripTime(end);
+  const hi = beforeDay(start, end) ? stripTime(end) : stripTime(start);
+  const y1 = lo.getFullYear();
+  const y2 = hi.getFullYear();
+  const m1 = lo.toLocaleString('en-US', { month: 'short' });
+  const m2 = hi.toLocaleString('en-US', { month: 'short' });
+  const d1 = lo.getDate();
+  const d2 = hi.getDate();
+  if (y1 === y2) return `${m1} ${d1} – ${m2} ${d2}, ${y1}`;
+  return `${m1} ${d1}, ${y1} – ${m2} ${d2}, ${y2}`;
+}

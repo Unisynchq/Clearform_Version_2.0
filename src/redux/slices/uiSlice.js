@@ -169,12 +169,30 @@ const uiSlice = createSlice({
       const ids = state.compareMode.selectedFormIds;
       if (ids.includes(formId)) {
         state.compareMode.selectedFormIds = ids.filter((id) => id !== formId);
-      } else if (ids.length < 4) {
+      } else if (ids.length < 2) {
         state.compareMode.selectedFormIds = [...ids, formId];
       }
     },
     clearCompareSelection(state) {
       state.compareMode.selectedFormIds = [];
+    },
+    /**
+     * From Analytics Compare: activate picker mode without wiping existing
+     * multi-select — merges `formId` if missing (cap 2), matching Forms compare.
+     */
+    openAnalyticsComparePicker(state, action) {
+      const { formId } = action.payload;
+      state.compareMode.active = true;
+      const cur = [...state.compareMode.selectedFormIds];
+      if (!cur.includes(formId)) {
+        state.compareMode.selectedFormIds =
+          cur.length >= 2 ? cur : [...cur, formId];
+      }
+      state.contextMenu = { open: false, formId: null, x: 0, y: 0 };
+    },
+    /** Close compare UI (e.g. modal) but keep selected ids for Analytics row. */
+    deactivateCompareModeKeepSelection(state) {
+      state.compareMode.active = false;
     },
   },
 });
@@ -208,6 +226,8 @@ export const {
   closeCompareMode,
   toggleCompareForm,
   clearCompareSelection,
+  openAnalyticsComparePicker,
+  deactivateCompareModeKeepSelection,
 } = uiSlice.actions;
 
 export default uiSlice.reducer;

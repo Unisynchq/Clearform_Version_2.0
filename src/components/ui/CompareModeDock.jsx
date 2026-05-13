@@ -8,7 +8,7 @@ import {
   clearCompareSelection,
 } from '../../redux/slices/uiSlice';
 
-const MAX_FORMS = 4;
+const MAX_FORMS = 2;
 
 const WORKSPACE_COLORS = {
   product: '#2563eb',

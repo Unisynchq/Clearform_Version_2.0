@@ -171,20 +171,34 @@ const AnalyticsPage = () => {
           <div className="flex flex-col gap-5 max-w-[1400px] mx-auto">
             <AnalyticsStatsRow />
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
-              <AnalyticsFunnelCard />
+              <AnalyticsFunnelCard form={selectedForm} />
               <AnalyticsDailyResponsesCard />
             </div>
-            <AnalyticsDropoffRiverCard />
+            <AnalyticsDropoffRiverCard form={selectedForm} />
           </div>
         );
       case 'responses':
-        return <AnalyticsResponsesPanel rangeLabel={rangeLabel} />;
+        return (
+          <AnalyticsResponsesPanel
+            form={selectedForm}
+            rangeLabel={rangeLabel}
+            onRangeChange={setRangeLabel}
+          />
+        );
       case 'compare':
-        return <AnalyticsComparePanel currentForm={selectedForm} />;
+        return <AnalyticsComparePanel currentForm={selectedForm} rangeLabel={rangeLabel} />;
       case 'settings':
         return <AnalyticsSettingsPanel form={selectedForm} />;
       case 'ai':
-        return <AnalyticsAiInsightsPanel formTitle={selectedForm?.title} />;
+        return (
+          <AnalyticsAiInsightsPanel
+            form={selectedForm}
+            rangeLabel={rangeLabel}
+            insightsNoDataInRange={false}
+            onClearDateFilter={() => setRangeLabel('All time')}
+            onShareForm={handleShareSurvey}
+          />
+        );
       default:
         return null;
     }
@@ -197,18 +211,18 @@ const AnalyticsPage = () => {
           <button
             type="button"
             onClick={() => openExport('CSV')}
-            className="flex items-center gap-1.5 h-8 px-[13px] rounded-[8px] border border-[#96948d] text-[12px] text-[#6a6860] hover:bg-[#f4f3ef] transition-colors cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg border border-[#96948d] text-[12px] text-[#6a6860] hover:bg-[#f4f3ef] transition-colors cursor-pointer whitespace-nowrap"
           >
-            <RiDownloadLine size={12} />
-            Export CSV
+            <RiDownloadLine size={12} aria-hidden />
+            <span>Export CSV</span>
           </button>
           <button
             type="button"
             onClick={goEditForm}
-            className="flex items-center gap-1.5 h-8 px-[14px] rounded-[8px] bg-[#17160e] text-[12px] font-medium text-white hover:bg-[#2c2c2e] cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg bg-[#17160e] text-[12px] font-medium text-white hover:bg-[#2c2c2e] cursor-pointer whitespace-nowrap"
           >
-            <RiPencilLine size={13} />
-            Edit form
+            <RiPencilLine size={13} aria-hidden />
+            <span>Edit form</span>
           </button>
         </>
       );
@@ -219,15 +233,15 @@ const AnalyticsPage = () => {
           <button
             type="button"
             onClick={() => openExport('PDF')}
-            className="flex items-center gap-1.5 h-8 px-[13px] rounded-[8px] border border-[#96948d] text-[12px] text-[#6a6860] hover:bg-[#f4f3ef] cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg border border-[#96948d] text-[12px] text-[#6a6860] hover:bg-[#f4f3ef] cursor-pointer whitespace-nowrap"
           >
-            <RiDownloadLine size={12} />
-            Export
+            <RiDownloadLine size={12} aria-hidden />
+            <span>Export</span>
           </button>
           <button
             type="button"
             onClick={handleShareReport}
-            className="flex items-center gap-1.5 h-8 px-[13px] rounded-[8px] border border-[#96948d] text-[12px] text-[#6a6860] hover:bg-[#f4f3ef] cursor-pointer"
+            className="inline-flex items-center justify-center h-9 px-4 rounded-lg border border-[#96948d] text-[12px] text-[#6a6860] hover:bg-[#f4f3ef] cursor-pointer whitespace-nowrap"
           >
             Share report
           </button>
@@ -235,7 +249,7 @@ const AnalyticsPage = () => {
             type="button"
             onClick={goBuilder}
             disabled={!selectedForm}
-            className="h-8 px-[14px] rounded-[8px] bg-[#17160e] text-[12px] font-medium text-white hover:bg-[#2c2c2e] disabled:opacity-45 cursor-pointer"
+            className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-[#17160e] text-[12px] font-medium text-white hover:bg-[#2c2c2e] disabled:opacity-45 cursor-pointer whitespace-nowrap"
           >
             Go to Builder →
           </button>
@@ -248,16 +262,16 @@ const AnalyticsPage = () => {
         <button
           type="button"
           onClick={() => openExport('PDF')}
-          className="flex items-center gap-1.5 h-8 px-[13px] rounded-[8px] border border-[#96948d] text-[12px] text-[#6a6860] hover:bg-[#f4f3ef] cursor-pointer"
+          className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg border border-[#96948d] text-[12px] text-[#6a6860] hover:bg-[#f4f3ef] cursor-pointer whitespace-nowrap"
         >
-          <RiDownloadLine size={12} />
-          Export
+          <RiDownloadLine size={12} aria-hidden />
+          <span>Export</span>
         </button>
         <button
           type="button"
           onClick={goBuilder}
           disabled={!selectedForm}
-          className="h-8 px-[14px] rounded-[8px] bg-[#17160e] text-[12px] font-medium text-white hover:bg-[#2c2c2e] disabled:opacity-45 cursor-pointer"
+          className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-[#17160e] text-[12px] font-medium text-white hover:bg-[#2c2c2e] disabled:opacity-45 cursor-pointer whitespace-nowrap"
         >
           Go to Builder →
         </button>
@@ -276,19 +290,19 @@ const AnalyticsPage = () => {
         defaultFormat={exportFormatDefault}
       />
       <div className="flex flex-col min-h-full bg-[#f4f3ef]">
-        <header className="sticky top-0 z-20 shrink-0 bg-white border-b border-[#e9e7e0] min-h-[52px] flex items-center justify-between px-6 gap-4 py-2">
+        <header className="sticky top-0 z-20 shrink-0 bg-white border-b border-[#e9e7e0] min-h-[56px] flex items-center justify-between gap-6 px-6 py-2">
           <div className="flex items-center gap-2 min-w-0 flex-1 text-[12.5px]">
             <span className="text-[#646464] shrink-0">Analytics</span>
             <span className="text-[#656462] text-[10px] shrink-0">›</span>
-            <span className="text-[#646464] shrink-0">Forms</span>
-            <span className="text-[#656462] text-[10px] shrink-0">›</span>
-            <div className="relative min-w-0" ref={formMenuRef}>
+            <span className="text-[#646464] shrink-0 hidden sm:inline">Forms</span>
+            <span className="text-[#656462] text-[10px] shrink-0 hidden sm:inline">›</span>
+            <div className="relative min-w-0 max-w-[240px]" ref={formMenuRef}>
               <button
                 type="button"
                 onClick={() => setFormMenuOpen((o) => !o)}
-                className="flex items-center gap-1.5 max-w-[280px] border border-[rgba(0,0,0,0.1)] rounded-[6px] px-3 py-1 hover:bg-[#f4f3ef] cursor-pointer text-left"
+                className="flex w-full items-center gap-1.5 rounded-lg border border-[rgba(0,0,0,0.1)] px-3 py-1.5 text-left hover:bg-[#f4f3ef] cursor-pointer"
               >
-                <span className="font-medium text-[#17160e] truncate">
+                <span className="min-w-0 flex-1 truncate font-medium text-[#17160e]">
                   {selectedForm?.title ?? 'Select a form'}
                 </span>
                 <RiArrowDownSLine
@@ -314,27 +328,38 @@ const AnalyticsPage = () => {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+          <div className="flex items-center justify-end gap-3 shrink-0">
             {headerActions()}
           </div>
         </header>
 
-        <div className="sticky top-[52px] z-10 shrink-0 bg-white border-b border-[#e9e7e0] min-h-10 flex items-center justify-between px-6 gap-3 py-1">
-          <nav className="flex items-center gap-0 overflow-x-auto">
-            {MAIN_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`shrink-0 px-3 min-h-10 text-[13px] border-b-2 transition-colors cursor-pointer ${
-                  activeTab === tab.id
-                    ? 'border-[#17160e] font-medium text-[#17160e]'
-                    : 'border-transparent text-[#646464] hover:text-[#17160e]'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+        <div className="sticky top-[56px] z-10 shrink-0 bg-white border-b border-[#e9e7e0] min-h-10 flex items-center justify-between px-6 gap-3 py-1">
+          <nav className="flex items-center gap-1 overflow-x-auto py-1">
+            {MAIN_TABS.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`relative shrink-0 px-3 h-8 text-[13px] rounded-[8px] cursor-pointer transition-colors duration-200 ease-out ${
+                    isActive
+                      ? 'font-medium text-[#17160e]'
+                      : 'text-[#646464] hover:text-[#17160e] hover:bg-black/[0.035]'
+                  }`}
+                >
+                  {isActive ? (
+                    <motion.span
+                      layoutId="analytics-active-tab"
+                      transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                      className="absolute inset-0 rounded-[8px] bg-black/[0.06]"
+                      aria-hidden
+                    />
+                  ) : null}
+                  <span className="relative z-10">{tab.label}</span>
+                </button>
+              );
+            })}
           </nav>
           {showDateFilter ? (
             <div className="relative shrink-0 py-1" ref={rangeRef}>
