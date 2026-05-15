@@ -1,0 +1,131 @@
+function QuickStatsSentimentBlock({ sentiment }) {
+  if (sentiment.mode === 'segments') {
+    return (
+      <div className="flex flex-col gap-[10.287px] pb-[2.546px] pt-[2.559px]">
+        <p className="text-[13.502px] font-medium leading-[20.253px] tracking-[0.27px] text-[#99968e]">
+          Sentiment Distribution
+        </p>
+        <div className="flex h-[10.274px] w-full gap-[2.572px] overflow-hidden rounded-[5.143px]">
+          <div
+            className="h-full rounded-l-[5.143px] bg-[#abebab]"
+            style={{ width: `${sentiment.positive}%` }}
+          />
+          <motion.div className="h-full bg-[#fbdba7]" style={{ width: `${sentiment.neutral}%` }} />
+          <div
+            className="h-full rounded-r-[5.143px] bg-[#ec7063]"
+            style={{ width: `${sentiment.negative}%` }}
+          />
+        </motion.div>
+        <div className="flex justify-center pt-[2.572px]">
+          {[
+            { key: 'positive', color: '#1a6133', label: 'Positive' },
+            { key: 'neutral', color: '#15140e', label: 'Neutral' },
+            { key: 'negative', color: '#b33030', label: 'Negative' },
+          ].map(({ key, color, label }) => (
+            <div key={key} className="flex min-w-0 flex-1 flex-col">
+              <p className="text-[19.288px] font-semibold leading-[19.288px]" style={{ color }}>
+                {sentiment[key]}%
+              </p>
+              <p className="text-[14.145px] font-normal leading-[21.217px] text-[#99968e]">{label}</p>
+            </motion.div>
+          ))}
+        </motion.div>
+      </motion.div>
+    );
+  }
+
+  const accentColor = sentiment.singleColor;
+  return (
+    <div className="flex flex-col gap-[10px]">
+      <p className="pt-0.5 text-[11px] font-normal leading-normal text-[#999]">Sentiment Distribution</p>
+      <div className="flex h-[10px] w-full overflow-hidden rounded-[5px]">
+        <div className="h-full w-full rounded-[5px]" style={{ backgroundColor: accentColor }} />
+      </motion.div>
+      <div className="flex gap-5">
+        {[
+          { key: 'positive', label: 'Positive' },
+          { key: 'neutral', label: 'Neutral' },
+          { key: 'negative', label: 'Negative' },
+        ].map(({ key, label }) => {
+          const isAccent = sentiment.accentLabel === key;
+          return (
+            <motion.div key={key} className="flex flex-col gap-[2px]">
+              <p
+                className={`text-[17px] font-bold leading-normal ${isAccent ? '' : 'text-[#ccc]'}`}
+                style={isAccent ? { color: accentColor } : undefined}
+              >
+                {sentiment[key]}%
+              </p>
+              <p className="text-[11px] font-normal text-[#999]">{label}</p>
+            </motion.div>
+          );
+        })}
+      </motion.div>
+      {sentiment.footnote ? (
+        <p className="text-[11px] font-normal leading-normal text-[#999]">{sentiment.footnote}</p>
+      ) : null}
+    </motion.div>
+  );
+}
+
+function QuickStatsCard({ form }) {
+  const sentiment = useMemo(() => quickStatsSentimentVariant(form), [form]);
+  const isSegments = sentiment.mode === 'segments';
+
+  return (
+    <div className="flex flex-col gap-[20.574px] overflow-hidden rounded-[18px] border-[1.286px] border-[rgba(0,0,0,0.11)] bg-white px-[30px] py-[27px]">
+      {isSegments ? (
+        <>
+          <div className="flex items-center justify-between">
+            <p className="text-[16px] font-semibold leading-[25.075px] text-[#15140e]">Quick Stats</p>
+            <MoreDetailsTrigger open={false} onClick={() => {}} />
+          </motion.div>
+          <QuickStatsSentimentBlock sentiment={sentiment} />
+        </>
+      ) : (
+        <div className="-mx-1 flex flex-col gap-[10px] p-5">
+          <p className="text-[15px] font-normal text-[#111]">Quick Stats</p>
+          <QuickStatsSentimentBlock sentiment={sentiment} />
+        </motion.div>
+      )}
+
+      <div className="h-[0.63px] w-full bg-[rgba(0,0,0,0.07)]" aria-hidden />
+
+      <div className="flex flex-col gap-[10.261px] pb-[2.559px]">
+        <p className="text-[13.502px] font-medium leading-[20.253px] tracking-[0.27px] text-[#99968e]">
+          Top Issue Category
+        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex flex-col">
+            <p className="text-[20px] font-semibold leading-[34.719px] text-[#15140e]">Performance</p>
+            <p className="text-[14.788px] font-normal leading-[22.181px] text-[#99968e]">
+              of all feedback mentions
+            </p>
+          </motion.div>
+          <p className="shrink-0 text-[40px] font-medium leading-[41.148px] text-[#15140e]">42%</p>
+        </motion.div>
+      </motion.div>
+
+      <div className="h-[0.63px] w-full bg-[rgba(0,0,0,0.07)]" aria-hidden />
+
+      <div className="flex flex-col gap-[10.261px]">
+        <p className="text-[13.502px] font-medium leading-[20.253px] tracking-[0.27px] text-[#99968e]">
+          7-Day Trend
+        </p>
+        <div className="flex h-[46.279px] w-full items-end justify-center gap-[5.143px]">
+          {TREND_BARS.map((b, i) => (
+            <div
+              key={i}
+              className="min-w-0 flex-1 rounded-t-[3.858px]"
+              style={{
+                height: `${b.height}%`,
+                backgroundColor: b.color,
+                opacity: b.opacity,
+              }}
+            />
+          ))}
+        </motion.div>
+      </motion.div>
+    </motion.div>
+  );
+}

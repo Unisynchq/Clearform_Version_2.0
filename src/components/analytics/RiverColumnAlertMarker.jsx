@@ -1,53 +1,91 @@
-import { useId } from 'react';
-
-const ACCENT = {
-  critical: '#DC2626',
-  attention: '#CA8A04',
-};
+import {
+  RIVER_ALERT_LABEL_COLOR as LABEL,
+  RIVER_ALERT_PILL_FILL as PILL_FILL,
+  RIVER_ALERT_PILL_BORDER as PILL_BORDER,
+  RIVER_BADGE_FONT_FAMILY,
+  RIVER_COLUMN_VB_W,
+  getRiverAlertMarkerLayout,
+  measureRiverBadgeLabel,
+} from './riverAlertMarkerSpec';
 
 /**
- * Drop-off river column alert — Figma `2286:3720` (soft ribbon) + `2286:3721` (solid dot).
- * Pure SVG (no `<img>` / remote assets). Renders a `<g>` for use inside the column SVG.
+ * Drop-off alert: compact **pill** (−NN%) above the band + soft seam hairline.
+ * Pill width is intrinsic (text + padding); radius is a full capsule when tall enough.
  *
  * @param {'critical' | 'attention'} variant
- * @param {number} [cx=30] — horizontal center in parent viewBox units
- * @param {number} [y=-20.5] — vertical anchor for wave + dot
+ * @param {string | null} [drop]
+ * @param {{ yTL: number, yTR: number, yBR: number, cornerR: number }} riverMarker
+ * @param {number} [questionCount]
  */
-export function RiverColumnAlertMarker({ variant = 'critical', cx = 30, y = -20.5 }) {
-  const accent = variant === 'attention' ? ACCENT.attention : ACCENT.critical;
-  const blurId = `river-alert-soft-${useId().replace(/:/g, '')}`;
+export function RiverColumnAlertMarker({ variant = 'critical', drop = null, riverMarker, questionCount }) {
+  const accent = variant === 'attention' ? LABEL.attention : LABEL.critical;
+  const fill = variant === 'attention' ? PILL_FILL.attention : PILL_FILL.critical;
+  const border = variant === 'attention' ? PILL_BORDER.attention : PILL_BORDER.critical;
+
+  const { yTL, yTR, yBR, cornerR } = riverMarker;
+  const L = getRiverAlertMarkerLayout(questionCount ?? 22);
+
+  const xSeam = RIVER_COLUMN_VB_W - L.seamInsetX;
+  const bandTop = Math.min(yTL, yTR) + L.offsetY;
+  const yHairTop = yTR + cornerR * 1.05 + L.offsetY;
+  const yHairBot = yBR - cornerR * 1.05 + L.offsetY;
+
+  const text = drop ?? '';
+  const ink = text ? measureRiverBadgeLabel(text, L.fontSize, L.fontWeight) : { width: 0, height: 0 };
+  const pillW = ink.width + L.padX * 2;
+  const pillH = ink.height + L.padY * 2;
+  const pillRx = Math.min(pillW, pillH) / 2;
+  const pillX = xSeam - pillW / 2;
+  const pillY = bandTop - L.gapPillToRiver - pillH;
+  const textY = pillY + pillH / 2;
 
   return (
     <g style={{ pointerEvents: 'none' }}>
-      <defs>
-        <filter id={blurId} x="-55%" y="-55%" width="210%" height="210%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="1.15" />
-        </filter>
-      </defs>
-      {/* 2286:3720 — pale translucent wave / ribbon */}
-      <path
-        d={`M ${cx - 25.5} ${y + 1.2}
-           Q ${cx - 12} ${y - 3.4} ${cx} ${y - 0.4}
-           Q ${cx + 12} ${y + 2.6} ${cx + 25.5} ${y - 0.3}
-           L ${cx + 23.5} ${y + 2.5}
-           Q ${cx + 10.5} ${y + 5} ${cx} ${y + 2.6}
-           Q ${cx - 10.5} ${y + 0.2} ${cx - 23.5} ${y + 2.8}
-           Z`}
-        fill={accent}
-        fillOpacity={0.2}
-        filter={`url(#${blurId})`}
-      />
-      {/* Non-blurred stroke so the wave reads on light backgrounds */}
-      <path
-        d={`M ${cx - 24} ${y + 0.2} Q ${cx - 11} ${y - 2.8} ${cx} ${y - 0.2} Q ${cx + 11} ${y + 2.4} ${cx + 24} ${y}`}
-        fill="none"
-        stroke={accent}
-        strokeOpacity={0.22}
-        strokeWidth={1.65}
-        strokeLinecap="round"
-      />
-      {/* 2286:3721 — compact status dot */}
-      <circle cx={cx} cy={y - 1.4} r={3.15} fill={accent} />
+      {yHairBot > yHairTop ? (
+        <line
+          x1={xSeam}
+          x2={xSeam}
+          y1={yHairTop}
+          y2={yHairBot}
+          stroke={accent}
+          strokeOpacity={L.hairOpacity}
+          strokeWidth={L.hairStroke}
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      ) : null}
+
+      {drop ? (
+        <>
+          <rect
+            x={pillX}
+            y={pillY}
+            width={pillW}
+            height={pillH}
+            rx={pillRx}
+            ry={pillRx}
+            fill={fill}
+            stroke={border}
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
+          />
+          <text
+            x={xSeam}
+            y={textY}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fill={accent}
+            style={{
+              fontSize: L.fontSize,
+              fontWeight: L.fontWeight,
+              fontFamily: RIVER_BADGE_FONT_FAMILY,
+              letterSpacing: '-0.02em',
+            }}
+          >
+            {drop}
+          </text>
+        </>
+      ) : null}
     </g>
   );
 }

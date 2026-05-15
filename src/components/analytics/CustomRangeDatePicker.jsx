@@ -99,22 +99,22 @@ export default function CustomRangeDatePicker({
     const d = stripTime(date);
     const t = d.getTime();
     const base =
-      'relative min-h-[32px] flex w-full max-w-[36px] items-center justify-center text-[12px] font-medium text-[#0a0a0a] transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-[rgba(74,79,237,0.35)]';
+      'relative min-h-[28px] flex w-full max-w-[34px] items-center justify-center text-[12px] font-medium text-[#0a0a0a] transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-[rgba(74,79,237,0.35)]';
 
     if (!start) {
-      return `${base} rounded-[8px] hover:bg-[#fafaf8]`;
+      return `${base} rounded-[6px] hover:bg-white/70`;
     }
     if (!end) {
-      if (sameDay(d, start)) return `${base} rounded-[8px] bg-[#e9e7e0]`;
-      return `${base} rounded-[8px] hover:bg-[#fafaf8]`;
+      if (sameDay(d, start)) return `${base} rounded-[6px] bg-[#e9e7e0]`;
+      return `${base} rounded-[6px] hover:bg-white/70`;
     }
     const loT = rangeLo.getTime();
     const hiT = rangeHi.getTime();
-    if (t < loT || t > hiT) return `${base} rounded-[8px] hover:bg-[#fafaf8]`;
-    if (loT === hiT) return `${base} rounded-[8px] bg-[#e9e7e0]`;
-    if (t === loT) return `${base} rounded-l-[8px] bg-[#e9e7e0]`;
-    if (t === hiT) return `${base} rounded-r-[8px] bg-[#e9e7e0]`;
-    return `${base} rounded-none bg-[#f0efe9]`;
+    if (t < loT || t > hiT) return `${base} rounded-[6px] hover:bg-white/70`;
+    if (loT === hiT) return `${base} rounded-[6px] bg-[#e9e7e0]`;
+    if (t === loT) return `${base} rounded-l-[6px] bg-[#e9e7e0]`;
+    if (t === hiT) return `${base} rounded-r-[6px] bg-[#e9e7e0]`;
+    return `${base} rounded-none bg-[#eceae4]`;
   };
 
   return (
@@ -123,14 +123,14 @@ export default function CustomRangeDatePicker({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 6, scale: 0.98 }}
       transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-      className="w-[min(272px,calc(100vw-20px))] rounded-[10px] border border-[#dedede] bg-white p-3.5 shadow-[0px_3px_2px_rgba(0,0,0,0.08),0px_1px_2px_rgba(0,0,0,0.06)]"
+      className="w-[min(272px,calc(100vw-24px))] rounded-[8px] border border-[#dedede] bg-[#f7f7f8] px-3.5 pt-3.5 pb-3 shadow-[0px_4px_3px_rgba(0,0,0,0.1),0px_2px_2px_rgba(0,0,0,0.1)]"
       role="dialog"
-      aria-label="Custom date range"
+      aria-label="Select a date range"
     >
-      <h2 className="text-center text-[13px] font-semibold leading-snug text-[#0a0a0a] tracking-tight">
-        Custom range
+      <h2 className="text-center text-[14px] font-medium leading-snug text-[#0a0a0a]">
+        Select a date range
       </h2>
-      <p className="mt-0.5 text-center text-[10px] leading-snug text-[#6b6860]">
+      <p className="mt-0.5 text-center text-[10px] leading-snug text-[#4a5565]">
         {start && !end
           ? 'Select end date'
           : !start
@@ -138,12 +138,12 @@ export default function CustomRangeDatePicker({
             : 'Tap dates to adjust range'}
       </p>
 
-      <div className="mt-3 flex items-center justify-between gap-1.5">
+      <motion.div className="mt-2.5 flex items-center justify-between gap-1">
         <motion.button
           type="button"
           whileTap={{ scale: 0.92 }}
           transition={{ type: 'spring', stiffness: 500, damping: 28 }}
-          className="flex size-8 shrink-0 items-center justify-center rounded-[8px] text-[#0a0a0a] hover:bg-[#f4f3ef] cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[rgba(74,79,237,0.35)]"
+          className="flex size-7 shrink-0 items-center justify-center rounded-[6px] text-[#0a0a0a] hover:bg-white/80 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[rgba(74,79,237,0.35)]"
           onClick={prevMonth}
           aria-label="Previous month"
         >
@@ -167,25 +167,25 @@ export default function CustomRangeDatePicker({
           type="button"
           whileTap={{ scale: 0.92 }}
           transition={{ type: 'spring', stiffness: 500, damping: 28 }}
-          className="flex size-8 shrink-0 items-center justify-center rounded-[8px] text-[#0a0a0a] hover:bg-[#f4f3ef] cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[rgba(74,79,237,0.35)]"
+          className="flex size-7 shrink-0 items-center justify-center rounded-[6px] text-[#0a0a0a] hover:bg-white/80 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[rgba(74,79,237,0.35)]"
           onClick={nextMonth}
           aria-label="Next month"
         >
           <RiArrowRightSLine size={16} />
         </motion.button>
-      </div>
+      </motion.div>
 
-      <div className="mt-2.5 grid grid-cols-7 gap-y-0.5">
+      <div className="mt-2 grid grid-cols-7 gap-y-0.5">
         {WEEKDAYS.map((w) => (
           <div
             key={w}
-            className="flex h-7 items-center justify-center text-[10px] font-normal text-[#6b6860]"
+            className="flex h-6 items-center justify-center text-[10px] font-normal text-[#4a5565]"
           >
             {w}
           </div>
         ))}
         {cells.map((date, idx) => (
-          <div key={idx} className="flex min-h-[32px] items-stretch justify-center p-px">
+          <div key={idx} className="flex min-h-[28px] items-stretch justify-center">
             {date ? (
               <motion.button
                 type="button"
@@ -197,13 +197,13 @@ export default function CustomRangeDatePicker({
                 {date.getDate()}
               </motion.button>
             ) : (
-              <span className="min-h-[32px] w-full max-w-[36px]" aria-hidden />
+              <span className="min-h-[28px] w-full max-w-[34px]" aria-hidden />
             )}
           </div>
         ))}
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-end gap-1.5 border-t border-[#eceae4] pt-2.5">
+      <motion.div className="mt-2.5 flex flex-wrap items-center justify-end gap-1.5 border-t border-[#dedede] pt-2.5">
         <button
           type="button"
           onClick={onCancel}
@@ -220,7 +220,7 @@ export default function CustomRangeDatePicker({
         >
           Apply
         </motion.button>
-      </div>
+      </motion.div>
     </motion.div>
   );
 }

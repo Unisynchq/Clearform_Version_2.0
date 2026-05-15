@@ -83,7 +83,9 @@ const Sidebar = () => {
 
   const isTemplatesActive = location.pathname === '/dashboard/templates';
   const isAnalyticsActive = location.pathname === '/dashboard/analytics';
-  const isDashboardActive = !isTemplatesActive && !isAnalyticsActive;
+  const isProfileActive = location.pathname.startsWith('/dashboard/profile');
+  const isDashboardActive =
+    !isTemplatesActive && !isAnalyticsActive && !isProfileActive;
 
   const [loading, setLoading] = useState(true);
 
@@ -200,7 +202,8 @@ const Sidebar = () => {
               <NavItem
                 icon={RiUserLine}
                 label="Profile"
-                onClick={() => {}}
+                active={isProfileActive}
+                onClick={() => navigate('/dashboard/profile')}
               />
               <NavItem
                 icon={RiQuestionLine}

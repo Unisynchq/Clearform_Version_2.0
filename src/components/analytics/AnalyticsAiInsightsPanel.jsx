@@ -11,8 +11,11 @@ import {
   RiCloseLine,
   RiErrorWarningLine,
 } from 'react-icons/ri';
+import QuickStatsCard from './aiInsights/QuickStatsCard';
+import RecommendedActionsCard from './aiInsights/RecommendedActionsCard';
+import MoreDetailsTrigger from './aiInsights/MoreDetailsTrigger';
 
-const LOAD_MS = 1400;
+const LOAD_MS = 1800;
 const MIN_RESPONSES_FOR_AI = 10;
 /** Figma 19322 — reliable Top Patterns need more responses than general AI insights */
 const MIN_RESPONSES_PATTERNS = 25;
@@ -73,189 +76,6 @@ const TOP_PATTERNS = [
   },
 ];
 
-const TREND_BARS = [
-  { height: 30, color: '#efecea', opacity: 1 },
-  { height: 48, color: '#c5d9cc', opacity: 1 },
-  { height: 55, color: '#c5d9cc', opacity: 1 },
-  { height: 38, color: '#efecea', opacity: 1 },
-  { height: 72, color: '#1a6133', opacity: 0.6 },
-  { height: 88, color: '#1a6133', opacity: 0.6 },
-  { height: 100, color: '#1a6133', opacity: 0.6 },
-];
-
-const RECOMMENDED_ACTIONS = [
-  {
-    index: '01',
-    title: 'Prioritize mobile responsive design improvements',
-    tags: [
-      { label: 'High Impact', bg: '#fbf0f0', border: 'rgba(179,48,48,0.15)', color: '#b33030' },
-      { label: 'Urgent', bg: '#fef3e2', border: 'rgba(138,85,8,0.15)', color: '#8a5508' },
-    ],
-  },
-  {
-    index: '02',
-    title: 'Implement multi-language support for forms',
-    tags: [
-      { label: 'High Impact', bg: '#fbf0f0', border: 'rgba(179,48,48,0.15)', color: '#b33030' },
-    ],
-  },
-  {
-    index: '03',
-    title: 'Add a placeholder to Q2 and make it optional',
-    tags: [
-      { label: 'Quick win', bg: '#ebf5ef', border: 'rgba(26,97,51,0.15)', color: '#1a6133' },
-    ],
-  },
-];
-
-/** Figma 2241:19649 — copy + metrics for expanded Recommended Actions */
-const RECOMMENDED_ACTIONS_EXPANDED = [
-  {
-    index: '01',
-    title: 'Prioritize mobile responsive design improvements',
-    body: [
-      '67% of users flag mobile UX as a critical pain point. Improving responsive layouts across',
-      'form views and the analytics dashboard will directly address the top-growing complaint',
-      'category (+14% WoW).',
-    ],
-    tags: [
-      { label: 'High Impact', bg: '#fdeaea', border: 'transparent', color: '#c94040' },
-      { label: 'Urgent', bg: '#fdeaea', border: 'transparent', color: '#c94040' },
-    ],
-    estImpact: '+18% retention',
-    usersAffected: '807 users',
-    confidence: 'High (92%)',
-    effortFilled: 3,
-    effortLabel: 'Medium-High',
-    ctaHint: 'Sprint ready',
-  },
-  {
-    index: '02',
-    title: 'Implement multi-language support for forms',
-    body: [
-      'Survey responses indicate 23% of users are operating in non-English locales. Adding',
-      'Spanish, French, and German would unlock an estimated 280 additional monthly',
-      'completions based on drop-off patterns.',
-    ],
-    tags: [{ label: 'High Impact', bg: '#fdeaea', border: 'transparent', color: '#c94040' }],
-    estImpact: '+23% completion',
-    usersAffected: '280+ users',
-    confidence: 'Medium (76%)',
-    effortFilled: 4,
-    effortLabel: 'High',
-    ctaHint: 'Needs scoping',
-  },
-  {
-    index: '03',
-    title: 'Add a placeholder to Q2 and make it optional',
-    body: [
-      'Q2 has an 18% abandonment spike. Adding helper text and removing the required',
-      'constraint could recover 5–9 pts of completion rate with under 30 minutes of engineering',
-      'effort.',
-    ],
-    tags: [{ label: 'Quick win', bg: '#e8f5ef', border: 'transparent', color: '#2d7a5a' }],
-    estImpact: '+5–9pt completion',
-    usersAffected: '~216 users',
-    confidence: 'High (89%)',
-    effortFilled: 1,
-    effortLabel: 'Very Low',
-    ctaHint: 'Ship today',
-  },
-];
-
-function hashFormId(formId) {
-  const s = String(formId ?? 'default');
-  let h = 0;
-  for (let i = 0; i < s.length; i += 1) {
-    h = (h + s.charCodeAt(i) * (i + 1)) % 100000;
-  }
-  return h;
-}
-
-/** Figma 2241:19429 / 19478 / 19527 sentiment variations */
-function quickStatsSentimentVariant(form) {
-  const v = hashFormId(form?.id) % 4;
-  if (v === 0) {
-    return {
-      key: 'balanced',
-      positive: 68,
-      neutral: 22,
-      negative: 10,
-      mode: 'segments',
-      footnote: null,
-    };
-  }
-  if (v === 1) {
-    return {
-      key: 'neutral100',
-      positive: 0,
-      neutral: 100,
-      negative: 0,
-      mode: 'single',
-      singleColor: '#e8a830',
-      accentLabel: 'neutral',
-      footnote: 'Responses appear predominantly factual with limited sentiment signals.',
-    };
-  }
-  if (v === 2) {
-    return {
-      key: 'negative100',
-      positive: 0,
-      neutral: 0,
-      negative: 100,
-      mode: 'single',
-      singleColor: '#ec7063',
-      accentLabel: 'negative',
-      footnote: 'Responses appear predominantly factual with limited sentiment signals.',
-    };
-  }
-  return {
-    key: 'positive100',
-    positive: 100,
-    neutral: 0,
-    negative: 0,
-    mode: 'single',
-    singleColor: '#abebab',
-    accentLabel: 'positive',
-    footnote: 'Responses appear predominantly factual with limited sentiment signals.',
-  };
-}
-
-function MoreDetailsTrigger({ open, onClick }) {
-  return (
-    <motion.button
-      type="button"
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.97 }}
-      onClick={onClick}
-      aria-expanded={open}
-      aria-label={open ? 'Show overview' : 'Show more details'}
-      className="rounded-[7.715px] px-[13px] py-[4px] text-[14.788px] font-normal text-[#99968e] hover:bg-[#fafaf8] cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[rgba(74,79,237,0.25)]"
-    >
-      {open ? 'Overview' : 'More Details'}
-    </motion.button>
-  );
-}
-
-function EffortDots({ filled, total = 5 }) {
-  return (
-    <div className="flex items-center gap-[3px]">
-      {Array.from({ length: total }, (_, i) => (
-        <span
-          key={i}
-          className="size-[6px] shrink-0 rounded-[3px]"
-          style={{ backgroundColor: i < filled ? '#1a1a18' : '#e8e8e3' }}
-          aria-hidden
-        />
-      ))}
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Figma 2241:19367 — Failed to load patterns (inner)                        */
-/* -------------------------------------------------------------------------- */
-
 function PatternsFailedInner({ onRetry }) {
   return (
     <div className="flex w-full gap-3 rounded-[10px] border border-[#f5c0c0] bg-[#fff3f3] px-[16.714px] py-[14.714px]">
@@ -294,9 +114,7 @@ function TopPatternsErrorCard({ onRetry }) {
     <div className="flex min-h-0 flex-col bg-white px-[29.718px] pb-[40px] pt-[27.145px] border-[1.286px] border-[rgba(0,0,0,0.11)] rounded-[18px]">
       <div className="flex w-full items-center justify-between pb-[23.133px]">
         <p className="text-[16px] font-semibold leading-[25.075px] text-[#15140e]">Top Patterns</p>
-        <span className="rounded-[7.715px] px-[13px] py-1 text-[14.788px] font-normal text-[#dadada] select-none">
-          More Details
-        </span>
+        <MoreDetailsTrigger open={false} onClick={() => {}} disabled />
       </div>
       <PatternsFailedInner onRetry={onRetry} />
     </div>
@@ -510,42 +328,52 @@ function AiInsightsLoading() {
     >
       <div className="flex flex-col items-center gap-2 text-center">
         <div className="relative flex size-[64px] items-center justify-center" aria-hidden>
-          <svg width="48" height="48" viewBox="0 0 48 48" className="block overflow-visible">
-            <circle
-              cx="24"
-              cy="24"
-              r={SPINNER_R}
-              fill="none"
-              stroke="#F4F4F5"
-              strokeWidth="3"
-            />
-            <motion.g
-              style={{ transformOrigin: '24px 24px' }}
-              initial={{ rotate: 0 }}
-              animate={{ rotate: 360 }}
-              transition={{ duration: 0.9, repeat: Infinity, ease: 'linear' }}
-            >
-              <circle
-                cx="24"
-                cy="24"
-                r={SPINNER_R}
-                fill="none"
-                stroke="#18181b"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeDasharray={`${SPINNER_ARC} ${SPINNER_GAP}`}
-                transform="rotate(-90 24 24)"
-              />
-            </motion.g>
+          <svg
+            width="48"
+            height="48"
+            viewBox="0 0 48 48"
+            className="absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2 overflow-visible"
+          >
+            <circle cx="24" cy="24" r={SPINNER_R} fill="none" stroke="#F4F4F5" strokeWidth="3" />
           </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <motion.div
+              className="size-[48px]"
+              style={{ transformOrigin: '50% 50%' }}
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+            >
+              <svg width="48" height="48" viewBox="0 0 48 48" className="block overflow-visible">
+                <circle
+                  cx="24"
+                  cy="24"
+                  r={SPINNER_R}
+                  fill="none"
+                  stroke="#18181b"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeDasharray={`${SPINNER_ARC} ${SPINNER_GAP}`}
+                  transform="rotate(-90 24 24)"
+                />
+              </svg>
+            </motion.div>
+          </div>
         </div>
 
-        <p className="pt-1 text-[15px] font-semibold leading-normal text-[#18181b]">
+        <motion.p
+          className="pt-1 text-[15px] font-semibold leading-normal text-[#18181b]"
+          animate={{ opacity: [0.82, 1, 0.82] }}
+          transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+        >
           Analyzing your form…
-        </p>
-        <p className="text-[12px] font-normal leading-normal text-[#71717a]">
+        </motion.p>
+        <motion.p
+          className="text-[12px] font-normal leading-normal text-[#71717a]"
+          animate={{ opacity: [0.65, 1, 0.65] }}
+          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 0.12 }}
+        >
           AI is analysing data to provide insights
-        </p>
+        </motion.p>
       </div>
     </motion.div>
   );
@@ -647,8 +475,50 @@ function PriorityFocusCard() {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Top Patterns — Figma 2241:18344                                           */
+/*  Top Patterns — Figma 2241:18740 (compact) / 18344 (expanded)              */
 /* -------------------------------------------------------------------------- */
+
+function TopPatternsCompactRow({ pattern: p, isLast }) {
+  return (
+    <div
+      className={`flex items-center gap-[18px] ${
+        isLast ? 'pt-4' : 'border-b border-[rgba(0,0,0,0.07)] py-4'
+      }`}
+    >
+      <div className="w-[75px] shrink-0 flex justify-end">
+        <span
+          className="text-[33.433px] font-medium leading-[33.433px] text-right tabular-nums"
+          style={{ color: p.percentColor }}
+        >
+          {p.percent}%
+        </span>
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[16px] font-medium leading-[22.567px] text-[#15140e]">{p.label}</p>
+        <div className="mt-[6px] h-[5.131px] w-full overflow-hidden rounded-[2.572px] bg-[#efecea]">
+          <div
+            className="h-full rounded-[2.572px]"
+            style={{
+              width: `${p.percent}%`,
+              backgroundColor: p.barColor,
+              opacity: 0.5,
+            }}
+          />
+        </div>
+        <span
+          className="mt-[9px] inline-flex items-center rounded-[25.717px] border-[1.286px] px-[11.716px] py-[4px] text-[12.859px] font-semibold leading-[19.288px]"
+          style={{
+            backgroundColor: p.tagBg,
+            borderColor: p.tagBorder,
+            color: p.tagColor,
+          }}
+        >
+          {p.tag}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 function TopPatternsCard() {
   const [expanded, setExpanded] = useState(false);
@@ -656,7 +526,7 @@ function TopPatternsCard() {
   return (
     <div className="bg-white border-[1.286px] border-[rgba(0,0,0,0.11)] rounded-[18px] px-[30px] pt-[27px] pb-[27px] overflow-hidden">
       <div
-        className={`flex items-center justify-between pb-[20px] pt-0 ${
+        className={`flex items-center justify-between pb-[20px] ${
           expanded ? 'border-b border-[#efefeb]' : ''
         }`}
       >
@@ -676,9 +546,7 @@ function TopPatternsCard() {
             </p>
           ) : null}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <MoreDetailsTrigger open={expanded} onClick={() => setExpanded((v) => !v)} />
-        </div>
+        <MoreDetailsTrigger open={expanded} onClick={() => setExpanded((v) => !v)} />
       </div>
 
       <AnimatePresence mode="wait" initial={false}>
@@ -695,12 +563,14 @@ function TopPatternsCard() {
               {TOP_PATTERNS.map((p, idx) => (
                 <div
                   key={p.label}
-                  className={`pb-[17px] ${idx < TOP_PATTERNS.length - 1 ? 'border-b border-[rgba(0,0,0,0.07)]' : ''}`}
+                  className={`pb-[17px] ${
+                    idx < TOP_PATTERNS.length - 1 ? 'border-b border-[rgba(0,0,0,0.07)]' : ''
+                  }`}
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-[18px]">
                     <div className="w-[75px] shrink-0 sm:flex sm:justify-end">
                       <span
-                        className="text-[33.433px] font-medium leading-[33.433px] sm:text-right"
+                        className="text-[33.433px] font-medium leading-[33.433px] sm:text-right tabular-nums"
                         style={{ color: p.percentColor }}
                       >
                         {p.percent}%
@@ -720,7 +590,9 @@ function TopPatternsCard() {
                           {p.pillLabel}
                         </span>
                       </div>
-                      <p className="mt-2 text-[13px] font-normal leading-[20.1px] text-[#6b6b65]">{p.description}</p>
+                      <p className="mt-2 text-[13px] font-normal leading-[20.1px] text-[#6b6b65]">
+                        {p.description}
+                      </p>
                       <p className="mt-4 text-[13.502px] font-medium uppercase tracking-[0.27px] text-[#99968e]">
                         User Feedback Examples
                       </p>
@@ -741,414 +613,20 @@ function TopPatternsCard() {
             </div>
           </motion.div>
         ) : (
-          <motion.ul
+          <motion.div
             key="compact"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="flex flex-col"
           >
             {TOP_PATTERNS.map((p, idx) => (
-              <li
+              <TopPatternsCompactRow
                 key={p.label}
-                className={`flex items-center gap-[18px] pt-[16px] pb-[18px] ${
-                  idx < TOP_PATTERNS.length - 1 ? 'border-b-[1.429px] border-[rgba(0,0,0,0.07)]' : ''
-                }`}
-              >
-                <div className="w-[75px] shrink-0 flex items-center justify-end">
-                  <span
-                    className="text-[33.433px] font-medium leading-[33.433px] text-right"
-                    style={{ color: p.percentColor }}
-                  >
-                    {p.percent}%
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[16px] font-medium leading-[22.567px] text-[#15140e]">{p.label}</p>
-                  <div className="mt-[6px] h-[5.131px] w-full overflow-hidden bg-[#efecea] rounded-[2.572px]">
-                    <div
-                      className="h-full rounded-[2.572px]"
-                      style={{
-                        width: `${p.percent}%`,
-                        backgroundColor: p.barColor,
-                        opacity: 0.5,
-                      }}
-                    />
-                  </div>
-                  <span
-                    className="mt-[9px] inline-flex items-center rounded-[25.717px] border-[1.286px] px-[11.716px] py-[4px] text-[12.859px] font-semibold leading-[19.288px]"
-                    style={{
-                      backgroundColor: p.tagBg,
-                      borderColor: p.tagBorder,
-                      color: p.tagColor,
-                    }}
-                  >
-                    {p.tag}
-                  </span>
-                </div>
-              </li>
+                pattern={p}
+                isLast={idx === TOP_PATTERNS.length - 1}
+              />
             ))}
-          </motion.ul>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Quick Stats — Figma 2241:18380                                            */
-/* -------------------------------------------------------------------------- */
-
-function QuickStatsCard({ form }) {
-  const [expanded, setExpanded] = useState(false);
-  const sentiment = useMemo(() => quickStatsSentimentVariant(form), [form]);
-
-  const pctStyle = (bucket) => {
-    if (sentiment.mode === 'single') {
-      if (sentiment.accentLabel === bucket) {
-        return { className: 'text-[17px] font-bold', color: sentiment.singleColor };
-      }
-      return { className: 'text-[17px] font-bold text-[#ccc]', color: undefined };
-    }
-    const colors = {
-      positive: '#1a6133',
-      neutral: '#15140e',
-      negative: '#b33030',
-    };
-    return { className: 'text-[19.288px] font-semibold leading-[19.288px]', color: colors[bucket] };
-  };
-
-  return (
-    <div className="bg-white border-[1.286px] border-[rgba(0,0,0,0.11)] rounded-[18px] px-[30px] py-[27px] flex flex-col gap-[20.574px] overflow-hidden">
-      <div className="flex items-center justify-between">
-        <p
-          className={
-            expanded
-              ? 'text-[15px] font-normal text-[#111]'
-              : 'text-[16px] font-semibold leading-[25.075px] text-[#15140e]'
-          }
-        >
-          Quick Stats
-        </p>
-        <div className="flex shrink-0 items-center gap-2">
-          <MoreDetailsTrigger open={expanded} onClick={() => setExpanded((v) => !v)} />
-        </div>
-      </div>
-
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={`${expanded ? 'ex' : 'cmp'}-${sentiment.key}`}
-          initial={{ opacity: 0.85 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0.85 }}
-          transition={{ duration: 0.2 }}
-          className={expanded ? 'rounded-[0] -mx-[10px] flex flex-col gap-[10px] p-[20px]' : 'flex flex-col gap-[10.287px]'}
-        >
-          <p
-            className={
-              expanded
-                ? 'text-[11px] font-normal leading-normal text-[#999]'
-                : 'text-[13.502px] font-medium leading-[20.253px] tracking-[0.27px] text-[#99968e]'
-            }
-          >
-            Sentiment Distribution
-          </p>
-
-          {sentiment.mode === 'segments' ? (
-            <div className="flex gap-[2.572px] h-[10.274px] overflow-hidden rounded-[5.143px] w-full">
-              <div className="h-full bg-[#abebab] rounded-l-[5.143px]" style={{ width: `${sentiment.positive}%` }} />
-              <div className="h-full bg-[#fbdba7]" style={{ width: `${sentiment.neutral}%` }} />
-              <div className="h-full bg-[#ec7063] rounded-r-[5.143px]" style={{ width: `${sentiment.negative}%` }} />
-            </div>
-          ) : (
-            <div className="flex h-[10px] w-full overflow-hidden rounded-[5px]">
-              <div className="h-full flex-1 rounded-[5px]" style={{ backgroundColor: sentiment.singleColor }} />
-            </div>
-          )}
-
-          <div
-            className={
-              expanded
-                ? 'flex flex-wrap gap-x-5 gap-y-2 items-start'
-                : 'flex items-start justify-center pt-[2.572px]'
-            }
-          >
-            {['positive', 'neutral', 'negative'].map((bucket) => {
-              const labels = { positive: 'Positive', neutral: 'Neutral', negative: 'Negative' };
-              const values = {
-                positive: sentiment.positive,
-                neutral: sentiment.neutral,
-                negative: sentiment.negative,
-              };
-              const st = pctStyle(bucket);
-              return (
-                <div
-                  key={bucket}
-                  className={
-                    expanded
-                      ? 'flex min-w-[72px] flex-col gap-[2px]'
-                      : 'flex-1 min-w-0 flex flex-col items-start self-stretch'
-                  }
-                >
-                  <p className={st.className} style={st.color ? { color: st.color } : undefined}>
-                    {values[bucket]}%
-                  </p>
-                  <p
-                    className={
-                      expanded
-                        ? 'text-[11px] font-normal text-[#999]'
-                        : 'text-[14.145px] font-normal leading-[21.217px] text-[#99968e]'
-                    }
-                  >
-                    {labels[bucket]}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-
-          {expanded && sentiment.footnote ? (
-            <p className="text-[11px] font-normal leading-normal text-[#999]">{sentiment.footnote}</p>
-          ) : null}
-        </motion.div>
-      </AnimatePresence>
-
-      <div className="h-[0.63px] w-full bg-[rgba(0,0,0,0.07)]" />
-
-      <div className="flex flex-col gap-[10.261px]">
-        <p className="text-[13.502px] font-medium leading-[20.253px] tracking-[0.27px] text-[#99968e]">
-          Top Issue Category
-        </p>
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex flex-col min-w-0">
-            <p className="text-[20px] font-semibold leading-[34.719px] text-[#15140e]">Performance</p>
-            <p className="text-[14.788px] font-normal leading-[22.181px] text-[#99968e]">
-              of all feedback mentions
-            </p>
-          </div>
-          <p className="text-[40px] font-medium leading-[41.148px] text-[#15140e] whitespace-nowrap">42%</p>
-        </div>
-      </div>
-
-      <div className="h-[0.63px] w-full bg-[rgba(0,0,0,0.07)]" />
-
-      <div className="flex flex-col gap-[10.261px]">
-        <p className="text-[13.502px] font-medium leading-[20.253px] tracking-[0.27px] text-[#99968e]">7-Day Trend</p>
-        <div className="flex gap-[5.143px] h-[46.279px] items-end justify-center w-full">
-          {TREND_BARS.map((b, i) => (
-            <div
-              key={i}
-              className="flex-1 rounded-t-[3.858px]"
-              style={{
-                height: `${b.height}%`,
-                backgroundColor: b.color,
-                opacity: b.opacity,
-              }}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Recommended Actions — Figma 2241:18431                                    */
-/* -------------------------------------------------------------------------- */
-
-function RecommendedActionsCard() {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <div
-      className={
-        expanded
-          ? 'rounded-[16px] border border-[#e8e8e3] bg-white p-px shadow-[0px_24px_80px_rgba(0,0,0,0.18),0px_8px_24px_rgba(0,0,0,0.08)]'
-          : 'rounded-[18px] border-[1.286px] border-[rgba(0,0,0,0.11)] bg-white px-[30px] py-[27px]'
-      }
-    >
-      <div
-        className={`flex items-start justify-between border-b border-[#efefeb] pb-[20.714px] pt-6 px-[28px] ${
-          expanded ? '' : 'border-0 px-0 pb-[20px] pt-0'
-        }`}
-      >
-        <div className="min-w-0 pr-4">
-          <p
-            className={
-              expanded
-                ? 'text-[18px] font-semibold tracking-[-0.36px] text-[#1a1a18] leading-[21.6px]'
-                : 'text-[16.716px] font-semibold leading-[25.075px] text-[#15140e]'
-            }
-          >
-            Recommended Actions
-          </p>
-          {expanded ? (
-            <p className="mt-1 text-[13px] font-normal leading-normal text-[#9b9b95]">
-              AI-prioritised based on impact & effort · 6 actions total
-            </p>
-          ) : null}
-        </div>
-        <div className="flex shrink-0 items-center gap-2 pt-0.5">
-          <MoreDetailsTrigger open={expanded} onClick={() => setExpanded((v) => !v)} />
-        </div>
-      </div>
-
-      <AnimatePresence mode="wait" initial={false}>
-        {expanded ? (
-          <motion.div
-            key="rec-ex"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.22 }}
-          >
-            <div className="border-b border-[#efefeb]">
-              <div className="grid grid-cols-2 divide-x divide-y divide-[#efefeb] sm:grid-cols-4">
-                {[
-                  { n: '3', l: 'High Impact' },
-                  { n: '2', l: 'Quick Wins' },
-                  { n: '1', l: 'Long-term' },
-                  { n: '312+', l: 'Users impacted', accent: '#2d7a5a' },
-                ].map((c) => (
-                  <div key={c.l} className="flex flex-col gap-1 py-4 pl-5 pr-5 sm:pr-[20.714px]">
-                    <p
-                      className="text-[26px] font-bold leading-[26px] tracking-[-1.04px]"
-                      style={{ color: c.accent ?? '#1a1a18' }}
-                    >
-                      {c.n}
-                    </p>
-                    <p className="text-[11.5px] font-normal text-[#9b9b95]">{c.l}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {RECOMMENDED_ACTIONS_EXPANDED.map((a, idx) => (
-              <div
-                key={a.index}
-                className={`@container grid grid-cols-1 gap-4 border-b border-[#efefeb] px-5 py-5 @md:grid-cols-[28px_1fr_minmax(120px,140px)] @md:gap-x-4 @md:px-7 ${
-                  idx === RECOMMENDED_ACTIONS_EXPANDED.length - 1 ? 'border-b-0' : ''
-                }`}
-              >
-                <div className="hidden text-[11px] font-semibold tracking-[0.44px] text-[#9b9b95] @md:block">
-                  {a.index}
-                </div>
-                <div className="flex min-w-0 flex-col gap-[5px]">
-                  <span className="text-[11px] font-semibold tracking-[0.44px] text-[#9b9b95] @md:hidden">
-                    {a.index}
-                  </span>
-                  <p className="text-[14px] font-semibold leading-[18.9px] text-[#1a1a18] break-words">
-                    {a.title}
-                  </p>
-                  <div className="text-[13px] font-normal leading-[20.15px] text-[#6b6b65]">
-                    {a.body.map((line, li) => (
-                      <p key={li} className="mb-0">
-                        {line}
-                      </p>
-                    ))}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {a.tags.map((t) => (
-                      <span
-                        key={t.label}
-                        className="inline-flex items-center rounded-[20px] px-[9px] py-[3px] text-[11.5px] font-medium"
-                        style={{ backgroundColor: t.bg, color: t.color }}
-                      >
-                        {t.label}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="flex flex-wrap gap-4 pt-1">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-[10.5px] font-medium uppercase tracking-[0.735px] text-[#9b9b95]">
-                        Est. impact
-                      </span>
-                      <span className="text-[12.5px] font-semibold text-[#1a1a18]">{a.estImpact}</span>
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-[10.5px] font-medium uppercase tracking-[0.735px] text-[#9b9b95]">
-                        Users affected
-                      </span>
-                      <span className="text-[12.5px] font-semibold text-[#1a1a18]">{a.usersAffected}</span>
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-[10.5px] font-medium uppercase tracking-[0.735px] text-[#9b9b95]">
-                        Confidence
-                      </span>
-                      <span className="text-[12.5px] font-semibold text-[#1a1a18]">{a.confidence}</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    <span className="text-[11px] text-[#9b9b95]">Effort</span>
-                    <EffortDots filled={a.effortFilled} total={5} />
-                    <span className="pl-0.5 text-[11px] text-[#9b9b95]">{a.effortLabel}</span>
-                  </div>
-                </div>
-                <div className="flex flex-row flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 @md:flex-col @md:items-end @md:gap-2">
-                  <motion.button
-                    type="button"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="inline-flex items-center gap-1.5 rounded-[8px] bg-[#1a1a18] px-4 py-2 text-[12.5px] font-medium text-white cursor-pointer whitespace-nowrap"
-                  >
-                    Take action
-                    <RiArrowRightSLine size={12} aria-hidden />
-                  </motion.button>
-                  <p className="text-[11px] font-normal text-[#9b9b95]">{a.ctaHint}</p>
-                </div>
-              </div>
-            ))}
-          </motion.div>
-        ) : (
-          <motion.div
-            key="rec-compact"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
-            className="rounded-[12.859px] overflow-hidden bg-[rgba(0,0,0,0.07)]"
-          >
-            <div className="grid grid-cols-1 gap-[1.286px] sm:grid-cols-2 lg:grid-cols-3">
-              {RECOMMENDED_ACTIONS.map((a) => (
-                <div
-                  key={a.index}
-                  className="@container flex min-h-[186px] flex-col gap-4 bg-white p-5 @sm:p-6"
-                >
-                  <p className="text-[12px] font-medium leading-[18px] text-[#555] @sm:text-[12.859px] @sm:leading-[19.288px]">
-                    {a.index}
-                  </p>
-                  <p className="text-[14.5px] font-medium leading-[1.45] text-[#15140e] break-words @sm:text-[16px] @sm:leading-[1.5]">
-                    {a.title}
-                  </p>
-                  <div className="mt-auto flex flex-col gap-3 @xs:flex-row @xs:flex-wrap @xs:items-center @xs:justify-between">
-                    <div className="flex flex-wrap gap-1.5 min-w-0">
-                      {a.tags.map((t) => (
-                        <span
-                          key={t.label}
-                          className="inline-flex items-center rounded-[25.717px] border px-[10px] py-[3px] text-[11.5px] font-semibold leading-[18px] whitespace-nowrap @sm:text-[12.859px] @sm:leading-[19.288px] @sm:px-[11.716px]"
-                          style={{
-                            backgroundColor: t.bg,
-                            borderColor: t.border,
-                            color: t.color,
-                          }}
-                        >
-                          {t.label}
-                        </span>
-                      ))}
-                    </div>
-                    <motion.button
-                      type="button"
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.96 }}
-                      className="w-full shrink-0 rounded-[10px] border border-[rgba(152,16,250,0.2)] bg-white px-3 py-2 text-[12.5px] font-semibold text-[#15140e] cursor-pointer whitespace-nowrap @xs:w-auto"
-                    >
-                      Take action →
-                    </motion.button>
-                  </div>
-                </div>
-              ))}
-            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1156,7 +634,6 @@ function RecommendedActionsCard() {
   );
 }
 
-/* -------------------------------------------------------------------------- */
 /*  Main panel — composes states                                              */
 /* -------------------------------------------------------------------------- */
 
@@ -1166,6 +643,7 @@ function AnalyticsAiInsightsPanel({
   insightsNoDataInRange,
   onClearDateFilter,
   onShareForm,
+  loadKey = 0,
 }) {
   const [searchParams] = useSearchParams();
   const patternFailUrl = searchParams.get('aiPatternFail') === '1';
@@ -1215,20 +693,15 @@ function AnalyticsAiInsightsPanel({
   );
 
   useEffect(() => {
-    let timeoutId;
-    const rafId = requestAnimationFrame(() => {
-      if (showNoDataPeriod || !hasEnoughResponses) {
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      timeoutId = setTimeout(() => setLoading(false), LOAD_MS);
-    });
-    return () => {
-      cancelAnimationFrame(rafId);
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [hasEnoughResponses, form?.id, showNoDataPeriod]);
+    if (showNoDataPeriod || !hasEnoughResponses) {
+      setLoading(false);
+      return undefined;
+    }
+
+    setLoading(true);
+    const timeoutId = window.setTimeout(() => setLoading(false), LOAD_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [hasEnoughResponses, form?.id, showNoDataPeriod, rangeLabel, loadKey]);
 
   if (showNoDataPeriod) {
     return (
@@ -1249,14 +722,6 @@ function AnalyticsAiInsightsPanel({
     );
   }
 
-  if (loading) {
-    return (
-      <div className="mx-auto flex w-full max-w-[1200px] min-h-[min(420px,52dvh)] items-center justify-center px-1 sm:px-2">
-        <AiInsightsLoading />
-      </div>
-    );
-  }
-
   const patternsColumn =
     patternsLoadError ? (
       <TopPatternsErrorCard
@@ -1272,12 +737,28 @@ function AnalyticsAiInsightsPanel({
     );
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.28, ease: [0.25, 0.1, 0.25, 1] }}
-      className="mx-auto w-full max-w-[1200px] flex flex-col gap-[18px]"
-    >
+    <div className="mx-auto w-full max-w-[1200px] min-h-[min(420px,52dvh)]">
+      <AnimatePresence mode="wait">
+        {loading ? (
+          <motion.div
+            key="ai-insights-loading"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="flex min-h-[min(420px,52dvh)] w-full items-center justify-center px-1 sm:px-2"
+          >
+            <AiInsightsLoading />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="ai-insights-content"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.28, ease: [0.25, 0.1, 0.25, 1] }}
+            className="flex flex-col gap-[18px]"
+          >
       <AnimatePresence mode="popLayout">
         {showExportToast ? (
           <InsightsErrorToast
@@ -1307,7 +788,10 @@ function AnalyticsAiInsightsPanel({
         <QuickStatsCard form={form} />
       </div>
       <RecommendedActionsCard />
-    </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 

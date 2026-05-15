@@ -5,6 +5,7 @@ import SignInPage from '../pages/SignInPage';
 import AllFormsPage from '../pages/AllFormsPage';
 import TemplatesPage from '../pages/TemplatesPage';
 import AnalyticsPage from '../pages/AnalyticsPage';
+import ProfilePage from '../pages/ProfilePage';
 
 const AppRoutes = () => {
   return (
@@ -20,6 +21,7 @@ const AppRoutes = () => {
         <Route index element={<AllFormsPage />} />
         <Route path="templates" element={<TemplatesPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="profile" element={<ProfilePage />} />
       </Route>
     </Routes>
   );

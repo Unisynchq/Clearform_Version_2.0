@@ -171,39 +171,113 @@ function funnelLayerProps(i, type = 'shape') {
   return {};
 }
 
-export function AnalyticsStatsRow() {
+const statsEase = [0.22, 1, 0.36, 1];
+
+/** Light column fade when the selected form changes (not a full-page skeleton). */
+const statsColVariant = {
+  hidden: { opacity: 0, y: 8 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.24, ease: statsEase },
+  },
+};
+
+const statsRowVariant = {
+  hidden: {},
+  show: {
+    transition: { staggerChildren: 0.07, delayChildren: 0.02 },
+  },
+};
+
+function formatStatsDisplay(form) {
+  const s = deriveFormStats(form);
+  const industry = 35;
+  const diff = s.conversionPct - industry;
+  const diffLabel = diff >= 0 ? `+${diff}` : `${diff}`;
+  const convNum = parseFloat(s.conversion);
+  const completionColorClass =
+    Number.isFinite(convNum) && convNum < 18
+      ? 'text-[#fb1a00]'
+      : Number.isFinite(convNum) && convNum < 32
+        ? 'text-[#c45c08]'
+        : 'text-[#17160e]';
+  const pillClass =
+    diff < 0 ? 'bg-[#fef2df] text-[#a55c08]' : 'bg-[#eafaf1] text-[#1a6133]';
+  return {
+    ...s,
+    industry,
+    diffLabel,
+    completionColorClass,
+    pillClass,
+    pillText: `${diffLabel}% vs industry`,
+  };
+}
+
+/** @param {{ form?: { id?: number, responses?: number, responseLimit?: number } }} props */
+export function AnalyticsStatsRow({ form }) {
+  const d = formatStatsDisplay(form);
+
   return (
-    <section className="bg-white rounded-[10px] px-4 py-4 grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-0">
-      <div className="flex flex-col gap-[5px] md:pr-6">
+    <motion.section
+      key={form?.id ?? 'stats'}
+      className="bg-white rounded-[10px] px-4 py-4 grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-0 border border-[#e8e6e1]/80 min-h-[124px]"
+      variants={statsRowVariant}
+      initial="hidden"
+      animate="show"
+    >
+      <motion.div variants={statsColVariant} className="flex flex-col gap-[5px] md:pr-6">
         <p className="text-[12px] font-medium text-[#646464] tracking-[0.22px]">Total responses</p>
-        <p className="text-[34px] font-medium text-black tracking-[-1.36px] leading-[34px]">248</p>
+        <p className="text-[34px] font-medium text-black tracking-[-1.36px] leading-[34px] tabular-nums">
+          {d.submitted.toLocaleString()}
+        </p>
         <div className="flex flex-wrap items-center gap-1 text-[11.5px]">
-          <span className="text-[#2d6b12]">↑ 12%</span>
-          <span className="text-[#646464]">· 252 to target</span>
+          <span className={d.trendUp ? 'text-[#2d6b12]' : 'text-[#b33030]'}>
+            {d.trendUp ? '↑' : '↓'} {d.trendPct}%
+          </span>
+          <span className="text-[#646464]">· {d.toTarget.toLocaleString()} to target</span>
         </div>
-      </div>
-      <div className="md:border-l-2 md:border-[#e9e7e0] md:pl-6 flex flex-col gap-[5px]">
+      </motion.div>
+
+      <motion.div
+        variants={statsColVariant}
+        className="md:border-l-2 md:border-[#e9e7e0] md:pl-6 flex flex-col gap-[5px]"
+      >
         <div className="flex flex-wrap items-center gap-2 min-h-[14px]">
           <span className="text-[12px] font-medium text-[#646464] tracking-[0.22px]">Completion rate</span>
-          <span className="bg-[#fef2df] text-[#a55c08] text-[10px] font-semibold tracking-[0.22px] px-[7px] py-[2px] rounded-full">
-            −22% vs industry
+          <span
+            className={`${d.pillClass} text-[10px] font-semibold tracking-[0.22px] px-[7px] py-[2px] rounded-full`}
+          >
+            {d.pillText}
           </span>
         </div>
-        <p className="text-[34px] font-medium text-[#fb1a00] tracking-[-1.36px] leading-[34px]">13.5%</p>
+        <p
+          className={`text-[34px] font-medium tracking-[-1.36px] leading-[34px] tabular-nums ${d.completionColorClass}`}
+        >
+          {d.conversion}%
+        </p>
         <div className="flex flex-wrap items-center gap-1 text-[11.5px] text-[#646464]">
           <span>Industry avg.</span>
-          <span className="font-bold text-[#17160e]">35%</span>
+          <span className="font-bold text-[#17160e]">{d.industry}%</span>
         </div>
-      </div>
-      <div className="md:border-l-2 md:border-[#e9e7e0] md:pl-6 flex flex-col gap-[5px]">
+      </motion.div>
+
+      <motion.div
+        variants={statsColVariant}
+        className="md:border-l-2 md:border-[#e9e7e0] md:pl-6 flex flex-col gap-[5px]"
+      >
         <p className="text-[12px] font-medium text-[#646464] tracking-[0.22px]">Avg. time</p>
-        <p className="text-[34px] font-medium text-[#17160e] tracking-[-1.36px] leading-[34px]">2m 14s</p>
+        <p className="text-[34px] font-medium text-[#17160e] tracking-[-1.36px] leading-[34px] tabular-nums">
+          {d.avgTimeLabel}
+        </p>
         <div className="flex flex-wrap items-center gap-1 text-[11.5px] text-[#646464]">
           <span>~ on target</span>
-          <span>· 1% faster</span>
+          <span>
+            · {d.trendUp ? `${d.trendPct}% faster` : `${d.trendPct}% slower`} than median
+          </span>
         </div>
-      </div>
-    </section>
+      </motion.div>
+    </motion.section>
   );
 }
 
@@ -212,7 +286,7 @@ export function AnalyticsFunnelCard({ form }) {
   const animKey = form?.id ?? 'empty';
 
   return (
-    <div className="bg-white rounded-[10px] px-4 sm:px-8 py-6 flex flex-col items-center border border-[#eceae4]/80">
+    <div className="bg-white rounded-[10px] px-4 sm:px-8 py-6 flex flex-col items-center border border-[#eceae4]/80 min-h-[420px]">
       <section
         className="flex w-full max-w-[520px] flex-col items-center gap-[14px]"
         aria-label="Response funnel from reach to submission"
@@ -644,33 +718,22 @@ const TOOLTIP_W = 232;
 /** Horizontal gap between active column edge and tooltip (px). */
 const TOOLTIP_BAR_GAP = 12;
 
-export function AnalyticsDropoffRiverCard({ form }) {
+export function AnalyticsDropoffRiverCard({ form, reduceMountMotion = false }) {
   const [filter, setFilter] = useState('all');
   const [hoverQ, setHoverQ] = useState(null);
   const [pinnedQ, setPinnedQ] = useState(null);
 
   const sectionRef = useRef(null);
 
-  const stats = useMemo(() => deriveFormStats(form), [form?.id]);
-
-  const enoughRiverData = useMemo(() => hasRiverEnoughData(form), [
-    form?.questionCount,
-    form?.questions,
-  ]);
+  const enoughRiverData = useMemo(() => hasRiverEnoughData(form), [form]);
 
   const columns = useMemo(() => {
     if (!enoughRiverData) return [];
     return buildAdaptiveRiverColumns(form);
-  }, [enoughRiverData, form?.id, form?.questionCount, form?.questions]);
+  }, [enoughRiverData, form]);
 
-  const rawQuestionCount = useMemo(() => getRiverQuestionCountRaw(form), [
-    form?.questionCount,
-    form?.questions,
-  ]);
-  const questionCount = useMemo(() => getRiverQuestionCount(form), [
-    form?.questionCount,
-    form?.questions,
-  ]);
+  const rawQuestionCount = useMemo(() => getRiverQuestionCountRaw(form), [form]);
+  const questionCount = useMemo(() => getRiverQuestionCount(form), [form]);
   const displayQuestionCount = rawQuestionCount ?? questionCount;
 
   useEffect(() => {
@@ -698,19 +761,32 @@ export function AnalyticsDropoffRiverCard({ form }) {
   const active = safePinnedQ != null ? columns[safePinnedQ] : null;
   const badge = active ? BAND_BADGE[active.kind] : BAND_BADGE.healthy;
 
+  const sectionMotion = reduceMountMotion
+    ? {}
+    : {
+        initial: { opacity: 0, y: 10 },
+        animate: { opacity: 1, y: 0 },
+        transition: { duration: 0.35, ease: 'easeOut' },
+      };
+  const headerMotion = reduceMountMotion
+    ? {}
+    : {
+        initial: { opacity: 0, y: 4 },
+        animate: { opacity: 1, y: 0 },
+        transition: { duration: 0.3, delay: 0.05 },
+      };
+
   return (
     <motion.section
       ref={sectionRef}
       key={`rc-${form?.id ?? 'empty'}`}
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: 'easeOut' }}
-      className="bg-[#fafaf8] border border-[#e8e8e5] rounded-[10px] p-[17px] flex flex-col gap-4 shadow-[0_2px_2px_rgba(0,0,0,0.08)]"
+      {...sectionMotion}
+      className={`bg-[#fafaf8] border border-[#e8e8e5] rounded-[10px] p-[17px] flex flex-col gap-4 shadow-[0_2px_2px_rgba(0,0,0,0.08)] ${
+        enoughRiverData ? 'min-h-[380px]' : ''
+      }`}
     >
       <motion.div
-        initial={{ opacity: 0, y: 4 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.05 }}
+        {...headerMotion}
         className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
       >
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -777,14 +853,13 @@ export function AnalyticsDropoffRiverCard({ form }) {
           >
             <DropoffRiverChart
               anchorRef={riverAnchorRef}
+              form={form}
               columns={columns}
               filter={filter}
               hoverIndex={hoverQ}
               selectedIndex={safePinnedQ}
               onHoverIndex={setHoverQ}
               onSelectIndex={setPinnedQ}
-              startedLabel={`${stats.started.toLocaleString()} started`}
-              finishedLabel={`${stats.submitted.toLocaleString()} finished`}
               onColumnCentersMeasured={onRiverCentersMeasured}
             />
           </div>

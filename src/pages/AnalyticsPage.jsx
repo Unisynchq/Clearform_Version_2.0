@@ -2,12 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'motion/react';
-import {
-  RiDownloadLine,
-  RiArrowDownSLine,
-  RiTimeLine,
-  RiPencilLine,
-} from 'react-icons/ri';
+import { RiDownloadLine, RiArrowDownSLine, RiPencilLine } from 'react-icons/ri';
+import AnalyticsDateRangeControl from '../components/analytics/AnalyticsDateRangeControl';
 import { openFormOverlay, openShareModal } from '../redux/slices/uiSlice';
 import { useToast } from '../hooks/useToast';
 import AnalyticsExportModal from '../components/analytics/AnalyticsExportModal';
@@ -28,15 +24,6 @@ import AnalyticsAiInsightsPanel from '../components/analytics/AnalyticsAiInsight
 
 const pageEase = [0.25, 0.1, 0.25, 1];
 const BOOT_MS = 900;
-
-const RANGE_OPTIONS = [
-  'All time',
-  'Last 7 days',
-  'Last 30 days',
-  'Last 90 days',
-  'This quarter',
-  'Custom range…',
-];
 
 const MAIN_TABS = [
   { id: 'performance', label: 'Performance' },
@@ -76,15 +63,14 @@ const AnalyticsPage = () => {
   }, [forms, paramFormId]);
 
   const [formMenuOpen, setFormMenuOpen] = useState(false);
-  const [rangeOpen, setRangeOpen] = useState(false);
   const [rangeLabel, setRangeLabel] = useState('All time');
   const [activeTab, setActiveTab] = useState('performance');
+  const [aiInsightsVisit, setAiInsightsVisit] = useState(0);
   const [bootLoading, setBootLoading] = useState(true);
   const [exportOpen, setExportOpen] = useState(false);
   const [exportFormatDefault, setExportFormatDefault] = useState('PDF');
 
   const formMenuRef = useRef(null);
-  const rangeRef = useRef(null);
 
   useEffect(() => {
     const t = setTimeout(() => setBootLoading(false), BOOT_MS);
@@ -92,7 +78,6 @@ const AnalyticsPage = () => {
   }, []);
 
   useClickOutside(formMenuRef, formMenuOpen, () => setFormMenuOpen(false));
-  useClickOutside(rangeRef, rangeOpen, () => setRangeOpen(false));
 
   const selectedForm = forms.find((f) => f.id === selectedFormId) ?? forms[0];
   const hasResponseData = selectedForm && selectedForm.responses > 0;
@@ -169,7 +154,7 @@ const AnalyticsPage = () => {
         }
         return (
           <div className="flex flex-col gap-5 max-w-[1400px] mx-auto">
-            <AnalyticsStatsRow />
+            <AnalyticsStatsRow form={selectedForm} />
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
               <AnalyticsFunnelCard form={selectedForm} />
               <AnalyticsDailyResponsesCard />
@@ -192,6 +177,8 @@ const AnalyticsPage = () => {
       case 'ai':
         return (
           <AnalyticsAiInsightsPanel
+            key={`ai-insights-${aiInsightsVisit}`}
+            loadKey={aiInsightsVisit}
             form={selectedForm}
             rangeLabel={rangeLabel}
             insightsNoDataInRange={false}
@@ -341,7 +328,10 @@ const AnalyticsPage = () => {
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => {
+                    if (tab.id === 'ai') setAiInsightsVisit((n) => n + 1);
+                    setActiveTab(tab.id);
+                  }}
                   className={`relative shrink-0 px-3 h-8 text-[13px] rounded-[8px] cursor-pointer transition-colors duration-200 ease-out ${
                     isActive
                       ? 'font-medium text-[#17160e]'
@@ -362,36 +352,11 @@ const AnalyticsPage = () => {
             })}
           </nav>
           {showDateFilter ? (
-            <div className="relative shrink-0 py-1" ref={rangeRef}>
-              <button
-                type="button"
-                onClick={() => setRangeOpen((o) => !o)}
-                className="flex items-center gap-2 h-8 px-[13px] rounded-[8px] border border-[#e8e6e0] text-[12px] text-[#646464] hover:bg-[#f4f3ef] cursor-pointer"
-              >
-                <RiTimeLine size={17} className="text-[#6b6966]" />
-                <span>{rangeLabel}</span>
-                <RiArrowDownSLine size={16} className="text-[#6b6966]" />
-              </button>
-              {rangeOpen && (
-                <div className="absolute right-0 top-[calc(100%+6px)] z-30 w-[180px] bg-white border border-[#e5e3dc] rounded-[10px] shadow-[0_8px_24px_rgba(0,0,0,0.08)] py-1">
-                  {RANGE_OPTIONS.map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => {
-                        setRangeLabel(opt);
-                        setRangeOpen(false);
-                      }}
-                      className={`w-full text-left px-3 py-2 text-[12px] hover:bg-[#f4f3ef] cursor-pointer ${
-                        opt === rangeLabel ? 'font-medium bg-[#f4f3ef]' : 'text-[#393939]'
-                      }`}
-                    >
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <AnalyticsDateRangeControl
+              value={rangeLabel}
+              onChange={setRangeLabel}
+              align="right"
+            />
           ) : (
             <span className="w-[100px] shrink-0" aria-hidden />
           )}

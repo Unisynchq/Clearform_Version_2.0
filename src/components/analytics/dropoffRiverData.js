@@ -23,12 +23,12 @@ const HL_GEOM = {
 };
 
 const STYLE = {
-  healthy: { color: '#16A34A', fill: 0.09, stroke: 0.4, sw: 0.82, badge: 'Healthy' },
-  attention: { color: '#CA8A04', fill: 0.1, stroke: 0.5, sw: 0.82, badge: 'Watch' },
-  critical: { color: '#DC2626', fill: 0.12, stroke: 0.55, sw: 0.82, badge: 'Critical' },
+  healthy: { color: '#15803D', fill: 0.14, stroke: 0.58, sw: 0.95, badge: 'Healthy' },
+  attention: { color: '#B45309', fill: 0.15, stroke: 0.65, sw: 0.95, badge: 'Watch' },
+  critical: { color: '#DC2626', fill: 0.17, stroke: 0.72, sw: 0.95, badge: 'Critical' },
 };
 
-const HL_STYLE = { color: '#16A34A', fill: 0.224, stroke: 0.4, sw: 1.64, badge: 'Healthy' };
+const HL_STYLE = { color: '#15803D', fill: 0.28, stroke: 0.55, sw: 1.75, badge: 'Healthy' };
 
 /** Per-Q vector geometry. `kind` matches `STYLE`. `h` is the SVG box height in px. */
 const STEPS = [
@@ -81,6 +81,7 @@ function buildColumn(step, q) {
   const baseGeom = step.highlight ? HL_GEOM : STD_GEOM;
   const geom = { ...baseGeom, yTL: step.yTL, yTR: step.yTR, yBR: step.yBR, yBL: step.yBL };
   const style = step.highlight ? HL_STYLE : STYLE[step.kind];
+  const cornerR = step.highlight ? 6 : 5;
   return {
     q,
     kind: step.kind,
@@ -90,7 +91,16 @@ function buildColumn(step, q) {
     height: step.h,
     width: 60,
     style,
-    d: roundedQuadPath(geom, step.highlight ? 6 : 5),
+    d: roundedQuadPath(geom, cornerR),
+    /** Trailing seam (viewBox x ≈ 60) + band corners for pill / hairline placement. */
+    riverMarker: {
+      yTL: step.yTL,
+      yTR: step.yTR,
+      yBR: step.yBR,
+      yBL: step.yBL,
+      xL: geom.xL,
+      cornerR,
+    },
   };
 }
 

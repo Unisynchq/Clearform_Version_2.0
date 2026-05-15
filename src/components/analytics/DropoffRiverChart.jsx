@@ -1,17 +1,24 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { RiverColumnAlertMarker } from './RiverColumnAlertMarker';
+import {
+  DROP_CENTER_Y,
+  DROP_CHART_H,
+  DROP_TOP_LABEL_OFFSET,
+  DROP_VB_H,
+  DROP_VB_W,
+} from './dropoffRiverConstants';
+import { deriveFormStats } from './analyticsStats';
+import { computeNarrowSeamOverlay } from './riverSeamOverlayLayout';
+import { RiverSeamAlertStack } from './RiverSeamAlertStack';
 import { RIVER_COLUMNS, matchesFilter } from './dropoffRiverData';
 
-const CHART_H = 260;
-const CENTER_Y = CHART_H / 2;
-const TOP_LABEL_OFFSET = 28;
+const CHART_H = DROP_CHART_H;
+const CENTER_Y = DROP_CENTER_Y;
+const TOP_LABEL_OFFSET = DROP_TOP_LABEL_OFFSET;
+const LOGICAL_COL_W = DROP_VB_W;
+const VB_H = DROP_VB_H;
 
 const REVEAL_EASE = [0.22, 1, 0.36, 1];
-
-/** Authoring width inside each mini-SVG viewBox. */
-const LOGICAL_COL_W = 60;
-const VB_H = TOP_LABEL_OFFSET + CHART_H;
 
 function riverGridMinPx(n) {
   if (n <= 5) return 40;
@@ -33,11 +40,9 @@ export default function DropoffRiverChart({
   onHoverIndex,
   onSelectIndex,
   selectedIndex = null,
-  startedLabel = '1,840 started',
-  finishedLabel = '248 finished',
-  /** Receive column center X coords (relative to anchorRef, or chart root if omitted). */
+  /** When set, started/finished captions follow this form’s performance stats. */
+  form = null,
   onColumnCentersMeasured,
-  /** When set, column centers are measured from this element (e.g. tooltip offset parent). */
   anchorRef = null,
 }) {
   const chartRootRef = useRef(null);
@@ -47,30 +52,63 @@ export default function DropoffRiverChart({
   const padBottom = riverPadBottom(n);
   const gridMinPx = riverGridMinPx(n);
   const cellClasses = 'min-w-0';
+  const [seamOverlays, setSeamOverlays] = useState({});
 
-  /** Measure column centers relative to chart root (for tooltip pinned to wrapper). */
+  const { startedLabel, finishedLabel } = useMemo(() => {
+    const stats = deriveFormStats(form);
+    return {
+      startedLabel: `${stats.started.toLocaleString()} started`,
+      finishedLabel: `${stats.submitted.toLocaleString()} finished`,
+    };
+  }, [form]);
+
   useLayoutEffect(() => {
-    if (!onColumnCentersMeasured) return;
     const root = chartRootRef.current;
     if (!root) return;
 
     const measure = () => {
-      const anchor = anchorRef?.current ?? root;
-      const anchorRect = anchor.getBoundingClientRect();
-      const centers = columns.map((_, i) => {
+      const nextOverlays = {};
+      columns.forEach((col, i) => {
+        const isWide = col.riverMode === 'wide' && col.wide;
+        if (!col.alert || !col.drop || isWide) return;
         const el = cellRefs.current[i];
-        if (!el) return 0;
-        const r = el.getBoundingClientRect();
-        return r.left + r.width / 2 - anchorRect.left;
+        const svg = el?.querySelector('[data-dropoff-svg="narrow"]');
+        if (!svg) return;
+        const r = svg.getBoundingClientRect();
+        const overlay = computeNarrowSeamOverlay(
+          r.width,
+          r.height,
+          col.riverMarker,
+          col.height,
+          n,
+          col.kind === 'attention' ? 'attention' : 'critical',
+        );
+        if (overlay) nextOverlays[i] = overlay;
       });
-      const rights = columns.map((_, i) => {
-        const el = cellRefs.current[i];
-        if (!el) return 0;
-        const r = el.getBoundingClientRect();
-        return r.right - anchorRect.left;
-      });
-      const totalWidth = anchor.offsetWidth;
-      onColumnCentersMeasured({ centers, rights, totalWidth });
+      setSeamOverlays(nextOverlays);
+
+      if (onColumnCentersMeasured) {
+        const anchor = anchorRef?.current ?? root;
+        const anchorRect = anchor.getBoundingClientRect();
+        const centers = columns.map((_, i) => {
+          const el = cellRefs.current[i];
+          if (!el) return 0;
+          const rect = el.getBoundingClientRect();
+          return rect.left + rect.width / 2 - anchorRect.left;
+        });
+        const rights = columns.map((_, i) => {
+          const el = cellRefs.current[i];
+          if (!el) return 0;
+          const rect = el.getBoundingClientRect();
+          return rect.right - anchorRect.left;
+        });
+        const row = rowElRef.current;
+        const totalWidth =
+          row && (row.scrollWidth > 0 ? row.scrollWidth : row.offsetWidth)
+            ? Math.max(row.scrollWidth, row.offsetWidth)
+            : root.offsetWidth;
+        onColumnCentersMeasured({ centers, rights, totalWidth });
+      }
     };
 
     measure();
@@ -90,20 +128,21 @@ export default function DropoffRiverChart({
     };
   }, [columns, filter, hoverIndex, selectedIndex, n, onColumnCentersMeasured, anchorRef]);
 
-  /** Keep refs array aligned with indices. */
   useEffect(() => {
     cellRefs.current = cellRefs.current.slice(0, n);
   }, [n]);
 
   return (
-    <div ref={chartRootRef} className="mx-auto flex w-full min-w-0 max-w-full flex-col gap-3 bg-transparent">
-      <div className="flex items-baseline justify-between gap-6 px-0.5 text-[11px] font-medium tracking-tight text-[rgba(26,26,26,0.38)] tabular-nums">
+    <div ref={chartRootRef} className="mx-auto flex min-w-0 w-full max-w-full flex-col gap-3 bg-transparent">
+      <div className="flex items-baseline justify-between gap-6 px-0.5 text-[11px] font-medium tracking-tight text-[rgba(26,26,26,0.48)] tabular-nums">
         <p className="min-w-0 truncate">{startedLabel}</p>
         <p className="min-w-0 shrink-0 truncate text-right">{finishedLabel}</p>
       </div>
 
-      <div
+      <motion.div
+        layout
         ref={rowElRef}
+        transition={{ type: 'spring', stiffness: 420, damping: 34 }}
         className="relative grid w-full min-w-0 gap-0 overflow-visible"
         style={{ gridTemplateColumns: n > 0 ? `repeat(${n}, minmax(${gridMinPx}px, 1fr))` : undefined }}
         aria-label={`Drop-off across ${n} questions`}
@@ -111,12 +150,14 @@ export default function DropoffRiverChart({
         {columns.map((col, i) => {
           const isMuted = filter !== 'all' && !matchesFilter(filter, col.kind);
           const isWide = col.riverMode === 'wide' && col.wide;
+          const showDropUnderLabel = Boolean(col.drop) && (isWide || !col.alert);
           const y = CENTER_Y - col.height / 2;
           const isHovered = hoverIndex === i;
           const isSelected = selectedIndex === i;
           const colDelay = 0.04 + i * 0.025;
-          const wideFillBase = 0.16;
-          const wideFill = isHovered || isSelected ? Math.min(wideFillBase + 0.08, 0.28) : wideFillBase;
+          const wideFillBase = 0.21;
+          const wideFill = isHovered || isSelected ? Math.min(wideFillBase + 0.1, 0.36) : wideFillBase;
+          const showSeamStack = !!(col.alert && col.drop && !isWide && seamOverlays[i]);
 
           return (
             <div
@@ -162,6 +203,7 @@ export default function DropoffRiverChart({
               <div className={`relative z-[1] w-full overflow-visible pt-7 ${isWide ? 'px-0' : 'px-px'}`}>
                 {isWide ? (
                   <svg
+                    data-dropoff-svg="wide"
                     viewBox={`0 0 ${col.wide.vbW} ${col.wide.vbH}`}
                     width="100%"
                     height={CHART_H}
@@ -188,6 +230,7 @@ export default function DropoffRiverChart({
                   </svg>
                 ) : (
                   <svg
+                    data-dropoff-svg="narrow"
                     viewBox={`0 ${-TOP_LABEL_OFFSET} ${LOGICAL_COL_W} ${VB_H}`}
                     width="100%"
                     height={CHART_H + TOP_LABEL_OFFSET}
@@ -199,54 +242,55 @@ export default function DropoffRiverChart({
                         key={`p-${filter}-${col.q}`}
                         initial={{ opacity: 0 }}
                         animate={{
-                          opacity: isHovered || isSelected ? 1 : 0.94,
+                          opacity: 1,
                         }}
                         transition={{ duration: 0.45, delay: colDelay, ease: REVEAL_EASE }}
                         d={col.d}
                         fill={col.style.color}
                         fillOpacity={
                           isHovered || isSelected
-                            ? Math.min(col.style.fill + 0.07, 0.32)
+                            ? Math.min(col.style.fill + 0.09, 0.38)
                             : col.style.fill
                         }
                         stroke={col.style.color}
-                        strokeOpacity={col.style.stroke}
-                        strokeWidth={col.style.sw}
+                        strokeOpacity={Math.min(col.style.stroke + (isHovered || isSelected ? 0.1 : 0), 0.88)}
+                        strokeWidth={isHovered || isSelected ? col.style.sw + 0.15 : col.style.sw}
                         strokeLinejoin="round"
                         strokeLinecap="round"
                         vectorEffect="non-scaling-stroke"
                       />
-                      {col.alert ? (
-                        <motion.g
-                          initial={{ opacity: 0, scale: 0.94 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ duration: 0.26, delay: colDelay + 0.1, ease: 'easeOut' }}
-                        >
-                          <RiverColumnAlertMarker
-                            variant={col.kind === 'attention' ? 'attention' : 'critical'}
-                            cx={LOGICAL_COL_W / 2}
-                          />
-                        </motion.g>
-                      ) : null}
                     </g>
                   </svg>
                 )}
+                {showSeamStack ? (
+                  <div
+                    className="pointer-events-none absolute top-7 left-full z-[4] w-0 overflow-visible"
+                    style={{ height: CHART_H + TOP_LABEL_OFFSET }}
+                    aria-hidden
+                  >
+                    <RiverSeamAlertStack
+                      overlay={seamOverlays[i]}
+                      drop={col.drop}
+                      variant={col.kind === 'attention' ? 'attention' : 'critical'}
+                    />
+                  </div>
+                ) : null}
               </div>
 
               <div className={`relative z-[1] ${padBottom} flex shrink-0 flex-col items-center justify-start gap-0.5 px-px`}>
                 <span
                   className={`block w-full truncate py-2 text-[10px] font-medium md:text-[11px] ${
-                    isSelected ? 'text-[#18181b]' : 'text-[rgba(0,0,0,0.42)] group-hover:text-[#3f3f46]'
+                    isSelected ? 'text-[#18181b]' : 'text-[rgba(0,0,0,0.52)] group-hover:text-[#27272a]'
                   }`}
                 >
                   {col.q}
                 </span>
-                {col.drop ? (
+                {showDropUnderLabel ? (
                   <span
                     className={`block w-full truncate text-[10px] font-normal tabular-nums md:text-[11px] ${
                       col.kind === 'attention'
-                        ? 'text-[rgba(202,138,4,0.95)]'
-                        : 'text-[rgba(185,28,28,0.9)]'
+                        ? 'text-[#B45309]'
+                        : 'text-[#DC2626]'
                     }`}
                   >
                     {col.drop}
@@ -256,7 +300,7 @@ export default function DropoffRiverChart({
             </div>
           );
         })}
-      </div>
+      </motion.div>
     </div>
   );
 }

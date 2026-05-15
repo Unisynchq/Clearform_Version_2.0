@@ -1,12 +1,19 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
 import {
   RiQrCodeLine,
   RiCodeSSlashLine,
-  RiCheckboxCircleLine,
-  RiArrowRightLine,
+  RiFileCopyLine,
+  RiMailLine,
+  RiShareLine,
 } from 'react-icons/ri';
+import Select from '../ui/Select';
 import { useToast } from '../../hooks/useToast';
+
+const LIFECYCLE_OPTIONS = [
+  { value: 'No limit', label: 'No limit' },
+  { value: 'Close on date', label: 'Close on date' },
+  { value: 'Close after response count', label: 'Close after response count' },
+];
 
 function Toggle({ checked, onChange, disabled }) {
   return (
@@ -55,9 +62,36 @@ function SettingRow({ label, description, control }) {
 const inputBase =
   'rounded-[8px] border border-[#e9e7e0] bg-white px-[11px] py-[7px] text-[13px] text-[#17160e] outline-none transition-colors focus:border-[#4b43b0] focus:ring-1 focus:ring-[#4b43b0]/20';
 
+const SHARE_ACTIONS = [
+  {
+    id: 'embed',
+    label: 'Embed',
+    bg: '#f7f5f0',
+    iconColor: '#646464',
+    Icon: RiCodeSSlashLine,
+    message: 'Embed snippet copied to clipboard.',
+  },
+  {
+    id: 'email',
+    label: 'Email',
+    bg: '#eaf2fc',
+    iconColor: '#3b7de8',
+    Icon: RiMailLine,
+    message: 'Email draft opened with your form link.',
+  },
+  {
+    id: 'qr',
+    label: 'QR code',
+    bg: '#f3f0ff',
+    iconColor: '#6d5bd0',
+    Icon: RiQrCodeLine,
+    message: 'QR code download started.',
+  },
+];
+
 function AnalyticsSettingsPanel({ form }) {
-  const navigate = useNavigate();
   const { showToast } = useToast();
+  const [copied, setCopied] = useState(false);
 
   const [name, setName] = useState(form?.title ?? 'NPS Survey Q1 2026');
   const [target, setTarget] = useState(String(form?.responseLimit ?? 500));
@@ -74,23 +108,43 @@ function AnalyticsSettingsPanel({ form }) {
   const [sentimentPct, setSentimentPct] = useState('25');
   const [notifyVia, setNotifyVia] = useState('email');
 
-  const slug = (form?.title ?? 'nps-survey-q1-2026')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 28);
+  const slug = useMemo(() => {
+    const source = form?.title ?? name;
+    return (
+      source
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '')
+        .replace(/^-|-$/g, '')
+        .slice(0, 40) || 'your-form'
+    );
+  }, [form?.title, name]);
 
-  const shareUrl = `clearform.io/f/${slug || 'your-form'}`;
+  const formUrl = `form.clearform.io/${slug}`;
+  const fullUrl = `https://${formUrl}`;
 
   const copyLink = () => {
-    const full = `https://${shareUrl}`;
-    navigator.clipboard?.writeText(full);
+    navigator.clipboard?.writeText(fullUrl);
+    setCopied(true);
     showToast({ type: 'success', message: 'Link copied to clipboard.', duration: 2200 });
+    window.setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShareAction = (action) => {
+    if (action.id === 'embed') {
+      const snippet = `<iframe src="${fullUrl}" width="100%" height="520" frameborder="0"></iframe>`;
+      navigator.clipboard?.writeText(snippet);
+    }
+    if (action.id === 'email') {
+      const subject = encodeURIComponent(form?.title ?? name ?? 'Clearform survey');
+      const body = encodeURIComponent(`Please take our survey:\n\n${fullUrl}`);
+      window.open(`mailto:?subject=${subject}&body=${body}`, '_blank', 'noopener,noreferrer');
+    }
+    showToast({ type: 'success', message: action.message, duration: 2200 });
   };
 
   const notifyOptions = [
     { id: 'email', label: 'Email' },
-    { id: 'slack', label: 'Slack' },
     { id: 'in_app', label: 'In-app' },
   ];
 
@@ -129,15 +183,13 @@ function AnalyticsSettingsPanel({ form }) {
               label="Form lifecycle"
               description="Automatically close after reaching a date or response count"
               control={
-                <select
+                <Select
                   value={lifecycle}
-                  onChange={(e) => setLifecycle(e.target.value)}
-                  className={`${inputBase} h-8 min-w-[140px] cursor-pointer pr-8`}
-                >
-                  <option>No limit</option>
-                  <option>Close on date</option>
-                  <option>Close after response count</option>
-                </select>
+                  onValueChange={setLifecycle}
+                  options={LIFECYCLE_OPTIONS}
+                  triggerClassName="h-8 min-w-[160px]"
+                  aria-label="Form lifecycle"
+                />
               }
             />
             <SettingRow
@@ -285,47 +337,58 @@ function AnalyticsSettingsPanel({ form }) {
             </div>
           </div>
         </section>
-
-        <div className="mt-10">
-          <button
-            type="button"
-            onClick={() => navigate('/dashboard')}
-            className="inline-flex items-center gap-2 rounded-[8px] bg-[#17160e] px-4 py-2.5 text-[13px] font-medium text-white transition-colors hover:bg-[#2c2c2e]"
-          >
-            Go to advanced settings
-            <RiArrowRightLine size={16} aria-hidden />
-          </button>
-        </div>
       </div>
 
       {/* Right — share & embed (Figma ~300px) */}
       <aside className="w-full shrink-0 lg:sticky lg:top-28 lg:w-[300px]">
         <SectionHeading>Share &amp; embed</SectionHeading>
-        <div className="mt-3 rounded-[10px] border border-[rgba(0,0,0,0.1)] bg-white p-[17px] shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-          <p className="text-[13px] font-normal leading-tight text-[#1a1814]">Share</p>
-          <div className="mt-3 flex h-[33px] items-center justify-between gap-2 rounded-full bg-[#f5f5f4] px-3">
-            <span className="min-w-0 truncate text-[11px] text-[#6b6b67]">{shareUrl}</span>
+        <div className="mt-3 overflow-hidden rounded-[10px] border border-[#e8e6e1] bg-white p-[17px] shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+          <div className="flex items-start gap-2.5 border-b border-[#f0ede6] bg-[#fafaf8] -mx-[17px] -mt-[17px] mb-4 px-4 py-3.5">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-[9px] bg-[#eaf5ee]">
+              <RiShareLine size={15} className="text-[#2ea44f]" aria-hidden />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-medium leading-snug text-[#17160e]">Public link</p>
+              <p className="mt-0.5 text-[11.5px] leading-[17px] text-[#646464]">
+                Anyone with the link can fill out this form.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 rounded-[10px] border border-[#e9e7e0] bg-[#f7f6f2] py-1 pl-3 pr-1">
+            <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-[#646464]" title={fullUrl}>
+              {formUrl}
+            </span>
             <button
               type="button"
               onClick={copyLink}
-              className="shrink-0 text-[11px] font-normal text-[#1a1814] underline-offset-2 hover:underline"
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-[8px] px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
+                copied
+                  ? 'bg-[#2ea44f] text-white'
+                  : 'bg-[#17160e] text-white hover:bg-[#2c2a27]'
+              }`}
             >
-              Copy
+              <RiFileCopyLine size={13} aria-hidden />
+              {copied ? 'Copied' : 'Copy link'}
             </button>
           </div>
-          <div className="mt-3 flex justify-between gap-2">
-            {[
-              { Icon: RiCodeSSlashLine, label: 'Embed' },
-              { Icon: RiCheckboxCircleLine, label: 'Email' },
-              { Icon: RiQrCodeLine, label: 'QR code' },
-            ].map(({ Icon, label }) => (
+          <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.85px] text-[#a8a6a0]">
+            More ways to share
+          </p>
+          <div className="mt-2.5 grid grid-cols-3 gap-2">
+            {SHARE_ACTIONS.map(({ id, label, bg, iconColor, Icon, message }) => (
               <button
-                key={label}
+                key={id}
                 type="button"
-                className="flex h-[51px] flex-1 flex-col items-center justify-center gap-1 rounded-[8px] border border-[rgba(0,0,0,0.1)] px-1 py-2 text-[#1a1814] transition-colors hover:bg-[#fafaf8]"
+                onClick={() => handleShareAction({ id, message })}
+                className="group flex flex-col items-center gap-1.5 rounded-[10px] border border-transparent py-2 transition-colors hover:border-[#e9e7e0] hover:bg-[#fafaf8]"
               >
-                <Icon size={14} className="text-[#1a1814]" aria-hidden />
-                <span className="text-center text-[10px] font-normal leading-[15px]">{label}</span>
+                <span
+                  className="flex size-11 items-center justify-center rounded-[10px] transition-opacity group-hover:opacity-85"
+                  style={{ backgroundColor: bg }}
+                >
+                  <Icon size={20} color={iconColor} aria-hidden />
+                </span>
+                <span className="text-[10.5px] font-medium text-[#4e4e4e]">{label}</span>
               </button>
             ))}
           </div>

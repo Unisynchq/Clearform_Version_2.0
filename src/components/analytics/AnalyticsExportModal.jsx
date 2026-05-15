@@ -1,8 +1,21 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RiCloseLine } from 'react-icons/ri';
+import Select from '../ui/Select';
 
-const FORMATS = ['PDF', 'CSV', 'XLSX'];
+const FORMAT_OPTIONS = [
+  { value: 'PDF', label: 'PDF' },
+  { value: 'CSV', label: 'CSV' },
+  { value: 'XLSX', label: 'XLSX' },
+];
+
+const RANGE_OPTIONS = [
+  { value: 'All time', label: 'All time' },
+  { value: 'Last 7 days', label: 'Last 7 days' },
+  { value: 'Last 30 days', label: 'Last 30 days' },
+  { value: 'Last 90 days', label: 'Last 90 days' },
+  { value: 'This quarter', label: 'This quarter' },
+];
 
 const AnalyticsExportModal = ({
   open,
@@ -11,6 +24,16 @@ const AnalyticsExportModal = ({
   rangeLabel,
   defaultFormat = 'PDF',
 }) => {
+  const [format, setFormat] = useState(defaultFormat);
+  const [range, setRange] = useState(rangeLabel ?? 'All time');
+
+  useEffect(() => {
+    if (open) {
+      setFormat(defaultFormat);
+      setRange(rangeLabel ?? 'All time');
+    }
+  }, [open, defaultFormat, rangeLabel]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => {
@@ -69,29 +92,21 @@ const AnalyticsExportModal = ({
                 </label>
                 <label className="flex flex-col gap-1.5">
                   <span className="text-[12px] font-medium text-[#646464]">Format</span>
-                  <select
-                    defaultValue={defaultFormat}
-                    className="w-full rounded-[8px] border border-[#e5e3dc] px-3 py-2 text-[13px] text-[#1a1a1c] bg-white outline-none focus:border-[#17160e] cursor-pointer"
-                  >
-                    {FORMATS.map((f) => (
-                      <option key={f} value={f}>
-                        {f}
-                      </option>
-                    ))}
-                  </select>
+                  <Select
+                    value={format}
+                    onValueChange={setFormat}
+                    options={FORMAT_OPTIONS}
+                    aria-label="Export format"
+                  />
                 </label>
                 <label className="flex flex-col gap-1.5">
                   <span className="text-[12px] font-medium text-[#646464]">Date range</span>
-                  <select
-                    defaultValue={rangeLabel}
-                    className="w-full rounded-[8px] border border-[#e5e3dc] px-3 py-2 text-[13px] text-[#1a1a1c] bg-white outline-none focus:border-[#17160e] cursor-pointer"
-                  >
-                    <option>All time</option>
-                    <option>Last 7 days</option>
-                    <option>Last 30 days</option>
-                    <option>Last 90 days</option>
-                    <option>This quarter</option>
-                  </select>
+                  <Select
+                    value={range}
+                    onValueChange={setRange}
+                    options={RANGE_OPTIONS}
+                    aria-label="Export date range"
+                  />
                 </label>
               </div>
               <div className="px-5 pb-5 pt-0 flex flex-col gap-3">
