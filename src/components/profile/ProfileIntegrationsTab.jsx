@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom';
 import { RiAddLine, RiFileExcel2Line, RiWebhookLine } from 'react-icons/ri';
 import {
   CardHeader,
@@ -17,7 +18,8 @@ import {
 } from './GoogleSheetsModals';
 
 export default function ProfileIntegrationsTab() {
-  const sheets = useGoogleSheetsFlow();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sheets = useGoogleSheetsFlow(searchParams, setSearchParams);
 
   return (
     <>
@@ -79,6 +81,8 @@ export default function ProfileIntegrationsTab() {
         open={sheets.modal === 'failed'}
         onClose={sheets.closeModal}
         onRetry={sheets.retry}
+        onGetHelp={sheets.getHelp}
+        errorDetails={sheets.connectionError}
       />
     </>
   );

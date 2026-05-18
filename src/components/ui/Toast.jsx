@@ -15,12 +15,13 @@ import { removeToast } from '../../redux/slices/toastSlice';
    soft brand-tinted shadow, and outlined action button. */
 const TOAST_VARIANTS = {
   success: {
-    bg:     '#dcfce7',
-    iconBg: 'rgba(22, 163, 74, 0.25)',
-    text:   '#14532d',
-    border: '#22c55e',
-    shadow: '0 4px 12px 0 rgba(34, 197, 94, 0.10)',
+    bg:     '#d6f0e0',
+    iconBg: '#8fcfae',
+    text:   '#1a4731',
+    border: '#4caf7d',
+    shadow: '0 4px 12px 0 rgba(0, 0, 0, 0.10)',
     Icon:   RiCheckLine,
+    progress: '#4caf7d',
   },
   error: {
     bg:     '#fae0dc',
@@ -29,14 +30,16 @@ const TOAST_VARIANTS = {
     border: '#e05c4b',
     shadow: '0 4px 12px 0 rgba(224, 92, 75, 0.10)',
     Icon:   RiCloseLine,
+    progress: '#e05c4b',
   },
   warning: {
-    bg:     '#fef3c7',
+    bg:     '#fdf0d6',
     iconBg: 'rgba(217, 119, 6, 0.25)',
-    text:   '#78350f',
-    border: '#d97706',
-    shadow: '0 4px 12px 0 rgba(245, 158, 11, 0.10)',
+    text:   '#5c3a00',
+    border: '#e8a020',
+    shadow: '0 4px 12px 0 rgba(0, 0, 0, 0.10)',
     Icon:   RiAlertLine,
+    progress: '#e8a020',
   },
   info: {
     bg:     '#dbeafe',
@@ -69,12 +72,12 @@ const Toast = ({ id, type = 'info', message, duration = 3000, action }) => {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16, scale: 0.96 }}
+      initial={{ opacity: 0, y: 48, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 16, scale: 0.96 }}
-      transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+      exit={{ opacity: 0, y: 32, scale: 0.98 }}
+      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
       role="alert"
-      className="flex items-center gap-3 h-[48px] pl-[11px] pr-[11px] rounded-[12px] min-w-[300px] max-w-[520px]"
+      className="relative flex items-center gap-3 overflow-hidden h-[44px] pl-4 pr-3 rounded-[12px] min-w-[280px] max-w-[520px]"
       style={{ backgroundColor: v.bg, color: v.text, boxShadow: v.shadow }}
     >
       {/* Tinted icon swatch */}
@@ -115,6 +118,17 @@ const Toast = ({ id, type = 'info', message, duration = 3000, action }) => {
       >
         <RiCloseLine size={16} style={{ color: v.text }} />
       </button>
+
+      {v.progress ? (
+        <motion.div
+          className="absolute bottom-0 left-0 h-[2px] rounded-bl-[12px]"
+          style={{ backgroundColor: v.progress }}
+          initial={{ width: '100%' }}
+          animate={{ width: '85%' }}
+          transition={{ duration: duration / 1000, ease: 'linear' }}
+          aria-hidden
+        />
+      ) : null}
     </motion.div>
   );
 };

@@ -84,8 +84,9 @@ const Sidebar = () => {
   const isTemplatesActive = location.pathname === '/dashboard/templates';
   const isAnalyticsActive = location.pathname === '/dashboard/analytics';
   const isProfileActive = location.pathname.startsWith('/dashboard/profile');
+  const isHelpActive = location.pathname.startsWith('/dashboard/help');
   const isDashboardActive =
-    !isTemplatesActive && !isAnalyticsActive && !isProfileActive;
+    !isTemplatesActive && !isAnalyticsActive && !isProfileActive && !isHelpActive;
 
   const [loading, setLoading] = useState(true);
 
@@ -208,7 +209,8 @@ const Sidebar = () => {
               <NavItem
                 icon={RiQuestionLine}
                 label="Help & Support"
-                onClick={() => {}}
+                active={isHelpActive}
+                onClick={() => navigate('/dashboard/help')}
               />
             </div>
           </motion.div>

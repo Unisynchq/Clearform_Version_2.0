@@ -6,7 +6,7 @@ const ToastContainer = () => {
   const toasts = useSelector((state) => state.toast.toasts);
 
   return (
-    <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 flex flex-col gap-3 pointer-events-none z-50">
+    <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 flex-col-reverse items-center gap-3 pointer-events-none">
       <AnimatePresence mode="popLayout">
         {toasts.map((toast) => (
           <div key={toast.id} className="pointer-events-auto">

@@ -52,6 +52,7 @@ const AnalyticsPage = () => {
   const forms = useSelector((s) => s.forms.forms);
 
   const paramFormId = searchParams.get('form');
+  const paramTab = searchParams.get('tab');
 
   const selectedFormId = useMemo(() => {
     if (!forms.length) return null;
@@ -76,6 +77,13 @@ const AnalyticsPage = () => {
     const t = setTimeout(() => setBootLoading(false), BOOT_MS);
     return () => clearTimeout(t);
   }, []);
+
+  useEffect(() => {
+    if (paramTab && MAIN_TABS.some((tab) => tab.id === paramTab)) {
+      setActiveTab(paramTab);
+      if (paramTab === 'ai') setAiInsightsVisit((n) => n + 1);
+    }
+  }, [paramTab]);
 
   useClickOutside(formMenuRef, formMenuOpen, () => setFormMenuOpen(false));
 

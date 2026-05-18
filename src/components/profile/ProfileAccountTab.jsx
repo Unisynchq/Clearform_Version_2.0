@@ -1,5 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RiImageAddLine, RiRefreshLine } from 'react-icons/ri';
+import AccountDeletionFlow from './AccountDeletionFlow';
+import DeleteAccountModal from './DeleteAccountModal';
+import { requestAccountDeletion } from './profileDeleteAccount';
 import {
   CardHeader,
   DangerButton,
@@ -28,6 +31,10 @@ export default function ProfileAccountTab({ onDirtyChange, onRequestDiscard }) {
   const [values, setValues] = useState(EMPTY_PROFILE);
   const [errors, setErrors] = useState({});
   const [photoState, setPhotoState] = useState('empty');
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deletePhase, setDeletePhase] = useState(null);
+  const [modalDeleting, setModalDeleting] = useState(false);
+  const deleteAbortRef = useRef(null);
   const dirty = profileSnapshot(values) !== baselineRef.current;
   const complete = isProfileComplete(values);
   const showIncompleteBanner = !complete && !dirty;
@@ -35,6 +42,39 @@ export default function ProfileAccountTab({ onDirtyChange, onRequestDiscard }) {
   useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
+
+  useEffect(() => () => deleteAbortRef.current?.abort(), []);
+
+  const runAccountDeletion = useCallback(() => {
+    deleteAbortRef.current?.abort();
+    const controller = new AbortController();
+    deleteAbortRef.current = controller;
+    setDeletePhase('loading');
+
+    requestAccountDeletion({ signal: controller.signal })
+      .then(() => {
+        setDeletePhase('farewell');
+      })
+      .catch((err) => {
+        if (err?.name === 'AbortError') return;
+        setDeletePhase('error');
+      })
+      .finally(() => {
+        setModalDeleting(false);
+      });
+  }, []);
+
+  const handleConfirmDelete = () => {
+    setModalDeleting(true);
+    setDeleteModalOpen(false);
+    runAccountDeletion();
+  };
+
+  const handleCancelDeleteFlow = () => {
+    deleteAbortRef.current?.abort();
+    setDeletePhase(null);
+    setModalDeleting(false);
+  };
 
   const update = (key, val) => {
     setValues((prev) => ({ ...prev, [key]: val }));
@@ -225,10 +265,35 @@ export default function ProfileAccountTab({ onDirtyChange, onRequestDiscard }) {
         <DangerRow
           title="Delete account"
           description="Permanently remove your account and all associated data from Clearform"
-          action={<DangerButton>Delete account</DangerButton>}
+          action={
+            <DangerButton
+              type="button"
+              disabled={Boolean(deletePhase)}
+              onClick={() => setDeleteModalOpen(true)}
+            >
+              Delete account
+            </DangerButton>
+          }
         />
       </SettingsCard>
       </div>
+
+      <DeleteAccountModal
+        open={deleteModalOpen}
+        isDeleting={modalDeleting}
+        onCancel={() => {
+          if (modalDeleting) return;
+          setDeleteModalOpen(false);
+        }}
+        onConfirm={handleConfirmDelete}
+      />
+
+      <AccountDeletionFlow
+        phase={deletePhase}
+        onRetry={runAccountDeletion}
+        onCancel={handleCancelDeleteFlow}
+        onFinished={() => setDeletePhase(null)}
+      />
     </div>
   );
 }

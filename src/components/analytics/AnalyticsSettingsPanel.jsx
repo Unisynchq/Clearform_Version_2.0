@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   RiQrCodeLine,
   RiCodeSSlashLine,
@@ -8,6 +8,8 @@ import {
 } from 'react-icons/ri';
 import Select from '../ui/Select';
 import { useToast } from '../../hooks/useToast';
+import { DeleteFormModal, PauseFormModal } from './AnalyticsFormActionModals';
+import { deleteFormRequest, pauseFormRequest } from './analyticsFormActions';
 
 const LIFECYCLE_OPTIONS = [
   { value: 'No limit', label: 'No limit' },
@@ -92,6 +94,11 @@ const SHARE_ACTIONS = [
 function AnalyticsSettingsPanel({ form }) {
   const { showToast } = useToast();
   const [copied, setCopied] = useState(false);
+  const [formPaused, setFormPaused] = useState(false);
+  const [pauseModalOpen, setPauseModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const abortRef = useRef(null);
 
   const [name, setName] = useState(form?.title ?? 'NPS Survey Q1 2026');
   const [target, setTarget] = useState(String(form?.responseLimit ?? 500));
@@ -147,6 +154,73 @@ function AnalyticsSettingsPanel({ form }) {
     { id: 'email', label: 'Email' },
     { id: 'in_app', label: 'In-app' },
   ];
+
+  const displayName = name || form?.title || 'NPS Survey Q1 2026';
+
+  const runPauseForm = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setActionLoading(true);
+
+    try {
+      await pauseFormRequest({ signal: controller.signal });
+      setFormPaused(true);
+      setPauseModalOpen(false);
+      showToast({
+        type: 'warning',
+        message: 'Form paused successfully',
+        duration: 6000,
+        action: {
+          label: 'Undo',
+          onClick: () => setFormPaused(false),
+        },
+      });
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
+      showToast({
+        type: 'error',
+        message: 'Failed to pause form. Try again.',
+        duration: 4500,
+        action: { label: 'Retry', onClick: () => runPauseForm() },
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  }, [showToast]);
+
+  const runDeleteForm = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setActionLoading(true);
+
+    try {
+      await deleteFormRequest({ signal: controller.signal });
+      setDeleteModalOpen(false);
+      showToast({
+        type: 'success',
+        message: 'Form moved to trash',
+        duration: 6000,
+        action: {
+          label: 'View',
+          onClick: () => {
+            window.location.assign('/dashboard');
+          },
+        },
+      });
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
+      showToast({
+        type: 'error',
+        message: 'Failed to delete form. Try again.',
+        duration: 4500,
+        action: { label: 'Retry', onClick: () => runDeleteForm() },
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  }, [showToast]);
 
   return (
     <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-10 pt-2 lg:flex-row lg:items-start lg:gap-16">
@@ -313,9 +387,11 @@ function AnalyticsSettingsPanel({ form }) {
                 </div>
                 <button
                   type="button"
-                  className="shrink-0 rounded-[8px] border border-[#ea580c] px-3 py-2 text-[12px] font-medium text-[#c2410c] transition-colors hover:bg-[#fff7ed]"
+                  disabled={formPaused || actionLoading}
+                  onClick={() => setPauseModalOpen(true)}
+                  className="shrink-0 rounded-[8px] border border-[#ea580c] px-3 py-2 text-[12px] font-medium text-[#c2410c] transition-colors hover:bg-[#fff7ed] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Pause form
+                  {formPaused ? 'Form paused' : 'Pause form'}
                 </button>
               </div>
               <div className="border-t border-[#fce4e4] pt-4">
@@ -328,7 +404,9 @@ function AnalyticsSettingsPanel({ form }) {
                   </div>
                   <button
                     type="button"
-                    className="shrink-0 rounded-[8px] border border-[#dc2626] px-3 py-2 text-[12px] font-medium text-[#dc2626] transition-colors hover:bg-[#fef2f2]"
+                    disabled={actionLoading}
+                    onClick={() => setDeleteModalOpen(true)}
+                    className="shrink-0 rounded-[8px] border border-[#dc2626] px-3 py-2 text-[12px] font-medium text-[#dc2626] transition-colors hover:bg-[#fef2f2] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Delete form
                   </button>
@@ -395,6 +473,21 @@ function AnalyticsSettingsPanel({ form }) {
         </div>
 
       </aside>
+
+      <PauseFormModal
+        open={pauseModalOpen}
+        formName={displayName}
+        onCancel={() => !actionLoading && setPauseModalOpen(false)}
+        onConfirm={runPauseForm}
+        isLoading={actionLoading}
+      />
+      <DeleteFormModal
+        open={deleteModalOpen}
+        formName={displayName}
+        onCancel={() => !actionLoading && setDeleteModalOpen(false)}
+        onConfirm={runDeleteForm}
+        isLoading={actionLoading}
+      />
     </div>
   );
 }

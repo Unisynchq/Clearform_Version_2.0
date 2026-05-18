@@ -1,4 +1,4 @@
-import { RiAlertLine, RiCheckLine, RiErrorWarningLine } from 'react-icons/ri';
+import { RiAlertLine, RiCheckLine, RiCheckboxCircleLine, RiErrorWarningLine } from 'react-icons/ri';
 import appleLogo from '../../assets/profile/apple-logo.svg';
 import googleLogo from '../../assets/profile/google-logo.svg';
 import microsoftLogo from '../../assets/profile/microsoft-logo.svg';
@@ -13,6 +13,26 @@ export function SettingsCard({ children, className = '', borderClass = 'border-[
   return (
     <div className={`overflow-hidden border bg-white ${roundedClass} ${borderClass} ${className}`}>
       {children}
+    </div>
+  );
+}
+
+/** Figma 2439:3846 — password change success */
+export function PasswordChangeSuccessBanner() {
+  return (
+    <div
+      role="status"
+      className="flex gap-3 rounded-[8px] border border-[#1a4731]/80 bg-[#d6f0e0] px-4 py-4"
+    >
+      <RiCheckboxCircleLine size={20} className="mt-0.5 shrink-0 text-[#1a4731]" aria-hidden />
+      <div className="flex min-w-0 flex-col gap-1">
+        <p className="text-[14px] font-semibold leading-[21px] text-[#1a4731]">
+          Password updated successfully
+        </p>
+        <p className="text-[13px] leading-[19.5px] text-[#1a4731]">
+          Your password has been updated. Other sessions have been signed out for security.
+        </p>
+      </div>
     </div>
   );
 }

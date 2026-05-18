@@ -5,19 +5,10 @@ import { motion } from 'motion/react';
 import { FcGoogle } from 'react-icons/fc';
 import { RiGlobalLine, RiArrowDownSLine, RiAppleFill, RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
 import { setField, setSubmitting, setAuthenticated } from '../redux/slices/authSlice';
-import clearformLogoWhite from '../assets/clearform-logo-white.svg';
-import bgImage from '../assets/onboarding-bg.jpg';
+import clearformLogo from '../assets/clearform-high-resolution-logo-transparent.png';
+import AuthLeftPanel from '../components/auth/AuthLeftPanel';
 
 /* ─── Static sub-components (memo prevents re-renders on form typing) ─── */
-
-const MicrosoftIcon = memo(() => (
-  <svg width="20" height="20" viewBox="0 0 21 21" fill="none" aria-hidden="true">
-    <rect x="0" y="0" width="10" height="10" fill="#F25022" />
-    <rect x="11" y="0" width="10" height="10" fill="#7FBA00" />
-    <rect x="0" y="11" width="10" height="10" fill="#00A4EF" />
-    <rect x="11" y="11" width="10" height="10" fill="#FFB900" />
-  </svg>
-));
 
 const SocialButton = memo(({ children, label }) => (
   <motion.button
@@ -70,56 +61,6 @@ const InputField = memo(({ label, required, type = 'text', placeholder, value, o
 
 /* ─── Left panel — isolated so image state doesn't re-render the form ─── */
 
-const LeftPanel = memo(() => {
-  const [imgLoaded, setImgLoaded] = useState(false);
-
-  return (
-    <div className="w-[540px] shrink-0 relative bg-white overflow-hidden">
-      {/* Placeholder gradient shown instantly */}
-      <div className="absolute left-4 top-4 bottom-4 right-0 rounded-[20px] bg-[linear-gradient(160deg,#1a0a0a_0%,#6b0f0f_45%,#1a0505_100%)]" />
-
-      {/* Real image — fades in once loaded */}
-      <div className="absolute left-4 top-4 bottom-4 right-0 rounded-[20px] overflow-hidden">
-        <img
-          src={bgImage}
-          alt=""
-          role="presentation"
-          fetchPriority="high"
-          decoding="async"
-          onLoad={() => setImgLoaded(true)}
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
-            imgLoaded ? 'opacity-100' : 'opacity-0'
-          }`}
-        />
-        <div className="absolute inset-0 bg-black/30" />
-      </div>
-
-      {/* Logo */}
-      <img
-        src={clearformLogoWhite}
-        alt="Clearform"
-        width="125"
-        height="35"
-        className="absolute left-8 top-8 w-[125px] h-[35px] object-contain z-10"
-      />
-
-      {/* Tagline — words slide in from the left one by one */}
-      <p className="absolute left-10 bottom-14 text-[52px] font-bold text-white leading-[60px] tracking-[-2px] w-[380px] z-10 select-none flex flex-wrap gap-x-[14px] gap-y-0">
-        {['Forms', 'built', 'for', 'Clarity,', 'Not', 'just', 'Collection.'].map((word, i) => (
-          <motion.span
-            key={word}
-            initial={{ opacity: 0, x: -32 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.45, ease: [0.25, 0.1, 0.25, 1], delay: 0.15 + i * 0.08 }}
-          >
-            {word}
-          </motion.span>
-        ))}
-      </p>
-    </div>
-  );
-});
-
 /* ─── Main page ─────────────────────────────────────────────────────────── */
 
 const SignupPage = () => {
@@ -144,24 +85,29 @@ const SignupPage = () => {
   }, [dispatch, navigate]);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-white">
+    <div className="flex min-h-dvh w-full overflow-hidden bg-white">
 
-      <LeftPanel />
+      <AuthLeftPanel />
 
       {/* ── Right panel ── */}
-      <div className="flex-1 flex items-center justify-center bg-white px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.28, ease: [0.25, 0.1, 0.25, 1] }}
-          className="w-full max-w-[406px] flex flex-col gap-4"
-        >
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto bg-white">
+        <div className="flex shrink-0 items-center justify-center border-b border-[rgba(81,76,84,0.1)] px-4 py-4 lg:hidden">
+          <img src={clearformLogo} alt="Clearform" className="h-8 w-auto object-contain" />
+        </div>
+
+        <div className="flex flex-1 items-center justify-center px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.28, ease: [0.25, 0.1, 0.25, 1] }}
+            className="flex w-full min-w-0 max-w-[406px] flex-col gap-5"
+          >
           {/* Heading */}
           <div className="flex flex-col gap-1.5">
             <h1 className="text-[22px] font-bold text-[#0f0f0e] leading-[28px]">
               Create your account
             </h1>
-            <p className="text-[14px] font-normal text-[#6b6860] leading-[20px]">
+            <p className="text-[14px] font-normal leading-[20px] text-[#6b6860] sm:text-[15px]">
               Continue building forms, gathering responses, and automating your workflows.
             </p>
           </div>
@@ -169,8 +115,8 @@ const SignupPage = () => {
           {/* Form */}
           <form onSubmit={handleSubmit} className="flex flex-col gap-[14px]" noValidate>
             {/* Name row */}
-            <div className="flex items-start gap-4">
-              <div className="flex flex-col gap-1 flex-1">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="flex min-w-0 flex-col gap-1">
                 <label htmlFor="firstName" className="text-[12px] font-bold text-[#5a5a56] leading-[18px]">
                   First name
                 </label>
@@ -185,7 +131,7 @@ const SignupPage = () => {
                   className="w-full h-[40px] bg-[#fafafa] border border-[#e1e0e2] rounded-[8px] px-3 text-[13px] text-[#0f0f0e] placeholder:text-[#757575] outline-none focus:border-[rgba(81,76,84,0.4)] focus:bg-white transition-colors duration-150"
                 />
               </div>
-              <div className="flex flex-col gap-1 flex-1">
+              <div className="flex min-w-0 flex-col gap-1">
                 <label htmlFor="lastName" className="text-[12px] font-bold text-[#5a5a56] leading-[18px]">
                   Last name
                 </label>
@@ -215,46 +161,57 @@ const SignupPage = () => {
             {/* Social login */}
             <div className="flex items-center justify-center gap-3 py-0.5">
               <SocialButton label="Continue with Google"><FcGoogle size={22} /></SocialButton>
-              <SocialButton label="Continue with Microsoft"><MicrosoftIcon /></SocialButton>
               <SocialButton label="Continue with Apple">
                 <RiAppleFill size={22} className="text-[#0f0f0e]" />
               </SocialButton>
             </div>
 
             {/* CTA */}
-            <div className="flex flex-col gap-3">
-              <button
+            <div className="mt-1 flex flex-col gap-4 border-t border-[rgba(81,76,84,0.12)] pt-5">
+              <motion.button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full h-[46px] bg-black text-white text-[15px] font-semibold rounded-[12px] flex items-center justify-center cursor-pointer hover:bg-[#2c2c2e] active:scale-[0.99] transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
+                whileHover={isSubmitting ? undefined : { scale: 1.01 }}
+                whileTap={isSubmitting ? undefined : { scale: 0.99 }}
+                transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
+                className="flex h-[48px] w-full cursor-pointer items-center justify-center rounded-[12px] bg-[#0f0f0e] text-[15px] font-semibold text-white shadow-[0_1px_2px_rgba(0,0,0,0.06),0_4px_12px_rgba(0,0,0,0.08)] transition-colors duration-150 hover:bg-[#2c2c2e] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSubmitting ? (
-                  <svg className="animate-spin w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" aria-label="Loading">
+                  <svg className="h-[18px] w-[18px] animate-spin" viewBox="0 0 24 24" fill="none" aria-label="Loading">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="white" strokeWidth="4" />
                     <path className="opacity-75" fill="white" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                ) : 'Create Account'}
-              </button>
+                ) : (
+                  'Create account'
+                )}
+              </motion.button>
 
-              <button
-                type="button"
-                onClick={() => navigate('/signin')}
-                className="w-full h-[46px] border border-[rgba(0,0,0,0.2)] text-[#737373] text-[15px] font-normal rounded-[12px] flex items-center justify-center cursor-pointer hover:bg-[rgba(0,0,0,0.02)] active:scale-[0.99] transition-all duration-150"
-              >
-                Already have an account? Log in
-              </button>
+              <p className="text-center text-[13.5px] leading-[20px] text-[#6b6860]">
+                Already have an account?{' '}
+                <button
+                  type="button"
+                  onClick={() => navigate('/signin')}
+                  className="font-semibold text-[#0f0f0e] underline decoration-[rgba(15,15,14,0.35)] underline-offset-[3px] transition-colors hover:text-[#2c2c2e] hover:decoration-[#0f0f0e]"
+                >
+                  Log in
+                </button>
+              </p>
             </div>
           </form>
 
           {/* Footer */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="text-[13px] text-[#4c414e] leading-[20px]">Have a question?</span>
-              <a href="#" className="text-[13px] text-[#3c323e] leading-[20px] underline hover:text-[#1a1a1c] transition-colors">
+              <button
+                type="button"
+                onClick={() => navigate('/dashboard/help#get-in-touch')}
+                className="cursor-pointer text-[13px] text-[#3c323e] leading-[20px] underline transition-colors hover:text-[#1a1a1c]"
+              >
                 Contact us
-              </a>
+              </button>
             </div>
-            <button className="flex items-center gap-1.5 border border-[rgba(81,76,84,0.15)] rounded-[8px] px-3 h-[30px] hover:bg-[#f4f3ef] transition-colors duration-150 cursor-pointer">
+            <button type="button" className="flex h-[30px] shrink-0 cursor-pointer items-center gap-1.5 self-start rounded-[8px] border border-[rgba(81,76,84,0.15)] px-3 hover:bg-[#f4f3ef] transition-colors duration-150 sm:self-auto">
               <RiGlobalLine size={14} className="text-[#655d67]" />
               <span className="text-[13px] text-[#655d67] leading-[20px]">English</span>
               <RiArrowDownSLine size={14} className="text-[#655d67]" />
@@ -263,6 +220,7 @@ const SignupPage = () => {
         </motion.div>
       </div>
     </div>
+  </div>
   );
 };
 

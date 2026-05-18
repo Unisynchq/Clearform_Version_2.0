@@ -1,14 +1,27 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   RiAddLine,
   RiAlertLine,
+  RiArrowRightLine,
   RiCheckLine,
   RiCloseLine,
   RiFileExcel2Line,
-  RiRefreshLine,
 } from 'react-icons/ri';
+import clearformLogo from '../../assets/clearform-high-resolution-logo-transparent.png';
+import {
+  createGoogleSheetsOAuthState,
+  formatGoogleSheetsErrorReference,
+  googleSheetsOAuthParamsToClear,
+  parseGoogleSheetsOAuthCallback,
+} from '../../lib/googleSheetsOAuth';
 import ProfileModal from './ProfileModal';
 import { GhostButton, OutlineButton, PrimaryButton } from './ProfileSettingsUi';
+
+const CONNECTION_FAILED_CAUSES = [
+  'The browser tab was closed during the redirect',
+  "Your Google account doesn't have permission to share this workspace",
+];
 
 function ModalHeader({ title, subtitle, onClose }) {
   return (
@@ -33,50 +46,159 @@ function ModalFooter({ children }) {
   return <div className="flex items-center justify-end gap-2.5 border-t border-[#f0f0ee] px-6 py-4">{children}</div>;
 }
 
-function PermissionList() {
-  const items = [
-    'View and manage your Google Sheets spreadsheets',
-    'Create new spreadsheets in your Google Drive',
-    'Append response data to selected sheets in real time',
-  ];
+/** Figma 2439:4678 — Connect flow permissions modal */
+const SHEETS_CAN = [
+  {
+    title: 'Create new Google Sheets spreadsheets',
+    description: 'A new sheet is created per form to receive incoming response',
+  },
+  {
+    title: 'Read spreadsheet metadata',
+    description: 'To list your sheets so you can pick the destination',
+  },
+];
+
+const SHEETS_WONT = [
+  {
+    title: 'Read or edit your other Google Drive files',
+    description: 'Access is limited to spreadsheets created by or shared with Clearform',
+  },
+  {
+    title: 'Delete sheets or any of your data',
+    description: 'No destructive actions, ever',
+  },
+];
+
+function ConnectPermissionIcon({ allowed }) {
   return (
-    <ul className="flex flex-col gap-2.5">
-      {items.map((item) => (
-        <li key={item} className="flex items-start gap-2.5 text-[12.5px] leading-[19px] text-[#6b6b68]">
-          <RiCheckLine size={16} className="mt-0.5 shrink-0 text-[#2e7d52]" aria-hidden />
-          {item}
-        </li>
-      ))}
-    </ul>
+    <span
+      className={`mt-px flex size-[18px] shrink-0 items-center justify-center rounded-[9px] border p-px ${
+        allowed
+          ? 'border-[#c6f0d8] bg-[#f0efff] text-[#2e7d52]'
+          : 'border-[#fed7d7] bg-[#fff5f5] text-[#c53030]'
+      }`}
+      aria-hidden
+    >
+      {allowed ? <RiCheckLine size={10} /> : <RiCloseLine size={10} />}
+    </span>
+  );
+}
+
+function ConnectPermissionRow({ allowed, title, description, bordered = true }) {
+  return (
+    <div className={`flex gap-2.5 py-2.5 ${bordered ? 'border-b border-[#f0f0ee]' : ''}`}>
+      <ConnectPermissionIcon allowed={allowed} />
+      <div className="min-w-0 flex flex-col gap-0.5">
+        <p className="text-[13px] font-medium leading-normal text-[#1a1a18]">{title}</p>
+        <p className="text-[12px] leading-normal text-[#6b6b68]">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function ConnectSectionLabel({ children }) {
+  return (
+    <p className="pb-3 text-[11px] font-semibold uppercase tracking-[0.77px] text-[#9e9e9a]">
+      {children}
+    </p>
   );
 }
 
 export function GoogleSheetsConnectModal({ open, onClose, onConnect }) {
   return (
-    <ProfileModal open={open} onClose={onClose} widthClass="w-[min(100%,420px)]" className="overflow-hidden">
-      <ModalHeader
-        title="Connect Google Sheets"
-        subtitle="Clearform will request the following permissions"
-        onClose={onClose}
-      />
-      <div className="flex flex-col gap-5 px-6 py-5">
-        <div className="flex items-center gap-3 rounded-[10px] border border-[#e8e8e6] bg-[#fafaf8] px-4 py-3.5">
-          <div className="flex size-10 items-center justify-center rounded-[10px] border border-[#bbf7d0] bg-white text-[#34a853]">
-            <RiFileExcel2Line size={20} aria-hidden />
+    <ProfileModal
+      open={open}
+      onClose={onClose}
+      widthClass="w-[min(100%,440px)]"
+      className="overflow-hidden !rounded-[16px]"
+    >
+      <div className="border-b border-[#f0f0ee] px-7 pb-[21px] pt-6">
+        <div className="flex items-center justify-center gap-3.5" aria-hidden>
+          <div className="flex size-12 items-center justify-center rounded-[12px] border border-[#e8e8e6] bg-white p-px">
+            <RiFileExcel2Line size={22} className="text-[#34a853]" />
           </div>
-          <div>
-            <p className="text-[13px] font-medium text-[#1a1a18]">Google Sheets</p>
-            <p className="text-[12px] text-[#9e9e9a]">Auto-sync form responses</p>
+          <RiArrowRightLine size={20} className="shrink-0 text-[#d0d0ce]" />
+          <div className="flex size-12 items-center justify-center rounded-[12px] border border-[#e8e8e6] bg-white p-1.5">
+            <img src={clearformLogo} alt="" className="max-h-full max-w-full object-contain" />
           </div>
         </div>
-        <PermissionList />
+
+        <h2 className="pt-4 text-center text-[15px] font-semibold text-[#1a1a18]">
+          Connect Google Sheets to Clearform
+        </h2>
+        <p className="text-center text-[13px] text-[#6b6b68]">
+          Clearform is requesting the following permissions
+        </p>
       </div>
-      <ModalFooter>
-        <GhostButton onClick={onClose}>Cancel</GhostButton>
-        <PrimaryButton type="button" icon={RiAddLine} onClick={onConnect}>
-          Connect
-        </PrimaryButton>
-      </ModalFooter>
+
+      <div className="px-7 py-5">
+        <ConnectSectionLabel>Clearform will be able to</ConnectSectionLabel>
+        {SHEETS_CAN.map((item, index) => (
+          <ConnectPermissionRow
+            key={item.title}
+            allowed
+            title={item.title}
+            description={item.description}
+            bordered={index < SHEETS_CAN.length - 1}
+          />
+        ))}
+
+        <div className="pb-3 pt-3.5">
+          <ConnectSectionLabel>Clearform will NOT</ConnectSectionLabel>
+        </div>
+        {SHEETS_WONT.map((item, index) => (
+          <ConnectPermissionRow
+            key={item.title}
+            allowed={false}
+            title={item.title}
+            description={item.description}
+            bordered={index < SHEETS_WONT.length - 1}
+          />
+        ))}
+      </div>
+
+      <div className="border-t border-[#f0f0ee] px-7 pb-6 pt-[17px]">
+        <div className="flex items-center justify-center gap-2.5">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-[175px] rounded-[6px] px-3.5 py-2 text-[13px] font-medium text-[#6b6b68] transition-colors hover:bg-[#f7f7f6] hover:text-[#1a1a18]"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConnect}
+            className="w-[179px] rounded-[6px] bg-[#1a1a18] px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#2d2d2a]"
+          >
+            Connect
+          </button>
+        </div>
+
+        <p className="mt-3 text-center text-[11.5px] leading-[17.25px] text-[#9e9e9a]">
+          You&apos;ll be redirected to Google to sign in and confirm. By connecting,
+          <br />
+          you agree to Clearform&apos;s{' '}
+          <a
+            href="https://clearform.in/terms"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[#6b6b68] underline decoration-solid underline-offset-2"
+          >
+            Terms
+          </a>{' '}
+          and{' '}
+          <a
+            href="https://clearform.in/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[#6b6b68] underline decoration-solid underline-offset-2"
+          >
+            Privacy Policy
+          </a>
+          .
+        </p>
+      </div>
     </ProfileModal>
   );
 }
@@ -224,58 +346,162 @@ export function GoogleSheetsConfigureModal({ open, onClose, onSave }) {
   );
 }
 
-export function GoogleSheetsFailedModal({ open, onClose, onRetry }) {
+/** Figma 2439:4815 — Connection failed */
+export function GoogleSheetsFailedModal({ open, onClose, onRetry, onGetHelp, errorDetails }) {
+  const errorReference = formatGoogleSheetsErrorReference(errorDetails);
+
   return (
-    <ProfileModal open={open} onClose={onClose} widthClass="w-[min(100%,420px)]" className="overflow-hidden">
-      <div className="flex flex-col items-center px-6 py-8 text-center">
-        <div className="flex size-12 items-center justify-center rounded-full bg-[#fff5f5]">
-          <RiAlertLine size={22} className="text-[#c53030]" aria-hidden />
+    <ProfileModal
+      open={open}
+      onClose={onClose}
+      widthClass="w-[min(100%,440px)]"
+      className="overflow-hidden !rounded-[16px]"
+    >
+      <div
+        className="flex flex-col items-center border-b border-[#f0f0ee] px-7 pb-[25px] pt-8 text-center"
+        role="alert"
+      >
+        <div className="flex size-14 items-center justify-center rounded-full border-2 border-[#fed7d7] bg-[#fff5f5]">
+          <RiAlertLine size={24} className="text-[#c53030]" aria-hidden />
         </div>
-        <h2 className="mt-4 text-[15px] font-semibold text-[#1a1a18]">Connection failed</h2>
-        <p className="mt-2 max-w-[300px] text-[12.5px] leading-[19px] text-[#6b6b68]">
-          We couldn&apos;t connect to Google Sheets. Check your network connection or try signing in again.
+        <h2 className="pt-2.5 text-[16px] font-semibold text-[#1a1a18]">Connection failed</h2>
+        <p className="text-[13px] leading-[19.5px] text-[#6b6b68]">
+          Clearform couldn&apos;t connect to Google Sheets. This usually
+          <br />
+          happens when access is denied or the session expires
+          <br />
+          during the redirect.
         </p>
-        <div className="mt-6 flex w-full gap-2.5">
-          <OutlineButton type="button" className="flex-1 py-2" onClick={onClose}>
-            Cancel
-          </OutlineButton>
-          <PrimaryButton type="button" icon={RiRefreshLine} className="flex-1 justify-center py-2" onClick={onRetry}>
-            Try again
-          </PrimaryButton>
-        </div>
+      </div>
+
+      <div className="px-7 pb-7 pt-4">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.66px] text-[#9e9e9a]">
+          What may have happened
+        </p>
+        <ul className="mt-1.5 flex flex-col gap-2">
+          {CONNECTION_FAILED_CAUSES.map((cause) => (
+            <li key={cause} className="flex gap-2 text-[13px] leading-normal text-[#6b6b68]">
+              <span className="shrink-0 font-semibold text-[#c53030]" aria-hidden>
+                ·
+              </span>
+              <span>{cause}</span>
+            </li>
+          ))}
+        </ul>
+
+        {errorReference ? (
+          <>
+            <p className="pt-4 text-[11px] font-semibold uppercase tracking-[0.66px] text-[#9e9e9a]">
+              Error reference
+            </p>
+            <div className="mt-1.5 rounded-[6px] border border-[#e8e8e6] bg-[#f0efff] px-[15px] py-[13px]">
+              <p className="break-all font-mono text-[12px] leading-normal text-[#6b6b68]">{errorReference}</p>
+            </div>
+          </>
+        ) : null}
+      </div>
+
+      <div className="flex items-center justify-end gap-2.5 border-t border-[#f0f0ee] px-7 pb-[22px] pt-[15px]">
+        <GhostButton type="button" className="px-3.5 py-2" onClick={onClose}>
+          Cancel
+        </GhostButton>
+        <OutlineButton type="button" className="px-[15px] py-2" onClick={onGetHelp}>
+          Get help
+        </OutlineButton>
+        <PrimaryButton type="button" className="px-4 py-2" onClick={onRetry}>
+          Try again
+        </PrimaryButton>
       </div>
     </ProfileModal>
   );
 }
 
-export function useGoogleSheetsFlow() {
+export function useGoogleSheetsFlow(searchParams, setSearchParams) {
+  const navigate = useNavigate();
   const [modal, setModal] = useState(null);
   const [connected, setConnected] = useState(false);
+  const [connectionError, setConnectionError] = useState(null);
+  const [pendingOAuthState, setPendingOAuthState] = useState(null);
+
+  const clearOAuthParams = () => {
+    if (!setSearchParams) return;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        googleSheetsOAuthParamsToClear(next).forEach((key) => next.delete(key));
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
+  const failWithError = (details) => {
+    setConnectionError(details ?? null);
+    setModal('failed');
+  };
+
+  useEffect(() => {
+    const oauthError = parseGoogleSheetsOAuthCallback(searchParams);
+    if (!oauthError) return;
+
+    failWithError(oauthError);
+    clearOAuthParams();
+  }, [searchParams]);
 
   useEffect(() => {
     if (modal !== 'connecting') return undefined;
+
+    const simulateFail = searchParams?.get('sheets') === 'fail';
+
     const timer = window.setTimeout(() => {
+      if (simulateFail) {
+        failWithError({
+          error: 'access_denied',
+          state: pendingOAuthState ?? createGoogleSheetsOAuthState(),
+        });
+        return;
+      }
       setModal('configure');
     }, 2400);
+
     return () => window.clearTimeout(timer);
-  }, [modal]);
+  }, [modal, pendingOAuthState, searchParams]);
+
+  const closeModal = () => {
+    setModal(null);
+    setConnectionError(null);
+  };
 
   return {
     connected,
     modal,
+    connectionError,
     startConnect: () => setModal('connect'),
     openConfigure: () => setModal('configure'),
-    confirmConnect: () => setModal('connecting'),
-    closeModal: () => setModal(null),
+    confirmConnect: () => {
+      setPendingOAuthState(createGoogleSheetsOAuthState());
+      setConnectionError(null);
+      setModal('connecting');
+    },
+    closeModal,
     disconnect: () => {
       setConnected(false);
       setModal(null);
+      setConnectionError(null);
     },
     saveConfigure: () => {
       setConnected(true);
       setModal(null);
+      setConnectionError(null);
     },
-    retry: () => setModal('connecting'),
-    showFailed: () => setModal('failed'),
+    retry: () => {
+      setConnectionError(null);
+      setModal('connecting');
+    },
+    failWithError,
+    getHelp: () => {
+      setModal(null);
+      navigate('/dashboard/help');
+    },
   };
 }

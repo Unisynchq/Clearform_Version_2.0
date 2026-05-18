@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import DiscardChangesModal from '../components/profile/DiscardChangesModal';
 import ProfileSettingsShell from '../components/profile/ProfileSettingsShell';
@@ -6,9 +6,11 @@ import ProfileAccountTab from '../components/profile/ProfileAccountTab';
 import ProfileSecurityTab from '../components/profile/ProfileSecurityTab';
 import ProfileNotificationsTab from '../components/profile/ProfileNotificationsTab';
 import ProfileIntegrationsTab from '../components/profile/ProfileIntegrationsTab';
+import { ProfileTabSkeleton } from '../components/profile/ProfileTabSkeletons';
 import { PROFILE_TABS } from '../components/profile/profileSettingsConfig';
 
 const TAB_IDS = new Set(PROFILE_TABS.map((t) => t.id));
+const PROFILE_TAB_LOAD_MS = 850;
 
 export default function ProfilePage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -18,7 +20,14 @@ export default function ProfilePage() {
   const [isDirty, setIsDirty] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [pendingTab, setPendingTab] = useState(null);
+  const [tabLoading, setTabLoading] = useState(true);
   const discardFnRef = useRef(null);
+
+  useEffect(() => {
+    setTabLoading(true);
+    const timeoutId = window.setTimeout(() => setTabLoading(false), PROFILE_TAB_LOAD_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [activeTab]);
 
   const applyTab = useCallback(
     (id) => {
@@ -62,6 +71,10 @@ export default function ProfilePage() {
   };
 
   const content = useMemo(() => {
+    if (tabLoading) {
+      return <ProfileTabSkeleton tab={activeTab} />;
+    }
+
     switch (activeTab) {
       case 'security':
         return <ProfileSecurityTab onDirtyChange={setIsDirty} />;
@@ -74,7 +87,7 @@ export default function ProfilePage() {
           <ProfileAccountTab onDirtyChange={setIsDirty} onRequestDiscard={onRequestDiscard} />
         );
     }
-  }, [activeTab, onRequestDiscard]);
+  }, [activeTab, onRequestDiscard, tabLoading]);
 
   return (
     <div className="min-h-full w-full bg-[#f5f4f0]">

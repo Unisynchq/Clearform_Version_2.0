@@ -6,6 +6,7 @@ import AllFormsPage from '../pages/AllFormsPage';
 import TemplatesPage from '../pages/TemplatesPage';
 import AnalyticsPage from '../pages/AnalyticsPage';
 import ProfilePage from '../pages/ProfilePage';
+import HelpSupportPage from '../pages/HelpSupportPage';
 
 const AppRoutes = () => {
   return (
@@ -22,6 +23,7 @@ const AppRoutes = () => {
         <Route path="templates" element={<TemplatesPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="help" element={<HelpSupportPage />} />
       </Route>
     </Routes>
   );

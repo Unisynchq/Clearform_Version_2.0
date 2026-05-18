@@ -1,11 +1,13 @@
 import { useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { RiBarChartLine } from 'react-icons/ri';
 import {
   closeCompareMode,
   toggleCompareForm,
   clearCompareSelection,
+  deactivateCompareModeKeepSelection,
 } from '../../redux/slices/uiSlice';
 
 const MAX_FORMS = 2;
@@ -50,6 +52,7 @@ const FormChip = ({ form, onRemove }) => {
 /* ── Dock ── */
 const CompareModeDock = () => {
   const dispatch   = useDispatch();
+  const navigate   = useNavigate();
   const chipsRef   = useRef(null);
   const { active, selectedFormIds } = useSelector((s) => s.ui.compareMode);
   const allForms   = useSelector((s) => s.forms.forms);
@@ -61,6 +64,13 @@ const CompareModeDock = () => {
   const count      = selectedForms.length;
   const isMaxed    = count >= MAX_FORMS;
   const canCompare = count >= 2;
+
+  const handleGoToCompare = () => {
+    if (!canCompare || selectedFormIds.length < 2) return;
+    const primaryFormId = selectedFormIds[0];
+    dispatch(deactivateCompareModeKeepSelection());
+    navigate(`/dashboard/analytics?form=${encodeURIComponent(primaryFormId)}&tab=compare`);
+  };
 
   return (
     <AnimatePresence>
@@ -158,6 +168,8 @@ const CompareModeDock = () => {
             {/* Compare CTA */}
             <motion.button
               layout
+              type="button"
+              onClick={handleGoToCompare}
               whileHover={canCompare ? { scale: 1.02 } : {}}
               whileTap={canCompare ? { scale: 0.97 } : {}}
               disabled={!canCompare}
