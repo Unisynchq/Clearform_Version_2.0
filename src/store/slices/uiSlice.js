@@ -1,4 +1,5 @@
 import { createSlice } from '@reduxjs/toolkit';
+import { MAX_COMPARE_FORMS } from '@/constants';
 
 const initialState = {
   contextMenu: {
@@ -22,6 +23,11 @@ const initialState = {
     formId: null,
     formTitle: '',
     responses: 0,
+  },
+  pauseModal: {
+    open: false,
+    formId: null,
+    formTitle: '',
   },
   formOverlay: {
     open: false,
@@ -58,6 +64,9 @@ const initialState = {
     workspaceName: '',
   },
   notificationCenter: {
+    open: false,
+  },
+  integrationsPanel: {
     open: false,
   },
   compareMode: {
@@ -100,6 +109,14 @@ const uiSlice = createSlice({
     },
     closeArchiveModal(state) {
       state.archiveModal = { open: false, formId: null, formTitle: '', responses: 0 };
+    },
+    openPauseModal(state, action) {
+      const { formId, formTitle } = action.payload;
+      state.pauseModal = { open: true, formId, formTitle };
+      state.contextMenu = { open: false, formId: null, x: 0, y: 0 };
+    },
+    closePauseModal(state) {
+      state.pauseModal = { open: false, formId: null, formTitle: '' };
     },
     openFormOverlay(state, action) {
       state.formOverlay = { open: true, formId: action.payload };
@@ -158,9 +175,21 @@ const uiSlice = createSlice({
     },
     toggleNotificationCenter(state) {
       state.notificationCenter.open = !state.notificationCenter.open;
+      if (state.notificationCenter.open) {
+        state.integrationsPanel.open = false;
+      }
     },
     closeNotificationCenter(state) {
       state.notificationCenter.open = false;
+    },
+    toggleIntegrationsPanel(state) {
+      state.integrationsPanel.open = !state.integrationsPanel.open;
+      if (state.integrationsPanel.open) {
+        state.notificationCenter.open = false;
+      }
+    },
+    closeIntegrationsPanel(state) {
+      state.integrationsPanel.open = false;
     },
     openCompareMode(state, action) {
       const { formId } = action.payload;
@@ -178,7 +207,7 @@ const uiSlice = createSlice({
       const ids = state.compareMode.selectedFormIds;
       if (ids.includes(formId)) {
         state.compareMode.selectedFormIds = ids.filter((id) => id !== formId);
-      } else if (ids.length < 2) {
+      } else if (ids.length < MAX_COMPARE_FORMS) {
         state.compareMode.selectedFormIds = [...ids, formId];
       }
     },
@@ -191,7 +220,7 @@ const uiSlice = createSlice({
       const cur = [...state.compareMode.selectedFormIds];
       if (!cur.includes(formId)) {
         state.compareMode.selectedFormIds =
-          cur.length >= 2 ? cur : [...cur, formId];
+          cur.length >= MAX_COMPARE_FORMS ? cur : [...cur, formId];
       }
       state.contextMenu = { open: false, formId: null, x: 0, y: 0 };
     },
@@ -218,6 +247,8 @@ export const {
   closeCreateNewFormModal,
   openArchiveModal,
   closeArchiveModal,
+  openPauseModal,
+  closePauseModal,
   openShareModal,
   closeShareModal,
   openWorkspaceContextMenu,
@@ -228,6 +259,8 @@ export const {
   closeDeleteWorkspaceModal,
   toggleNotificationCenter,
   closeNotificationCenter,
+  toggleIntegrationsPanel,
+  closeIntegrationsPanel,
   openCompareMode,
   closeCompareMode,
   toggleCompareForm,

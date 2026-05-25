@@ -1,7 +1,10 @@
+/** Maximum forms selectable for side-by-side analytics comparison */
+export const MAX_COMPARE_FORMS = 2;
+
 export const FILTER_TABS = [
   { id: 'all', label: 'All' },
   { id: 'live', label: 'Live' },
-  { id: 'drafts', label: 'Drafts' },
+  { id: 'draft', label: 'Drafts' },
   { id: 'shared', label: 'Shared with you' },
   { id: 'archived', label: 'Archived' },
 ];

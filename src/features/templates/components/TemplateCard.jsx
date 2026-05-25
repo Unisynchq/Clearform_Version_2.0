@@ -6,7 +6,15 @@ const TAG_SURFACES = {
   muted: 'bg-[#f0efe9]',
 };
 
-const TemplateCard = ({ template, isLoading, anyLoading, onUseTemplate, onPreview }) => {
+const TemplateCard = ({
+  template,
+  isLoading,
+  anyLoading,
+  onUseTemplate,
+  onPreview,
+  selected = false,
+  onSelect,
+}) => {
   const [isHovered, setIsHovered] = useState(false);
   const { Icon } = template;
   const showActionRow = isHovered && !isLoading && !anyLoading;
@@ -15,13 +23,18 @@ const TemplateCard = ({ template, isLoading, anyLoading, onUseTemplate, onPrevie
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0, borderColor: showActionRow ? '#d4d2cb' : '#e8e7e2' }}
+      animate={{
+        opacity: 1,
+        y: 0,
+        borderColor: selected ? '#1a1a1a' : showActionRow ? '#d4d2cb' : '#e8e7e2',
+      }}
       onHoverStart={() => setIsHovered(true)}
       onHoverEnd={() => setIsHovered(false)}
+      onClick={() => !isLoading && !anyLoading && onSelect?.(template)}
       transition={{ duration: 0.15 }}
       className={`relative bg-[#edeae3] border rounded-[12px] p-[26px] flex flex-col ${
         isLoading ? 'cursor-default' : 'cursor-pointer'
-      }`}
+      } ${selected ? 'ring-2 ring-[#1a1a1a]/15' : ''}`}
     >
       <div className="flex gap-4 items-start">
         <div className="w-[48px] h-[48px] shrink-0 bg-[#f7f6f3] rounded-[8px] flex items-center justify-center">

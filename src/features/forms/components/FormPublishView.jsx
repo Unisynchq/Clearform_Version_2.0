@@ -111,7 +111,7 @@ function slugify(text) {
   );
 }
 
-const FormPublishView = ({ formTitle = 'Untitled Form' }) => {
+const FormPublishView = ({ formTitle = 'Untitled Form', showOnboardingStepper = false }) => {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [acceptingResponses, setAcceptingResponses] = useState(true);
@@ -147,11 +147,13 @@ const FormPublishView = ({ formTitle = 'Untitled Form' }) => {
           <img src={clearformLogo} alt="Clearform" className="h-[26px] w-auto object-contain" />
         </div>
 
-        <div className="flex-1 flex items-center justify-center min-w-0 overflow-hidden">
-          <StepBar activeStep={4} />
-        </div>
+        {showOnboardingStepper && (
+          <div className="flex-1 flex items-center justify-center min-w-0 overflow-hidden">
+            <StepBar activeStep={4} />
+          </div>
+        )}
 
-        <div className="flex items-center shrink-0">
+        <div className={`flex items-center shrink-0${showOnboardingStepper ? '' : ' ml-auto'}`}>
           <button
             type="button"
             onClick={() => navigate('/dashboard')}

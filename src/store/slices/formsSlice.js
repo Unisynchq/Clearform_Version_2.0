@@ -1,5 +1,8 @@
 import { createSlice, createSelector } from '@reduxjs/toolkit';
-import { FORMS_DATA, NAV_WORKSPACES } from '../../constants';
+import { NAV_WORKSPACES } from '../../constants';
+import { readPersistedForms, clearUserForms } from '@/features/forms/utils/userFormsStorage';
+import { readWorkspaces } from '@/features/forms/utils/workspacesStorage';
+import { readFormsUi } from '@/features/forms/utils/formsUiStorage';
 
 // Convert a "Xm/Xh/Xd/Xw ago" string to milliseconds so we can sort by recency
 function timeAgoToMs(timeAgo) {
@@ -11,17 +14,19 @@ function timeAgoToMs(timeAgo) {
   return n * (multipliers[m[2]] ?? 0);
 }
 
+const savedUi = readFormsUi();
+
 const initialState = {
-  forms: FORMS_DATA,
-  workspaces: NAV_WORKSPACES,
-  activeFilter: 'all',
-  activeWorkspace: 'all',
-  searchQuery: '',
-  showTemplateBanner: true,
-  viewMode: 'grid',    // 'grid' | 'list'
-  sortOrder: 'recent', // 'recent' | 'oldest' | 'most_responses' | 'fewest_responses' | 'name_az' | 'name_za'
-  isLoading: true,     // simulates initial data fetch
-  advancedFilters: { status: [], responses: [] }, // status: ['live','draft','archived'], responses: ['has_responses','no_responses']
+  forms: readPersistedForms(),
+  workspaces: readWorkspaces() ?? NAV_WORKSPACES,
+  activeFilter: savedUi.activeFilter,
+  activeWorkspace: savedUi.activeWorkspace,
+  searchQuery: savedUi.searchQuery,
+  showTemplateBanner: savedUi.showTemplateBanner,
+  viewMode: savedUi.viewMode,
+  sortOrder: savedUi.sortOrder,
+  isLoading: false,
+  advancedFilters: savedUi.advancedFilters ?? { status: [], responses: [] },
 };
 
 const formsSlice = createSlice({
@@ -51,6 +56,11 @@ const formsSlice = createSlice({
     },
     addForm(state, action) {
       state.forms.unshift(action.payload);
+    },
+    updateForm(state, action) {
+      const { id, changes } = action.payload;
+      const form = state.forms.find((f) => f.id === id);
+      if (form) Object.assign(form, changes);
     },
     setFormPause(state, action) {
       const { formId, endLabel, endTimestamp, pauseType, viewYear, viewMonth, selDay, hour, minute, ampm } = action.payload;
@@ -97,6 +107,15 @@ const formsSlice = createSlice({
     clearAdvancedFilters(state) {
       state.advancedFilters = { status: [], responses: [] };
     },
+    resetFormsForOnboarding(state) {
+      state.forms = [];
+      state.showTemplateBanner = true;
+      state.activeFilter = 'all';
+      state.activeWorkspace = 'all';
+      state.searchQuery = '';
+      state.isLoading = false;
+      clearUserForms();
+    },
   },
 });
 
@@ -109,6 +128,7 @@ export const {
   setSortOrder,
   setLoading,
   addForm,
+  updateForm,
   setFormPause,
   clearFormPause,
   addWorkspace,
@@ -119,6 +139,7 @@ export const {
   unarchiveForm,
   setAdvancedFilters,
   clearAdvancedFilters,
+  resetFormsForOnboarding,
 } = formsSlice.actions;
 
 // Memoized with createSelector so the result is only recomputed when one of

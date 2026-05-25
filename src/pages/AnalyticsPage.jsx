@@ -339,6 +339,13 @@ const AnalyticsPage = () => {
                   onClick={() => {
                     if (tab.id === 'ai') setAiInsightsVisit((n) => n + 1);
                     setActiveTab(tab.id);
+                    const next = new URLSearchParams(searchParams);
+                    if (tab.id === 'performance') {
+                      next.delete('tab');
+                    } else {
+                      next.set('tab', tab.id);
+                    }
+                    setSearchParams(next, { replace: true });
                   }}
                   className={`relative shrink-0 px-3 h-8 text-[13px] rounded-[8px] cursor-pointer transition-colors duration-200 ease-out ${
                     isActive

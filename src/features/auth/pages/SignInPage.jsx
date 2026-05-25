@@ -4,7 +4,23 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { FcGoogle } from 'react-icons/fc';
 import { RiGlobalLine, RiArrowDownSLine, RiAppleFill, RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
-import { setField, setSubmitting, setAuthenticated } from '@/store/slices/authSlice';
+import { setField, setSubmitting, loginSuccess } from '@/store/slices/authSlice';
+import { resolveSignInNavigation } from '@/features/onboarding/utils/authOnboarding';
+import {
+  getUserAccountByEmail,
+  persistAccountPassword,
+  upsertUserAccount,
+} from '@/features/auth/utils/userAccountsStorage';
+import {
+  hasStoredAccountPassword,
+  verifyCurrentPassword,
+} from '@/features/profile/utils/profileValidation';
+import AuthFieldError from '@/features/auth/components/AuthFieldError';
+import {
+  hasValidationErrors,
+  validateSignInForm,
+} from '@/features/auth/utils/authValidation';
+import { useToast } from '@/hooks/useToast';
 import clearformLogoWhite from '@/assets/clearform-logo-white.svg';
 import bgImage from '@/assets/onboarding-bg.jpg';
 
@@ -32,9 +48,15 @@ const SocialButton = memo(({ children, label }) => (
   </motion.button>
 ));
 
-const InputField = memo(({ label, required, type = 'text', placeholder, value, onChange, name }) => {
+const inputBaseClass =
+  'w-full h-[40px] bg-[#fafafa] border rounded-[10px] px-[13px] text-[13px] text-[#0f0f0e] placeholder:text-[#757575] outline-none focus:bg-white transition-colors duration-150';
+const inputValidClass = 'border-[rgba(81,76,84,0.15)] focus:border-[rgba(81,76,84,0.4)]';
+const inputInvalidClass = 'border-[#c74e43] focus:border-[#c74e43]';
+
+const InputField = memo(({ label, required, type = 'text', placeholder, value, onChange, name, error }) => {
   const [showPassword, setShowPassword] = useState(false);
   const isPassword = type === 'password';
+  const errorId = `${name}-error`;
 
   return (
     <div className="flex flex-col gap-1.5 w-full">
@@ -51,7 +73,9 @@ const InputField = memo(({ label, required, type = 'text', placeholder, value, o
           onChange={onChange}
           placeholder={placeholder}
           autoComplete={isPassword ? 'current-password' : name === 'email' ? 'email' : 'on'}
-          className="w-full h-[40px] bg-[#fafafa] border border-[rgba(81,76,84,0.15)] rounded-[10px] px-[13px] text-[13px] text-[#0f0f0e] placeholder:text-[#757575] outline-none focus:border-[rgba(81,76,84,0.4)] focus:bg-white transition-colors duration-150"
+          aria-invalid={error ? 'true' : undefined}
+          aria-describedby={error ? errorId : undefined}
+          className={`${inputBaseClass} ${error ? inputInvalidClass : inputValidClass}`}
         />
         {isPassword && (
           <button
@@ -64,6 +88,7 @@ const InputField = memo(({ label, required, type = 'text', placeholder, value, o
           </button>
         )}
       </div>
+      <AuthFieldError id={errorId} message={error} />
     </div>
   );
 });
@@ -123,21 +148,52 @@ const LeftPanel = memo(() => {
 const SignInPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const { email, password, isSubmitting } = useSelector((state) => state.auth);
+  const [errors, setErrors] = useState({});
 
   const handleChange = useCallback((e) => {
-    dispatch(setField({ field: e.target.name, value: e.target.value }));
+    const { name, value } = e.target;
+    dispatch(setField({ field: name, value }));
+    setErrors((prev) => (prev[name] ? { ...prev, [name]: null } : prev));
   }, [dispatch]);
 
   const handleSubmit = useCallback((e) => {
     e.preventDefault();
+    const nextErrors = validateSignInForm({ email, password });
+    setErrors(nextErrors);
+    if (hasValidationErrors(nextErrors)) return;
+
+    const trimmedEmail = email.trim();
+    const account = getUserAccountByEmail(trimmedEmail);
+    if (
+      hasStoredAccountPassword(trimmedEmail) &&
+      !verifyCurrentPassword(trimmedEmail, password)
+    ) {
+      setErrors({ password: 'Incorrect password' });
+      return;
+    }
+
     dispatch(setSubmitting(true));
     setTimeout(() => {
       dispatch(setSubmitting(false));
-      dispatch(setAuthenticated(true));
-      navigate('/dashboard');
+      if (!hasStoredAccountPassword(trimmedEmail) && password) {
+        if (!account) {
+          upsertUserAccount({ email: trimmedEmail, firstName: '', lastName: '', password });
+        }
+        persistAccountPassword(trimmedEmail, password);
+      }
+      dispatch(
+        loginSuccess({
+          email: trimmedEmail,
+          firstName: account?.firstName ?? '',
+          lastName: account?.lastName ?? '',
+        })
+      );
+      showToast({ type: 'success', message: 'Signed in successfully', duration: 3000 });
+      navigate(resolveSignInNavigation(dispatch));
     }, 1000);
-  }, [dispatch, navigate]);
+  }, [dispatch, navigate, email, password, showToast]);
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white">
@@ -167,9 +223,10 @@ const SignInPage = () => {
             <InputField
               label="Email" required type="email" name="email"
               placeholder="johndoe@gmail.com" value={email} onChange={handleChange}
+              error={errors.email}
             />
 
-            <PasswordField value={password} onChange={handleChange} />
+            <PasswordField value={password} onChange={handleChange} error={errors.password} />
 
             {/* Social login */}
             <div className="flex items-center justify-center gap-3 py-0.5">
@@ -227,8 +284,9 @@ const SignInPage = () => {
 
 /* ─── Password field with inline "Forgot password?" link ─── */
 
-const PasswordField = memo(({ value, onChange }) => {
+const PasswordField = memo(({ value, onChange, error }) => {
   const [showPassword, setShowPassword] = useState(false);
+  const errorId = 'password-error';
 
   return (
     <div className="flex flex-col gap-1.5 w-full">
@@ -252,7 +310,9 @@ const PasswordField = memo(({ value, onChange }) => {
           onChange={onChange}
           placeholder="Enter your password"
           autoComplete="current-password"
-          className="w-full h-[40px] bg-[#fafafa] border border-[rgba(81,76,84,0.15)] rounded-[10px] px-[13px] pr-10 text-[13px] text-[#0f0f0e] placeholder:text-[#757575] outline-none focus:border-[rgba(81,76,84,0.4)] focus:bg-white transition-colors duration-150"
+          aria-invalid={error ? 'true' : undefined}
+          aria-describedby={error ? errorId : undefined}
+          className={`${inputBaseClass} pr-10 ${error ? inputInvalidClass : inputValidClass}`}
         />
         <button
           type="button"
@@ -263,6 +323,7 @@ const PasswordField = memo(({ value, onChange }) => {
           {showPassword ? <RiEyeOffLine size={16} /> : <RiEyeLine size={16} />}
         </button>
       </div>
+      <AuthFieldError id={errorId} message={error} />
     </div>
   );
 });

@@ -111,4 +111,180 @@ export const getLogicFieldsForScreenLabel = (screenLabel) => {
   ];
 };
 
+/** Human-readable field labels scoped to the screen/card that collects the answer. */
+export const getLogicFieldLabelForScreen = (screen, field) => {
+  if (!screen || !field) return field?.label ?? 'Field';
+  const cardName = screen.name?.trim() || screen.label || 'Screen';
+
+  if (screen.type === 'intro') {
+    return field.label;
+  }
+
+  const byCard = {
+    Heading: 'Answer',
+    Description: 'Content',
+    CTA: 'Button action',
+    Captcha: 'Verification',
+    Images: 'Selection',
+    Video: 'Response',
+    'Short text': 'Answer',
+    'Long text': 'Answer',
+    Single: 'Selected option',
+    Multiple: 'Selected options',
+    Media: 'Selected option',
+    Rating: 'Rating value',
+    Contact: field.label,
+    Address: 'Address',
+    'Work Info': field.label,
+    Maps: 'Location',
+    Upload: 'File upload',
+    'Multi-image upload': 'File upload',
+    Date: 'Selected date',
+    Time: 'Selected time',
+  };
+
+  const suffix = byCard[screen.label] ?? field.label;
+  return `${cardName} — ${suffix}`;
+};
+
+const WELCOME_INPUT_FIELD_IDS = {
+  'Free text': 'short-text',
+  Number: 'number',
+  Email: 'email',
+  URL: 'short-text',
+  Phone: 'phone-number',
+  Password: 'short-text',
+};
+
+/** Fields available when branching from the Start screen (intro welcome input). */
+export const getLogicFieldsForIntro = (welcomeInputType = 'Free text', welcomeHidden = false) => {
+  if (welcomeHidden) return [];
+  const fieldId = WELCOME_INPUT_FIELD_IDS[welcomeInputType] ?? 'short-text';
+  const base = catalogById[fieldId];
+  if (!base) return [];
+  return [
+    {
+      ...base,
+      label: `Start screen — ${welcomeInputType}`,
+    },
+  ];
+};
+
+/**
+ * Field options for If/Then logic when leaving `screen`.
+ * Conditions always reference answers collected on that same screen.
+ */
+export const getLogicFieldOptionsForScreen = (screen, { welcomeInputType, welcomeHidden } = {}) => {
+  if (!screen) return [];
+  if (screen.type === 'intro') {
+    return getLogicFieldsForIntro(welcomeInputType, welcomeHidden);
+  }
+  if (screen.type !== 'content') return [];
+
+  return getLogicFieldsForScreenLabel(screen.label).map((field) => ({
+    ...field,
+    label: getLogicFieldLabelForScreen(screen, field),
+  }));
+};
+
+/**
+ * One picker entry per question card in the form (matches sidebar / logic canvas).
+ */
+export function buildLogicQuestionOptions({
+  screens = [],
+  getQuestionText = (s) => s?.name || s?.label || 'Screen',
+  welcomeInputType = 'Free text',
+  welcomeHidden = false,
+  introTitle = 'Start Screen',
+} = {}) {
+  const options = [];
+  const contentScreens = screens.filter((s) => s.type === 'content');
+
+  const intro = screens.find((s) => s.type === 'intro');
+  if (intro && !welcomeHidden) {
+    const introFields = getLogicFieldsForIntro(welcomeInputType, welcomeHidden);
+    const field = introFields[0];
+    if (field) {
+      const question = introTitle?.trim() || 'Start Screen';
+      options.push({
+        id: `${intro.id}:${field.id}`,
+        sourceScreenId: intro.id,
+        fieldId: field.id,
+        label: `Start — ${question}`,
+        badgeBg: field.badgeBg,
+        Icon: field.Icon,
+        screenLabel: 'Start screen',
+      });
+    }
+  }
+
+  contentScreens.forEach((screen, idx) => {
+    const fields = getLogicFieldOptionsForScreen(screen, { welcomeInputType, welcomeHidden });
+    const field = fields[0];
+    if (!field) return;
+
+    const cardType = screen.label || 'Question';
+    const question = getQuestionText(screen)?.trim() || screen.name?.trim() || cardType;
+    const num = idx + 1;
+
+    options.push({
+      id: `${screen.id}:${field.id}`,
+      sourceScreenId: screen.id,
+      fieldId: field.id,
+      label: `${num} ${cardType} — ${question}`,
+      badgeBg: field.badgeBg,
+      Icon: field.Icon,
+      screenLabel: cardType,
+    });
+  });
+
+  return options;
+}
+
+export const logicQuestionKey = (sourceScreenId, fieldId) => `${sourceScreenId}:${fieldId}`;
+
+export const parseLogicQuestionKey = (key) => {
+  const str = String(key ?? '');
+  const sep = str.indexOf(':');
+  if (sep < 0) return { sourceScreenId: null, fieldId: str };
+  return {
+    sourceScreenId: Number(str.slice(0, sep)),
+    fieldId: str.slice(sep + 1),
+  };
+};
+
+export const findLogicQuestionOption = (options, sourceScreenId, fieldId) =>
+  options.find(
+    (o) => Number(o.sourceScreenId) === Number(sourceScreenId) && o.fieldId === fieldId
+  ) ?? null;
+
 export const getLogicFieldById = (id) => catalogById[id];
+
+/** Card types that support block visibility (SHOW THIS BLOCK IF). */
+export const BLOCK_VISIBILITY_LABELS = new Set([
+  'Heading',
+  'Description',
+  'Images',
+  'Media',
+  'Captcha',
+  'Maps',
+]);
+
+/** Content screens that support if/then branching (choice-based, interactive, numeric). */
+export const IF_THEN_LOGIC_SCREEN_LABELS = new Set([
+  'Single',
+  'Multiple',
+  'Media',
+  'Maps',
+  'Upload',
+  'Multi-image upload',
+  'Captcha',
+  'Rating',
+  'Time',
+  'Date',
+]);
+
+export const screenSupportsIfThenLogic = (screen) => {
+  if (!screen || screen.type !== 'content') return false;
+  return IF_THEN_LOGIC_SCREEN_LABELS.has(screen.label);
+};

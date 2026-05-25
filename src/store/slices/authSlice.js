@@ -1,13 +1,21 @@
 import { createSlice } from '@reduxjs/toolkit';
+import {
+  readAuthSession,
+  writeAuthSession,
+  clearAuthSession,
+  isAuthSessionValid,
+} from '@/features/auth/utils/authStorage';
+
+const savedSession = isAuthSessionValid() ? readAuthSession() : null;
 
 const initialState = {
-  firstName: '',
-  lastName: '',
-  email: '',
+  firstName: savedSession?.firstName ?? '',
+  lastName: savedSession?.lastName ?? '',
+  email: savedSession?.email ?? '',
   password: '',
   isSubmitting: false,
   error: null,
-  isAuthenticated: false,
+  isAuthenticated: savedSession?.isAuthenticated === true,
 };
 
 const authSlice = createSlice({
@@ -26,6 +34,24 @@ const authSlice = createSlice({
     },
     setAuthenticated(state, action) {
       state.isAuthenticated = action.payload;
+      if (!action.payload) clearAuthSession();
+    },
+    loginSuccess(state, action) {
+      const { email, firstName = '', lastName = '' } = action.payload;
+      state.email = email;
+      state.firstName = firstName;
+      state.lastName = lastName;
+      state.isAuthenticated = true;
+      state.error = null;
+      state.isSubmitting = false;
+      writeAuthSession({ email, firstName, lastName });
+    },
+    logout(state) {
+      state.isAuthenticated = false;
+      state.password = '';
+      state.error = null;
+      state.isSubmitting = false;
+      clearAuthSession();
     },
     resetForm(state) {
       state.firstName = '';
@@ -38,7 +64,14 @@ const authSlice = createSlice({
   },
 });
 
-export const { setField, setSubmitting, setError, setAuthenticated, resetForm } =
-  authSlice.actions;
+export const {
+  setField,
+  setSubmitting,
+  setError,
+  setAuthenticated,
+  loginSuccess,
+  logout,
+  resetForm,
+} = authSlice.actions;
 
 export default authSlice.reducer;

@@ -21,6 +21,7 @@ import {
   suggestTemplateSearchTerms,
 } from '../utils/templateFilters';
 import { useToast } from '@/hooks/useToast';
+import OnboardingTemplatePreviewModal from '@/features/onboarding/components/OnboardingTemplatePreviewModal';
 
 const PLAN_LIMIT = 10;
 const CREATE_LATENCY_MS = 1600;
@@ -97,6 +98,7 @@ const TemplatesPage = () => {
   const [searchFocused, setSearchFocused] = useState(false);
   const [loadingTemplateId, setLoadingTemplateId] = useState(null);
   const [bannerState, setBannerState] = useState('default');
+  const [previewTemplate, setPreviewTemplate] = useState(null);
   const createTimerRef = useRef(null);
   const loadingTimerRef = useRef(null);
   const inputRef = useRef(null);
@@ -206,12 +208,21 @@ const TemplatesPage = () => {
     }, CREATE_LATENCY_MS);
   };
 
+  const previewOpen = previewTemplate !== null;
+
   const handlePreview = (template) => {
-    showToast({
-      type: 'info',
-      message: `Preview for "${template.title}" coming soon`,
-      duration: 2500,
-    });
+    setPreviewTemplate(template);
+  };
+
+  const closePreview = () => {
+    setPreviewTemplate(null);
+  };
+
+  const handleUseFromPreview = () => {
+    if (!previewTemplate) return;
+    const template = previewTemplate;
+    closePreview();
+    handleUseTemplate(template);
   };
 
   const handleSearchSubmit = () => {
@@ -438,6 +449,7 @@ const TemplatesPage = () => {
   );
 
   return (
+    <>
     <AnimatePresence mode="wait">
       {loadStage === 'full' && (
         <motion.div key="full" exit={{ opacity: 0 }}>
@@ -474,6 +486,14 @@ const TemplatesPage = () => {
           </>
         )}
     </AnimatePresence>
+
+    <OnboardingTemplatePreviewModal
+      open={previewOpen}
+      template={previewTemplate}
+      onClose={closePreview}
+      onUseTemplate={handleUseFromPreview}
+    />
+    </>
   );
 };
 

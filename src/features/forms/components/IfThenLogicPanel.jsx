@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { RiAddLine, RiCloseLine } from 'react-icons/ri';
+import { RiAddLine, RiCloseLine, RiDeleteBin6Line } from 'react-icons/ri';
 import LogicFieldPicker from '@/features/forms/components/LogicFieldPicker';
 import LogicScreenPicker from '@/features/forms/components/LogicScreenPicker';
-import { getLogicFieldById } from '@/features/forms/constants/logicFieldCatalog';
+import { getLogicFieldById, findLogicQuestionOption, parseLogicQuestionKey, logicQuestionKey } from '@/features/forms/constants/logicFieldCatalog';
 import {
   getOperatorsForFieldId,
   isNumericFieldId,
@@ -19,27 +19,40 @@ const operatorSymbol = (id) => {
     lte: '≤',
     contains: 'contains',
     not_contains: 'does not contain',
+    includes: 'includes',
+    not_includes: 'does not include',
     is_empty: 'is empty',
     is_not_empty: 'is not empty',
   };
   return map[id] ?? id;
 };
 
-const createEmptyCondition = (fieldId = '') => {
+const createEmptyCondition = (questionOptions = []) => {
+  const first = questionOptions[0];
+  const fieldId = first?.fieldId ?? '';
   const ops = getOperatorsForFieldId(fieldId);
   return {
     id: `cond-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    sourceScreenId: first?.sourceScreenId ?? null,
     fieldId,
     operator: ops[0]?.id ?? 'eq',
     value: '',
   };
 };
 
-export const createEmptyRule = (fieldId = '') => ({
+export const createEmptyRule = (questionOptions = []) => ({
   id: `rule-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-  conditions: [createEmptyCondition(fieldId)],
+  conditions: [createEmptyCondition(questionOptions)],
   thenScreenId: null,
 });
+
+const conditionPickerValue = (cond, questionOptions) => {
+  if (cond?.sourceScreenId != null && cond?.fieldId) {
+    return logicQuestionKey(cond.sourceScreenId, cond.fieldId);
+  }
+  const match = questionOptions.find((o) => o.fieldId === cond?.fieldId);
+  return match?.id ?? questionOptions[0]?.id ?? '';
+};
 
 const LogicSelect = ({ value, onChange, options, className = '' }) => (
   <select
@@ -77,26 +90,24 @@ const LogicValueInput = ({ fieldId, operator, value, onChange, className = '' })
 
 const IfThenLogicPanel = ({
   screenSubtitle,
-  fieldOptions,
+  /** All question cards in the form (sidebar list) — one option per card */
+  questionOptions = [],
   destinationOptions,
   draft,
   onDraftChange,
   onClose,
   onCancel,
   onSave,
-  /** When set, this connection always routes to this screen (per-edge logic). */
-  fixedThenScreenId = null,
 }) => {
-  const fixedThenLabel =
-    fixedThenScreenId != null
-      ? destinationOptions.find((d) => Number(d.id) === Number(fixedThenScreenId))?.label ?? 'Screen'
-      : null;
   const [validationErrors, setValidationErrors] = useState([]);
-  const defaultFieldId = fieldOptions[0]?.id ?? 'rating';
 
   const previewLines = useMemo(() => {
-    const fieldLabel = (id) =>
-      fieldOptions.find((f) => f.id === id)?.label ?? getLogicFieldById(id)?.label ?? 'Field';
+    const questionLabel = (cond) => {
+      const opt = findLogicQuestionOption(questionOptions, cond.sourceScreenId, cond.fieldId);
+      if (opt) return opt.label;
+      if (cond.fieldId) return getLogicFieldById(cond.fieldId)?.label ?? 'Question';
+      return 'Question';
+    };
     const destLabel = (id) => destinationOptions.find((d) => Number(d.id) === Number(id))?.label ?? '…';
     const destColor = (idx) => (idx === 0 ? '#3b5bdb' : idx === 1 ? '#16a34a' : '#7c3aed');
 
@@ -110,7 +121,7 @@ const IfThenLogicPanel = ({
             cond.operator === 'is_empty' || cond.operator === 'is_not_empty'
               ? ''
               : ` ${cond.value || '…'}`;
-          return `${fieldLabel(cond.fieldId)} ${op}${val}`;
+          return `${questionLabel(cond)} ${op}${val}`;
         })
         .join(' AND ');
       const dest = destLabel(rule.thenScreenId);
@@ -134,7 +145,7 @@ const IfThenLogicPanel = ({
         ],
       },
     };
-  }, [draft, fieldOptions, destinationOptions]);
+  }, [draft, questionOptions, destinationOptions]);
 
   const updateRule = (ruleId, patch) => {
     onDraftChange({
@@ -153,8 +164,19 @@ const IfThenLogicPanel = ({
           conditions: r.conditions.map((c) => {
             if (c.id !== condId) return c;
             const next = { ...c, ...patch };
-            if (patch.fieldId && patch.fieldId !== c.fieldId) {
+            if (patch.fieldId && typeof patch.fieldId === 'string' && patch.fieldId.includes(':')) {
+              const { sourceScreenId, fieldId } = parseLogicQuestionKey(patch.fieldId);
+              next.sourceScreenId = sourceScreenId;
+              next.fieldId = fieldId;
+            }
+            if (patch.fieldId && patch.fieldId !== c.fieldId && !String(patch.fieldId).includes(':')) {
               const ops = getOperatorsForFieldId(patch.fieldId);
+              if (!ops.some((o) => o.id === next.operator)) {
+                next.operator = ops[0]?.id ?? 'eq';
+              }
+            }
+            if (patch.sourceScreenId != null || (patch.fieldId && !String(patch.fieldId).includes(':'))) {
+              const ops = getOperatorsForFieldId(next.fieldId);
               if (!ops.some((o) => o.id === next.operator)) {
                 next.operator = ops[0]?.id ?? 'eq';
               }
@@ -171,7 +193,7 @@ const IfThenLogicPanel = ({
       ...draft,
       rules: draft.rules.map((r) =>
         r.id === ruleId
-          ? { ...r, conditions: [...r.conditions, createEmptyCondition(defaultFieldId)] }
+          ? { ...r, conditions: [...r.conditions, createEmptyCondition(questionOptions)] }
           : r
       ),
     });
@@ -181,7 +203,25 @@ const IfThenLogicPanel = ({
     const lastThen = draft.rules[draft.rules.length - 1]?.thenScreenId ?? null;
     onDraftChange({
       ...draft,
-      rules: [...draft.rules, { ...createEmptyRule(defaultFieldId), thenScreenId: lastThen }],
+      rules: [...draft.rules, { ...createEmptyRule(questionOptions), thenScreenId: lastThen }],
+    });
+  };
+
+  const removeCondition = (ruleId, condId) => {
+    onDraftChange({
+      ...draft,
+      rules: draft.rules.map((r) => {
+        if (r.id !== ruleId || r.conditions.length <= 1) return r;
+        return { ...r, conditions: r.conditions.filter((c) => c.id !== condId) };
+      }),
+    });
+  };
+
+  const removeRule = (ruleId) => {
+    if ((draft.rules ?? []).length <= 1) return;
+    onDraftChange({
+      ...draft,
+      rules: draft.rules.filter((r) => r.id !== ruleId),
     });
   };
 
@@ -195,8 +235,8 @@ const IfThenLogicPanel = ({
 
   return (
     <div
-      className="w-[320px] h-full bg-white border-l border-[#e4e4e7] flex flex-col"
-      style={{ boxShadow: '-4px 0 8px rgba(0,0,0,0.06)', fontFamily: "'DM Sans', sans-serif" }}
+      className="relative z-[1] w-[320px] h-full bg-white border-l border-[#e4e4e7] flex flex-col"
+      style={{ boxShadow: '-8px 0 24px rgba(0,0,0,0.12)', fontFamily: "'DM Sans', sans-serif" }}
     >
       <div className="border-b border-[#e4e4e7] shrink-0">
         <div className="flex items-center justify-between px-4 pt-[14px] pb-[15px]">
@@ -226,11 +266,29 @@ const IfThenLogicPanel = ({
           </div>
         ) : null}
 
+        {questionOptions.length === 0 ? (
+          <div className="rounded-[6px] border border-[#fde68a] bg-[#fffbeb] px-3 py-2 text-[11px] text-[#92400e] leading-snug">
+            Add at least one question card to the form before setting If / Then conditions.
+          </div>
+        ) : null}
+
         {(draft.rules ?? []).map((rule, ruleIndex) => (
           <div key={rule.id} className="flex flex-col gap-[7px]">
-            <p className="text-[10px] font-bold tracking-[0.7px] uppercase text-[#a1a1aa]">
-              RULE {ruleIndex + 1} — CONDITION
-            </p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] font-bold tracking-[0.7px] uppercase text-[#a1a1aa]">
+                RULE {ruleIndex + 1} — CONDITION
+              </p>
+              {(draft.rules ?? []).length > 1 ? (
+                <button
+                  type="button"
+                  onClick={() => removeRule(rule.id)}
+                  className="shrink-0 p-0.5 text-[#a1a1aa] hover:text-[#dc2626] cursor-pointer transition-colors"
+                  aria-label={`Delete rule ${ruleIndex + 1}`}
+                >
+                  <RiDeleteBin6Line size={14} />
+                </button>
+              ) : null}
+            </div>
 
             <div className="bg-[#f5f5f4] border border-[#e4e4e7] rounded-[6px] px-[11px] pt-[11px] pb-[19px] flex flex-col gap-2 overflow-visible">
               {rule.conditions.map((cond, condIdx) => (
@@ -242,10 +300,10 @@ const IfThenLogicPanel = ({
                   ) : null}
                   <div className="flex gap-[6px] items-start flex-wrap">
                     <LogicFieldPicker
-                      value={cond.fieldId}
+                      value={conditionPickerValue(cond, questionOptions)}
                       onChange={(v) => updateCondition(rule.id, cond.id, { fieldId: v })}
-                      options={fieldOptions}
-                      className="flex-[1_1_118px] max-w-[140px] z-[1]"
+                      options={questionOptions}
+                      className="flex-[1_1_140px] max-w-[180px] z-[1]"
                     />
                     <LogicSelect
                       value={cond.operator}
@@ -260,24 +318,29 @@ const IfThenLogicPanel = ({
                       onChange={(v) => updateCondition(rule.id, cond.id, { value: v })}
                       className="w-[52px] shrink-0"
                     />
+                    {rule.conditions.length > 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => removeCondition(rule.id, cond.id)}
+                        className="shrink-0 p-1 text-[#a1a1aa] hover:text-[#dc2626] cursor-pointer transition-colors self-center"
+                        aria-label="Remove condition"
+                      >
+                        <RiDeleteBin6Line size={14} />
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               ))}
 
               <div className="flex gap-[6px] items-center">
                 <span className="text-[11px] text-[#71717a] shrink-0 whitespace-nowrap">Then go to</span>
-                {fixedThenScreenId != null ? (
-                  <span className="text-[11px] font-medium text-[#3b5bdb] truncate flex-1 min-w-0">
-                    {fixedThenLabel}
-                  </span>
-                ) : (
-                  <LogicScreenPicker
-                    value={rule.thenScreenId}
-                    onChange={(v) => updateRule(rule.id, { thenScreenId: v })}
-                    options={destinationOptions}
-                    className="flex-1 min-w-0 z-[1]"
-                  />
-                )}
+                <LogicScreenPicker
+                  value={rule.thenScreenId}
+                  onChange={(v) => updateRule(rule.id, { thenScreenId: v })}
+                  options={destinationOptions}
+                  placeholder="Select screen…"
+                  className="flex-1 min-w-0 z-[1]"
+                />
               </div>
             </div>
 

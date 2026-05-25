@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { RiArrowRightSLine, RiCloseLine } from 'react-icons/ri';
 import { closeCreateNewFormModal } from '@/store/slices/uiSlice';
 import { addForm } from '@/store/slices/formsSlice';
+import { completeOnboarding, selectIsOnboardingActive } from '@/store/slices/onboardingSlice';
 import { FORM_COLOR_OPTIONS, getFormColorTheme } from '../constants/formColorThemes';
 
 const CreateNewFormModal = () => {
@@ -12,6 +13,7 @@ const CreateNewFormModal = () => {
   const navigate = useNavigate();
   const open = useSelector((s) => s.ui.createNewFormModal.open);
   const activeWorkspace = useSelector((s) => s.forms.activeWorkspace);
+  const isOnboardingActive = useSelector(selectIsOnboardingActive);
 
   const [name, setName] = useState('');
   const [colorId, setColorId] = useState(FORM_COLOR_OPTIONS[0].id);
@@ -40,6 +42,7 @@ const CreateNewFormModal = () => {
     };
 
     dispatch(addForm(newForm));
+    if (isOnboardingActive) dispatch(completeOnboarding());
     dispatch(closeCreateNewFormModal());
     setName('');
     setColorId(FORM_COLOR_OPTIONS[0].id);

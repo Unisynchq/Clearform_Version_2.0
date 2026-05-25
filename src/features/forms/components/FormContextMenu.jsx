@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   RiEyeLine,
@@ -12,7 +13,9 @@ import {
   RiArchiveLine,
   RiDeleteBinLine,
 } from 'react-icons/ri';
-import { closeContextMenu, openDeleteModal, openDuplicateModal, openArchiveModal, openShareModal, openCompareMode } from '@/store/slices/uiSlice';
+import { closeContextMenu, openDeleteModal, openDuplicateModal, openArchiveModal, openPauseModal, openShareModal, openCompareMode } from '@/store/slices/uiSlice';
+import { isFormPaused } from '../utils/formPause';
+import { FORM_BUILDER_PATH, getFormBuilderState } from '../utils/formBuilderNavigation';
 
 const MENU_ITEMS = [
   { id: 'view', icon: RiEyeLine, label: 'View responses' },
@@ -28,6 +31,7 @@ const MENU_ITEMS = [
 
 const FormContextMenu = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { open, formId, x, y } = useSelector((s) => s.ui.contextMenu);
   const form = useSelector((s) => s.forms.forms.find((f) => f.id === formId));
   const menuRef = useRef(null);
@@ -60,6 +64,23 @@ const FormContextMenu = () => {
       dispatch(openShareModal({ formId, formTitle: form?.title ?? '' }));
     } else if (itemId === 'compare') {
       dispatch(openCompareMode({ formId }));
+    } else if (itemId === 'view') {
+      if (formId != null) {
+        navigate(`/dashboard/analytics?form=${formId}&tab=responses`);
+      }
+      dispatch(closeContextMenu());
+    } else if (itemId === 'edit') {
+      const builderState = getFormBuilderState(form);
+      if (builderState) {
+        navigate(FORM_BUILDER_PATH, { state: builderState });
+      }
+      dispatch(closeContextMenu());
+    } else if (itemId === 'pause') {
+      if (!isFormPaused(form)) {
+        dispatch(openPauseModal({ formId, formTitle: form?.title ?? '' }));
+      } else {
+        dispatch(closeContextMenu());
+      }
     } else {
       dispatch(closeContextMenu());
     }
@@ -84,18 +105,24 @@ const FormContextMenu = () => {
           {MENU_ITEMS.map((item, i) => {
             const Icon = item.icon;
             const isDelete = item.danger;
+            const isPauseDisabled = item.id === 'pause' && isFormPaused(form);
             const showDivider = i === MENU_ITEMS.length - 2;
             return (
               <div key={item.id}>
                 {showDivider && <div className="h-px bg-[#e5e3dc] mx-2 my-1" />}
                 <button
                   onClick={() => handleItem(item.id)}
-                  className={`w-full flex items-center gap-3 px-3.5 py-[7px] text-[13px] font-medium leading-[19.5px] hover:bg-[#f4f3ef] transition-colors cursor-pointer ${
-                    isDelete ? 'text-[#d4522a]' : 'text-[#1a1a1c]'
+                  disabled={isPauseDisabled}
+                  className={`w-full flex items-center gap-3 px-3.5 py-[7px] text-[13px] font-medium leading-[19.5px] transition-colors ${
+                    isPauseDisabled
+                      ? 'text-[#c4c2bc] cursor-not-allowed'
+                      : isDelete
+                        ? 'text-[#d4522a] hover:bg-[#f4f3ef] cursor-pointer'
+                        : 'text-[#1a1a1c] hover:bg-[#f4f3ef] cursor-pointer'
                   }`}
                 >
-                  <Icon size={14} className={isDelete ? 'text-[#d4522a]' : 'text-[#6b6966]'} />
-                  {item.label}
+                  <Icon size={14} className={isDelete ? 'text-[#d4522a]' : isPauseDisabled ? 'text-[#c4c2bc]' : 'text-[#6b6966]'} />
+                  {isPauseDisabled ? 'Form paused' : item.label}
                 </button>
               </div>
             );

@@ -7,17 +7,78 @@ import {
   RiAddLine,
   RiLayoutMasonryLine,
   RiBarChartLine,
-  RiUserLine,
   RiQuestionLine,
   RiArrowLeftSLine,
 } from 'react-icons/ri';
 import { setActiveWorkspace } from '@/store/slices/formsSlice';
+import { readProfileSettings } from '@/features/profile/utils/profileSettingsStorage';
 import { openCreateWorkspaceModal, openWorkspaceContextMenu } from '@/store/slices/uiSlice';
 import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.png';
 import clearformLogoIcon from '@/assets/clearform-high-resolution-logo-transparent (1).png';
 import SidebarSkeleton from './SidebarSkeleton';
 
 const SKELETON_DURATION = 1200;
+
+const getProfileDisplay = ({ firstName, lastName, email, displayName: savedName }) => {
+  const saved = savedName?.trim();
+  if (saved) return { displayName: saved, initials: saved.slice(0, 2).toUpperCase() };
+  const name = [firstName, lastName].filter(Boolean).join(' ').trim();
+  if (name) return { displayName: name, initials: name.slice(0, 2).toUpperCase() };
+  const local = email?.split('@')[0]?.trim();
+  if (local) {
+    return {
+      displayName: local,
+      initials: local.slice(0, 2).toUpperCase(),
+    };
+  }
+  return { displayName: 'Profile', initials: '?' };
+};
+
+const ProfileFooter = ({ expanded, active, displayName, initials, email, onClick }) => {
+  if (!expanded) {
+    return (
+      <motion.button
+        type="button"
+        title={displayName}
+        onClick={onClick}
+        whileHover={{ backgroundColor: '#eceae4' }}
+        className={`flex w-full items-center justify-center rounded-[6px] px-2 py-[7px] transition-colors ${
+          active ? 'bg-[#eceae4]' : ''
+        }`}
+      >
+        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#e5e3dc]">
+          <span className="text-[10px] font-semibold text-[#1a1a1c]">{initials}</span>
+        </div>
+      </motion.button>
+    );
+  }
+
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      whileHover={{ backgroundColor: active ? '#ebe8e0' : '#f4f3ef' }}
+      className={`mb-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors ${
+        active ? 'bg-[#f4f3ef]' : ''
+      }`}
+      title={email}
+    >
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#e5e3dc]">
+        <span className="text-[11px] font-semibold tracking-[0.2px] text-[#1a1a1c]">
+          {initials}
+        </span>
+      </div>
+      <div className="min-w-0 flex flex-col">
+        <span className="truncate text-[13px] font-medium leading-[18px] text-[#1a1a1c]">
+          {displayName}
+        </span>
+        {email ? (
+          <span className="truncate text-[11px] leading-[16px] text-[#a8a6a0]">{email}</span>
+        ) : null}
+      </div>
+    </motion.button>
+  );
+};
 
 const NavItem = ({ icon: Icon, label, badge, active, onClick }) => (
   <motion.button
@@ -118,6 +179,14 @@ const Sidebar = ({ hideLogo = false }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
+  const { firstName, lastName, email } = useSelector((s) => s.auth);
+  const savedProfile = readProfileSettings(email);
+  const profile = getProfileDisplay({
+    firstName,
+    lastName,
+    email,
+    displayName: savedProfile?.displayName,
+  });
   const { activeWorkspace, workspaces } = useSelector((state) => state.forms);
 
   const handleWorkspaceContextMenu = (e, wsId) => {
@@ -129,8 +198,12 @@ const Sidebar = ({ hideLogo = false }) => {
   const isTemplatesActive = location.pathname === '/dashboard/templates';
   const isAnalyticsActive = location.pathname.startsWith('/dashboard/analytics');
   const isHelpSupportActive = location.pathname === '/dashboard/help';
+  const isProfileActive = location.pathname === '/dashboard/profile';
   const isDashboardActive =
-    !isTemplatesActive && !isAnalyticsActive && !isHelpSupportActive;
+    !isTemplatesActive &&
+    !isAnalyticsActive &&
+    !isHelpSupportActive &&
+    !isProfileActive;
 
   const isFormBuilder = location.pathname.startsWith('/dashboard/form-builder');
 
@@ -234,7 +307,13 @@ const Sidebar = ({ hideLogo = false }) => {
 
               {/* Footer */}
               <div className="border-t border-[rgba(0,0,0,0.08)] px-[10px] pb-[14px] pt-[11px] flex flex-col gap-[2px] shrink-0">
-                <CollapsedIconBtn icon={RiUserLine} title="Profile" onClick={() => {}} />
+                <ProfileFooter
+                  expanded={false}
+                  active={isProfileActive}
+                  {...profile}
+                  email={email}
+                  onClick={() => navigate('/dashboard/profile')}
+                />
                 <HelpSupportNavButton
                   expanded={false}
                   active={isHelpSupportActive}
@@ -336,7 +415,13 @@ const Sidebar = ({ hideLogo = false }) => {
 
             {/* Utility corner */}
             <div className="border-t border-[#e5e3dc] px-2 py-[14px] flex flex-col gap-px shrink-0">
-              <NavItem icon={RiUserLine} label="Profile" onClick={() => {}} />
+              <ProfileFooter
+                expanded
+                active={isProfileActive}
+                {...profile}
+                email={email}
+                onClick={() => navigate('/dashboard/profile')}
+              />
               <HelpSupportNavButton
                 expanded
                 active={isHelpSupportActive}

@@ -3,8 +3,17 @@ import { motion } from 'motion/react';
 import { RiMore2Fill } from 'react-icons/ri';
 import { openContextMenu, openFormOverlay } from '@/store/slices/uiSlice';
 import { formatResponseCount } from '@/constants';
+import { isFormPaused } from '../utils/formPause';
 
-const StatusBadge = ({ status, isTargetReached }) => {
+const StatusBadge = ({ status, isTargetReached, isPaused }) => {
+  if (isPaused) {
+    return (
+      <span className="inline-flex items-center px-[8px] py-[3px] rounded-[6px] text-[11px] font-medium leading-[15px] bg-[#fffbeb] text-[#92400e] border border-[#fde68a]">
+        Paused
+      </span>
+    );
+  }
+
   if (isTargetReached) {
     return (
       <span className="inline-flex items-center px-[8px] py-[3px] rounded-[6px] text-[11px] font-medium leading-[15px] bg-[#efe9ff] text-[#6d47c6] border border-[#d9cdfc]">
@@ -41,6 +50,7 @@ const FormIcon = ({ form }) => (
 const FormListRow = ({ form, index }) => {
   const dispatch = useDispatch();
   const isTargetReached = !!form.responseLimit && form.responses >= form.responseLimit;
+  const isPaused = isFormPaused(form);
 
   const handleMoreClick = (e) => {
     e.stopPropagation();
@@ -65,7 +75,7 @@ const FormListRow = ({ form, index }) => {
       </div>
 
       {/* Status */}
-      <div><StatusBadge status={form.status} isTargetReached={isTargetReached} /></div>
+      <div><StatusBadge status={form.status} isTargetReached={isTargetReached} isPaused={isPaused} /></div>
 
       {/* Responses */}
       <span className={`text-[13px] leading-[19.5px] ${form.responses > 0 ? 'text-[#1a1a1c]' : 'text-[#a8a6a0]'}`}>

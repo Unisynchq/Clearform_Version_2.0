@@ -1,14 +1,15 @@
 import { useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { RiBarChartLine } from 'react-icons/ri';
+import { MAX_COMPARE_FORMS } from '@/constants';
 import {
   closeCompareMode,
   toggleCompareForm,
   clearCompareSelection,
+  deactivateCompareModeKeepSelection,
 } from '@/store/slices/uiSlice';
-
-const MAX_FORMS = 4;
 
 const WORKSPACE_COLORS = {
   product: '#2563eb',
@@ -50,6 +51,7 @@ const FormChip = ({ form, onRemove }) => {
 /* ── Dock ── */
 const CompareModeDock = () => {
   const dispatch   = useDispatch();
+  const navigate   = useNavigate();
   const chipsRef   = useRef(null);
   const { active, selectedFormIds } = useSelector((s) => s.ui.compareMode);
   const allForms   = useSelector((s) => s.forms.forms);
@@ -59,8 +61,15 @@ const CompareModeDock = () => {
     .filter(Boolean);
 
   const count      = selectedForms.length;
-  const isMaxed    = count >= MAX_FORMS;
-  const canCompare = count >= 2;
+  const isMaxed    = count >= MAX_COMPARE_FORMS;
+  const canCompare = count === MAX_COMPARE_FORMS;
+
+  const handleCompare = () => {
+    if (!canCompare || selectedFormIds.length < MAX_COMPARE_FORMS) return;
+    const primaryFormId = selectedFormIds[0];
+    dispatch(deactivateCompareModeKeepSelection());
+    navigate(`/dashboard/analytics?form=${primaryFormId}&tab=compare`);
+  };
 
   return (
     <AnimatePresence>
@@ -127,7 +136,7 @@ const CompareModeDock = () => {
 
                 {count === 0 && (
                   <span className="text-[12px] text-[#a8a6a0] self-center pl-1 whitespace-nowrap">
-                    Click form cards to select up to {MAX_FORMS}
+                    Click form cards to select up to {MAX_COMPARE_FORMS}
                   </span>
                 )}
               </div>
@@ -157,10 +166,12 @@ const CompareModeDock = () => {
 
             {/* Compare CTA */}
             <motion.button
+              type="button"
               layout
               whileHover={canCompare ? { scale: 1.02 } : {}}
               whileTap={canCompare ? { scale: 0.97 } : {}}
               disabled={!canCompare}
+              onClick={handleCompare}
               className={`flex items-center gap-[7px] px-[18px] py-[10px] rounded-[12px] text-[13px] font-bold text-white leading-[17px] shrink-0 transition-colors whitespace-nowrap ${
                 canCompare
                   ? 'bg-black hover:bg-[#1a1a1c] cursor-pointer drop-shadow-[0px_1px_1.5px_rgba(0,0,0,0.2)]'

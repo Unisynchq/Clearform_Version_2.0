@@ -6,27 +6,68 @@ import AllFormsPage from '@/features/forms/pages/AllFormsPage';
 import TemplatesPage from '@/features/templates/pages/TemplatesPage';
 import FormBuilderPage from '@/features/forms/pages/FormBuilderPage';
 import HelpSupportPage from '@/features/support/pages/HelpSupportPage';
+import ProfilePage from '@/features/profile/pages/ProfilePage';
 import AnalyticsPage from '@/pages/AnalyticsPage';
+import OnboardingLayout from '@/features/onboarding/layouts/OnboardingLayout';
+import OnboardingChooseTemplatePage from '@/features/onboarding/pages/OnboardingChooseTemplatePage';
+import RequireAuth from './RequireAuth';
+import GuestOnly from './GuestOnly';
 
 const AppRoutes = () => {
   return (
     <Routes>
-      {/* Landing / Signup page */}
-      <Route path="/" element={<SignupPage />} />
+      <Route
+        path="/"
+        element={
+          <GuestOnly>
+            <SignupPage />
+          </GuestOnly>
+        }
+      />
 
-      {/* Sign in page */}
-      <Route path="/signin" element={<SignInPage />} />
+      <Route
+        path="/signin"
+        element={
+          <GuestOnly>
+            <SignInPage />
+          </GuestOnly>
+        }
+      />
 
-      {/* App dashboard */}
-      <Route path="/dashboard" element={<MainLayout />}>
+      <Route
+        path="/onboarding"
+        element={
+          <RequireAuth>
+            <OnboardingLayout />
+          </RequireAuth>
+        }
+      >
+        <Route index element={<OnboardingChooseTemplatePage />} />
+      </Route>
+
+      <Route
+        path="/dashboard"
+        element={
+          <RequireAuth>
+            <MainLayout />
+          </RequireAuth>
+        }
+      >
         <Route index element={<AllFormsPage />} />
         <Route path="templates" element={<TemplatesPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="help" element={<HelpSupportPage />} />
+        <Route path="profile" element={<ProfilePage />} />
       </Route>
 
-      {/* Form builder — standalone layout (no MainLayout wrapper) */}
-      <Route path="/dashboard/form-builder" element={<FormBuilderPage />} />
+      <Route
+        path="/dashboard/form-builder"
+        element={
+          <RequireAuth>
+            <FormBuilderPage />
+          </RequireAuth>
+        }
+      />
     </Routes>
   );
 };

@@ -200,7 +200,7 @@ export function getScreenPreviewText(screen, fallbackMap = {}) {
 
     Description: c.descriptionContent,
 
-    CTA: c.ctaButtonLabel,
+    CTA: c.ctaHeadingText || c.ctaButtonLabel,
 
     Media: c.mediaQuestion,
 
@@ -297,6 +297,10 @@ export function extractScreenConfig(screen, globals) {
         shortTextRequired: globals.shortTextRequired,
 
         shortTextHidden: globals.shortTextHidden,
+
+        shortTextResponseQualityEnabled: globals.shortTextResponseQualityEnabled,
+
+        shortTextResponseQualityOptions: globals.shortTextResponseQualityOptions,
 
       };
 
@@ -427,6 +431,46 @@ export function extractScreenConfig(screen, globals) {
         descriptionTextSize: globals.descriptionTextSize,
 
         descriptionAlignment: globals.descriptionAlignment,
+
+      };
+
+    case 'CTA':
+
+      return {
+
+        ctaButtonLabel: globals.ctaButtonLabel,
+
+        ctaHeadingText: globals.ctaHeadingText,
+
+        ctaHelperText: globals.ctaHelperText,
+
+        ctaDurationText: globals.ctaDurationText,
+
+        ctaButtonSize: globals.ctaButtonSize,
+
+        ctaButtonStyle: globals.ctaButtonStyle,
+
+        ctaCornerRadius: globals.ctaCornerRadius,
+
+        ctaShowIcon: globals.ctaShowIcon,
+
+        ctaHeadingSize: globals.ctaHeadingSize,
+
+        ctaBodySize: globals.ctaBodySize,
+
+        ctaFontWeight: globals.ctaFontWeight,
+
+        ctaTextAlign: globals.ctaTextAlign,
+
+        ctaPadding: globals.ctaPadding,
+
+        ctaTextColor: globals.ctaTextColor,
+
+        ctaBtnColor: globals.ctaBtnColor,
+
+        ctaLabelColor: globals.ctaLabelColor,
+
+        ctaContentWidth: globals.ctaContentWidth,
 
       };
 
@@ -666,6 +710,9 @@ export function extractScreenConfig(screen, globals) {
 
 
 
+/** Stable empty array — avoids infinite re-render loops when applying config. */
+const EMPTY_SHOW_IF_CONDITIONS = [];
+
 export function applyScreenConfig(screen, config, setters) {
 
   if (!screen || screen.type !== 'content' || !config) return;
@@ -733,6 +780,14 @@ export function applyScreenConfig(screen, config, setters) {
       if (config.shortTextRequired != null) setters.setShortTextRequired(config.shortTextRequired);
 
       if (config.shortTextHidden != null) setters.setShortTextHidden(config.shortTextHidden);
+
+      if (config.shortTextResponseQualityEnabled != null) {
+        setters.setShortTextResponseQualityEnabled(config.shortTextResponseQualityEnabled);
+      }
+
+      if (config.shortTextResponseQualityOptions != null) {
+        setters.setShortTextResponseQualityOptions(config.shortTextResponseQualityOptions);
+      }
 
       break;
 
@@ -853,6 +908,44 @@ export function applyScreenConfig(screen, config, setters) {
       if (config.descriptionTextSize != null) setters.setDescriptionTextSize(config.descriptionTextSize);
 
       if (config.descriptionAlignment != null) setters.setDescriptionAlignment(config.descriptionAlignment);
+
+      break;
+
+    case 'CTA':
+
+      if (config.ctaButtonLabel != null) setters.setCtaButtonLabel(config.ctaButtonLabel);
+
+      if (config.ctaHeadingText != null) setters.setCtaHeadingText(config.ctaHeadingText);
+
+      if (config.ctaHelperText != null) setters.setCtaHelperText(config.ctaHelperText);
+
+      if (config.ctaDurationText != null) setters.setCtaDurationText(config.ctaDurationText);
+
+      if (config.ctaButtonSize != null) setters.setCtaButtonSize(config.ctaButtonSize);
+
+      if (config.ctaButtonStyle != null) setters.setCtaButtonStyle(config.ctaButtonStyle);
+
+      if (config.ctaCornerRadius != null) setters.setCtaCornerRadius(config.ctaCornerRadius);
+
+      if (config.ctaShowIcon != null) setters.setCtaShowIcon(config.ctaShowIcon);
+
+      if (config.ctaHeadingSize != null) setters.setCtaHeadingSize(config.ctaHeadingSize);
+
+      if (config.ctaBodySize != null) setters.setCtaBodySize(config.ctaBodySize);
+
+      if (config.ctaFontWeight != null) setters.setCtaFontWeight(config.ctaFontWeight);
+
+      if (config.ctaTextAlign != null) setters.setCtaTextAlign(config.ctaTextAlign);
+
+      if (config.ctaPadding != null) setters.setCtaPadding(config.ctaPadding);
+
+      if (config.ctaTextColor != null) setters.setCtaTextColor(config.ctaTextColor);
+
+      if (config.ctaBtnColor != null) setters.setCtaBtnColor(config.ctaBtnColor);
+
+      if (config.ctaLabelColor != null) setters.setCtaLabelColor(config.ctaLabelColor);
+
+      if (config.ctaContentWidth != null) setters.setCtaContentWidth(config.ctaContentWidth);
 
       break;
 
@@ -1068,6 +1161,12 @@ export function applyScreenConfig(screen, config, setters) {
 
       break;
 
+  }
+
+  if (setters.setShowIfConditions) {
+    const next =
+      config.showIfConditions != null ? config.showIfConditions : EMPTY_SHOW_IF_CONDITIONS;
+    setters.setShowIfConditions(next);
   }
 
 }

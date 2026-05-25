@@ -1,9 +1,15 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { RiAddLine, RiArrowDownSLine } from 'react-icons/ri';
+import { RiArrowDownSLine } from 'react-icons/ri';
+import BlockVisibilityConditions from '@/features/forms/components/BlockVisibilityConditions';
 import { TOGGLE_TRACK_OFF, TOGGLE_TRACK_ON } from '@/components/ui/ToggleSwitch';
-import { Select } from '@/components/ui/Select';
-import MapLocationPicker from '@/features/forms/components/MapLocationPicker';
+import MapDefaultLocationEditor from '@/features/forms/components/MapDefaultLocationEditor';
 import { DEFAULT_MAP_CENTER } from '@/features/forms/utils/mapGeocoding';
+
+const MAP_STYLE_OPTIONS = [
+  { value: 'default', label: 'Default' },
+  { value: 'satellite', label: 'Satellite' },
+  { value: 'terrain', label: 'Terrain' },
+];
 
 function ToggleRow({ label, checked, onChange }) {
   return (
@@ -84,9 +90,17 @@ export default function MapConfigurePanel(props) {
     setMapHeight,
     mapType,
     setMapType,
+    showIfConditions = [],
+    onShowIfConditionsChange,
+    priorScreens = [],
   } = props;
 
-  const mapStyleValue = mapType === 'roadmap' ? 'default' : mapType;
+  const mapStyleValue =
+    mapType === 'roadmap' || mapType === 'default'
+      ? 'default'
+      : mapType === 'satellite' || mapType === 'terrain'
+        ? mapType
+        : 'default';
 
   const handleDefaultLocationChange = ({ lat, lng, address }) => {
     setMapDefaultLat(lat);
@@ -131,17 +145,11 @@ export default function MapConfigurePanel(props) {
                   </div>
                   <div>
                     <FieldLabel>Default location</FieldLabel>
-                    <MapLocationPicker
+                    <MapDefaultLocationEditor
                       latitude={mapDefaultLat ?? DEFAULT_MAP_CENTER.lat}
                       longitude={mapDefaultLng ?? DEFAULT_MAP_CENTER.lng}
                       address={mapDefaultAddress}
-                      zoom={mapZoom}
-                      mapStyle={mapStyleValue}
-                      height="compact"
-                      allowPinMovement
-                      showSearch
                       onChange={handleDefaultLocationChange}
-                      searchPlaceholder="Search for a location..."
                     />
                   </div>
                   <div>
@@ -175,13 +183,11 @@ export default function MapConfigurePanel(props) {
             {sections.conditionalLogic && (
               <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                 <div className="px-4 pb-[15px]">
-                  <div className="bg-[#f8f8f8] rounded-[8px] px-3 py-[10px] flex flex-col gap-[6px]">
-                    <span className="text-[10px] font-bold tracking-[0.55px] uppercase text-[#aaa]" style={{ fontFamily: "'DM Sans', sans-serif" }}>SHOW THIS BLOCK IF</span>
-                    <button type="button" className="flex items-center gap-[5px] cursor-pointer hover:opacity-70 transition-opacity">
-                      <RiAddLine size={14} className="text-[#555] shrink-0" />
-                      <span className="text-[12px] text-[#555]" style={{ fontFamily: "'DM Sans', sans-serif" }}>Add condition</span>
-                    </button>
-                  </div>
+                  <BlockVisibilityConditions
+                    conditions={showIfConditions}
+                    onChange={onShowIfConditionsChange}
+                    priorScreens={priorScreens}
+                  />
                 </div>
               </motion.div>
             )}
@@ -219,16 +225,21 @@ export default function MapConfigurePanel(props) {
                   </div>
                   <div>
                     <FieldLabel>Map style</FieldLabel>
-                    <Select
+                    <select
                       value={mapStyleValue}
-                      onValueChange={(v) => setMapType(v === 'default' ? 'roadmap' : v)}
-                      options={[
-                        { value: 'default', label: 'Default' },
-                        { value: 'satellite', label: 'Satellite' },
-                        { value: 'terrain', label: 'Terrain' },
-                      ]}
-                      triggerClassName="bg-[#fafafa] border-[#e8e8e8]"
-                    />
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setMapType(v === 'default' ? 'roadmap' : v);
+                      }}
+                      className="w-full bg-[#fafafa] border border-[#e8e8e8] rounded-[7px] px-[11px] py-[9px] text-[13px] text-[#333] outline-none focus:border-[#111] transition-colors cursor-pointer"
+                      style={{ fontFamily: "'DM Sans', sans-serif" }}
+                    >
+                      {MAP_STYLE_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </motion.div>

@@ -1,4 +1,4 @@
-﻿import { Fragment, useState, useRef, useEffect, useCallback, useLayoutEffect, useMemo } from 'react';
+﻿import { Fragment, useState, useRef, useEffect, useCallback, useLayoutEffect, useMemo, lazy, Suspense } from 'react';
 import ToggleSwitch, { TOGGLE_TRACK_OFF, TOGGLE_TRACK_ON, toggleTrackClassName } from '@/components/ui/ToggleSwitch';
 import ResponseQualityScoringCard, {
   DEFAULT_RESPONSE_QUALITY_OPTIONS,
@@ -6,6 +6,11 @@ import ResponseQualityScoringCard, {
 import ResponseQualityFeedback from '@/features/forms/components/ResponseQualityFeedback';
 import { evaluateResponseQuality } from '@/features/forms/utils/responseQualityScoring';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { updateForm } from '@/store/slices/formsSlice';
+import { selectIsOnboardingActive } from '@/store/slices/onboardingSlice';
+import { useToast } from '@/hooks/useToast';
+import { readBuilderDraft, writeBuilderDraft, clearBuilderDraft } from '@/features/forms/utils/builderDraftStorage';
 import { buildFormFromTemplate } from '@/features/templates/utils/buildFormFromTemplate';
 import {
   applyScreenConfig,
@@ -42,7 +47,6 @@ import {
   RiPencilLine,
   RiCheckLine,
   RiLinkedinBoxLine,
-  RiInformationLine,
   RiArrowRightLine,
   RiComputerLine,
   RiSmartphoneLine,
@@ -66,8 +70,11 @@ import Sidebar from '@/components/layout/Sidebar';
 import IfThenLogicPanel, { createEmptyRule } from '@/features/forms/components/IfThenLogicPanel';
 import FormPublishView from '@/features/forms/components/FormPublishView';
 import DeleteScreenModal from '@/features/forms/components/DeleteScreenModal';
+import UnsavedChangesModal from '@/features/forms/components/UnsavedChangesModal';
 import PublishFormModal from '@/features/forms/components/PublishFormModal';
-import MapLocationPicker from '@/features/forms/components/MapLocationPicker';
+import MapFieldStaticPreview from '@/features/forms/components/MapFieldStaticPreview';
+
+const MapLocationPicker = lazy(() => import('@/features/forms/components/MapLocationPicker'));
 import MapConfigurePanel from '@/features/forms/components/MapConfigurePanel';
 import TimeConfigurePanel from '@/features/forms/components/TimeConfigurePanel';
 import {
@@ -85,14 +92,36 @@ import {
   parseMaxFileSizeBytes,
 } from '@/features/forms/utils/fileSizeLimits';
 import {
-  getLogicFieldsForScreenLabel,
-  LOGIC_FIELD_CATALOG,
+  buildLogicQuestionOptions,
+  findLogicQuestionOption,
   getLogicFieldById,
+  LOGIC_FIELD_CATALOG,
+  getLogicFieldOptionsForScreen as resolveLogicFieldOptionsForScreen,
+  screenSupportsIfThenLogic,
 } from '@/features/forms/constants/logicFieldCatalog';
+import BlockVisibilityConditions from '@/features/forms/components/BlockVisibilityConditions';
+import LogicCanvasActionsPanel from '@/features/forms/components/LogicCanvasActionsPanel';
+import {
+  LOGIC_CANVAS_DOT_GRID_STYLE,
+  LOGIC_CANVAS_VIEWPORT_CLASS,
+} from '@/features/forms/constants/logicCanvasViewport';
+import AiLogicGenerationFailedBanner from '@/features/forms/components/AiLogicGenerationFailedBanner';
+import AiLogicGenerationFailedPanel from '@/features/forms/components/AiLogicGenerationFailedPanel';
+import AiLogicIdleBanner from '@/features/forms/components/AiLogicIdleBanner';
+import AiLogicEmptyPanel from '@/features/forms/components/AiLogicEmptyPanel';
+import {
+  AI_LOGIC_GEN_STATUS,
+  resetAiLogicGeneration,
+  runAiLogicGeneration,
+} from '@/features/forms/utils/aiLogicGeneration';
+import { getSuggestedFlowLogic } from '@/features/forms/utils/logicCardDefaults';
 import {
   buildLogicAnswersFromScreen,
   logicEdgeKey,
   resolveNextScreenId,
+  resolveVisibleNextScreenId,
+  getPriorContentScreens,
+  isScreenVisibleInPreview,
 } from '@/features/forms/utils/logicEngine';
 
 const LOGIC_STORAGE_KEY = 'clearform-builder-logic-v1';
@@ -108,7 +137,9 @@ const migrateLogicIfRulesToEdges = (byScreen = {}) => {
     for (const rule of data.rules ?? []) {
       if (rule.thenScreenId == null) continue;
       const key = logicEdgeKey(from, rule.thenScreenId);
-      if (!byEdge[key]) byEdge[key] = { rules: [] };
+      if (!byEdge[key]) {
+        byEdge[key] = { rules: [], elseScreenId: data.elseScreenId ?? null };
+      }
       byEdge[key].rules.push({
         ...rule,
         thenScreenId: rule.thenScreenId,
@@ -118,12 +149,27 @@ const migrateLogicIfRulesToEdges = (byScreen = {}) => {
   }
   return { byEdge, elseByScreen };
 };
+
+/** Copy legacy per-screen else into edges that do not have their own else yet. */
+const mergeLegacyElseIntoEdges = (byEdge = {}, elseByScreen = {}) => {
+  const next = { ...byEdge };
+  for (const [fromKey, elseId] of Object.entries(elseByScreen)) {
+    const from = Number(fromKey);
+    if (!Number.isFinite(from) || elseId == null) continue;
+    for (const [key, data] of Object.entries(next)) {
+      const edgeFrom = Number(String(key).split('-')[0]);
+      if (edgeFrom !== from || data?.elseScreenId != null) continue;
+      next[key] = { ...data, elseScreenId: elseId };
+    }
+  }
+  return next;
+};
 import cardTheme1 from '@/assets/Card_Themes/Theme-1.jpeg';
 import cardTheme2 from '@/assets/Card_Themes/Theme-2.jpeg';
 import cardTheme3 from '@/assets/Card_Themes/Theme-3.jpeg';
 import cardTheme4 from '@/assets/Card_Themes/Theme-4.jpeg';
 
-/* â”€â”€ Boxes icon (CTA) â”€â”€ */
+/* ── Boxes icon (CTA) ── */
 const BoxesIcon = ({ size = 18, className = '' }) => (
   <svg width={size} height={size} viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
     <path d="M3.5 2H6.5C7.32787 2 8 2.67213 8 3.5V6.5C8 7.32787 7.32787 8 6.5 8H3.5C2.67213 8 2 7.32787 2 6.5V3.5C2 2.67213 2.67213 2 3.5 2V2" stroke="currentColor" strokeWidth="1.8"/>
@@ -133,7 +179,7 @@ const BoxesIcon = ({ size = 18, className = '' }) => (
   </svg>
 );
 
-/* â”€â”€ Heading icon (Text H) â”€â”€ */
+/* ── Heading icon (Text H) ── */
 const TextHIcon = ({ size = 16, className = '' }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
     <path
@@ -143,7 +189,7 @@ const TextHIcon = ({ size = 16, className = '' }) => (
   </svg>
 );
 
-/* â”€â”€ Description icon (text align left) â”€â”€ */
+/* ── Description icon (text align left) ── */
 const TextAlignLeftIcon = ({ size = 16, className = '' }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
     <path
@@ -153,7 +199,7 @@ const TextAlignLeftIcon = ({ size = 16, className = '' }) => (
   </svg>
 );
 
-/* â”€â”€ Images / Video building block icons â”€â”€ */
+/* ── Images / Video building block icons ── */
 const ImagesCardIcon = ({ size = 16, className = '' }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
     <path
@@ -172,7 +218,7 @@ const VideoCardIcon = ({ size = 16, className = '' }) => (
   </svg>
 );
 
-/* â”€â”€ Short / Long text field icons â”€â”€ */
+/* ── Short / Long text field icons ── */
 const ShortTextIcon = ({ size = 16, className = '' }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
     <path
@@ -197,7 +243,7 @@ const LongTextIcon = ({ size = 16, className = '' }) => (
   </svg>
 );
 
-/* â”€â”€ Left panel: Start / End screen (src/assets/Icons/Pages_Start.svg, Pages_End.svg) â”€â”€ */
+/* ── Left panel: Start / End screen (src/assets/Icons/Pages_Start.svg, Pages_End.svg) ── */
 const PagesStartIcon = ({ size = 14, className = '' }) => (
   <svg width={size} height={size} viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
     <path
@@ -220,7 +266,31 @@ const PagesEndIcon = ({ size = 14, className = '' }) => (
   </svg>
 );
 
-/* â”€â”€ Step bar â”€â”€ */
+/** Logic canvas output connector — black circle with branching glyph (Figma logic port) */
+const LogicOutputPortIcon = ({ size = 20, className = '' }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 20 20"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={className}
+    aria-hidden
+  >
+    <circle cx="10" cy="10" r="10" fill="#1a1a1a" />
+    <path
+      d="M5.25 10H7.75M7.75 10V7.35H11.1M7.75 10V12.65H11.1"
+      stroke="#fff"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <circle cx="11.85" cy="7.35" r="1.2" stroke="#fff" strokeWidth="1" fill="none" />
+    <circle cx="11.85" cy="12.65" r="1.2" stroke="#fff" strokeWidth="1" fill="none" />
+  </svg>
+);
+
+/* ── Step bar ── */
 const STEPS = [
   { id: 1, label: 'Choose use case' },
   { id: 2, label: 'Template preview' },
@@ -258,7 +328,7 @@ const StepBar = ({ activeStep = 3 }) => (
   </div>
 );
 
-/* â”€â”€ Tab bar â”€â”€ */
+/* ── Tab bar ── */
 const TABS = [
   { id: 'content', label: 'Content', icon: RiFileTextLine },
   { id: 'design', label: 'Design', icon: RiPaintBrushLine },
@@ -270,14 +340,27 @@ const TABS = [
 const LOGIC_FLOW_CARD_W = 168;
 const LOGIC_FLOW_GAP = 24;
 const LOGIC_FLOW_CARD_H_EST = 280;
+/** Below this zoom (71%), logic cards show icon + number only */
+const LOGIC_CANVAS_COMPACT_ZOOM = 0.71;
+const LOGIC_FLOW_CARD_H_COMPACT_EST = 52;
+/** Shared card name / preview typography (screens sidebar + logic canvas) */
+const SCREEN_CARD_NAME_CLASS =
+  'text-[12.5px] font-semibold leading-none text-[#1a1a1c] truncate';
+const SCREEN_CARD_PREVIEW_CLASS =
+  'text-[12.5px] font-normal leading-none text-[#8a8880] truncate';
+const LOGIC_CARD_NAME_CLASS =
+  'text-[13px] font-semibold leading-[16px] text-[#1a1a1c] truncate';
+const LOGIC_CARD_PREVIEW_CLASS =
+  'text-[13px] font-normal leading-[16px] text-[#4c414e] line-clamp-2';
 /** Padding on logic board wrapper (Tailwind px-8 py-10) */
 const LOGIC_BOARD_PAD_X = 32;
 const LOGIC_BOARD_PAD_Y = 40;
-/** Connector anchor offset: dot is `w-2` (8px); half-width places curve endpoints outside the card edge */
-const LOGIC_CONNECTOR_DOT_R = 4;
+/** Connector anchor offsets — half of port control size places curve endpoints outside the card edge */
+const LOGIC_CONNECTOR_IN_R = 4;
+const LOGIC_CONNECTOR_OUT_R = 10;
 /** Horizontal offset when placing the logic menu to the left of a port */
 const LOGIC_CONNECTOR_MENU_W = 148;
-/** Rendered dropdown width (Tailwind `w-[125px]`) â€” used for viewport clamping */
+/** Rendered dropdown width (Tailwind `w-[125px]`) — used for viewport clamping */
 const LOGIC_CONNECTOR_MENU_BOX_W = 125;
 /** Approximate menu height (4 items) for clamping inside the logic viewport */
 const LOGIC_CONNECTOR_MENU_BOX_H = 188;
@@ -292,7 +375,8 @@ const clampLogicMenuViewportPos = (vx, vy, vr) => {
 };
 
 const logicBezierConnectionPath = (x0, y0, x1, y1) => {
-  const dx = Math.max(48, Math.abs(x1 - x0) * 0.45);
+  const span = Math.abs(x1 - x0);
+  const dx = Math.max(56, span * 0.5);
   return `M ${x0} ${y0} C ${x0 + dx} ${y0}, ${x1 - dx} ${y1}, ${x1} ${y1}`;
 };
 
@@ -312,6 +396,263 @@ const logicBezierPointAt = (x0, y0, x1, y1, t) => {
 
 const logicBezierMidpoint = (x0, y0, x1, y1) => logicBezierPointAt(x0, y0, x1, y1, 0.5);
 
+const LOGIC_ROUTE_PAD = 20;
+const LOGIC_ROUTE_EXIT = 40;
+const LOGIC_ROUTE_CORNER_R = 16;
+
+const logicObstacleFromPort = (id, pos) => ({
+  id,
+  left: pos.left - LOGIC_ROUTE_PAD,
+  top: pos.top - LOGIC_ROUTE_PAD,
+  right: pos.left + pos.width + LOGIC_ROUTE_PAD,
+  bottom: pos.top + pos.height + LOGIC_ROUTE_PAD,
+});
+
+const logicPointInObstacle = (x, y, obstacle) =>
+  x >= obstacle.left && x <= obstacle.right && y >= obstacle.top && y <= obstacle.bottom;
+
+/** True when the default cubic would pass through a card between source and target. */
+const logicBezierHitsObstacle = (x0, y0, x1, y1, obstacle) => {
+  for (let t = 0; t <= 1; t += 0.04) {
+    const p = logicBezierPointAt(x0, y0, x1, y1, t);
+    if (logicPointInObstacle(p.x, p.y, obstacle)) return true;
+  }
+  return false;
+};
+
+const logicPolylineHitsObstacle = (points, obstacle) => {
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const a = points[i];
+    const b = points[i + 1];
+    const steps = Math.max(2, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 12));
+    for (let s = 0; s <= steps; s += 1) {
+      const t = s / steps;
+      const x = a.x + (b.x - a.x) * t;
+      const y = a.y + (b.y - a.y) * t;
+      if (logicPointInObstacle(x, y, obstacle)) return true;
+    }
+  }
+  return false;
+};
+
+const logicPickRouteY = (x0, y0, x1, y1, blocking) => {
+  const aboveY = Math.min(...blocking.map((o) => o.top)) - LOGIC_ROUTE_PAD;
+  const belowY = Math.max(...blocking.map((o) => o.bottom)) + LOGIC_ROUTE_PAD;
+  const aboveCost = Math.abs(aboveY - y0) + Math.abs(aboveY - y1);
+  const belowCost = Math.abs(belowY - y0) + Math.abs(belowY - y1);
+  if (y1 >= y0 && belowCost <= aboveCost * 1.15) return belowY;
+  if (y1 < y0 && aboveCost <= belowCost * 1.15) return aboveY;
+  return belowCost <= aboveCost ? belowY : aboveY;
+};
+
+const logicPointsToSegments = (points) => {
+  const segments = [];
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const a = points[i];
+    const b = points[i + 1];
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    segments.push({ x0: a.x, y0: a.y, x1: b.x, y1: b.y, len });
+  }
+  return segments;
+};
+
+/** Rounded-corner polyline — Typeform-style trunk legs (no sharp elbows). */
+const logicSmoothPolylinePathD = (points) => {
+  if (points.length < 2) return '';
+  if (points.length === 2) {
+    return logicBezierConnectionPath(points[0].x, points[0].y, points[1].x, points[1].y);
+  }
+  const r = LOGIC_ROUTE_CORNER_R;
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 1; i < points.length - 1; i += 1) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const next = points[i + 1];
+    const inDx = curr.x - prev.x;
+    const inDy = curr.y - prev.y;
+    const outDx = next.x - curr.x;
+    const outDy = next.y - curr.y;
+    const inLen = Math.hypot(inDx, inDy) || 1;
+    const outLen = Math.hypot(outDx, outDy) || 1;
+    const cornerR = Math.min(r, inLen / 2, outLen / 2);
+    const bx = curr.x - (inDx / inLen) * cornerR;
+    const by = curr.y - (inDy / inLen) * cornerR;
+    const ax = curr.x + (outDx / outLen) * cornerR;
+    const ay = curr.y + (outDy / outLen) * cornerR;
+    d += ` L ${bx} ${by} Q ${curr.x} ${curr.y} ${ax} ${ay}`;
+  }
+  const last = points[points.length - 1];
+  d += ` L ${last.x} ${last.y}`;
+  return d;
+};
+
+const logicObstacleBetween = (o, x0, x1, y0, y1) => {
+  const minX = Math.min(x0, x1) - LOGIC_ROUTE_PAD;
+  const maxX = Math.max(x0, x1) + LOGIC_ROUTE_PAD;
+  const minY = Math.min(y0, y1) - 96;
+  const maxY = Math.max(y0, y1) + 96;
+  return o.right >= minX && o.left <= maxX && o.bottom >= minY && o.top <= maxY;
+};
+
+const logicBezierSegmentLen = (x0, y0, x1, y1) => {
+  let len = 0;
+  let px = x0;
+  let py = y0;
+  for (let t = 0.08; t <= 1; t += 0.08) {
+    const p = logicBezierPointAt(x0, y0, x1, y1, t);
+    len += Math.hypot(p.x - px, p.y - py);
+    px = p.x;
+    py = p.y;
+  }
+  return len;
+};
+
+const logicBuildRoutedPath = (x0, y0, x1, y1, routeY) => {
+  const goingRight = x1 >= x0;
+  const exitLen = Math.min(LOGIC_ROUTE_EXIT, Math.max(24, Math.abs(x1 - x0) * 0.12));
+  const xOut = goingRight ? x0 + exitLen : x0 - exitLen;
+  const xIn = goingRight ? x1 - exitLen : x1 + exitLen;
+  const points = [
+    { x: x0, y: y0 },
+    { x: xOut, y: y0 },
+    { x: xOut, y: routeY },
+    { x: xIn, y: routeY },
+    { x: xIn, y: y1 },
+    { x: x1, y: y1 },
+  ];
+  return {
+    d: logicSmoothPolylinePathD(points),
+    type: 'polyline',
+    points,
+    segments: logicPointsToSegments(points),
+  };
+};
+
+const joinLogicPathParts = (parts) => {
+  if (parts.length === 1) return parts[0];
+  let d = '';
+  const points = [];
+  const segments = [];
+  for (const p of parts) {
+    if (!d) {
+      d = p.d;
+      if (p.points) points.push(...p.points);
+      else points.push({ x: p.x0, y: p.y0 }, { x: p.x1, y: p.y1 });
+    } else {
+      const trimmed = p.d.replace(/^M\s*[-\d.]+\s+[-\d.]+\s*/i, '');
+      d += ` ${trimmed}`;
+      if (p.points) points.push(...p.points.slice(1));
+      else points.push({ x: p.x1, y: p.y1 });
+    }
+    if (p.segments) segments.push(...p.segments);
+    else if (p.type === 'bezier') {
+      segments.push({
+        x0: p.x0,
+        y0: p.y0,
+        x1: p.x1,
+        y1: p.y1,
+        len: logicBezierSegmentLen(p.x0, p.y0, p.x1, p.y1),
+      });
+    }
+  }
+  return { type: 'compound', d, points, segments };
+};
+
+/** Single segment between two ports — smooth bezier or routed corridor around blocking cards. */
+const buildLogicConnectionSegment = (x0, y0, x1, y1, obstacles = []) => {
+  const relevant = obstacles.filter((o) => logicObstacleBetween(o, x0, x1, y0, y1));
+  const blocking = relevant.filter((o) => logicBezierHitsObstacle(x0, y0, x1, y1, o));
+  if (blocking.length === 0) {
+    return {
+      d: logicBezierConnectionPath(x0, y0, x1, y1),
+      type: 'bezier',
+      x0,
+      y0,
+      x1,
+      y1,
+      segments: [{ x0, y0, x1, y1, len: logicBezierSegmentLen(x0, y0, x1, y1) }],
+    };
+  }
+
+  const routeAboveY = Math.min(...blocking.map((o) => o.top)) - LOGIC_ROUTE_PAD;
+  const routeBelowY = Math.max(...blocking.map((o) => o.bottom)) + LOGIC_ROUTE_PAD;
+  const candidates = [logicPickRouteY(x0, y0, x1, y1, blocking), routeAboveY, routeBelowY];
+
+  for (const routeY of candidates) {
+    const routed = logicBuildRoutedPath(x0, y0, x1, y1, routeY);
+    const hits = relevant.some((o) => logicPolylineHitsObstacle(routed.points, o));
+    if (!hits) return routed;
+  }
+
+  return logicBuildRoutedPath(x0, y0, x1, y1, candidates[0]);
+};
+
+/**
+ * Full connection path with optional shared trunks (branch out / merge in like Typeform).
+ * @param {{ prefixWaypoints?: {x:number,y:number}[], suffixWaypoints?: {x:number,y:number}[] }} trunk
+ */
+const buildLogicConnectionPath = (x0, y0, x1, y1, obstacles = [], trunk = {}) => {
+  const prefix = trunk.prefixWaypoints ?? [];
+  const suffix = trunk.suffixWaypoints ?? [];
+
+  if (prefix.length === 0 && suffix.length === 0) {
+    return buildLogicConnectionSegment(x0, y0, x1, y1, obstacles);
+  }
+
+  const parts = [];
+
+  if (prefix.length > 0) {
+    const pts = [{ x: x0, y: y0 }, ...prefix];
+    parts.push({
+      d: logicSmoothPolylinePathD(pts),
+      type: 'polyline',
+      points: pts,
+      segments: logicPointsToSegments(pts),
+    });
+  }
+
+  const mainStart = prefix.length > 0 ? prefix[prefix.length - 1] : { x: x0, y: y0 };
+  const mainEnd = suffix.length > 0 ? suffix[0] : { x: x1, y: y1 };
+  parts.push(
+    buildLogicConnectionSegment(mainStart.x, mainStart.y, mainEnd.x, mainEnd.y, obstacles)
+  );
+
+  if (suffix.length > 0) {
+    const pts = [...suffix, { x: x1, y: y1 }];
+    parts.push({
+      d: logicSmoothPolylinePathD(pts),
+      type: 'polyline',
+      points: pts,
+      segments: logicPointsToSegments(pts),
+    });
+  }
+
+  return joinLogicPathParts(parts);
+};
+
+const logicConnectionPathPointAt = (meta, t) => {
+  if (meta.type === 'bezier') {
+    return logicBezierPointAt(meta.x0, meta.y0, meta.x1, meta.y1, t);
+  }
+  const total = meta.segments.reduce((sum, seg) => sum + seg.len, 0);
+  if (total === 0) return meta.points[0] ?? { x: 0, y: 0 };
+  let dist = total * t;
+  for (const seg of meta.segments) {
+    if (dist <= seg.len || seg === meta.segments[meta.segments.length - 1]) {
+      const r = seg.len === 0 ? 0 : dist / seg.len;
+      return {
+        x: seg.x0 + (seg.x1 - seg.x0) * r,
+        y: seg.y0 + (seg.y1 - seg.y0) * r,
+      };
+    }
+    dist -= seg.len;
+  }
+  const last = meta.points[meta.points.length - 1];
+  return last ?? { x: 0, y: 0 };
+};
+
+const logicConnectionPathMidpoint = (meta) => logicConnectionPathPointAt(meta, 0.5);
+
 /** Edge kinds chosen from the connector dot menu */
 const LOGIC_EDGE_KIND = {
   next: 'next',
@@ -320,27 +661,33 @@ const LOGIC_EDGE_KIND = {
   end: 'end',
 };
 
-/** Replace same fromâ†’to if present; `kind: null` = pending until user picks from logic menu */
+/** Replace same from→to if present; `kind: null` = pending until user picks from logic menu */
 const upsertLogicConnection = (prev, from, to, kind) => {
   const tail = prev.filter((c) => !(c.from === from && c.to === to));
   return [...tail, { from, to, kind: kind === undefined ? null : kind }];
 };
 
-/** Label + leading icon per edge kind â€” matches logic connector menu semantics (Figma pill uses same iconography). */
+/** Label + leading icon per edge kind — matches logic connector menu semantics (Figma pill uses same iconography). */
 const logicEdgeKindControlMeta = (kind) => {
   const k = kind ?? LOGIC_EDGE_KIND.next;
-  if (k === LOGIC_EDGE_KIND.if) return { label: 'If', Icon: RiGitBranchLine };
+  if (k === LOGIC_EDGE_KIND.if) return { label: 'If/Else', Icon: RiGitBranchLine };
   if (k === LOGIC_EDGE_KIND.skip) return { label: 'Skip', Icon: RiSkipForwardLine };
   if (k === LOGIC_EDGE_KIND.end) return { label: 'End', Icon: RiStopCircleLine };
   return { label: 'Next', Icon: RiArrowRightLine };
 };
 
+const LOGIC_EDGE_STROKE = '#b5b3ad';
+const LOGIC_EDGE_STROKE_STRONG = '#8f8d87';
+const LOGIC_EDGE_STROKE_SKIP = '#a8a6a0';
+
 const getLogicEdgePathProps = (kind) => {
   if (kind == null) {
     return {
       fill: 'none',
-      stroke: '#8a8880',
-      strokeWidth: 1.5,
+      stroke: LOGIC_EDGE_STROKE,
+      strokeWidth: 1.25,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
       strokeDasharray: '5 4',
       markerEnd: 'url(#logicFlowArrowHeadMuted)',
     };
@@ -348,14 +695,30 @@ const getLogicEdgePathProps = (kind) => {
   const k = kind;
   const base = {
     fill: 'none',
-    stroke: '#1a1a1a',
-    strokeWidth: 1.5,
+    stroke: LOGIC_EDGE_STROKE_STRONG,
+    strokeWidth: 1.25,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
     markerEnd: 'url(#logicFlowArrowHead)',
   };
   if (k === LOGIC_EDGE_KIND.if) return { ...base, strokeDasharray: '6 5' };
-  if (k === LOGIC_EDGE_KIND.skip) return { ...base, stroke: '#5c5c58', strokeDasharray: '5 4' };
-  if (k === LOGIC_EDGE_KIND.end) return { ...base, strokeWidth: 2.2 };
+  if (k === LOGIC_EDGE_KIND.skip) {
+    return { ...base, stroke: LOGIC_EDGE_STROKE_SKIP, strokeDasharray: '5 4' };
+  }
+  if (k === LOGIC_EDGE_KIND.end) return { ...base, strokeWidth: 1.5 };
   return base;
+};
+
+/** In-progress wire from output port — always dashed with CSS motion until drop commits */
+const LOGIC_CONNECT_DRAG_DASH = '6 5';
+
+const getLogicConnectDragPathProps = (kind) => {
+  const base = getLogicEdgePathProps(kind ?? null);
+  return {
+    ...base,
+    strokeDasharray: LOGIC_CONNECT_DRAG_DASH,
+    className: 'logic-connect-drag-path',
+  };
 };
 
 const LOGIC_EDGE_HOVER_STROKE = '#dc2626';
@@ -387,7 +750,7 @@ const resolveLogicEdgeStrokeProps = (edgeKey, kind, disconnectHoveredKey, kindHo
   return getLogicEdgePathProps(kind);
 };
 
-/** Visible edge + wide transparent hit stroke (hover line â†’ green, click â†’ logic options) */
+/** Visible edge + wide transparent hit stroke (hover line → green, click → logic options) */
 const LogicEdgePathGroup = ({
   d,
   edgeKey,
@@ -398,6 +761,7 @@ const LogicEdgePathGroup = ({
   onKindEnter,
   onKindLeave,
   onEdgeClick,
+  hitsOnly = false,
 }) => {
   const strokeProps = resolveLogicEdgeStrokeProps(
     edgeKey,
@@ -405,30 +769,40 @@ const LogicEdgePathGroup = ({
     disconnectHoveredKey,
     kindHoveredKey
   );
+  if (hitsOnly) {
+    return (
+      <g data-logic-edge={edgeKey}>
+        <path
+          d={d}
+          fill="none"
+          stroke="transparent"
+          strokeWidth={LOGIC_EDGE_HIT_STROKE_WIDTH}
+          pointerEvents="stroke"
+          className="cursor-pointer"
+          aria-label={
+            kind === LOGIC_EDGE_KIND.if
+              ? 'Edit if/else logic for this connection'
+              : 'Open logic options for this connection'
+          }
+          onPointerEnter={() => onKindEnter(edgeKey)}
+          onPointerLeave={onKindLeave}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdgeClick(connection, e.clientX, e.clientY);
+          }}
+        />
+      </g>
+    );
+  }
   return (
-    <g data-logic-edge={edgeKey}>
+    <g data-logic-edge={edgeKey} pointerEvents="none">
       <path d={d} pointerEvents="none" {...strokeProps} />
-      <path
-        d={d}
-        fill="none"
-        stroke="transparent"
-        strokeWidth={LOGIC_EDGE_HIT_STROKE_WIDTH}
-        pointerEvents="stroke"
-        className="cursor-pointer"
-        aria-label="Open logic options for this connection"
-        onPointerEnter={() => onKindEnter(edgeKey)}
-        onPointerLeave={onKindLeave}
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => {
-          e.stopPropagation();
-          onEdgeClick(connection, e.clientX, e.clientY);
-        }}
-      />
     </g>
   );
 };
 
-/** Ã— on the connection line â€” removes the wire only */
+/** × on the connection line — removes the wire only */
 const LogicEdgeLineDisconnectButton = ({
   x,
   y,
@@ -437,6 +811,7 @@ const LogicEdgeLineDisconnectButton = ({
   onPointerLeave,
 }) => (
   <div
+    data-logic-edge-disconnect
     className="absolute z-[11] flex items-center justify-center pointer-events-auto"
     style={{ left: x, top: y, transform: 'translate(-50%, -50%)' }}
     onPointerDown={(e) => e.stopPropagation()}
@@ -458,17 +833,19 @@ const LogicEdgeLineDisconnectButton = ({
   </div>
 );
 
-/** Edge pill: kind label + optional Ã— to clear if-logic (wire stays) */
+/** Edge pill: kind label + optional × to clear if-logic (wire stays) */
 const LogicEdgeControlPill = ({
   pillX,
   pillY,
   meta,
   showClearLogic,
   onClearLogic,
+  onPillClick,
 }) => (
   <div
     role="group"
     aria-label={`Connection ${meta.label}`}
+    data-logic-edge-pill
     className="absolute z-[12] pointer-events-none"
     style={{
       left: pillX,
@@ -477,7 +854,33 @@ const LogicEdgeControlPill = ({
       fontFamily: "'DM Sans', sans-serif",
     }}
   >
-    <div className="inline-flex flex-nowrap items-center gap-1.5 rounded-[10px] border border-solid border-[#cacaca] bg-[#e8ddfa] pl-2 pr-1.5 py-1">
+    <div
+      className={`inline-flex flex-nowrap items-center gap-1.5 rounded-[10px] border border-solid border-[#cacaca] bg-[#e8ddfa] pl-2 pr-1.5 py-1 ${
+        onPillClick ? 'pointer-events-auto cursor-pointer hover:bg-[#dfd0f8] transition-colors' : ''
+      }`}
+      onPointerDown={onPillClick ? (e) => e.stopPropagation() : undefined}
+      onClick={
+        onPillClick
+          ? (e) => {
+              e.stopPropagation();
+              onPillClick();
+            }
+          : undefined
+      }
+      onKeyDown={
+        onPillClick
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                onPillClick();
+              }
+            }
+          : undefined
+      }
+      role={onPillClick ? 'button' : undefined}
+      tabIndex={onPillClick ? 0 : undefined}
+    >
       <span className="inline-flex flex-nowrap items-center gap-1 shrink-0">
         <meta.Icon size={13} className="shrink-0 text-[#636363]" aria-hidden />
         <span className="text-[11px] font-medium leading-normal text-[#636363] whitespace-nowrap select-none">
@@ -576,9 +979,9 @@ const groupLogicConnectionsByTo = (connections) => {
   return m;
 };
 
-const LOGIC_EDGE_FAN_PX = 10;
-/** Shared horizontal trunk before if/then branches fan to multiple destinations */
-const LOGIC_IF_TRUNK_PX = 52;
+const LOGIC_EDGE_FAN_PX = 16;
+/** Shared horizontal trunk before branches fan / merge (Typeform-style) */
+const LOGIC_IF_TRUNK_PX = 56;
 
 const logicConnectionEndpoints = (c, byFrom, byTo, a, b) => {
   const fromArr = byFrom.get(c.from) ?? [c];
@@ -591,10 +994,38 @@ const logicConnectionEndpoints = (c, byFrom, byTo, a, b) => {
   const nT = toArr.length;
   const dy1 = nT <= 1 ? 0 : (fj - (nT - 1) / 2) * LOGIC_EDGE_FAN_PX;
 
-  return { x0: a.outX, y0: a.portY + dy0, x1: b.inX, y1: b.portY + dy1 };
+  const useFromTrunk = nF > 1;
+  const useToTrunk = nT > 1;
+
+  let prefixWaypoints = [];
+  let suffixWaypoints = [];
+
+  if (useFromTrunk) {
+    const trunkX = a.outX + LOGIC_IF_TRUNK_PX;
+    prefixWaypoints = [
+      { x: trunkX, y: a.portY },
+      { x: trunkX, y: a.portY + dy0 },
+    ];
+  }
+  if (useToTrunk) {
+    const approachX = b.inX - LOGIC_IF_TRUNK_PX;
+    suffixWaypoints = [
+      { x: approachX, y: b.portY + dy1 },
+      { x: approachX, y: b.portY },
+    ];
+  }
+
+  return {
+    x0: a.outX,
+    y0: useFromTrunk ? a.portY : a.portY + dy0,
+    x1: b.inX,
+    y1: useToTrunk ? b.portY : b.portY + dy1,
+    prefixWaypoints,
+    suffixWaypoints,
+  };
 };
 
-/* â”€â”€ Configure panel: essentials grid items â”€â”€ */
+/* ── Configure panel: essentials grid items ── */
 const ESSENTIALS = [
   { label: 'CTA', Icon: BoxesIcon },
   { label: 'Heading', Icon: TextHIcon },
@@ -605,14 +1036,18 @@ const ESSENTIALS = [
   { label: 'Captcha', Icon: RiRobot2Line },
 ];
 
-/* â”€â”€ Configure panel: collapsible sections â”€â”€ */
+const CONFIGURE_TILE_GRID = 'grid grid-cols-3 gap-1 items-start pb-[2px]';
+const CONFIGURE_TILE_BASE =
+  'flex flex-col items-center justify-center gap-[2px] h-[40px] w-full px-0.5 rounded-[6px] border cursor-pointer transition-colors';
+
+/* ── Configure panel: collapsible sections ── */
 const ACCORDION_SECTIONS = [
   { key: 'questionTemplates', label: 'Question Templates' },
   { key: 'fieldSettings', label: 'Field Settings' },
   { key: 'appearance', label: 'Appearance' },
 ];
 
-/* â”€â”€ Question template categories â”€â”€ */
+/* ── Question template categories ── */
 const QUESTION_TEMPLATE_CATEGORIES = [
   {
     label: 'Building Blocks',
@@ -666,7 +1101,7 @@ const QUESTION_TEMPLATE_CATEGORIES = [
   },
 ];
 
-/* â”€â”€ Content panel sections (shown when Add Screen is clicked after intro) â”€â”€ */
+/* ── Content panel sections (shown when Add Screen is clicked after intro) ── */
 const CONTENT_SECTIONS = [
   {
     key: 'buildingBlocks',
@@ -726,46 +1161,46 @@ const CONTENT_SECTIONS = [
   },
 ];
 
-/* â”€â”€ Design themes â”€â”€ */
+/* ── Design themes ── */
 const THEMES = [
   {
     id: 'sage',
-    name: 'Sage â€” Organic',
+    name: 'Sage — Organic',
     cardBg: '#b8cfc6',
     previewType: 'image',
     previewImg: cardTheme1,
   },
   {
     id: 'earth',
-    name: 'Earth â€” Warm',
+    name: 'Earth — Warm',
     cardBg: '#f0e6d3',
     previewType: 'image',
     previewImg: cardTheme2,
   },
   {
     id: 'terra',
-    name: 'Terra â€” Bold',
+    name: 'Terra — Bold',
     cardBg: '#e06b55',
     previewType: 'image',
     previewImg: cardTheme3,
   },
   {
     id: 'azure',
-    name: 'Azure â€” Minimal',
+    name: 'Azure — Minimal',
     cardBg: '#b5cedf',
     previewType: 'image',
     previewImg: cardTheme4,
   },
 ];
 
-/* â”€â”€ Typography font map â”€â”€ */
+/* ── Typography font map ── */
 const TYPOGRAPHY_FONTS = {
   default:   "'DM Sans', sans-serif",
   serif:     "Georgia, 'Times New Roman', serif",
   monospace: "'Consolas', 'Courier New', monospace",
 };
 
-/* â”€â”€ Hex â†’ rgba helper â”€â”€ */
+/* ── Hex → rgba helper ── */
 const hexToRgba = (hex, opacity) => {
   const h = hex.replace('#', '');
   const r = parseInt(h.slice(0, 2), 16);
@@ -774,7 +1209,7 @@ const hexToRgba = (hex, opacity) => {
   return `rgba(${r}, ${g}, ${b}, ${(opacity / 100).toFixed(2)})`;
 };
 
-/* â”€â”€ CTA configure panel â€“ text-color palette (6 rows Ã— 8 cols) â”€â”€ */
+/* ── CTA configure panel – text-color palette (6 rows × 8 cols) ── */
 const CTA_COLOR_PALETTE = [
   ['#ffffff', '#ffffff', '#f3f4f6', '#d1d5db', '#9ca3af', '#6b7280', '#374151', '#111827'],
   ['#fee2e2', '#fecaca', '#fca5a5', '#f87171', '#ef4444', '#dc2626', '#b91c1c', '#7f1d1d'],
@@ -784,7 +1219,7 @@ const CTA_COLOR_PALETTE = [
   ['#fae8ff', '#f5d0fe', '#e879f9', '#d946ef', '#a855f7', '#9333ea', '#7e22ce', '#581c87'],
 ];
 
-/* â”€â”€ Content card helpers â”€â”€ */
+/* ── Content card helpers ── */
 
 const CardShell = ({ children, fullCanvas = false, cardColor = '#f7f6f4', cardImage = null, scrollable = false, footer = null }) => {
   const borderAndRadius = fullCanvas ? '' : 'border border-[rgba(0,0,0,0.07)] rounded-[20px]';
@@ -823,7 +1258,45 @@ const CardShell = ({ children, fullCanvas = false, cardColor = '#f7f6f4', cardIm
   );
 };
 
-/** Back / Continue â€” matches Figma (Clearform-Changes 2521:7135) */
+/** Preview viewport chrome heights � Figma Clearform-Changes 2521:8332 */
+const PREVIEW_PAGE_INDICATOR_H = 34;
+const PREVIEW_POWERED_BY_H = 38;
+const PREVIEW_CHROME_H = PREVIEW_PAGE_INDICATOR_H + PREVIEW_POWERED_BY_H;
+
+/** Page counter shown above the form card in preview � Figma 2521:8332 */
+const PreviewPageIndicator = ({ current, total }) => (
+  <motion.div
+    layout
+    className="flex items-center justify-center shrink-0 w-full"
+    style={{
+      height: PREVIEW_PAGE_INDICATOR_H,
+      fontFamily: "'DM Sans', sans-serif",
+      fontVariationSettings: "'opsz' 14",
+    }}
+  >
+    <span className="text-[11px] font-medium tracking-[0.04em] text-[#8c8a84]">
+      Page {current} of {total}
+    </span>
+  </motion.div>
+);
+
+/** Clearform branding shown below the form card in preview � Figma 2521:8332 */
+const PreviewPoweredBy = () => (
+  <motion.div
+    layout
+    className="flex items-center justify-center gap-[5px] shrink-0 w-full"
+    style={{
+      height: PREVIEW_POWERED_BY_H,
+      fontFamily: "'DM Sans', sans-serif",
+      fontVariationSettings: "'opsz' 14",
+    }}
+  >
+    <span className="text-[10.5px] font-normal text-[#b0aea8]">Powered by</span>
+    <img src={clearformLogo} alt="Clearform" className="h-[13px] w-auto object-contain" />
+  </motion.div>
+);
+
+/** Back / Continue — matches Figma (Clearform-Changes 2521:7135) */
 const PreviewCardStepNav = ({ prevScreen, nextScreen, onGoPrev, onGoContinue }) => (
   <div className="border-t border-[#cfcecd] flex items-center justify-between shrink-0 px-14 pt-[15px] pb-[18px]">
     <button
@@ -904,12 +1377,6 @@ const PreviewLabeledInput = ({ label, value, onChange, placeholder = '', type = 
 
 const ContentCardFooter = ({ onDelete, variant = 'default' }) => (
   <div className="border-t border-[rgba(0,0,0,0.1)] flex gap-2 items-center px-14 py-[19px]">
-    {variant === 'field' && (
-      <button className="flex items-center gap-[5px] px-[14px] py-[8px] rounded-[8px] bg-white/70 border border-[rgba(0,0,0,0.16)] text-[#444] text-[12px] cursor-pointer hover:bg-[rgba(245,245,245,0.9)] transition-colors whitespace-nowrap">
-        <RiInformationLine size={12} className="shrink-0" />
-        Make required
-      </button>
-    )}
     {variant === 'content' && (
       <button className="flex items-center gap-[5px] px-[14px] py-[8px] rounded-[8px] bg-white/70 border border-[rgba(0,0,0,0.16)] text-[#444] text-[12px] cursor-pointer hover:bg-[rgba(245,245,245,0.9)] transition-colors whitespace-nowrap">
         <RiPencilLine size={12} className="shrink-0" />
@@ -1059,7 +1526,7 @@ const FileUploadCard = ({ blockNum, onDelete, config, isPreviewMode = false }) =
               <p className="text-[24px] leading-[36px] opacity-50 text-[#141412]">&#9888;</p>
               <p className="text-[#e8271c] text-[13px] font-medium leading-[19.5px] pt-[6px]">File too large</p>
               <p className="text-[#9a9a94] text-[11.5px] text-center leading-[17.25px]">
-                {sizeError.name} is {formatFileSizeCompact(sizeError.size)} — max allowed is{' '}
+                {sizeError.name} is {formatFileSizeCompact(sizeError.size)} � max allowed is{' '}
                 {formatMaxSizeLabel(maxFileSizeLabel)}
               </p>
             </div>
@@ -1391,7 +1858,7 @@ const MultiImageUploadCard = ({ blockNum, onDelete, config, fullCanvas = false, 
     });
   };
 
-  /* â”€â”€ Drag-to-reorder handlers â”€â”€ */
+  /* ── Drag-to-reorder handlers ── */
   const handleDragStart = (e, index) => {
     setDragIndex(index);
     e.dataTransfer.effectAllowed = 'move';
@@ -1440,7 +1907,7 @@ const MultiImageUploadCard = ({ blockNum, onDelete, config, fullCanvas = false, 
               <p className="text-[24px] leading-[36px] opacity-50 text-[#141412]">&#9888;</p>
               <p className="text-[#e8271c] text-[13px] font-medium leading-[19.5px] pt-[6px]">File too large</p>
               <p className="text-[#9a9a94] text-[11.5px] text-center leading-[17.25px]">
-                {sizeError.name} is {formatFileSizeCompact(sizeError.size)} — max allowed is{' '}
+                {sizeError.name} is {formatFileSizeCompact(sizeError.size)} � max allowed is{' '}
                 {formatMaxSizeLabel(maxFileSizeLabel)}
               </p>
             </div>
@@ -1454,7 +1921,7 @@ const MultiImageUploadCard = ({ blockNum, onDelete, config, fullCanvas = false, 
           </div>
         )}
 
-        {/* Counter + drag hint â€” only show once images exist */}
+        {/* Counter + drag hint — only show once images exist */}
         {images.length > 0 && (
           <div className="flex items-center justify-between mt-[14px]">
             <span className="text-[#888] text-[11.5px]">{images.length} of {maxImages} uploaded</span>
@@ -1469,7 +1936,7 @@ const MultiImageUploadCard = ({ blockNum, onDelete, config, fullCanvas = false, 
           </div>
         )}
 
-        {/* Image grid â€” 4 per row, scrollable so card never expands */}
+        {/* Image grid — 4 per row, scrollable so card never expands */}
         <div className="mt-[10px] mb-[4px] overflow-y-auto" style={{ maxHeight: '250px' }}>
           <div className="grid grid-cols-4 gap-[6px]">
             {images.map((img, index) => (
@@ -1495,12 +1962,12 @@ const MultiImageUploadCard = ({ blockNum, onDelete, config, fullCanvas = false, 
                   onMouseDown={(e) => e.stopPropagation()}
                   className="absolute top-[4px] right-[4px] w-[16px] h-[16px] rounded-full flex items-center justify-center backdrop-blur-[2px] bg-[rgba(0,0,0,0.5)] cursor-pointer hover:bg-[rgba(0,0,0,0.7)] transition-colors"
                 >
-                  <span className="text-white text-[9px] leading-none">Ã—</span>
+                  <span className="text-white text-[9px] leading-none">×</span>
                 </button>
               </div>
             ))}
 
-            {/* Add photo slot â€” always visible; disabled + tooltip when at max */}
+            {/* Add photo slot — always visible; disabled + tooltip when at max */}
             <div className="relative aspect-square">
               {addHovered && (
                 <div className="absolute bottom-[calc(100%+6px)] left-1/2 -translate-x-1/2 bg-[#111] text-white text-[10px] px-[8px] py-[4px] rounded-[5px] whitespace-nowrap z-10 pointer-events-none">
@@ -1867,6 +2334,7 @@ const ContentCard = ({
   shortTextConfig,
   longTextConfig,
   responseQualityConfig,
+  shortTextResponseQualityConfig,
   singleConfig,
   multipleConfig,
   mediaConfig,
@@ -1886,6 +2354,7 @@ const ContentCard = ({
   previewScreenValidatorRef,
   onPreviewSnapChange,
   previewScreenId,
+  isIntroScreen = false,
 }) => {
   const { section, label } = block;
   const cardKey = `${section}:${label}`;
@@ -1948,11 +2417,22 @@ const ContentCard = ({
   }, [mediaOptsKey, mediaConfig?.mediaRandomiseOrder]);
 
   const responseQualityEvaluation = useMemo(() => {
-    if (!isPreviewMode || cardKey !== 'qualitative:Long text' || !responseQualityConfig?.enabled) {
-      return null;
+    if (!isPreviewMode) return null;
+    if (cardKey === 'qualitative:Long text' && responseQualityConfig?.enabled) {
+      return evaluateResponseQuality(longTextDraft, responseQualityConfig);
     }
-    return evaluateResponseQuality(longTextDraft, responseQualityConfig);
-  }, [isPreviewMode, cardKey, responseQualityConfig, longTextDraft]);
+    if (cardKey === 'qualitative:Short text' && shortTextResponseQualityConfig?.enabled) {
+      return evaluateResponseQuality(shortTextDraft, shortTextResponseQualityConfig);
+    }
+    return null;
+  }, [
+    isPreviewMode,
+    cardKey,
+    responseQualityConfig,
+    shortTextResponseQualityConfig,
+    longTextDraft,
+    shortTextDraft,
+  ]);
 
   const snapRef = useRef({});
   snapRef.current = {
@@ -2042,6 +2522,10 @@ const ContentCard = ({
     const fontWeight   = cc.ctaFontWeight   ?? 'Regular';
     const textAlign    = cc.ctaTextAlign    ?? 'center';
     const padding      = cc.ctaPadding      ?? 44;
+    const mainHeading  = cc.ctaHeadingText ?? 'Welcome to our survey';
+    const helperText   = cc.ctaHelperText  ?? 'Please fill out this form to help us improve. It only takes a couple of minutes and your feedback matters.';
+    const durationText = cc.ctaDurationText ?? 'Takes ~3 minutes';
+    const isEditingCta = cc.isEditingCard || false;
 
     const btnSizePxMap  = { S: { px: '14px', py: '8px', text: '14px' }, M: { px: '28px', py: '12px', text: '15px' }, L: { px: '36px', py: '14px', text: '16px' }, XL: { px: '44px', py: '16px', text: '18px' } };
     const { px: bPx, py: bPy, text: bText } = btnSizePxMap[btnSize] || btnSizePxMap['M'];
@@ -2069,17 +2553,39 @@ const ContentCard = ({
             <BoxesIcon size={18} className="text-white" />
           </div>
           <div className="pt-[11px] w-full mx-auto" style={{ maxWidth: contentMaxWidth }}>
-            <p
-              className={`text-[#111] tracking-[-0.56px] leading-[1.3] ${textAlignClass}`}
-              style={{ fontSize: headingSize, fontWeight: fontWeightMap[fontWeight] }}
-            >
-              Welcome to our survey
-            </p>
+            {isEditingCta ? (
+              <input
+                type="text"
+                value={cc.ctaHeadingText ?? ''}
+                onChange={(e) => cc.setCtaHeadingText?.(e.target.value)}
+                className={`text-[#111] tracking-[-0.56px] leading-[1.3] bg-transparent border-b border-[#c8c6c0] outline-none w-full focus:border-[#111] transition-colors pb-1 ${textAlignClass}`}
+                style={{ fontSize: headingSize, fontWeight: fontWeightMap[fontWeight] }}
+                placeholder="Welcome to our survey"
+              />
+            ) : (
+              <p
+                className={`text-[#111] tracking-[-0.56px] leading-[1.3] ${textAlignClass}`}
+                style={{ fontSize: headingSize, fontWeight: fontWeightMap[fontWeight] }}
+              >
+                {mainHeading}
+              </p>
+            )}
           </div>
           <div className={`w-full mx-auto ${textAlignClass}`} style={{ maxWidth: contentMaxWidth }}>
-            <p className={`text-[#888] font-light leading-[1.6] ${textAlignClass}`} style={{ fontSize: bodySize }}>
-              Please fill out this form to help us improve. It only takes a couple of minutes and your feedback matters.
-            </p>
+            {isEditingCta ? (
+              <textarea
+                value={cc.ctaHelperText ?? ''}
+                onChange={(e) => cc.setCtaHelperText?.(e.target.value)}
+                rows={3}
+                className={`text-[#888] font-light leading-[1.6] bg-transparent border-b border-[#c8c6c0] outline-none w-full resize-none focus:border-[#111] transition-colors pb-1 ${textAlignClass}`}
+                style={{ fontSize: bodySize }}
+                placeholder="Please fill out this form to help us improve…"
+              />
+            ) : (
+              <p className={`text-[#888] font-light leading-[1.6] ${textAlignClass}`} style={{ fontSize: bodySize }}>
+                {helperText}
+              </p>
+            )}
           </div>
           {isPreviewMode ? (
             <button
@@ -2119,12 +2625,40 @@ const ContentCard = ({
             </div>
           )}
           <div className="flex gap-[5px] items-center justify-center pt-[5px]">
-            <RiTimeLine size={12} className="text-black" />
-            <span className="text-[12px] text-black">Takes ~3 minutes</span>
+            <RiTimeLine size={12} className="text-black shrink-0" />
+            {isEditingCta ? (
+              <input
+                type="text"
+                value={cc.ctaDurationText ?? ''}
+                onChange={(e) => cc.setCtaDurationText?.(e.target.value)}
+                className="text-[12px] text-black bg-transparent border-b border-[#c8c6c0] outline-none focus:border-[#111] transition-colors pb-0.5 min-w-[120px] text-center"
+                placeholder="Takes ~3 minutes"
+              />
+            ) : (
+              <span className="text-[12px] text-black">{durationText}</span>
+            )}
           </div>
         </div>
         {!isPreviewMode && (
-        <div className="border-t border-[rgba(0,0,0,0.1)] flex gap-2 items-center px-14 py-[19px]">
+        <div className="border-t border-[rgba(0,0,0,0.1)] flex items-center gap-2 px-14 py-[19px]">
+          {!isEditingCta && (
+            <button
+              onClick={cc.onEditToggle}
+              className="flex items-center gap-[5px] px-[14px] py-[8px] rounded-[8px] bg-white/70 border border-[rgba(0,0,0,0.16)] text-[#444] text-[12px] cursor-pointer hover:bg-[rgba(245,245,245,0.9)] transition-colors whitespace-nowrap"
+            >
+              <RiPencilLine size={12} className="shrink-0" />
+              Edit content
+            </button>
+          )}
+          {!isIntroScreen && isEditingCta && (
+            <button
+              onClick={cc.onEditToggle}
+              className="flex items-center gap-[5px] px-[14px] py-[8px] rounded-[8px] bg-white/70 border border-[rgba(0,0,0,0.16)] text-[#444] text-[12px] cursor-pointer hover:bg-[rgba(245,245,245,0.9)] transition-colors whitespace-nowrap"
+            >
+              <RiArrowLeftLine size={12} className="shrink-0" aria-hidden />
+              Back
+            </button>
+          )}
           <button
             onClick={onDelete}
             className="flex items-center gap-[5px] px-[14px] py-[8px] rounded-[8px] bg-[rgba(255,245,245,0.7)] border border-[rgba(200,50,50,0.2)] text-[#d63030] text-[12px] cursor-pointer hover:bg-[rgba(255,235,235,0.9)] transition-colors whitespace-nowrap"
@@ -2132,15 +2666,17 @@ const ContentCard = ({
             <RiDeleteBin6Line size={12} className="shrink-0" />
             Delete
           </button>
-          <button className="flex items-center gap-[5px] px-[14px] py-[8px] rounded-[8px] bg-white/70 border border-[rgba(0,0,0,0.16)] text-[#444] text-[12px] cursor-pointer hover:bg-[rgba(245,245,245,0.9)] transition-colors whitespace-nowrap">
-            <RiPencilLine size={12} className="shrink-0" />
-            Edit content
-          </button>
           <div className="flex-1" />
-          <button className="flex items-center gap-[5px] px-[16px] py-[8px] rounded-[8px] bg-[#111] text-white text-[12px] font-medium cursor-pointer hover:bg-[#2c2c2c] transition-colors whitespace-nowrap">
-            <RiCheckLine size={11} className="shrink-0" />
-            Save
-          </button>
+          {(isIntroScreen ? isEditingCta : true) && (
+            <button
+              type="button"
+              className="flex items-center gap-[5px] px-[16px] py-[8px] rounded-[8px] bg-[#111] text-white text-[12px] font-medium cursor-pointer hover:bg-[#2c2c2c] transition-colors whitespace-nowrap"
+              onClick={isEditingCta ? cc.onEditToggle : undefined}
+            >
+              <RiCheckLine size={11} className="shrink-0" />
+              Save
+            </button>
+          )}
         </div>
         )}
       </>
@@ -2165,12 +2701,12 @@ const ContentCard = ({
       <>
         <div className={`relative flex-1 flex flex-col px-14 pt-11 pb-5 gap-3 ${hHidden && !isPreviewMode ? 'opacity-40' : ''} ${hHidden && isPreviewMode ? 'hidden' : ''}`}>
           <HiddenFieldOverlay show={hHidden && !isPreviewMode} />
-          {/* Badge label â€” driven by Sub-heading field in Configure panel */}
+          {/* Badge label — driven by Sub-heading field in Configure panel */}
           <p className={`text-[#888] text-[15px] tracking-[0.42px] uppercase ${textAlignClass}`}>
             {hc.subHeading || 'SECTION HEADING'}
           </p>
 
-          {/* Heading title â€” size driven by Heading Level; editable in edit mode */}
+          {/* Heading title — size driven by Heading Level; editable in edit mode */}
           {isPreviewMode ? (
             <div
               className={`flex flex-wrap items-center gap-x-3 gap-y-1 w-full ${
@@ -2205,7 +2741,7 @@ const ContentCard = ({
             </p>
           )}
 
-          {/* Answer area â€” size driven by Text Size; pinned to bottom, grows upward as content fills */}
+          {/* Answer area — size driven by Text Size; pinned to bottom, grows upward as content fills */}
           <div className={`flex-1 flex flex-col justify-end pb-2 pt-4 ${hHidden && isPreviewMode ? 'hidden' : ''}`}>
             {isPreviewMode ? (
               <textarea
@@ -2214,7 +2750,7 @@ const ContentCard = ({
                 rows={1}
                 className={`text-[#333] font-light leading-[1.6] bg-transparent border-b border-[#111] outline-none w-full resize-none transition-colors pb-[11px] pt-[10px] ${textAlignClass}`}
                 style={{ fontFamily: "'DM Sans', sans-serif", overflow: 'hidden', fontSize: answerTextSizeMap[hSize] }}
-                placeholder="Type your answer hereâ€¦"
+                placeholder="Type your answer here…"
                 onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
               />
             ) : isEditingHeading ? (
@@ -2224,7 +2760,7 @@ const ContentCard = ({
                 rows={1}
                 className={`text-[#555] font-light leading-[1.6] bg-transparent border-b border-[#111] outline-none w-full resize-none transition-colors pb-[11px] pt-[10px] ${textAlignClass}`}
                 style={{ fontFamily: "'DM Sans', sans-serif", overflow: 'hidden', fontSize: answerTextSizeMap[hSize] }}
-                placeholder="Type your answer hereâ€¦"
+                placeholder="Type your answer here…"
                 onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
               />
             ) : (
@@ -2233,7 +2769,7 @@ const ContentCard = ({
                   className={`font-light ${hc.headingAnswerText ? 'text-[#333]' : 'text-[#aaa]'}`}
                   style={{ fontFamily: "'DM Sans', sans-serif", fontSize: answerTextSizeMap[hSize] }}
                 >
-                  {hc.headingAnswerText || 'Type your answer hereâ€¦'}
+                  {hc.headingAnswerText || 'Type your answer here…'}
                 </p>
               </div>
             )}
@@ -2241,21 +2777,22 @@ const ContentCard = ({
         </div>
         {!isPreviewMode && (
         <div className="border-t border-[rgba(0,0,0,0.1)] flex items-center gap-2 px-14 py-[19px]">
-          {isEditingHeading ? (
-            <button
-              onClick={hc.onEditToggle}
-              className="flex items-center gap-[5px] px-[14px] py-[8px] rounded-[8px] bg-white/70 border border-[rgba(0,0,0,0.16)] text-[#444] text-[12px] cursor-pointer hover:bg-[rgba(245,245,245,0.9)] transition-colors whitespace-nowrap"
-            >
-              <RiArrowLeftLine size={12} className="shrink-0" aria-hidden />
-              Back
-            </button>
-          ) : (
+          {!isEditingHeading && (
             <button
               onClick={hc.onEditToggle}
               className="flex items-center gap-[5px] px-[14px] py-[8px] rounded-[8px] bg-white/70 border border-[rgba(0,0,0,0.16)] text-[#444] text-[12px] cursor-pointer hover:bg-[rgba(245,245,245,0.9)] transition-colors whitespace-nowrap"
             >
               <RiPencilLine size={12} className="shrink-0" />
               Edit content
+            </button>
+          )}
+          {!isIntroScreen && isEditingHeading && (
+            <button
+              onClick={hc.onEditToggle}
+              className="flex items-center gap-[5px] px-[14px] py-[8px] rounded-[8px] bg-white/70 border border-[rgba(0,0,0,0.16)] text-[#444] text-[12px] cursor-pointer hover:bg-[rgba(245,245,245,0.9)] transition-colors whitespace-nowrap"
+            >
+              <RiArrowLeftLine size={12} className="shrink-0" aria-hidden />
+              Back
             </button>
           )}
           <button
@@ -2266,13 +2803,16 @@ const ContentCard = ({
             Delete
           </button>
           <div className="flex-1" />
-          <button
-            className="flex items-center gap-[5px] px-[16px] py-[8px] rounded-[8px] bg-[#111] text-white text-[12px] font-medium cursor-pointer hover:bg-[#2c2c2c] transition-colors whitespace-nowrap"
-            onClick={isEditingHeading ? hc.onEditToggle : undefined}
-          >
-            <RiCheckLine size={11} className="shrink-0" />
-            Save
-          </button>
+          {(isIntroScreen ? isEditingHeading : true) && (
+            <button
+              type="button"
+              className="flex items-center gap-[5px] px-[16px] py-[8px] rounded-[8px] bg-[#111] text-white text-[12px] font-medium cursor-pointer hover:bg-[#2c2c2c] transition-colors whitespace-nowrap"
+              onClick={isEditingHeading ? hc.onEditToggle : undefined}
+            >
+              <RiCheckLine size={11} className="shrink-0" />
+              Save
+            </button>
+          )}
         </div>
         )}
       </>
@@ -2330,7 +2870,7 @@ const ContentCard = ({
                 value={pf('descAns')}
                 onChange={(e) => setPf('descAns', dcCharLimit ? e.target.value.slice(0, Number(dcCharLimit) || 5000) : e.target.value)}
                 rows={2}
-                placeholder="Type your answer hereâ€¦"
+                placeholder="Type your answer here…"
                 className={`w-full text-black text-[17px] font-light bg-transparent outline-none border-0 resize-none placeholder:text-[#bbb] ${textAlignClass}`}
                 style={{ fontFamily: "'DM Sans', sans-serif", fontVariationSettings: "'opsz' 14" }}
               />
@@ -2339,7 +2879,7 @@ const ContentCard = ({
                 className={`text-black text-[17px] font-light ${textAlignClass}`}
                 style={{ fontFamily: "'DM Sans', sans-serif", fontVariationSettings: "'opsz' 14" }}
               >
-                Type your answer hereâ€¦
+                Type your answer here…
               </p>
             )}
           </div>
@@ -2448,7 +2988,7 @@ const ContentCard = ({
         {/* File info bar */}
         <div className="bg-[rgba(0,0,0,0.03)] border-t border-[rgba(0,0,0,0.1)] px-[12px] py-[8px]">
           <p className="text-[11px] text-black font-light">
-            {imgCaption || 'image.jpg Â· uploaded'}
+            {imgCaption || 'image.jpg · uploaded'}
           </p>
         </div>
       </div>
@@ -2503,15 +3043,15 @@ const ContentCard = ({
               value={pf('imgAns')}
               onChange={(e) => setPf('imgAns', e.target.value.slice(0, 200))}
               rows={2}
-              placeholder="Type your answer hereâ€¦"
+              placeholder="Type your answer here…"
               className="w-full text-black text-[15px] font-light bg-transparent outline-none border-0 resize-none placeholder:text-[#aaa]"
             />
           ) : (
-            <p className="text-black text-[15px] font-light">{imgAnswerText || 'Type your answer hereâ€¦'}</p>
+            <p className="text-black text-[15px] font-light">{imgAnswerText || 'Type your answer here…'}</p>
           )}
         </div>
         <div className="flex items-center justify-between pt-[4px] pb-[18px]">
-          <span className="text-[11px] text-black font-light">Press Enter â†µ to continue</span>
+          <span className="text-[11px] text-black font-light">Press Enter ↵ to continue</span>
           <span className="text-[11px] text-black">{isPreviewMode ? `${pf('imgAns').length}` : '0'} / 200</span>
         </div>
         {!isPreviewMode && (
@@ -2589,7 +3129,7 @@ const ContentCard = ({
                     <p className="text-[11px] text-[#888]">{vCaption || 'Video'}</p>
                     {(vAutoplay || vLoop || !vShowControls) && (
                       <span className="text-[10px] text-[#aaa] shrink-0">
-                        {[vAutoplay && 'Autoplay', vLoop && 'Loop', !vShowControls && 'No controls'].filter(Boolean).join(' Â· ')}
+                        {[vAutoplay && 'Autoplay', vLoop && 'Loop', !vShowControls && 'No controls'].filter(Boolean).join(' · ')}
                       </span>
                     )}
                   </div>
@@ -2600,7 +3140,7 @@ const ContentCard = ({
                     <VideoCardIcon size={28} className="text-[#aaa]" />
                     <p className="text-[#888] text-[15px] text-center">
                       {urlMismatch
-                        ? `URL doesn't match ${sourceLabel} â€” check Video Source`
+                        ? `URL doesn't match ${sourceLabel} — check Video Source`
                         : `Paste a ${sourceLabel} URL`}
                     </p>
                   </div>
@@ -2624,15 +3164,15 @@ const ContentCard = ({
               <textarea
                 value={pf('videoAns')}
                 onChange={(e) => setPf('videoAns', e.target.value.slice(0, 500))}
-                placeholder="Type your answer hereâ€¦"
+                placeholder="Type your answer here…"
                 className="w-full min-h-[72px] text-[14px] font-light text-[#111] bg-transparent outline-none border-0 resize-y placeholder:text-[#bbb]"
               />
             ) : (
-              <p className="text-[#bbb] text-[14px] font-light">Type your answer hereâ€¦</p>
+              <p className="text-[#bbb] text-[14px] font-light">Type your answer here…</p>
             )}
           </div>
           <div className="flex justify-between items-center pb-[14px]">
-            <span className="text-[11px] text-[#bbb]">Press Enter â†µ to continue</span>
+            <span className="text-[11px] text-[#bbb]">Press Enter ↵ to continue</span>
             <span className="text-[11px] text-[#bbb]">{isPreviewMode ? pf('videoAns').length : 0} / 500</span>
           </div>
         </div>
@@ -2859,7 +3399,7 @@ const ContentCard = ({
               {showTeamSize && (isPreviewMode ? (
                 <PreviewLabeledInput label={wLabel('TEAM SIZE', wFields.teamSize)} value={pf('w.ts')} onChange={(v) => setPf('w.ts', v)} />
               ) : (
-                <FormField label={wLabel('TEAM SIZE', wFields.teamSize)} value="11â€“50 people" />
+                <FormField label={wLabel('TEAM SIZE', wFields.teamSize)} value="11–50 people" />
               ))}
             </div>
           )}
@@ -2872,7 +3412,7 @@ const ContentCard = ({
     const stc = shortTextConfig || {};
     const stQuestion = stc.shortTextQuestion || "What's your name?";
     const stHelper = stc.shortTextHelperText || 'Please enter your full name as it appears on official documents.';
-    const stPlaceholder = stc.shortTextPlaceholder || 'Type your answer hereâ€¦';
+    const stPlaceholder = stc.shortTextPlaceholder || 'Type your answer here…';
     const stMaxChars = stc.shortTextMaxChars ?? 100;
     const stMinChars = Math.max(0, Number(stc.shortTextMinChars) || 0);
     const stValidation = stc.shortTextValidation || 'None';
@@ -2881,7 +3421,7 @@ const ContentCard = ({
     const stRequired = !!stc.shortTextRequired;
     const stAlign = stc.shortTextAlign || 'left';
     const stSize = stc.shortTextSize || 'M';
-    const stFontSize = { S: '16px', M: '20px', L: '24px' }[stSize] || '20px';
+    const stFontSize = { S: '16px', M: '20px', L: '32px' }[stSize] || '20px';
     const stTextAlign = stAlign === 'center' ? 'text-center' : stAlign === 'right' ? 'text-right' : 'text-left';
     content = (
       <>
@@ -2906,29 +3446,54 @@ const ContentCard = ({
           {(stValidation !== 'None' || stMinChars > 0) && (
             <p className={`text-[#aaa] text-[11px] mt-[4px] ${stTextAlign}`}>
               {stValidation !== 'None' ? `${stValidation} format` : ''}
-              {stValidation !== 'None' && stMinChars > 0 ? ' Â· ' : ''}
+              {stValidation !== 'None' && stMinChars > 0 ? ' · ' : ''}
               {stMinChars > 0 ? `min ${stMinChars} characters` : ''}
             </p>
           )}
           <div className="mt-[19px]">
-            <div className="border-b-2 border-[rgba(0,0,0,0.12)] pb-[10px] pt-[8px]">
-              <input
-                type={stInputType}
-                value={shortTextDraft}
-                onChange={(e) => setShortTextDraft(e.target.value.slice(0, stMaxChars))}
-                maxLength={stMaxChars}
-                placeholder={stPlaceholder}
-                aria-label={stQuestion}
-                onMouseDown={(e) => e.stopPropagation()}
-                className={`w-full bg-transparent text-[14px] font-light text-[#111] outline-none border-0 placeholder:text-[#bbb] ${stTextAlign}`}
-              />
-            </div>
-            <div className="flex justify-between items-center pt-[11px] pb-[9px]">
-              <p className="text-[#bbb] text-[11px]">Short answer</p>
-              <p className="text-[#bbb] text-[11px]">
-                {shortTextDraft.length}{stMinChars > 0 ? ` (min ${stMinChars})` : ''} / {stMaxChars}
-              </p>
-            </div>
+            {isPreviewMode && shortTextResponseQualityConfig?.enabled ? (
+              <>
+                <div className="border-b-2 border-[rgba(0,0,0,0.12)] pb-[10px] pt-[8px]">
+                  <input
+                    type={stInputType}
+                    value={shortTextDraft}
+                    onChange={(e) => setShortTextDraft(e.target.value.slice(0, stMaxChars))}
+                    maxLength={stMaxChars}
+                    placeholder={stPlaceholder}
+                    aria-label={stQuestion}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    className={`w-full bg-transparent text-[14px] font-light text-[#111] outline-none border-0 placeholder:text-[#bbb] ${stTextAlign}`}
+                  />
+                </div>
+                <ResponseQualityFeedback
+                  evaluation={responseQualityEvaluation}
+                  charCount={shortTextDraft.length}
+                  maxChars={stMaxChars}
+                  answerLabel="Short answer"
+                />
+              </>
+            ) : (
+              <>
+                <div className="border-b-2 border-[rgba(0,0,0,0.12)] pb-[10px] pt-[8px]">
+                  <input
+                    type={stInputType}
+                    value={shortTextDraft}
+                    onChange={(e) => setShortTextDraft(e.target.value.slice(0, stMaxChars))}
+                    maxLength={stMaxChars}
+                    placeholder={stPlaceholder}
+                    aria-label={stQuestion}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    className={`w-full bg-transparent text-[14px] font-light text-[#111] outline-none border-0 placeholder:text-[#bbb] ${stTextAlign}`}
+                  />
+                </div>
+                <div className="flex justify-between items-center pt-[11px] pb-[9px]">
+                  <p className="text-[#bbb] text-[11px]">Short answer</p>
+                  <p className="text-[#bbb] text-[11px]">
+                    {shortTextDraft.length}{stMinChars > 0 ? ` (min ${stMinChars})` : ''} / {stMaxChars}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </div>
         {!isPreviewMode && <ContentCardFooter onDelete={onDelete} variant="field" />}
@@ -2938,7 +3503,7 @@ const ContentCard = ({
     const ltc = longTextConfig || {};
     const ltQuestion = ltc.longTextQuestion || 'Tell us about your experience';
     const ltHelper = ltc.longTextHelperText || "Share as much or as little as you'd like.";
-    const ltPlaceholder = ltc.longTextPlaceholder || 'Type your answer hereâ€¦';
+    const ltPlaceholder = ltc.longTextPlaceholder || 'Type your answer here…';
     const ltMaxChars = ltc.longTextMaxChars ?? 500;
     const ltMinChars = Math.max(0, Number(ltc.longTextMinChars) || 0);
     const ltValidation = ltc.longTextValidation || 'None';
@@ -2946,7 +3511,7 @@ const ContentCard = ({
     const ltRequired = !!ltc.longTextRequired;
     const ltAlign = ltc.longTextAlign || 'left';
     const ltSize = ltc.longTextSize || 'M';
-    const ltFontSize = { S: '16px', M: '20px', L: '24px' }[ltSize] || '20px';
+    const ltFontSize = { S: '16px', M: '20px', L: '32px' }[ltSize] || '20px';
     const ltTextAlign = ltAlign === 'center' ? 'text-center' : ltAlign === 'right' ? 'text-right' : 'text-left';
     const ltInputMode = { Email: 'email', URL: 'url', Number: 'numeric', Phone: 'tel' }[ltValidation];
     content = (
@@ -2972,7 +3537,7 @@ const ContentCard = ({
           {(ltValidation !== 'None' || ltMinChars > 0) && (
             <p className={`text-[#aaa] text-[11px] mt-[4px] ${ltTextAlign}`}>
               {ltValidation !== 'None' ? `${ltValidation} format` : ''}
-              {ltValidation !== 'None' && ltMinChars > 0 ? ' Â· ' : ''}
+              {ltValidation !== 'None' && ltMinChars > 0 ? ' · ' : ''}
               {ltMinChars > 0 ? `min ${ltMinChars} characters` : ''}
             </p>
           )}
@@ -3060,7 +3625,7 @@ const ContentCard = ({
           {sHelper && <p className="text-[#888] text-[15px] font-light mt-[1px]">{sHelper}</p>}
           {sMulti && (sMinChoices > 1 || sMaxChoices != null) && (
             <p className="text-[#aaa] text-[11px] mt-[4px] mb-[12px]">
-              Select {sMinChoices}{sMaxChoices != null ? `â€“${sMaxChoices}` : '+'} option{sMaxChoices !== 1 ? 's' : ''}
+              Select {sMinChoices}{sMaxChoices != null ? `–${sMaxChoices}` : '+'} option{sMaxChoices !== 1 ? 's' : ''}
             </p>
           )}
           {(!sMulti || !(sMinChoices > 1 || sMaxChoices != null)) && sHelper && <div className="mb-[19px]" />}
@@ -3195,7 +3760,7 @@ const ContentCard = ({
           {mHelper && <p className="text-[#888] text-[15px] font-light mt-[1px]">{mHelper}</p>}
           {mMultipleSelect && (mMinChoices > 1 || mMaxChoices != null) && (
             <p className="text-[#aaa] text-[11px] mt-[4px] mb-[12px]">
-              Select {mMinChoices}{mMaxChoices != null ? `â€“${mMaxChoices}` : '+'} option{mMaxChoices !== 1 ? 's' : ''}
+              Select {mMinChoices}{mMaxChoices != null ? `–${mMaxChoices}` : '+'} option{mMaxChoices !== 1 ? 's' : ''}
             </p>
           )}
           {(!mMultipleSelect || !(mMinChoices > 1 || mMaxChoices != null)) && mHelper && <div className="mb-[19px]" />}
@@ -3316,7 +3881,7 @@ const ContentCard = ({
           {meHelper && <p className="text-[#888] text-[15px] font-light mt-px">{meHelper}</p>}
           {meAllowMultiple && (meMinChoices > 1 || meMaxChoices != null) && (
             <p className="text-[#aaa] text-[11px] mt-[4px] mb-[10px]">
-              Select {meMinChoices}{meMaxChoices != null ? `â€“${meMaxChoices}` : '+'} option{meMaxChoices !== 1 ? 's' : ''}
+              Select {meMinChoices}{meMaxChoices != null ? `–${meMaxChoices}` : '+'} option{meMaxChoices !== 1 ? 's' : ''}
             </p>
           )}
           {(!meAllowMultiple || !(meMinChoices > 1 || meMaxChoices != null)) && meHelper && <div className="mb-[10px]" />}
@@ -3394,21 +3959,43 @@ const ContentCard = ({
             <PreviewRequiredInline show={previewRequiredHint} />
           </div>
           {mapH && <p className="text-[#888] text-[15px] font-light mt-[1px] mb-[15px]">{mapH}</p>}
-          <MapLocationPicker
-            latitude={mapLat}
-            longitude={mapLng}
-            address={mapAddr}
-            zoom={mapc.mapZoom ?? 12}
-            mapStyle={mapc.mapType === 'roadmap' ? 'default' : (mapc.mapType || 'default')}
-            height={mapc.mapHeight || 'M'}
-            allowPinMovement={mapc.mapAllowPinMovement !== false}
-            showSearch={mapc.mapShowSearchBar !== false}
-            restrictRadius={!!mapc.mapRestrictRadius}
-            restrictRadiusKm={mapc.mapRestrictRadiusKm ?? 5}
-            onChange={(loc) => setMapSelection(loc)}
-            searchPlaceholder="Search for a location..."
-            className="mb-5"
-          />
+          {isPreviewMode ? (
+            <Suspense
+              fallback={
+                <div
+                  className="mb-5 rounded-[8px] border border-[#dde6dd] bg-[#e8ede8] flex items-center justify-center text-[13px] text-[#888]"
+                  style={{ height: 280 }}
+                >
+                  Loading map…
+                </div>
+              }
+            >
+              <MapLocationPicker
+                latitude={mapLat}
+                longitude={mapLng}
+                address={mapAddr}
+                zoom={mapc.mapZoom ?? 12}
+                mapStyle={mapc.mapType === 'roadmap' ? 'default' : (mapc.mapType || 'default')}
+                height={mapc.mapHeight || 'M'}
+                allowPinMovement={mapc.mapAllowPinMovement !== false}
+                showSearch={mapc.mapShowSearchBar !== false}
+                restrictRadius={!!mapc.mapRestrictRadius}
+                restrictRadiusKm={mapc.mapRestrictRadiusKm ?? 5}
+                onChange={(loc) => setMapSelection(loc)}
+                searchPlaceholder="Search for a location..."
+                className="mb-5"
+              />
+            </Suspense>
+          ) : (
+            <MapFieldStaticPreview
+              latitude={mapLat}
+              longitude={mapLng}
+              address={mapAddr}
+              height={mapc.mapHeight || 'M'}
+              showSearch={mapc.mapShowSearchBar !== false}
+              className="mb-5"
+            />
+          )}
           {mapc.mapPinLabel && (
             <p className="text-[11px] text-[#aaa] -mt-3 mb-4" style={{ fontFamily: "'DM Sans', sans-serif" }}>
               {mapc.mapPinLabel}
@@ -3470,7 +4057,7 @@ const ContentCard = ({
             </button>
             <span className="text-[14px] text-[#111] flex-1 select-none" style={{ fontFamily: "'DM Sans', sans-serif" }}>I'm not a robot</span>
             <div className="flex flex-col items-center gap-[2px]">
-              <span className="text-[16px] leading-none">ðŸ”’</span>
+              <span className="text-[16px] leading-none">🔒</span>
               <span className="text-[8px] text-black leading-none">{capLabel}</span>
             </div>
           </div>
@@ -3675,7 +4262,19 @@ const ContentCard = ({
   );
 };
 
-/* â”€â”€ Essentials â†’ ContentCard block mapping (for intro screen) â”€â”€ */
+/* ── Start screen appearance tokens ── */
+const WELCOME_TEXT_SIZE_DESKTOP = {
+  S: { title: '20px', titleLeading: '24px', desc: '13px' },
+  M: { title: '24px', titleLeading: '28.8px', desc: '15px' },
+  L: { title: '28px', titleLeading: '33.6px', desc: '17px' },
+};
+const WELCOME_TEXT_SIZE_MOBILE = {
+  S: { title: '24px', titleLeading: '28.8px', desc: '13px' },
+  M: { title: '28px', titleLeading: '33.6px', desc: '15px' },
+  L: { title: '32px', titleLeading: '38.4px', desc: '17px' },
+};
+
+/* ── Essentials → ContentCard block mapping (for intro screen) ── */
 const ESSENTIAL_TO_BLOCK = {
   'CTA':         { section: 'buildingBlocks', label: 'CTA' },
   'Heading':     { section: 'buildingBlocks', label: 'Heading' },
@@ -3686,7 +4285,7 @@ const ESSENTIAL_TO_BLOCK = {
   'Captcha':     { section: 'interactive',    label: 'Captcha' },
 };
 
-/* â”€â”€ Screen list icon + color map (keyed by screen label) â”€â”€ */
+/* ── Screen list icon + color map (keyed by screen label) ── */
 const SCREEN_ICON_MAP = {
   'CTA':               { Icon: BoxesIcon,      bg: 'bg-[#f0fdf4]', color: 'text-emerald-600' },
   'Heading':           { Icon: TextHIcon,         bg: 'bg-[#eef2ff]', color: 'text-indigo-500'  },
@@ -3709,15 +4308,20 @@ const SCREEN_ICON_MAP = {
   'Date':              { Icon: RiCalendarLine,    bg: 'bg-[#eef2ff]', color: 'text-indigo-500'  },
 };
 
-/* â”€â”€ Settings Toggle â”€â”€ */
+/* ── Settings Toggle ── */
 const Toggle = ({ checked, onChange }) => (
   <ToggleSwitch checked={checked} onChange={onChange} />
 );
 
-/* â”€â”€ Form Builder Page â”€â”€ */
+/* ── Form Builder Page ── */
 const FormBuilderPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const dispatch = useDispatch();
+  const { showToast } = useToast();
+  const activeFormId = location.state?.formId ?? null;
+  const fromOnboarding = location.state?.fromOnboarding === true;
+  const showOnboardingStepper = useSelector(selectIsOnboardingActive);
   const previewScreenValidatorRef = useRef(null);
   const [deviceView, setDeviceView] = useState('desktop');
   const [isPreview, setIsPreview] = useState(false);
@@ -3727,6 +4331,13 @@ const FormBuilderPage = () => {
   const [screens, setScreens] = useState([]);
   const [activeScreenId, setActiveScreenId] = useState(null);
   const [logicModeManual, setLogicModeManual] = useState(true);
+  const [aiLogicGen, setAiLogicGen] = useState({
+    status: AI_LOGIC_GEN_STATUS.idle,
+    errorMessage: '',
+  });
+  const patchAiLogicGen = useCallback((patch) => {
+    setAiLogicGen((prev) => ({ ...prev, ...patch }));
+  }, []);
   const [logicCanvasZoom, setLogicCanvasZoom] = useState(1);
   const [logicCanvasPan, setLogicCanvasPan] = useState({ x: 0, y: 0 });
   const logicPanDragRef = useRef(null);
@@ -3744,16 +4355,15 @@ const FormBuilderPage = () => {
   const logicCardDragRef = useRef(null);
   /** Per-screen-id offsets on the logic canvas only; does not change Content sidebar order */
   const [logicCardOffsets, setLogicCardOffsets] = useState({});
-  /** Directed edges on the logic canvas only (screen id â†’ screen id); does not reorder the Content list */
+  /** Directed edges on the logic canvas only (screen id → screen id); does not reorder the Content list */
   const [logicConnections, setLogicConnections] = useState([]);
   /** While dragging from an output port: current pointer in board (padding) coordinates */
   const [logicConnectDrag, setLogicConnectDrag] = useState(null);
   /** Context menu from a quick tap on an output connector dot (coords relative to logic viewport) */
   const [logicConnectorMenu, setLogicConnectorMenu] = useState(null);
-  /** Per content screen: if/then rules edited in the side panel (Figma IF/THEN PANEL) */
-  /** If/then rules keyed by `${fromScreenId}-${toScreenId}` (one config per connection) */
+  /** If/then + else keyed by `${fromScreenId}-${toScreenId}` (one config per connection) */
   const [logicIfRulesByEdge, setLogicIfRulesByEdge] = useState({});
-  /** Else fallback when leaving a screen (shared across connections from that screen) */
+  /** @deprecated Legacy per-screen else; merged into logicIfRulesByEdge on load */
   const [logicElseByScreen, setLogicElseByScreen] = useState({});
   const [ifThenLogicPanelEdge, setIfThenLogicPanelEdge] = useState(null);
   const [ifThenDraft, setIfThenDraft] = useState(null);
@@ -3761,6 +4371,7 @@ const FormBuilderPage = () => {
   const previewSnapByScreenRef = useRef({});
   const previewAnswersByScreenRef = useRef({});
   const [previewVisitStack, setPreviewVisitStack] = useState([]);
+  const previewVisitStackRef = useRef([]);
   const [previewSnapVersion, setPreviewSnapVersion] = useState(0);
   const logicStorageHydratedRef = useRef(false);
   /** Hover on disconnect control highlights the corresponding edge in red */
@@ -3768,19 +4379,60 @@ const FormBuilderPage = () => {
   const [logicEdgeKindHoveredKey, setLogicEdgeKindHoveredKey] = useState(null);
   /** Measured card heights on the logic canvas (for vertically centered connector ports) */
   const [logicCardHeights, setLogicCardHeights] = useState({});
-  /* â”€â”€ Left panel: reorder content screens (between intro & end) â”€â”€ */
+  /* -- Left panel: reorder content screens (between intro & end) -- */
+  const contentScreensScrollRef = useRef(null);
+  const prevContentScreensCountRef = useRef(0);
   const contentDragSourceIdRef = useRef(null);
+  const contentDragLastTargetRef = useRef(null);
   const [contentDraggingId, setContentDraggingId] = useState(null);
   const [contentDropTargetId, setContentDropTargetId] = useState(null);
+
+  useEffect(() => {
+    previewVisitStackRef.current = previewVisitStack;
+  }, [previewVisitStack]);
+
+  useEffect(() => {
+    if (!isPreview) {
+      setPreviewVisitStack([]);
+      return;
+    }
+    setPreviewVisitStack([]);
+    const intro = screens.find((s) => s.type === 'intro');
+    if (intro) setActiveScreenId(intro.id);
+  }, [isPreview]);
+
+  useEffect(() => {
+    if (!contentDraggingId) return undefined;
+    const prevCursor = document.body.style.cursor;
+    document.body.style.cursor = 'grabbing';
+    return () => {
+      document.body.style.cursor = prevCursor;
+    };
+  }, [contentDraggingId]);
+
   const [showConfigPanel, setShowConfigPanel] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [loadedFormTitle, setLoadedFormTitle] = useState(
     () => location.state?.formTitle ?? null
   );
-  const templateHydratedRef = useRef(false);
+  const [isEditingFormTitle, setIsEditingFormTitle] = useState(false);
+  const [draftFormTitle, setDraftFormTitle] = useState('');
+  const formTitleInputRef = useRef(null);
+  const lastHydratedTemplateIdRef = useRef(null);
   const newFormHydratedRef = useRef(false);
+  const builderDraftHydratedRef = useRef(false);
+  const builderBaselineRef = useRef(null);
+  const builderBaselineSessionRef = useRef(null);
+  const formTouchedRef = useRef(false);
+  const markFormTouched = () => {
+    formTouchedRef.current = true;
+  };
+  const autoPreviewAppliedRef = useRef(false);
   const prevActiveScreenIdRef = useRef(null);
   const configGlobalsRef = useRef({});
+  const introTitleRef = useRef('Title');
+  const fieldPreviewFallbackRef = useRef({});
+  const [logicQuestionOptionsTick, setLogicQuestionOptionsTick] = useState(0);
   const [sections, setSections] = useState({
     essentials: true,
     questionTemplates: false,
@@ -3788,11 +4440,11 @@ const FormBuilderPage = () => {
     appearance: false,
   });
 
-  /* â”€â”€ Welcome screen field-settings state â”€â”€ */
+  /* ── Welcome screen field-settings state ── */
   const [welcomeRequired, setWelcomeRequired] = useState(true);
   const [welcomeHidden, setWelcomeHidden] = useState(false);
   const [welcomeReadOnly, setWelcomeReadOnly] = useState(false);
-  const [welcomePlaceholder, setWelcomePlaceholder] = useState('Type your answer hereâ€¦');
+  const [welcomePlaceholder, setWelcomePlaceholder] = useState('Type your answer here…');
   const [welcomeHelperText, setWelcomeHelperText] = useState('Press Enter to continue');
   const [welcomeMinLength, setWelcomeMinLength] = useState(0);
   const [welcomeMaxLength, setWelcomeMaxLength] = useState(80);
@@ -3802,14 +4454,18 @@ const FormBuilderPage = () => {
   const [welcomeAlignment, setWelcomeAlignment] = useState('left');
   const welcomeInputTypeRef = useRef(null);
 
-  /* â”€â”€ Response quality scoring state â”€â”€ */
+  /* ── Response quality scoring state ── */
   const [responseQualityEnabled, setResponseQualityEnabled] = useState(false);
   const [responseQualityOptions, setResponseQualityOptions] = useState(DEFAULT_RESPONSE_QUALITY_OPTIONS);
+  const [shortTextResponseQualityEnabled, setShortTextResponseQualityEnabled] = useState(false);
+  const [shortTextResponseQualityOptions, setShortTextResponseQualityOptions] = useState(
+    DEFAULT_RESPONSE_QUALITY_OPTIONS
+  );
 
-  /* â”€â”€ Content panel state â”€â”€ */
+  /* ── Content panel state ── */
   const [showContentPanel, setShowContentPanel] = useState(false);
 
-  /* â”€â”€ Form Settings state â”€â”€ */
+  /* ── Form Settings state ── */
   const [settingsOneAtATime, setSettingsOneAtATime] = useState(false);
   const [settingsAutoAdvance, setSettingsAutoAdvance] = useState(true);
   const [settingsBackButton, setSettingsBackButton] = useState(false);
@@ -3824,7 +4480,7 @@ const FormBuilderPage = () => {
   const [settingsResponseLimitCount, setSettingsResponseLimitCount] = useState('500');
   const [settingsWebhook, setSettingsWebhook] = useState(false);
 
-  /* â”€â”€ Design (Customization) panel state â”€â”€ */
+  /* ── Design (Customization) panel state ── */
   const [showDesignPanel, setShowDesignPanel] = useState(false);
   const [showThemeOverlay, setShowThemeOverlay] = useState(false);
   const [pendingScreenDelete, setPendingScreenDelete] = useState(null);
@@ -3838,9 +4494,15 @@ const FormBuilderPage = () => {
   const [designTextColor, setDesignTextColor] = useState('#198eea');
   const [designTypography, setDesignTypography] = useState('default');
 
-  /* â”€â”€ CTA configure panel state â”€â”€ */
+  /* ── CTA configure panel state ── */
   const [showCtaConfigPanel, setShowCtaConfigPanel] = useState(false);
   const [ctaButtonLabel, setCtaButtonLabel] = useState('Get started');
+  const [ctaHeadingText, setCtaHeadingText] = useState('Welcome to our survey');
+  const [ctaHelperText, setCtaHelperText] = useState(
+    'Please fill out this form to help us improve. It only takes a couple of minutes and your feedback matters.'
+  );
+  const [ctaDurationText, setCtaDurationText] = useState('Takes ~3 minutes');
+  const [isEditingCtaCard, setIsEditingCtaCard] = useState(false);
   const [ctaButtonSize, setCtaButtonSize] = useState('M');
   const [ctaButtonStyle, setCtaButtonStyle] = useState('Filled');
   const [ctaCornerRadius, setCtaCornerRadius] = useState(10);
@@ -3858,7 +4520,7 @@ const FormBuilderPage = () => {
   const [ctaContentWidth, setCtaContentWidth] = useState('Default');
   const [ctaSections, setCtaSections] = useState({ button: true, typography: true, spacing: true });
 
-  /* â”€â”€ Heading configure panel state â”€â”€ */
+  /* ── Heading configure panel state ── */
   const [showHeadingConfigPanel, setShowHeadingConfigPanel] = useState(false);
   const [isEditingHeadingCard, setIsEditingHeadingCard] = useState(false);
   const [headingText, setHeadingText] = useState('');
@@ -3871,8 +4533,9 @@ const FormBuilderPage = () => {
   const [headingAlignment, setHeadingAlignment] = useState('left');
   const [headingFontWeight, setHeadingFontWeight] = useState('Regular');
   const [headingSections, setHeadingSections] = useState({ fieldSettings: true, conditionalLogic: true, appearance: true });
+  const [showIfConditions, setShowIfConditions] = useState([]);
 
-  /* â”€â”€ Description configure panel state â”€â”€ */
+  /* ── Description configure panel state ── */
   const [showDescriptionConfigPanel, setShowDescriptionConfigPanel] = useState(false);
   const [descriptionContent, setDescriptionContent] = useState('');
   const [descriptionHidden, setDescriptionHidden] = useState(false);
@@ -3883,7 +4546,7 @@ const FormBuilderPage = () => {
   const [descriptionAlignment, setDescriptionAlignment] = useState('left');
   const [descriptionSections, setDescriptionSections] = useState({ fieldSettings: true, conditionalLogic: true, appearance: true });
 
-  /* â”€â”€ Image configure panel state â”€â”€ */
+  /* ── Image configure panel state ── */
   const [showImageConfigPanel, setShowImageConfigPanel] = useState(false);
   const [imageHidden, setImageHidden] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
@@ -3901,7 +4564,7 @@ const FormBuilderPage = () => {
   const [imageSections, setImageSections] = useState({ fieldSettings: true, conditionalLogic: true, appearance: true });
   const imageFileInputRef = useRef(null);
 
-  /* â”€â”€ Video configure panel state â”€â”€ */
+  /* ── Video configure panel state ── */
   const [showVideoConfigPanel, setShowVideoConfigPanel] = useState(false);
   const [videoRequired, setVideoRequired] = useState(false);
   const [videoHidden, setVideoHidden] = useState(false);
@@ -3918,7 +4581,7 @@ const FormBuilderPage = () => {
   const [videoDescription, setVideoDescription] = useState('Share your honest feedback about the product demo.');
   const [videoSections, setVideoSections] = useState({ fieldSettings: true, appearance: true, conditionalLogic: false });
 
-  /* â”€â”€ Contact configure panel state â”€â”€ */
+  /* ── Contact configure panel state ── */
   const [showContactConfigPanel, setShowContactConfigPanel] = useState(false);
   const [contactRequired, setContactRequired] = useState(false);
   const [contactQuestion, setContactQuestion] = useState('How can we get in touch?');
@@ -3932,7 +4595,7 @@ const FormBuilderPage = () => {
   });
   const [contactSections, setContactSections] = useState({ fieldSettings: true, fields: true, conditionalLogic: false });
 
-  /* â”€â”€ Address configure panel state â”€â”€ */
+  /* ── Address configure panel state ── */
   const [showAddressConfigPanel, setShowAddressConfigPanel] = useState(false);
   const [addressRequired, setAddressRequired] = useState(false);
   const [addressQuestion, setAddressQuestion] = useState("What's your mailing address?");
@@ -3946,7 +4609,7 @@ const FormBuilderPage = () => {
   });
   const [addressSections, setAddressSections] = useState({ fieldSettings: true, fields: true, conditionalLogic: false });
 
-  /* â”€â”€ Work configure panel state â”€â”€ */
+  /* ── Work configure panel state ── */
   const [showWorkConfigPanel, setShowWorkConfigPanel] = useState(false);
   const [workRequired, setWorkRequired] = useState(false);
   const [workQuestion, setWorkQuestion] = useState('Tell us about your role');
@@ -3959,27 +4622,32 @@ const FormBuilderPage = () => {
   });
   const [workSections, setWorkSections] = useState({ fieldSettings: true, fields: true, conditionalLogic: false });
 
-  /* â”€â”€ Short text configure panel state â”€â”€ */
+  /* ── Short text configure panel state ── */
   const [showShortTextConfigPanel, setShowShortTextConfigPanel] = useState(false);
   const [shortTextRequired, setShortTextRequired] = useState(false);
   const [shortTextHidden, setShortTextHidden] = useState(false);
   const [shortTextQuestion, setShortTextQuestion] = useState("What's your name?");
   const [shortTextHelperText, setShortTextHelperText] = useState('Please enter your full name as it appears on official documents.');
-  const [shortTextPlaceholder, setShortTextPlaceholder] = useState('Type your answer hereâ€¦');
+  const [shortTextPlaceholder, setShortTextPlaceholder] = useState('Type your answer here…');
   const [shortTextMinChars, setShortTextMinChars] = useState(0);
   const [shortTextMaxChars, setShortTextMaxChars] = useState(100);
   const [shortTextValidation, setShortTextValidation] = useState('None');
   const [shortTextSize, setShortTextSize] = useState('M');
   const [shortTextAlign, setShortTextAlign] = useState('left');
-  const [shortTextSections, setShortTextSections] = useState({ fieldSettings: true, appearance: true, conditionalLogic: false });
+  const [shortTextSections, setShortTextSections] = useState({
+    fieldSettings: true,
+    appearance: true,
+    conditionalLogic: false,
+    responseQuality: false,
+  });
 
-  /* â”€â”€ Long text configure panel state â”€â”€ */
+  /* ── Long text configure panel state ── */
   const [showLongTextConfigPanel, setShowLongTextConfigPanel] = useState(false);
   const [longTextRequired, setLongTextRequired] = useState(false);
   const [longTextHidden, setLongTextHidden] = useState(false);
   const [longTextQuestion, setLongTextQuestion] = useState('Tell us about your experience');
   const [longTextHelperText, setLongTextHelperText] = useState("Share as much or as little as you'd like.");
-  const [longTextPlaceholder, setLongTextPlaceholder] = useState('Type your answer hereâ€¦');
+  const [longTextPlaceholder, setLongTextPlaceholder] = useState('Type your answer here…');
   const [longTextMinChars, setLongTextMinChars] = useState(0);
   const [longTextMaxChars, setLongTextMaxChars] = useState(500);
   const [longTextValidation, setLongTextValidation] = useState('None');
@@ -3987,7 +4655,7 @@ const FormBuilderPage = () => {
   const [longTextAlign, setLongTextAlign] = useState('left');
   const [longTextSections, setLongTextSections] = useState({ fieldSettings: true, appearance: true, conditionalLogic: false, responseQuality: false });
 
-  /* â”€â”€ Multiple choice configure panel state â”€â”€ */
+  /* ── Multiple choice configure panel state ── */
   const [showMultipleConfigPanel, setShowMultipleConfigPanel] = useState(false);
   const [multipleRequired, setMultipleRequired] = useState(true);
   const [multipleAllowOther, setMultipleAllowOther] = useState(false);
@@ -4003,7 +4671,7 @@ const FormBuilderPage = () => {
   const [multipleLayout, setMultipleLayout] = useState('List');
   const [multipleSections, setMultipleSections] = useState({ fieldSettings: true, options: false, appearance: true });
 
-  /* â”€â”€ Single choice configure panel state â”€â”€ */
+  /* ── Single choice configure panel state ── */
   const [showSingleConfigPanel, setShowSingleConfigPanel] = useState(false);
   const [singleRequired, setSingleRequired] = useState(true);
   const [singleMultipleSelect, setSingleMultipleSelect] = useState(false);
@@ -4019,7 +4687,7 @@ const FormBuilderPage = () => {
   const [singleOptions, setSingleOptions] = useState(['Social media', 'Search engine', 'Friend / colleague', 'Advertisement']);
   const [singleSections, setSingleSections] = useState({ fieldSettings: true, appearance: true });
 
-  /* â”€â”€ Media choices configure panel state â”€â”€ */
+  /* ── Media choices configure panel state ── */
   const [showMediaConfigPanel, setShowMediaConfigPanel] = useState(false);
   const [mediaRequired, setMediaRequired] = useState(false);
   const [mediaAllowMultiple, setMediaAllowMultiple] = useState(false);
@@ -4038,7 +4706,7 @@ const FormBuilderPage = () => {
   ]);
   const [mediaSections, setMediaSections] = useState({ fieldSettings: true, options: true, conditionalLogic: false, appearance: true });
 
-  /* â”€â”€ Map configure panel state â”€â”€ */
+  /* ── Map configure panel state ── */
   const [showMapConfigPanel, setShowMapConfigPanel] = useState(false);
   const [mapRequired, setMapRequired] = useState(false);
   const [mapHidden, setMapHidden] = useState(false);
@@ -4048,7 +4716,7 @@ const FormBuilderPage = () => {
   const [mapZoom, setMapZoom] = useState(12);
   const [mapDefaultLat, setMapDefaultLat] = useState(DEFAULT_MAP_CENTER.lat);
   const [mapDefaultLng, setMapDefaultLng] = useState(DEFAULT_MAP_CENTER.lng);
-  const [mapDefaultAddress, setMapDefaultAddress] = useState('');
+  const [mapDefaultAddress, setMapDefaultAddress] = useState(DEFAULT_MAP_CENTER.address);
   const [mapAllowPinMovement, setMapAllowPinMovement] = useState(true);
   const [mapShowSearchBar, setMapShowSearchBar] = useState(true);
   const [mapRestrictRadius, setMapRestrictRadius] = useState(false);
@@ -4057,7 +4725,7 @@ const FormBuilderPage = () => {
   const [mapHeight, setMapHeight] = useState('M');
   const [mapSections, setMapSections] = useState({ fieldSettings: true, appearance: true, conditionalLogic: false });
 
-  /* â”€â”€ Captcha configure panel state â”€â”€ */
+  /* ── Captcha configure panel state ── */
   const [showCaptchaConfigPanel, setShowCaptchaConfigPanel] = useState(false);
   const [captchaEnabled, setCaptchaEnabled] = useState(true);
   const [captchaProvider, setCaptchaProvider] = useState('Google reCAPTCHA v3');
@@ -4069,7 +4737,7 @@ const FormBuilderPage = () => {
   const [captchaBlockOnFailure, setCaptchaBlockOnFailure] = useState(true);
   const [captchaSections, setCaptchaSections] = useState({ fieldSettings: true, behaviour: false, conditionalLogic: false });
 
-  /* â”€â”€ Multi-image upload configure panel state â”€â”€ */
+  /* ── Multi-image upload configure panel state ── */
   const [showMultiImageConfigPanel, setShowMultiImageConfigPanel] = useState(false);
   const [multiImageQuestion, setMultiImageQuestion] = useState('Upload photos of the issue');
   const [multiImageHelperText, setMultiImageHelperText] = useState('Add up to 9 images. Drag to reorder.');
@@ -4079,7 +4747,7 @@ const FormBuilderPage = () => {
   const [multiImageMaxFileSize, setMultiImageMaxFileSize] = useState('25 MB');
   const [multiImageSizeDropdownOpen, setMultiImageSizeDropdownOpen] = useState(false);
 
-  /* ── File upload (Upload) configure state ── */
+  /* -- File upload (Upload) configure state -- */
   const [uploadQuestion, setUploadQuestion] = useState('Attach supporting documents');
   const [uploadHelperText, setUploadHelperText] = useState('Attach any files that help us understand your request better.');
   const [uploadMaxFileSize, setUploadMaxFileSize] = useState('25 MB');
@@ -4088,14 +4756,14 @@ const FormBuilderPage = () => {
   const [multiImageShowPreview, setMultiImageShowPreview] = useState(true);
   const [multiImageSections, setMultiImageSections] = useState({ fieldSettings: true, appearance: true });
 
-  /* â”€â”€ Date configure panel state â”€â”€ */
+  /* ── Date configure panel state ── */
   const [showDateConfigPanel, setShowDateConfigPanel] = useState(false);
   const [dateQuestion, setDateQuestion] = useState("When's the best date for you?");
   const [dateHelperText, setDateHelperText] = useState('Pick a date from the calendar.');
   const [dateRequired, setDateRequired] = useState(false);
   const [dateSections, setDateSections] = useState({ fieldSettings: true });
 
-  /* â”€â”€ Time configure panel state â”€â”€ */
+  /* ── Time configure panel state ── */
   const [showTimeConfigPanel, setShowTimeConfigPanel] = useState(false);
   const [timeQuestion, setTimeQuestion] = useState('What time works best for you?');
   const [timeHelperText, setTimeHelperText] = useState('Select your preferred time slot.');
@@ -4106,7 +4774,7 @@ const FormBuilderPage = () => {
   const [timeMaxTime, setTimeMaxTime] = useState('');
   const [timeSections, setTimeSections] = useState({ fieldSettings: true });
 
-  /* â”€â”€ Rating configure panel state â”€â”€ */
+  /* ── Rating configure panel state ── */
   const [showRatingConfigPanel, setShowRatingConfigPanel] = useState(false);
   const [ratingQuestion, setRatingQuestion] = useState('How would you rate your overall experience?');
   const [ratingRequired, setRatingRequired] = useState(false);
@@ -4142,8 +4810,9 @@ const FormBuilderPage = () => {
     setOpenContentSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  /* â”€â”€ Add/remove content screens â”€â”€ */
+  /* ── Add/remove content screens ── */
   const nextIdRef = useRef(100);
+  const closePanelsRef = useRef(() => {});
   const addContentScreen = (sectionKey, itemLabel) => {
     const newId = (nextIdRef.current += 1);
     const newScreen = {
@@ -4159,7 +4828,9 @@ const FormBuilderPage = () => {
       return [...prev.slice(0, endIdx), newScreen, ...prev.slice(endIdx)];
     });
     setActiveScreenId(newId);
+    markFormTouched();
     setShowContentPanel(false);
+    closePanelsRef.current();
     if (itemLabel === 'CTA') {
       setShowCtaConfigPanel(true);
     } else if (itemLabel === 'Heading') {
@@ -4234,47 +4905,76 @@ const FormBuilderPage = () => {
     });
   };
 
+  const reorderContentScreens = useCallback((prev, fromId, toId) => {
+    if (fromId == null || toId == null || fromId === toId) return prev;
+    const intro = prev.filter((s) => s.type === 'intro');
+    const content = prev.filter((s) => s.type === 'content');
+    const end = prev.filter((s) => s.type === 'end');
+    const fromIdx = content.findIndex((s) => s.id === fromId);
+    const toIdx = content.findIndex((s) => s.id === toId);
+    if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return prev;
+    const next = [...content];
+    const [removed] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, removed);
+    return [...intro, ...next, ...end];
+  }, []);
+
   const handleContentRowDragStart = (e, screenId) => {
     contentDragSourceIdRef.current = screenId;
+    contentDragLastTargetRef.current = null;
     setContentDraggingId(screenId);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', String(screenId));
+
+    const row = e.currentTarget.closest('[data-content-screen-row]');
+    if (row instanceof HTMLElement) {
+      const rect = row.getBoundingClientRect();
+      const offsetX = e.clientX - rect.left;
+      const offsetY = e.clientY - rect.top;
+      const clone = row.cloneNode(true);
+      clone.setAttribute('aria-hidden', 'true');
+      Object.assign(clone.style, {
+        position: 'absolute',
+        top: '-9999px',
+        left: '-9999px',
+        width: `${rect.width}px`,
+        opacity: '0.96',
+        transform: 'rotate(1.25deg)',
+        boxShadow: '0 12px 32px rgba(0,0,0,0.14)',
+        borderRadius: '8px',
+        background: '#fff',
+        pointerEvents: 'none',
+      });
+      document.body.appendChild(clone);
+      e.dataTransfer.setDragImage(clone, offsetX, offsetY);
+      requestAnimationFrame(() => {
+        document.body.removeChild(clone);
+      });
+    }
   };
 
   const handleContentRowDragOver = (e, screenId) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     const fromId = contentDragSourceIdRef.current;
-    if (fromId != null && fromId !== screenId) {
-      setContentDropTargetId(screenId);
-    }
+    if (fromId == null || fromId === screenId) return;
+    setContentDropTargetId(screenId);
+    if (contentDragLastTargetRef.current === screenId) return;
+    contentDragLastTargetRef.current = screenId;
+    setScreens((prev) => reorderContentScreens(prev, fromId, screenId));
   };
 
-  const handleContentRowDrop = (e, targetScreenId) => {
+  const handleContentRowDrop = (e) => {
     e.preventDefault();
-    const fromId = contentDragSourceIdRef.current;
     contentDragSourceIdRef.current = null;
+    contentDragLastTargetRef.current = null;
     setContentDraggingId(null);
     setContentDropTargetId(null);
-    if (fromId == null || fromId === targetScreenId) return;
-    setScreens((prev) => {
-      const intro = prev.filter((s) => s.type === 'intro');
-      const content = prev.filter((s) => s.type === 'content');
-      const end = prev.filter((s) => s.type === 'end');
-      const safeIntro = intro.length ? intro : [];
-      const safeEnd = end.length ? end : [];
-      const fromIdx = content.findIndex((s) => s.id === fromId);
-      const toIdx = content.findIndex((s) => s.id === targetScreenId);
-      if (fromIdx === -1 || toIdx === -1) return prev;
-      const next = [...content];
-      const [removed] = next.splice(fromIdx, 1);
-      next.splice(toIdx, 0, removed);
-      return [...safeIntro, ...next, ...safeEnd];
-    });
   };
 
   const handleContentRowDragEnd = () => {
     contentDragSourceIdRef.current = null;
+    contentDragLastTargetRef.current = null;
     setContentDraggingId(null);
     setContentDropTargetId(null);
   };
@@ -4334,7 +5034,7 @@ const FormBuilderPage = () => {
     };
   }, []);
 
-  const resolveLogicDropTarget = useCallback((clientX, clientY, fromId) => {
+  const resolveLogicDropTarget = useCallback((clientX, clientY, fromId, boardX, boardY) => {
     const stack = document.elementsFromPoint(clientX, clientY);
     for (const node of stack) {
       if (!(node instanceof Element)) continue;
@@ -4346,42 +5046,23 @@ const FormBuilderPage = () => {
       if (id === fromId) continue;
       return id;
     }
-    return null;
-  }, []);
 
-  const applyLogicConnectionDrop = useCallback(
-    (g, clientX, clientY) => {
-      const fromMeta = logicPortPositionsRef.current.get(g.fromId);
-      if (!fromMeta || fromMeta.outX == null) return;
-      const boardMoved = Math.hypot(g.x1 - fromMeta.outX, g.y1 - fromMeta.portY);
-      if (boardMoved < 12) return;
-      const targetId = resolveLogicDropTarget(clientX, clientY, g.fromId);
-      if (targetId == null) return;
-      const toMeta = logicPortPositionsRef.current.get(targetId);
-      if (!toMeta || toMeta.inX == null || toMeta.kind === 'intro') return;
-      const droppedKind = g.kind != null ? g.kind : null;
-      setLogicConnections((prev) => upsertLogicConnection(prev, g.fromId, targetId, droppedKind));
-      if (droppedKind == null) {
-        requestAnimationFrame(() => {
-          const vr = logicViewportRef.current?.getBoundingClientRect();
-          if (!vr) return;
-          const rawVx = clientX - vr.left + 6;
-          const rawVy = clientY - vr.top + 6;
-          const { vx, vy } = clampLogicMenuViewportPos(rawVx, rawVy, vr);
-          setLogicConnectorMenu({
-            mode: 'chooseEdgeKind',
-            fromId: g.fromId,
-            toId: targetId,
-            vx,
-            vy,
-          });
-        });
-      } else {
-        setLogicConnectorMenu(null);
+    const local = clientToLogicBoardLocal(clientX, clientY);
+    const bx = boardX ?? local.x;
+    const by = boardY ?? local.y;
+    const snapR = 44;
+    let bestId = null;
+    let bestD = snapR;
+    logicPortPositionsRef.current.forEach((pos, id) => {
+      if (id === fromId || pos.inX == null || pos.kind === 'intro') return;
+      const d = Math.hypot(bx - pos.inX, by - pos.portY);
+      if (d < bestD) {
+        bestD = d;
+        bestId = id;
       }
-    },
-    [resolveLogicDropTarget]
-  );
+    });
+    return bestId;
+  }, [clientToLogicBoardLocal]);
 
   const removeLogicConnection = useCallback(
     (fromId, toId) => {
@@ -4414,7 +5095,10 @@ const FormBuilderPage = () => {
     setLogicConnectorMenu(null);
     const end = screens.find((s) => s.type === 'end');
     if (!end) return;
-    setLogicConnections((prev) => upsertLogicConnection(prev, fromId, end.id, LOGIC_EDGE_KIND.end));
+    const fromScreen = screens.find((s) => s.id === fromId);
+    const kind =
+      fromScreen?.type === 'intro' ? LOGIC_EDGE_KIND.next : LOGIC_EDGE_KIND.end;
+    setLogicConnections((prev) => upsertLogicConnection(prev, fromId, end.id, kind));
   }, [screens]);
 
   const handleLogicMenuSkip = useCallback((fromId) => {
@@ -4426,12 +5110,27 @@ const FormBuilderPage = () => {
     setLogicConnections((prev) => upsertLogicConnection(prev, fromId, target.id, LOGIC_EDGE_KIND.skip));
   }, [screens]);
 
-  const getLogicFieldOptionsForScreen = useCallback((screen) => {
-    if (!screen || screen.type !== 'content') {
-      return getLogicFieldsForScreenLabel('Short text');
-    }
-    return getLogicFieldsForScreenLabel(screen.label);
-  }, []);
+  const getLogicQuestionOptionsForForm = useCallback(
+    () =>
+      buildLogicQuestionOptions({
+        screens,
+        getQuestionText: (screen) =>
+          getScreenPreviewText(screen, fieldPreviewFallbackRef.current),
+        welcomeInputType,
+        welcomeHidden,
+        introTitle: introTitleRef.current,
+      }),
+    [screens, welcomeInputType, welcomeHidden, logicQuestionOptionsTick]
+  );
+
+  const getLogicFieldOptionsForScreen = useCallback(
+    (screen) =>
+      resolveLogicFieldOptionsForScreen(screen, {
+        welcomeInputType,
+        welcomeHidden,
+      }),
+    [welcomeInputType, welcomeHidden]
+  );
 
   const getLogicDestinationOptions = useCallback(
     (fromScreenId) => {
@@ -4448,21 +5147,36 @@ const FormBuilderPage = () => {
     [screens]
   );
 
-  const normalizeConditionFieldId = useCallback((fieldId, screen) => {
-    if (getLogicFieldById(fieldId)) return fieldId;
-    const screenFields = getLogicFieldsForScreenLabel(screen?.label);
-    if (screenFields[0]?.id) return screenFields[0].id;
-    return LOGIC_FIELD_CATALOG[0]?.id ?? 'rating';
-  }, []);
+  const normalizeCondition = useCallback(
+    (condition, questionOptions, fromScreenId) => {
+      if (condition.sourceScreenId != null) {
+        const opt = findLogicQuestionOption(
+          questionOptions,
+          condition.sourceScreenId,
+          condition.fieldId
+        );
+        if (opt) return { ...condition };
+      }
+      const match =
+        questionOptions.find((o) => Number(o.sourceScreenId) === Number(fromScreenId)) ??
+        questionOptions.find((o) => o.fieldId === condition.fieldId) ??
+        questionOptions[0];
+      if (!match) return condition;
+      return {
+        ...condition,
+        sourceScreenId: match.sourceScreenId,
+        fieldId: match.fieldId,
+      };
+    },
+    []
+  );
 
   const buildDefaultIfThenDraft = useCallback(
     (fromScreenId, toScreenId, initialThenScreenId = null) => {
-      const screen = screens.find((s) => s.id === fromScreenId);
-      const fieldOptions = getLogicFieldOptionsForScreen(screen);
-      const fieldId = fieldOptions[0]?.id ?? 'rating';
+      const questionOptions = getLogicQuestionOptionsForForm();
       const end = screens.find((s) => s.type === 'end');
       const targetTo = toScreenId ?? initialThenScreenId;
-      const elseScreenId = logicElseByScreen[fromScreenId] ?? end?.id ?? null;
+      const defaultElse = end?.id ?? null;
 
       if (targetTo != null) {
         const saved = logicIfRulesByEdge[logicEdgeKey(fromScreenId, targetTo)];
@@ -4471,17 +5185,21 @@ const FormBuilderPage = () => {
             rules: saved.rules.map((r) => ({
               ...r,
               thenScreenId: targetTo,
-              conditions: r.conditions.map((c) => ({
-                ...c,
-                fieldId: normalizeConditionFieldId(c.fieldId, screen),
-              })),
+              conditions: r.conditions.map((c) =>
+                normalizeCondition(c, questionOptions, fromScreenId)
+              ),
             })),
-            elseScreenId,
+            elseScreenId: saved.elseScreenId ?? defaultElse,
           };
         }
         return {
-          rules: [{ ...createEmptyRule(fieldId), thenScreenId: targetTo }],
-          elseScreenId,
+          rules: [
+            {
+              ...createEmptyRule(questionOptions),
+              thenScreenId: targetTo,
+            },
+          ],
+          elseScreenId: defaultElse,
         };
       }
 
@@ -4490,23 +5208,40 @@ const FormBuilderPage = () => {
         screens.find((s) => s.type === 'content' && s.id !== fromScreenId)?.id ??
         end?.id ??
         null;
+      const screen = screens.find((s) => s.id === fromScreenId);
+      const destinations = getLogicDestinationOptions(fromScreenId);
+      const suggested = getSuggestedFlowLogic(
+        screen?.label,
+        questionOptions,
+        destinations,
+        end?.id ?? null,
+        fromScreenId
+      );
       return {
-        rules: [{ ...createEmptyRule(fieldId), thenScreenId: firstDest }],
-        elseScreenId,
+        rules: suggested.rules.map((r) => ({
+          ...r,
+          thenScreenId: r.thenScreenId ?? firstDest,
+          conditions: r.conditions.map((c) =>
+            normalizeCondition(c, questionOptions, fromScreenId)
+          ),
+        })),
+        elseScreenId: suggested.elseScreenId ?? defaultElse,
       };
     },
     [
       screens,
       logicIfRulesByEdge,
-      logicElseByScreen,
-      getLogicFieldOptionsForScreen,
-      normalizeConditionFieldId,
+      getLogicQuestionOptionsForForm,
+      normalizeCondition,
+      getLogicDestinationOptions,
     ]
   );
 
   const openIfThenLogicPanel = useCallback(
     (fromScreenId, { to: toScreenId = null, initialThenScreenId = null } = {}) => {
-      closeAllRightPanels();
+      const fromScreen = screens.find((s) => s.id === fromScreenId);
+      if (!screenSupportsIfThenLogic(fromScreen)) return;
+      closeRightConfigPanels({ keepContentPanel: true, keepIfThenPanel: true });
       setLogicConnectorMenu(null);
       const targetTo = toScreenId ?? initialThenScreenId;
       const draft = buildDefaultIfThenDraft(fromScreenId, targetTo, initialThenScreenId);
@@ -4518,7 +5253,7 @@ const FormBuilderPage = () => {
           : { from: fromScreenId, to: null }
       );
     },
-    [buildDefaultIfThenDraft]
+    [buildDefaultIfThenDraft, screens]
   );
 
   const closeIfThenLogicPanel = useCallback(() => {
@@ -4557,47 +5292,32 @@ const FormBuilderPage = () => {
 
   const saveIfThenLogic = useCallback(() => {
     if (!ifThenLogicPanelEdge || !ifThenDraft) return;
-    let { from, to } = ifThenLogicPanelEdge;
-    if (to == null) {
-      to = ifThenDraft.rules[0]?.thenScreenId;
-      if (to == null) return;
-    }
+    const from = ifThenLogicPanelEdge.from;
+    const prevTo = ifThenLogicPanelEdge.to;
+    const to = ifThenDraft.rules[0]?.thenScreenId ?? prevTo;
+    if (to == null) return;
 
-    setLogicIfRulesByEdge((prev) => ({
-      ...prev,
-      [logicEdgeKey(from, to)]: {
+    setLogicIfRulesByEdge((prev) => {
+      const next = { ...prev };
+      if (prevTo != null && Number(prevTo) !== Number(to)) {
+        delete next[logicEdgeKey(from, prevTo)];
+      }
+      next[logicEdgeKey(from, to)] = {
         rules: ifThenDraft.rules.map((r) => ({
           ...r,
           thenScreenId: to,
           conditions: r.conditions.map((c) => ({ ...c })),
         })),
-      },
-    }));
-
-    setLogicElseByScreen((prev) => ({
-      ...prev,
-      [from]: ifThenDraft.elseScreenId,
-    }));
+        elseScreenId: ifThenDraft.elseScreenId ?? null,
+      };
+      return next;
+    });
 
     setLogicConnections((prev) => {
-      let next = upsertLogicConnection(
-        prev.filter((c) => !(c.from === from && c.to === to)),
-        from,
-        to,
-        LOGIC_EDGE_KIND.if
+      const next = prev.filter(
+        (c) => !(c.from === from && (Number(c.to) === Number(to) || Number(c.to) === Number(prevTo)))
       );
-      if (ifThenDraft.elseScreenId != null) {
-        next = next.filter(
-          (c) =>
-            !(
-              c.from === from &&
-              c.to === ifThenDraft.elseScreenId &&
-              c.kind === LOGIC_EDGE_KIND.next
-            )
-        );
-        next = upsertLogicConnection(next, from, ifThenDraft.elseScreenId, LOGIC_EDGE_KIND.next);
-      }
-      return next;
+      return upsertLogicConnection(next, from, to, LOGIC_EDGE_KIND.if);
     });
 
     closeIfThenLogicPanel();
@@ -4611,7 +5331,10 @@ const FormBuilderPage = () => {
       if (!vr) return;
       const pos = clampLogicMenuViewportPos(clientX - vr.left + 6, clientY - vr.top + 6, vr);
       if (connection.kind === LOGIC_EDGE_KIND.if) {
-        openIfThenLogicPanel(connection.from, { to: connection.to });
+        const fromScreen = screens.find((s) => s.id === connection.from);
+        if (screenSupportsIfThenLogic(fromScreen)) {
+          openIfThenLogicPanel(connection.from, { to: connection.to });
+        }
         return;
       }
       if (connection.kind == null) {
@@ -4625,7 +5348,7 @@ const FormBuilderPage = () => {
       }
       setLogicConnectorMenu({ mode: 'fromPort', fromId: connection.from, ...pos });
     },
-    [openIfThenLogicPanel]
+    [openIfThenLogicPanel, screens]
   );
 
   /** After drawing a new wire (pending `kind`), user picks Next / If / Skip / End for that edge only. */
@@ -4634,20 +5357,95 @@ const FormBuilderPage = () => {
       setLogicConnectorMenu(null);
       const end = screens.find((s) => s.type === 'end');
       if (edgeKind === LOGIC_EDGE_KIND.if) {
+        const fromScreen = screens.find((s) => s.id === fromId);
+        if (!screenSupportsIfThenLogic(fromScreen)) return;
         openIfThenLogicPanel(fromId, { to: toId });
         return;
       }
       if (edgeKind === LOGIC_EDGE_KIND.end) {
         if (!end) return;
+        const fromScreen = screens.find((s) => s.id === fromId);
+        const kind =
+          fromScreen?.type === 'intro' ? LOGIC_EDGE_KIND.next : LOGIC_EDGE_KIND.end;
         setLogicConnections((prev) => {
           const tail = prev.filter((c) => !(c.from === fromId && c.to === toId));
-          return upsertLogicConnection(tail, fromId, end.id, LOGIC_EDGE_KIND.end);
+          return upsertLogicConnection(tail, fromId, end.id, kind);
         });
         return;
       }
-      setLogicConnections((prev) => upsertLogicConnection(prev, fromId, toId, edgeKind));
+      const fromScreen = screens.find((s) => s.id === fromId);
+      const toScreen = screens.find((s) => s.id === toId);
+      const kind =
+        fromScreen?.type === 'intro' && toScreen?.type === 'end'
+          ? LOGIC_EDGE_KIND.next
+          : edgeKind;
+      setLogicConnections((prev) => upsertLogicConnection(prev, fromId, toId, kind));
     },
     [screens, openIfThenLogicPanel]
+  );
+
+  const commitLogicConnection = useCallback(
+    (g, clientX, clientY) => {
+      const targetId = resolveLogicDropTarget(clientX, clientY, g.fromId, g.x1, g.y1);
+      if (targetId == null) return false;
+      const toMeta = logicPortPositionsRef.current.get(targetId);
+      if (!toMeta || toMeta.inX == null || toMeta.kind === 'intro') return false;
+
+      const fromScreen = screens.find((s) => s.id === g.fromId);
+      const toScreen = screens.find((s) => s.id === targetId);
+      let kind = g.kind != null ? g.kind : null;
+      if (fromScreen?.type === 'intro' && toScreen?.type === 'end') {
+        kind = LOGIC_EDGE_KIND.next;
+      }
+
+      setLogicConnections((prev) => upsertLogicConnection(prev, g.fromId, targetId, kind));
+
+      if (kind == null) {
+        requestAnimationFrame(() => {
+          const vr = logicViewportRef.current?.getBoundingClientRect();
+          if (!vr) return;
+          const rawVx = clientX - vr.left + 6;
+          const rawVy = clientY - vr.top + 6;
+          const { vx, vy } = clampLogicMenuViewportPos(rawVx, rawVy, vr);
+          setLogicConnectorMenu({
+            mode: 'chooseEdgeKind',
+            fromId: g.fromId,
+            toId: targetId,
+            vx,
+            vy,
+          });
+        });
+      } else {
+        setLogicConnectorMenu(null);
+      }
+      return true;
+    },
+    [resolveLogicDropTarget, screens]
+  );
+
+  const endLogicConnectGesture = useCallback(() => {
+    logicConnectGestureRef.current = null;
+    setLogicConnectDrag(null);
+  }, []);
+
+  const applyLogicConnectionDrop = useCallback(
+    (g, clientX, clientY) => {
+      const fromMeta = logicPortPositionsRef.current.get(g.fromId);
+      if (!fromMeta || fromMeta.outX == null) return;
+      commitLogicConnection(g, clientX, clientY);
+    },
+    [commitLogicConnection]
+  );
+
+  const updateLogicConnectDrag = useCallback(
+    (ev) => {
+      if (!logicConnectGestureRef.current) return;
+      const p = clientToLogicBoardLocal(ev.clientX, ev.clientY);
+      const next = { ...logicConnectGestureRef.current, x1: p.x, y1: p.y };
+      logicConnectGestureRef.current = next;
+      setLogicConnectDrag({ ...next });
+    },
+    [clientToLogicBoardLocal]
   );
 
   const startLogicDocumentConnect = useCallback(
@@ -4664,26 +5462,19 @@ const FormBuilderPage = () => {
         logicConnectGestureRef.current = payload;
         setLogicConnectDrag(payload);
 
-        const onMove = (ev) => {
-          if (!logicConnectGestureRef.current) return;
-          const p = clientToLogicBoardLocal(ev.clientX, ev.clientY);
-          const next = { ...logicConnectGestureRef.current, x1: p.x, y1: p.y };
-          logicConnectGestureRef.current = next;
-          setLogicConnectDrag({ ...next });
-        };
+        const onMove = (ev) => updateLogicConnectDrag(ev);
         const onUp = (ev) => {
           document.removeEventListener('pointermove', onMove);
           document.removeEventListener('pointerup', onUp);
           const g = logicConnectGestureRef.current;
-          logicConnectGestureRef.current = null;
-          setLogicConnectDrag(null);
+          endLogicConnectGesture();
           if (g) applyLogicConnectionDrop(g, ev.clientX, ev.clientY);
         };
         document.addEventListener('pointermove', onMove);
         document.addEventListener('pointerup', onUp);
       });
     },
-    [clientToLogicBoardLocal, applyLogicConnectionDrop, openIfThenLogicPanel]
+    [updateLogicConnectDrag, applyLogicConnectionDrop, endLogicConnectGesture, openIfThenLogicPanel, screens]
   );
 
   const onLogicOutputPortPointerDown = useCallback((e, fromId) => {
@@ -4708,13 +5499,9 @@ const FormBuilderPage = () => {
         }
         return;
       }
-      if (!logicConnectGestureRef.current) return;
-      const p = clientToLogicBoardLocal(e.clientX, e.clientY);
-      const next = { ...logicConnectGestureRef.current, x1: p.x, y1: p.y };
-      logicConnectGestureRef.current = next;
-      setLogicConnectDrag(next);
+      updateLogicConnectDrag(e);
     },
-    [clientToLogicBoardLocal]
+    [clientToLogicBoardLocal, updateLogicConnectDrag]
   );
 
   const onLogicOutputPortPointerUp = useCallback(
@@ -4734,18 +5521,16 @@ const FormBuilderPage = () => {
       }
 
       const g = logicConnectGestureRef.current;
-      logicConnectGestureRef.current = null;
-      setLogicConnectDrag(null);
-      if (!g) return;
-      applyLogicConnectionDrop(g, e.clientX, e.clientY);
+      endLogicConnectGesture();
+      if (g) applyLogicConnectionDrop(g, e.clientX, e.clientY);
     },
-    [applyLogicConnectionDrop]
+    [applyLogicConnectionDrop, endLogicConnectGesture]
   );
 
-  /* â”€â”€ Intro essential variant (null = show default welcome card) â”€â”€ */
+  /* ── Intro essential variant (null = show default welcome card) ── */
   const [introEssential, setIntroEssential] = useState(null);
 
-  /* â”€â”€ End screen state â”€â”€ */
+  /* ── End screen state ── */
   const [endScreenTitle, setEndScreenTitle] = useState('Thanks for your response!');
   const [endScreenDescription, setEndScreenDescription] = useState('Your submission has been recorded. We really appreciate you taking the time to share your feedback with us.');
   const [endScreenButtonText, setEndScreenButtonText] = useState('Done');
@@ -4754,8 +5539,9 @@ const FormBuilderPage = () => {
   const [draftEndDescription, setDraftEndDescription] = useState('Your submission has been recorded. We really appreciate you taking the time to share your feedback with us.');
   const [draftEndButtonText, setDraftEndButtonText] = useState('Done');
 
-  /* â”€â”€ Default welcome card content state â”€â”€ */
+  /* ── Default welcome card content state ── */
   const [introTitle, setIntroTitle] = useState('Title');
+  introTitleRef.current = introTitle;
   const [introDescription, setIntroDescription] = useState('Add the purpose of form here');
   const [introButtonText, setIntroButtonText] = useState('Start \u2192');
   const [logoImage, setLogoImage] = useState(null);
@@ -4765,42 +5551,57 @@ const FormBuilderPage = () => {
   const [draftButtonText, setDraftButtonText] = useState('Start \u2192');
   const [draftLogo, setDraftLogo] = useState(null);
   const logoInputRef = useRef(null);
+  const introEditSnapshotRef = useRef(null);
+  const endEditSnapshotRef = useRef(null);
+  const [unsavedChangesPrompt, setUnsavedChangesPrompt] = useState(null);
 
   const handleEditContent = () => {
+    introEditSnapshotRef.current = {
+      title: introTitle,
+      description: introDescription,
+      buttonText: introButtonText,
+      logo: logoImage,
+    };
     setDraftTitle(introTitle);
     setDraftDescription(introDescription);
     setDraftButtonText(introButtonText);
     setDraftLogo(logoImage);
     setIsEditingContent(true);
+    markFormTouched();
   };
 
-  const handleSaveContent = () => {
+  const commitIntroDraft = () => {
     setIntroTitle(draftTitle);
     setIntroDescription(draftDescription);
     setIntroButtonText(draftButtonText);
     setLogoImage(draftLogo);
-    setIsEditingContent(false);
   };
 
   const handleEditEndScreen = () => {
+    endEditSnapshotRef.current = {
+      title: endScreenTitle,
+      description: endScreenDescription,
+      buttonText: endScreenButtonText,
+    };
     setDraftEndTitle(endScreenTitle);
     setDraftEndDescription(endScreenDescription);
     setDraftEndButtonText(endScreenButtonText);
     setIsEditingEndScreen(true);
+    markFormTouched();
   };
 
-  const handleSaveEndScreen = () => {
+  const commitEndDraft = () => {
     setEndScreenTitle(draftEndTitle);
     setEndScreenDescription(draftEndDescription);
     setEndScreenButtonText(draftEndButtonText);
-    setIsEditingEndScreen(false);
   };
 
   const hasEndScreenChanges =
     isEditingEndScreen &&
-    (draftEndTitle !== endScreenTitle ||
-      draftEndDescription !== endScreenDescription ||
-      draftEndButtonText !== endScreenButtonText);
+    endEditSnapshotRef.current != null &&
+    (draftEndTitle !== endEditSnapshotRef.current.title ||
+      draftEndDescription !== endEditSnapshotRef.current.description ||
+      draftEndButtonText !== endEditSnapshotRef.current.buttonText);
 
   const handleLogoUpload = (e) => {
     const file = e.target.files[0];
@@ -4810,16 +5611,98 @@ const FormBuilderPage = () => {
 
   const hasChanges =
     isEditingContent &&
-    (draftTitle !== introTitle ||
-      draftDescription !== introDescription ||
-      draftButtonText !== introButtonText ||
-      draftLogo !== logoImage);
+    introEditSnapshotRef.current != null &&
+    (draftTitle !== introEditSnapshotRef.current.title ||
+      draftDescription !== introEditSnapshotRef.current.description ||
+      draftButtonText !== introEditSnapshotRef.current.buttonText ||
+      draftLogo !== introEditSnapshotRef.current.logo);
+
+  const handleBackFromIntroEdit = () => {
+    if (hasChanges) {
+      setUnsavedChangesPrompt('intro');
+      return;
+    }
+    commitIntroDraft();
+    introEditSnapshotRef.current = null;
+    setIsEditingContent(false);
+  };
+
+  const handleBackFromEndEdit = () => {
+    if (hasEndScreenChanges) {
+      setUnsavedChangesPrompt('end');
+      return;
+    }
+    commitEndDraft();
+    endEditSnapshotRef.current = null;
+    setIsEditingEndScreen(false);
+  };
+
+  const handleSaveIntroEdit = () => {
+    commitIntroDraft();
+    introEditSnapshotRef.current = null;
+    setIsEditingContent(false);
+  };
+
+  const handleSaveEndEdit = () => {
+    commitEndDraft();
+    endEditSnapshotRef.current = null;
+    setIsEditingEndScreen(false);
+  };
+
+  const closeUnsavedChangesModal = () => setUnsavedChangesPrompt(null);
+
+  const discardIntroEdits = () => {
+    const snap = introEditSnapshotRef.current;
+    if (snap) {
+      setDraftTitle(snap.title);
+      setDraftDescription(snap.description);
+      setDraftButtonText(snap.buttonText);
+      setDraftLogo(snap.logo);
+      setIntroTitle(snap.title);
+      setIntroDescription(snap.description);
+      setIntroButtonText(snap.buttonText);
+      setLogoImage(snap.logo);
+    }
+    introEditSnapshotRef.current = null;
+    setIsEditingContent(false);
+    setUnsavedChangesPrompt(null);
+  };
+
+  const discardEndEdits = () => {
+    const snap = endEditSnapshotRef.current;
+    if (snap) {
+      setDraftEndTitle(snap.title);
+      setDraftEndDescription(snap.description);
+      setDraftEndButtonText(snap.buttonText);
+      setEndScreenTitle(snap.title);
+      setEndScreenDescription(snap.description);
+      setEndScreenButtonText(snap.buttonText);
+    }
+    endEditSnapshotRef.current = null;
+    setIsEditingEndScreen(false);
+    setUnsavedChangesPrompt(null);
+  };
+
+  useEffect(() => {
+    if (!isEditingContent) return;
+    commitIntroDraft();
+  }, [draftTitle, draftDescription, draftButtonText, draftLogo, isEditingContent]);
+
+  useEffect(() => {
+    if (!isEditingEndScreen) return;
+    commitEndDraft();
+  }, [draftEndTitle, draftEndDescription, draftEndButtonText, isEditingEndScreen]);
 
   const panelTimerRef = useRef(null);
+  /** Skip width enter animation when creating the first screen so canvas scale measures correctly. */
+  const skipPanelEnterRef = useRef(false);
 
-  const closeAllRightPanels = () => {
+  const closeRightConfigPanels = ({
+    keepContentPanel = false,
+    keepIfThenPanel = false,
+  } = {}) => {
     setShowConfigPanel(false);
-    setShowContentPanel(false);
+    if (!keepContentPanel) setShowContentPanel(false);
     setShowCtaConfigPanel(false);
     setShowHeadingConfigPanel(false);
     setShowDescriptionConfigPanel(false);
@@ -4840,10 +5723,15 @@ const FormBuilderPage = () => {
     setShowDateConfigPanel(false);
     setShowTimeConfigPanel(false);
     setShowDesignPanel(false);
-    setIfThenLogicPanelEdge(null);
-    setIfThenDraft(null);
-    ifThenDraftSnapshotRef.current = null;
+    if (!keepIfThenPanel) {
+      setIfThenLogicPanelEdge(null);
+      setIfThenDraft(null);
+      ifThenDraftSnapshotRef.current = null;
+    }
   };
+
+  const closeAllRightPanels = () => closeRightConfigPanels();
+  closePanelsRef.current = closeAllRightPanels;
 
   const openPanelByName = (name) => {
     if (name === 'config') setShowConfigPanel(true);
@@ -4885,7 +5773,9 @@ const FormBuilderPage = () => {
       const endScreen = { id: 2, name: 'End Screen', type: 'end' };
       setScreens([welcomeScreen, endScreen]);
       setActiveScreenId(1);
+      markFormTouched();
       closeAllRightPanels();
+      skipPanelEnterRef.current = true;
       setShowConfigPanel(true);
     } else {
       if (showContentPanel) {
@@ -4950,12 +5840,79 @@ const FormBuilderPage = () => {
   const configureMaxFileSize = configureIsUpload ? uploadMaxFileSize : multiImageMaxFileSize;
   const setConfigureMaxFileSize = configureIsUpload ? setUploadMaxFileSize : setMultiImageMaxFileSize;
   const contentScreens = screens.filter((s) => s.type === 'content');
+  const selectManualLogicMode = useCallback(() => {
+    setLogicModeManual(true);
+    resetAiLogicGeneration(patchAiLogicGen);
+  }, [patchAiLogicGen]);
+  const selectAiDrivenLogicMode = useCallback(() => {
+    setLogicModeManual(false);
+    resetAiLogicGeneration(patchAiLogicGen);
+  }, [patchAiLogicGen]);
+  const aiLogicGenerationContext = useMemo(
+    () => ({
+      screens,
+      contentScreens,
+      welcomeInputType,
+      welcomeHidden,
+      introTitle: introTitleRef.current,
+      getQuestionText: (screen) =>
+        getScreenPreviewText(screen, fieldPreviewFallbackRef.current),
+    }),
+    [screens, contentScreens, welcomeInputType, welcomeHidden, logicQuestionOptionsTick]
+  );
+
+  const applyAiLogicToBuilder = useCallback(
+    (applied) => {
+      if (Array.isArray(applied.logicConnections)) {
+        setLogicConnections(applied.logicConnections);
+      }
+      if (applied.logicIfRulesByEdge && typeof applied.logicIfRulesByEdge === 'object') {
+        setLogicIfRulesByEdge(applied.logicIfRulesByEdge);
+      }
+      if (Array.isArray(applied.screens)) {
+        setScreens(applied.screens);
+      }
+      showToast({ type: 'success', message: 'AI logic applied to your form.' });
+    },
+    [showToast]
+  );
+
+  const handleAiLogicRetry = useCallback(() => {
+    patchAiLogicGen({ status: AI_LOGIC_GEN_STATUS.generating, errorMessage: '' });
+    showToast({ type: 'info', message: 'Retrying AI logic generation…' });
+    runAiLogicGeneration(aiLogicGenerationContext, patchAiLogicGen, applyAiLogicToBuilder);
+  }, [patchAiLogicGen, aiLogicGenerationContext, applyAiLogicToBuilder, showToast]);
+  const handleGenerateAiLogic = useCallback(() => {
+    patchAiLogicGen({ status: AI_LOGIC_GEN_STATUS.generating, errorMessage: '' });
+    showToast({ type: 'info', message: 'Generating AI logic from your form…' });
+    runAiLogicGeneration(aiLogicGenerationContext, patchAiLogicGen, applyAiLogicToBuilder);
+  }, [patchAiLogicGen, aiLogicGenerationContext, applyAiLogicToBuilder, showToast]);
+  const aiLogicGenerationFailed = aiLogicGen.status === AI_LOGIC_GEN_STATUS.failed;
+  const aiLogicGenerating = aiLogicGen.status === AI_LOGIC_GEN_STATUS.generating;
+  const aiLogicReady = aiLogicGen.status === AI_LOGIC_GEN_STATUS.success;
+  const showLogicCanvas = logicModeManual || aiLogicReady;
+  const openLogicCanvasIntegrations = useCallback(() => setActiveTab('settings'), []);
+  const openLogicCanvasWebhook = useCallback(() => setActiveTab('settings'), []);
   /** Design: only after Add screen creates the form shell */
   const designTabDisabled = !hasScreens;
   /** Logic: needs at least one question screen (also implies hasScreens) */
   const logicTabDisabled = contentScreens.length === 0;
   const contentBlockNum = contentScreens.findIndex((s) => s.id === activeScreenId) + 1;
   const activeScreenIdx = screens.findIndex((s) => s.id === activeScreenId);
+
+  useEffect(() => {
+    const prev = prevContentScreensCountRef.current;
+    if (contentScreens.length > prev && contentScreens.length > 0) {
+      const last = contentScreens[contentScreens.length - 1];
+      requestAnimationFrame(() => {
+        const row = contentScreensScrollRef.current?.querySelector(
+          `[data-content-screen-row][data-screen-id="${last.id}"]`
+        );
+        row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      });
+    }
+    prevContentScreensCountRef.current = contentScreens.length;
+  }, [contentScreens]);
 
   configGlobalsRef.current = {
     contactQuestion,
@@ -4980,6 +5937,8 @@ const FormBuilderPage = () => {
     shortTextSize,
     shortTextRequired,
     shortTextHidden,
+    shortTextResponseQualityEnabled,
+    shortTextResponseQualityOptions,
     longTextQuestion,
     longTextHelperText,
     longTextPlaceholder,
@@ -5023,6 +5982,23 @@ const FormBuilderPage = () => {
     headingAlignment,
     headingFontWeight,
     headingAnswerText,
+    ctaButtonLabel,
+    ctaHeadingText,
+    ctaHelperText,
+    ctaDurationText,
+    ctaButtonSize,
+    ctaButtonStyle,
+    ctaCornerRadius,
+    ctaShowIcon,
+    ctaHeadingSize,
+    ctaBodySize,
+    ctaFontWeight,
+    ctaTextAlign,
+    ctaPadding,
+    ctaTextColor,
+    ctaBtnColor,
+    ctaLabelColor,
+    ctaContentWidth,
     descriptionContent,
     descriptionHidden,
     descriptionShowCharCount,
@@ -5080,6 +6056,15 @@ const FormBuilderPage = () => {
     mapHelperText,
     mapType,
     mapZoom,
+    mapDefaultLat,
+    mapDefaultLng,
+    mapDefaultAddress,
+    mapAllowPinMovement,
+    mapShowSearchBar,
+    mapRestrictRadius,
+    mapRestrictRadiusKm,
+    mapPinLabel,
+    mapHeight,
     mapRequired,
     mapHidden,
     mediaQuestion,
@@ -5105,7 +6090,101 @@ const FormBuilderPage = () => {
     uploadQuestion,
     uploadHelperText,
     uploadMaxFileSize,
+    showIfConditions,
   };
+
+  const serializeBuilderState = () => {
+    const globals = configGlobalsRef.current;
+    const screensSnapshot = screens.map((s) => {
+      if (s.type !== 'content') {
+        return {
+          id: s.id,
+          type: s.type,
+          name: s.name,
+          label: s.label,
+          section: s.section,
+        };
+      }
+      const config =
+        s.id === activeScreenId
+          ? extractScreenConfig(s, globals)
+          : s.config ?? null;
+      return {
+        id: s.id,
+        type: s.type,
+        name: s.name,
+        label: s.label,
+        section: s.section,
+        config,
+      };
+    });
+    return JSON.stringify({
+      screens: screensSnapshot,
+      intro: {
+        title: introTitle,
+        description: introDescription,
+        buttonText: introButtonText,
+        textSize: welcomeTextSize,
+        alignment: welcomeAlignment,
+      },
+      end: {
+        title: endScreenTitle,
+        description: endScreenDescription,
+        buttonText: endScreenButtonText,
+      },
+      logicConnections,
+      logicIfRulesByEdge,
+    });
+  };
+
+  const [isFormDirty, setIsFormDirty] = useState(false);
+
+  useEffect(() => {
+    if (screens.length === 0) {
+      builderBaselineRef.current = null;
+      builderBaselineSessionRef.current = null;
+      setIsFormDirty(false);
+      return;
+    }
+    const sessionKey = `${location.key}|${location.state?.formId ?? 'new'}|${location.state?.templateId ?? ''}`;
+    if (builderBaselineSessionRef.current === sessionKey) return;
+
+    builderBaselineSessionRef.current = sessionKey;
+    let cancelled = false;
+    const captureBaseline = () => {
+      if (cancelled) return;
+      builderBaselineRef.current = serializeBuilderState();
+      formTouchedRef.current = false;
+      setIsFormDirty(false);
+    };
+    const outerFrame = requestAnimationFrame(() => {
+      requestAnimationFrame(captureBaseline);
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(outerFrame);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- capture once per session after paint settles
+  }, [screens.length, location.key, location.state?.formId, location.state?.templateId]);
+
+  useLayoutEffect(() => {
+    if (!builderBaselineRef.current || screens.length === 0) {
+      setIsFormDirty(false);
+      return;
+    }
+    const dirty = serializeBuilderState() !== builderBaselineRef.current;
+    setIsFormDirty(dirty);
+    if (dirty) formTouchedRef.current = true;
+  });
+
+  const hasPendingBuilderEdits =
+    isFormDirty ||
+    hasChanges ||
+    hasEndScreenChanges ||
+    isEditingContent ||
+    isEditingEndScreen ||
+    isEditingCtaCard ||
+    isEditingHeadingCard;
 
   const screenConfigSetters = useMemo(
     () => ({
@@ -5131,6 +6210,8 @@ const FormBuilderPage = () => {
       setShortTextSize,
       setShortTextRequired,
       setShortTextHidden,
+      setShortTextResponseQualityEnabled,
+      setShortTextResponseQualityOptions,
       setLongTextQuestion,
       setLongTextHelperText,
       setLongTextPlaceholder,
@@ -5174,6 +6255,23 @@ const FormBuilderPage = () => {
       setHeadingAlignment,
       setHeadingFontWeight,
       setHeadingAnswerText,
+      setCtaButtonLabel,
+      setCtaHeadingText,
+      setCtaHelperText,
+      setCtaDurationText,
+      setCtaButtonSize,
+      setCtaButtonStyle,
+      setCtaCornerRadius,
+      setCtaShowIcon,
+      setCtaHeadingSize,
+      setCtaBodySize,
+      setCtaFontWeight,
+      setCtaTextAlign,
+      setCtaPadding,
+      setCtaTextColor,
+      setCtaBtnColor,
+      setCtaLabelColor,
+      setCtaContentWidth,
       setDescriptionContent,
       setDescriptionHidden,
       setDescriptionShowCharCount,
@@ -5265,6 +6363,7 @@ const FormBuilderPage = () => {
       setUploadQuestion,
       setUploadHelperText,
       setUploadMaxFileSize,
+      setShowIfConditions,
     }),
     []
   );
@@ -5276,9 +6375,11 @@ const FormBuilderPage = () => {
       if (!screen || screen.type !== 'content') return prev;
       const config = extractScreenConfig(screen, configGlobalsRef.current);
       if (!config) return prev;
-      return prev.map((s) => (s.id === screenId ? { ...s, config } : s));
+      return prev.map((s) =>
+        s.id === screenId ? { ...s, config: { ...config, showIfConditions } } : s
+      );
     });
-  }, []);
+  }, [showIfConditions]);
 
   useEffect(() => {
     const formTitle = location.state?.formTitle;
@@ -5288,14 +6389,9 @@ const FormBuilderPage = () => {
     }
   }, [location.state?.formTitle, location.state?.templateId]);
 
-  useEffect(() => {
-    const templateId = location.state?.templateId;
-    if (!templateId || templateHydratedRef.current) return;
-
-    const built = buildFormFromTemplate(templateId);
-    if (!built) return;
-
-    templateHydratedRef.current = true;
+  const applyBuiltFormState = useCallback((built, templateIdForRef) => {
+    lastHydratedTemplateIdRef.current = templateIdForRef ?? null;
+    newFormHydratedRef.current = true;
     nextIdRef.current = built.nextId;
 
     setScreens(built.screens);
@@ -5303,6 +6399,8 @@ const FormBuilderPage = () => {
     setIntroTitle(built.intro.title);
     setIntroDescription(built.intro.description);
     setIntroButtonText(built.intro.buttonText);
+    setWelcomeTextSize(built.intro.textSize ?? 'M');
+    setWelcomeAlignment(built.intro.alignment ?? 'left');
     setDraftTitle(built.intro.title);
     setDraftDescription(built.intro.description);
     setDraftButtonText(built.intro.buttonText);
@@ -5313,15 +6411,97 @@ const FormBuilderPage = () => {
     setDraftEndDescription(built.end.description);
     setDraftEndButtonText(built.end.buttonText);
     setIntroEssential(null);
-    setLogicConnections([]);
-    setLogicIfRulesByEdge({});
-    setLogicElseByScreen({});
-    setLogicCardOffsets({});
     setActiveScreenId(built.screens[0]?.id ?? null);
     closeAllRightPanels();
     setShowConfigPanel(true);
     setActiveTab('content');
-  }, [location.state]);
+  }, []);
+
+  useEffect(() => {
+    builderDraftHydratedRef.current = false;
+    lastHydratedTemplateIdRef.current = null;
+    newFormHydratedRef.current = false;
+    autoPreviewAppliedRef.current = false;
+    builderBaselineRef.current = null;
+    builderBaselineSessionRef.current = null;
+    formTouchedRef.current = false;
+    setIsPublishView(location.state?.startInPublishView === true);
+  }, [location.state?.formId, location.key, location.state?.startInPublishView]);
+
+  useEffect(() => {
+    if (!location.state?.startInPreview || autoPreviewAppliedRef.current) return;
+    if (screens.length === 0) return;
+    autoPreviewAppliedRef.current = true;
+    setIsPreview(true);
+  }, [location.state?.startInPreview, screens.length, location.key]);
+
+  useEffect(() => {
+    const formId = location.state?.formId;
+    const templateId = location.state?.templateId;
+
+    if (formId) {
+      const draft = readBuilderDraft(formId);
+      if (draft?.screens?.length) {
+        builderDraftHydratedRef.current = true;
+        applyBuiltFormState(
+          {
+            screens: draft.screens,
+            formTitle: draft.formTitle ?? location.state?.formTitle ?? 'Untitled Form',
+            intro: draft.intro ?? {
+              title: 'Title',
+              description: '',
+              buttonText: 'Start',
+            },
+            end: draft.end ?? {
+              title: 'Thanks for your response!',
+              description: '',
+              buttonText: 'Done',
+            },
+            nextId: draft.nextId ?? 100,
+          },
+          draft.templateId ?? templateId
+        );
+        if (Array.isArray(draft.logicConnections)) {
+          setLogicConnections(draft.logicConnections);
+        }
+        if (draft.logicIfRulesByEdge && typeof draft.logicIfRulesByEdge === 'object') {
+          setLogicIfRulesByEdge(draft.logicIfRulesByEdge);
+        }
+        setLogicElseByScreen({});
+        setLogicCardOffsets({});
+        return;
+      }
+    }
+
+    if (templateId) {
+      const built = buildFormFromTemplate(templateId);
+      if (!built) return;
+
+      setLogicConnections([]);
+      setLogicIfRulesByEdge({});
+      setLogicElseByScreen({});
+      setLogicCardOffsets({});
+      applyBuiltFormState(
+        {
+          ...built,
+          formTitle: location.state?.formTitle ?? built.formTitle,
+        },
+        templateId
+      );
+      return;
+    }
+
+    if (location.state?.formTitle) {
+      newFormHydratedRef.current = true;
+      setLoadedFormTitle(location.state.formTitle);
+    }
+  }, [
+    location.state?.formId,
+    location.state?.templateId,
+    location.state?.formTitle,
+    location.key,
+    applyBuiltFormState,
+  ]);
 
   useEffect(() => {
     const prevId = prevActiveScreenIdRef.current;
@@ -5329,12 +6509,21 @@ const FormBuilderPage = () => {
       persistScreenConfigById(prevId);
     }
     prevActiveScreenIdRef.current = activeScreenId;
+  }, [activeScreenId, persistScreenConfigById]);
 
+  useEffect(() => {
+    if (activeScreenId == null) return;
+    setIsEditingCtaCard(false);
     const screen = screens.find((s) => s.id === activeScreenId);
-    if (screen?.type === 'content' && screen.config) {
+    if (!screen || screen.type !== 'content') return;
+    if (screen.config) {
       applyScreenConfig(screen, screen.config, screenConfigSetters);
+    } else {
+      setShowIfConditions((prev) => (prev.length === 0 ? prev : []));
     }
-  }, [activeScreenId, screens, persistScreenConfigById, screenConfigSetters]);
+    // Only re-load panel state when the active screen changes (not on every screens[] update).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeScreenId]);
 
   const fieldPreviewFallback = useMemo(
     () => ({
@@ -5354,7 +6543,7 @@ const FormBuilderPage = () => {
       'Multi-image upload': multiImageQuestion,
       Heading: headingText || 'Add a heading',
       Description: descriptionContent || 'Add a description',
-      CTA: ctaButtonLabel,
+      CTA: ctaHeadingText || ctaButtonLabel,
       Media: mediaQuestion,
       Captcha: "Verify you're human",
     }),
@@ -5373,10 +6562,16 @@ const FormBuilderPage = () => {
       multiImageQuestion,
       headingText,
       descriptionContent,
+      ctaHeadingText,
       ctaButtonLabel,
       mediaQuestion,
     ]
   );
+  fieldPreviewFallbackRef.current = fieldPreviewFallback;
+
+  useEffect(() => {
+    setLogicQuestionOptionsTick((t) => t + 1);
+  }, [introTitle, fieldPreviewFallback]);
 
   const getScreenDeleteLabel = useCallback(
     (screen) => {
@@ -5413,6 +6608,11 @@ const FormBuilderPage = () => {
   }, [pendingScreenDelete, removeContentScreen, performDeleteIntroScreen, performDeleteEndScreen]);
 
   useEffect(() => {
+    if (builderDraftHydratedRef.current) {
+      logicStorageHydratedRef.current = true;
+      return;
+    }
+
     try {
       const raw = localStorage.getItem(LOGIC_STORAGE_KEY);
       if (!raw) {
@@ -5423,21 +6623,25 @@ const FormBuilderPage = () => {
       if (Array.isArray(data.logicConnections)) {
         setLogicConnections(data.logicConnections);
       }
+      let byEdge = {};
+      let legacyElse = {};
       if (data.logicIfRulesByEdge && typeof data.logicIfRulesByEdge === 'object') {
-        setLogicIfRulesByEdge(data.logicIfRulesByEdge);
+        byEdge = data.logicIfRulesByEdge;
       } else if (data.logicIfRulesByScreen && typeof data.logicIfRulesByScreen === 'object') {
         const migrated = migrateLogicIfRulesToEdges(data.logicIfRulesByScreen);
-        setLogicIfRulesByEdge(migrated.byEdge);
-        setLogicElseByScreen(migrated.elseByScreen);
+        byEdge = migrated.byEdge;
+        legacyElse = migrated.elseByScreen;
       }
       if (data.logicElseByScreen && typeof data.logicElseByScreen === 'object') {
-        setLogicElseByScreen(data.logicElseByScreen);
+        legacyElse = { ...legacyElse, ...data.logicElseByScreen };
       }
+      setLogicIfRulesByEdge(mergeLegacyElseIntoEdges(byEdge, legacyElse));
+      setLogicElseByScreen({});
     } catch {
       /* ignore corrupt storage */
     }
     logicStorageHydratedRef.current = true;
-  }, []);
+  }, [location.state?.formId, location.key]);
 
   useEffect(() => {
     if (!logicStorageHydratedRef.current) return;
@@ -5447,13 +6651,63 @@ const FormBuilderPage = () => {
         JSON.stringify({
           logicConnections,
           logicIfRulesByEdge,
-          logicElseByScreen,
         })
       );
     } catch {
       /* quota / private mode */
     }
-  }, [logicConnections, logicIfRulesByEdge, logicElseByScreen]);
+  }, [logicConnections, logicIfRulesByEdge]);
+
+  useEffect(() => {
+    if (!activeFormId || screens.length === 0) return undefined;
+    const timer = setTimeout(() => {
+      writeBuilderDraft(activeFormId, {
+        formId: activeFormId,
+        templateId: location.state?.templateId ?? lastHydratedTemplateIdRef.current,
+        formTitle: loadedFormTitle ?? location.state?.formTitle ?? 'Untitled Form',
+        screens,
+        nextId: nextIdRef.current,
+        intro: {
+          title: introTitle,
+          description: introDescription,
+          buttonText: introButtonText,
+          textSize: welcomeTextSize,
+          alignment: welcomeAlignment,
+        },
+        end: {
+          title: endScreenTitle,
+          description: endScreenDescription,
+          buttonText: endScreenButtonText,
+        },
+        logicConnections,
+        logicIfRulesByEdge,
+      });
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [
+    activeFormId,
+    screens,
+    loadedFormTitle,
+    introTitle,
+    introDescription,
+    introButtonText,
+    welcomeTextSize,
+    welcomeAlignment,
+    endScreenTitle,
+    endScreenDescription,
+    endScreenButtonText,
+    logicConnections,
+    logicIfRulesByEdge,
+    location.state?.templateId,
+    location.state?.formTitle,
+  ]);
+
+  useEffect(() => {
+    if (!activeFormId) return;
+    const title = loadedFormTitle ?? location.state?.formTitle;
+    if (!title) return;
+    dispatch(updateForm({ id: activeFormId, changes: { title } }));
+  }, [activeFormId, loadedFormTitle, location.state?.formTitle, dispatch]);
 
   useEffect(() => {
     if (!isPreview) return;
@@ -5487,9 +6741,14 @@ const FormBuilderPage = () => {
     [screens]
   );
 
+  const priorScreensForActive = useMemo(
+    () => getPriorContentScreens(screens, activeScreenId),
+    [screens, activeScreenId]
+  );
+
   const getLogicalNextScreenId = useCallback(
     (fromScreenId) =>
-      resolveNextScreenId({
+      resolveVisibleNextScreenId({
         fromScreenId,
         screens,
         logicIfRulesByEdge,
@@ -5500,8 +6759,28 @@ const FormBuilderPage = () => {
     [screens, logicIfRulesByEdge, logicElseByScreen, logicConnections]
   );
 
+  useEffect(() => {
+    if (!isPreview || activeScreenId == null) return;
+    const screen = screens.find((s) => s.id === activeScreenId);
+    if (!screen || screen.type !== 'content') return;
+    if (isScreenVisibleInPreview(screen, previewAnswersByScreenRef.current)) return;
+
+    const nextId = resolveVisibleNextScreenId({
+      fromScreenId: activeScreenId,
+      screens,
+      logicIfRulesByEdge,
+      logicElseByScreen,
+      logicConnections,
+      answersByScreenId: previewAnswersByScreenRef.current,
+    });
+    if (nextId != null && nextId !== activeScreenId) {
+      setActiveScreenId(nextId);
+    }
+  }, [isPreview, activeScreenId, screens, logicIfRulesByEdge, logicElseByScreen, logicConnections, previewSnapVersion]);
+
   const prevScreen = useMemo(() => {
-    if (isPreview && previewVisitStack.length > 0) {
+    if (isPreview) {
+      if (previewVisitStack.length === 0) return null;
       const prevId = previewVisitStack[previewVisitStack.length - 1];
       return screens.find((s) => s.id === prevId) ?? null;
     }
@@ -5578,13 +6857,11 @@ const FormBuilderPage = () => {
   }, [activeTab]);
 
   const goPreviewPrev = useCallback(() => {
-    setPreviewVisitStack((stack) => {
-      if (!stack.length) return stack;
-      const nextStack = stack.slice(0, -1);
-      const prevId = stack[stack.length - 1];
-      if (prevId != null) setActiveScreenId(prevId);
-      return nextStack;
-    });
+    const stack = previewVisitStackRef.current;
+    if (!stack.length) return;
+    const prevId = stack[stack.length - 1];
+    setPreviewVisitStack(stack.slice(0, -1));
+    setActiveScreenId(prevId);
   }, []);
 
   const goPreviewNext = useCallback(() => {
@@ -5598,51 +6875,65 @@ const FormBuilderPage = () => {
     setActiveScreenId(nextId);
   }, [activeScreenId, capturePreviewAnswersForScreen, getLogicalNextScreenId]);
 
-  const previewStepNavEl = isPreview ? (
-    <PreviewCardStepNav
-      prevScreen={prevScreen}
-      nextScreen={nextScreen}
-      onGoPrev={goPreviewPrev}
-      onGoContinue={goPreviewNext}
-    />
-  ) : null;
+  const previewStepNavEl =
+    isPreview && activeScreen?.type !== 'intro' ? (
+      <PreviewCardStepNav
+        prevScreen={prevScreen}
+        nextScreen={nextScreen}
+        onGoPrev={goPreviewPrev}
+        onGoContinue={goPreviewNext}
+      />
+    ) : null;
 
-  /* â”€â”€ Responsive canvas scaling â”€â”€ */
+  /* ── Responsive canvas scaling ── */
   // Base "design" resolution the form is authored at
   const CANVAS_BASE_W = deviceView === 'mobile' ? 420 : 820;
-  const CANVAS_BASE_H = deviceView === 'mobile' ? 680 : 560;
+  const CANVAS_CARD_H = deviceView === 'mobile' ? 680 : 560;
+  // Keep scale identical in builder and preview by always reserving preview chrome space.
+  const CANVAS_BASE_H = CANVAS_CARD_H + (hasScreens ? PREVIEW_CHROME_H : 0);
   const CANVAS_PAD = 40; // px gap around the scaled frame
 
   const canvasContainerRef = useRef(null);
-  const [canvasScale, setCanvasScale] = useState(0);
+  const [canvasScale, setCanvasScale] = useState(1);
 
-  const updateScale = useCallback(() => {
+  const measureCanvasScale = useCallback(() => {
     const el = canvasContainerRef.current;
     if (!el) return;
-    // Use offsetWidth/offsetHeight â€” unlike getBoundingClientRect these are
-    // unaffected by CSS transforms, so Framer Motion layout animations don't
-    // produce a stale/mid-animation size reading.
-    const width = el.offsetWidth;
-    const height = el.offsetHeight;
-    const availW = width - CANVAS_PAD * 2;
-    const availH = height - CANVAS_PAD * 2;
-    const scaleX = availW / CANVAS_BASE_W;
-    const scaleY = availH / CANVAS_BASE_H;
-    setCanvasScale(Math.min(scaleX, scaleY));
+    const availW = Math.max(0, el.clientWidth - CANVAS_PAD * 2);
+    const availH = Math.max(0, el.clientHeight - CANVAS_PAD * 2);
+    const scale = Math.min(1, availW / CANVAS_BASE_W, availH / CANVAS_BASE_H);
+    setCanvasScale(Number.isFinite(scale) && scale > 0 ? scale : 1);
   }, [CANVAS_BASE_W, CANVAS_BASE_H]);
 
-  useEffect(() => {
-    updateScale();
-    const obs = new ResizeObserver(updateScale);
-    if (canvasContainerRef.current) obs.observe(canvasContainerRef.current);
-    return () => obs.disconnect();
-  }, [updateScale, hasScreens]);
+  useLayoutEffect(() => {
+    measureCanvasScale();
+    if (skipPanelEnterRef.current) {
+      skipPanelEnterRef.current = false;
+    }
+  }, [measureCanvasScale, hasScreens, isPreview, deviceView]);
 
-  // Re-compute scale after preview is toggled so the canvas immediately fills
-  // the correct space without needing a second interaction to trigger it.
   useEffect(() => {
-    updateScale();
-  }, [isPreview, updateScale]);
+    const el = canvasContainerRef.current;
+    if (!el) return undefined;
+    const obs = new ResizeObserver(measureCanvasScale);
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [measureCanvasScale, hasScreens]);
+
+  const welcomeTextAlignClass =
+    welcomeAlignment === 'center' ? 'text-center' : welcomeAlignment === 'right' ? 'text-right' : 'text-left';
+  const welcomeItemsAlignClass =
+    welcomeAlignment === 'center' ? 'items-center' : welcomeAlignment === 'right' ? 'items-end' : 'items-start';
+  const welcomeJustifyClass =
+    welcomeAlignment === 'center' ? 'justify-center' : welcomeAlignment === 'right' ? 'justify-end' : 'justify-start';
+  const welcomeSizeMap = deviceView === 'mobile' ? WELCOME_TEXT_SIZE_MOBILE : WELCOME_TEXT_SIZE_DESKTOP;
+  const welcomeSize = welcomeSizeMap[welcomeTextSize] ?? welcomeSizeMap.M;
+
+  useEffect(() => {
+    if (!hasScreens) return undefined;
+    const t = setTimeout(measureCanvasScale, 300);
+    return () => clearTimeout(t);
+  }, [hasScreens, showConfigPanel, showContentPanel, measureCanvasScale]);
 
   // Scroll the input-type dropdown into view when it opens
   useEffect(() => {
@@ -5676,7 +6967,6 @@ const FormBuilderPage = () => {
     ...contentScreens.map((s) => ({ kind: 'content', screen: s })),
     ...(logicEnd ? [{ kind: 'end', screen: logicEnd }] : []),
   ];
-
   const logicBoardSize = useMemo(() => {
     const intro = screens.find((s) => s.type === 'intro') ?? null;
     const end = screens.find((s) => s.type === 'end') ?? null;
@@ -5699,7 +6989,11 @@ const FormBuilderPage = () => {
         x += logicCardDragOffset.x;
         y += logicCardDragOffset.y;
       }
-      const h = logicCardHeights[id] ?? LOGIC_FLOW_CARD_H_EST;
+      const h =
+        logicCardHeights[id] ??
+        (logicCanvasZoom < LOGIC_CANVAS_COMPACT_ZOOM
+          ? LOGIC_FLOW_CARD_H_COMPACT_EST
+          : LOGIC_FLOW_CARD_H_EST);
       maxR = Math.max(maxR, x + LOGIC_FLOW_CARD_W);
       maxB = Math.max(maxB, y + h);
     });
@@ -5708,7 +7002,14 @@ const FormBuilderPage = () => {
     const width = Math.max(minFlowW + padX, maxR + 48);
     const height = Math.max(LOGIC_FLOW_CARD_H_EST + padY, maxB + 48);
     return { width, height };
-  }, [screens, logicCardOffsets, logicCardDraggingId, logicCardDragOffset, logicCardHeights]);
+  }, [
+    screens,
+    logicCardOffsets,
+    logicCardDraggingId,
+    logicCardDragOffset,
+    logicCardHeights,
+    logicCanvasZoom,
+  ]);
 
   const logicPortPositions = useMemo(() => {
     const intro = screens.find((s) => s.type === 'intro') ?? null;
@@ -5733,17 +7034,24 @@ const FormBuilderPage = () => {
       let inX = null;
       let outX = null;
       if (item.kind === 'intro') {
-        outX = left + LOGIC_FLOW_CARD_W + LOGIC_CONNECTOR_DOT_R;
+        outX = left + LOGIC_FLOW_CARD_W + LOGIC_CONNECTOR_OUT_R;
       } else if (item.kind === 'end') {
-        inX = left - LOGIC_CONNECTOR_DOT_R;
+        inX = left - LOGIC_CONNECTOR_IN_R;
       } else {
-        inX = left - LOGIC_CONNECTOR_DOT_R;
-        outX = left + LOGIC_FLOW_CARD_W + LOGIC_CONNECTOR_DOT_R;
+        inX = left - LOGIC_CONNECTOR_IN_R;
+        outX = left + LOGIC_FLOW_CARD_W + LOGIC_CONNECTOR_OUT_R;
       }
-      map.set(id, { left, top, inX, outX, portY, kind: item.kind });
+      map.set(id, { left, top, width: LOGIC_FLOW_CARD_W, height: h, inX, outX, portY, kind: item.kind });
     });
     return map;
-  }, [screens, logicCardOffsets, logicCardDraggingId, logicCardDragOffset, logicCardHeights]);
+  }, [
+    screens,
+    logicCardOffsets,
+    logicCardDraggingId,
+    logicCardDragOffset,
+    logicCardHeights,
+    logicCanvasZoom,
+  ]);
 
   const logicConnectionsForRender = logicConnections;
 
@@ -5756,8 +7064,30 @@ const FormBuilderPage = () => {
     [logicConnectionsForRender]
   );
 
+  /** Draw longer edges first so shorter wires stay visible on top (Typeform-style clarity). */
+  const logicConnectionsDrawOrder = useMemo(() => {
+    return [...logicConnectionsForRender].sort((ca, cb) => {
+      const aa = logicPortPositions.get(ca.from);
+      const ba = logicPortPositions.get(ca.to);
+      const ab = logicPortPositions.get(cb.from);
+      const bb = logicPortPositions.get(cb.to);
+      if (!aa?.outX || !ba?.inX || !ab?.outX || !bb?.inX) return 0;
+      const la = Math.hypot(ba.inX - aa.outX, ba.portY - aa.portY);
+      const lb = Math.hypot(bb.inX - ab.outX, bb.portY - ab.portY);
+      return lb - la;
+    });
+  }, [logicConnectionsForRender, logicPortPositions]);
+
+  const logicObstacles = useMemo(() => {
+    const list = [];
+    logicPortPositions.forEach((pos, id) => {
+      list.push(logicObstacleFromPort(id, pos));
+    });
+    return list;
+  }, [logicPortPositions]);
+
   useLayoutEffect(() => {
-    if (activeTab !== 'logic' || !logicModeManual || contentScreens.length === 0) return;
+    if (activeTab !== 'logic' || !showLogicCanvas || contentScreens.length === 0) return;
     const board = logicBoardMeasureRef.current;
     if (!board) return;
 
@@ -5799,17 +7129,20 @@ const FormBuilderPage = () => {
     return () => ro.disconnect();
   }, [
     activeTab,
-    logicModeManual,
+    showLogicCanvas,
     contentScreens.length,
     screens,
     logicCardOffsets,
     logicCardDraggingId,
     logicCardDragOffset,
+    logicCanvasZoom,
   ]);
 
   useLayoutEffect(() => {
     logicPortPositionsRef.current = logicPortPositions;
   }, [logicPortPositions]);
+
+  const logicCanvasCompact = logicCanvasZoom < LOGIC_CANVAS_COMPACT_ZOOM;
 
   const cardDragHandlers = (screenId) => ({
     onPointerDown: (e) => onLogicCardPointerDown(e, screenId),
@@ -5831,7 +7164,7 @@ const FormBuilderPage = () => {
       left: baseX + off.x + ddx,
       top: baseY + off.y + ddy,
       width: LOGIC_FLOW_CARD_W,
-      zIndex: dragging ? 50 : 2,
+      zIndex: dragging ? 50 : 9,
       boxShadow: dragging ? '0 12px 36px rgba(0,0,0,0.14)' : undefined,
       opacity: dragging ? 0.95 : undefined,
     };
@@ -5851,20 +7184,25 @@ const FormBuilderPage = () => {
       />
     );
 
-    const outDot = (
+    const outPort = (
       <span
         role="presentation"
         data-logic-output-port
-        className="absolute z-[15] w-2 h-2 rounded-full bg-[#1a1a1a] cursor-crosshair touch-none hover:scale-125 transition-transform"
+        className="absolute z-[15] flex h-5 w-5 cursor-crosshair touch-none hover:scale-110 transition-transform"
         style={{ top: '50%', right: 0, transform: 'translate(50%, -50%)' }}
+        aria-label="Connect logic branch"
         {...outputPortHandlers}
-      />
+      >
+        <LogicOutputPortIcon size={20} className="pointer-events-none" />
+      </span>
     );
 
     const contentIdx =
       item.kind === 'content'
         ? contentScreens.findIndex((s) => s.id === item.screen.id) + 1
         : 0;
+
+    const cardPadClass = logicCanvasCompact ? 'p-2.5' : 'p-4';
 
     if (item.kind === 'intro') {
       return (
@@ -5874,18 +7212,25 @@ const FormBuilderPage = () => {
           data-screen-id={screenId}
           data-logic-kind="intro"
           style={posStyle}
-          className="relative rounded-[12px] border border-[rgba(71,69,74,0.08)] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)] cursor-grab active:cursor-grabbing touch-none overflow-visible"
+          className={`relative rounded-[12px] border border-[rgba(71,69,74,0.08)] bg-white ${cardPadClass} shadow-[0_2px_8px_rgba(0,0,0,0.06)] cursor-grab active:cursor-grabbing touch-none overflow-visible`}
           {...cardDragHandlers(screenId)}
         >
-          {outDot}
+          {outPort}
           <div className="flex items-start gap-2">
             <div className="flex h-6 items-center rounded-md bg-[#dedcde] px-1.5 shrink-0">
               <PagesStartIcon size={14} className="text-[#3C323E]" />
             </div>
           </div>
-          <div className="mt-2 text-[13px] leading-[16px] text-[#4c414e] line-clamp-4 whitespace-pre-wrap">
-            {[introTitle, introDescription].filter(Boolean).join('\n')}
-          </div>
+          {!logicCanvasCompact ? (
+            <div className="mt-2 flex min-w-0 flex-col gap-[2px]">
+              <span className={LOGIC_CARD_NAME_CLASS}>
+                {introTitle?.trim() || item.screen.name || 'Start Screen'}
+              </span>
+              {introDescription?.trim() ? (
+                <span className={LOGIC_CARD_PREVIEW_CLASS}>{introDescription.trim()}</span>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       );
     }
@@ -5904,11 +7249,11 @@ const FormBuilderPage = () => {
           data-screen-id={screenId}
           data-logic-kind="content"
           style={posStyle}
-          className="relative rounded-[12px] border border-[rgba(81,76,84,0.15)] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)] cursor-grab active:cursor-grabbing touch-none overflow-visible"
+          className={`relative rounded-[12px] border border-[rgba(81,76,84,0.15)] bg-white ${cardPadClass} shadow-[0_2px_8px_rgba(0,0,0,0.06)] cursor-grab active:cursor-grabbing touch-none overflow-visible`}
           {...cardDragHandlers(screenId)}
         >
           {inDot}
-          {outDot}
+          {outPort}
           <div className="flex items-start gap-2">
             <div
               className={`relative flex h-6 min-w-[48px] items-center overflow-hidden rounded-md pl-1 pr-5 ${meta.bg}`}
@@ -5919,9 +7264,14 @@ const FormBuilderPage = () => {
               </span>
             </div>
           </div>
-          <div className="mt-2 line-clamp-3 text-[13px] leading-[16px] text-[#4c414e]">
-            {getLogicCardQuestionText(item.screen)}
-          </div>
+          {!logicCanvasCompact ? (
+            <div className="mt-2 flex min-w-0 flex-col gap-[2px]">
+              <span className={LOGIC_CARD_NAME_CLASS}>{item.screen.label}</span>
+              <span className={LOGIC_CARD_PREVIEW_CLASS}>
+                {getLogicCardQuestionText(item.screen)}
+              </span>
+            </div>
+          ) : null}
         </div>
       );
     }
@@ -5933,7 +7283,7 @@ const FormBuilderPage = () => {
         data-screen-id={screenId}
         data-logic-kind="end"
         style={posStyle}
-        className="relative rounded-[12px] border border-[rgba(71,69,74,0.08)] bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.06)] cursor-grab active:cursor-grabbing touch-none overflow-visible"
+        className={`relative rounded-[12px] border border-[rgba(71,69,74,0.08)] bg-white ${cardPadClass} shadow-[0_2px_8px_rgba(0,0,0,0.06)] cursor-grab active:cursor-grabbing touch-none overflow-visible`}
         {...cardDragHandlers(screenId)}
       >
         {inDot}
@@ -5942,9 +7292,16 @@ const FormBuilderPage = () => {
             <PagesEndIcon size={14} className="text-[#3C323E]" />
           </div>
         </div>
-        <div className="mt-2 text-[13px] leading-[16px] text-[#4c414e] line-clamp-4 whitespace-pre-wrap">
-          {[endScreenTitle, endScreenDescription].filter(Boolean).join('\n')}
-        </div>
+        {!logicCanvasCompact ? (
+          <div className="mt-2 flex min-w-0 flex-col gap-[2px]">
+            <span className={LOGIC_CARD_NAME_CLASS}>
+              {endScreenTitle?.trim() || item.screen.name || 'End Screen'}
+            </span>
+            {endScreenDescription?.trim() ? (
+              <span className={LOGIC_CARD_PREVIEW_CLASS}>{endScreenDescription.trim()}</span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     );
   };
@@ -6015,6 +7372,8 @@ const FormBuilderPage = () => {
     if (
       t instanceof Element &&
       (t.closest('[data-logic-card]') ||
+        t.closest('[data-logic-edge]') ||
+        t.closest('[data-logic-edge-pill]') ||
         t.closest('[data-logic-edge-disconnect]') ||
         t.closest('[data-logic-output-port]'))
     )
@@ -6065,28 +7424,215 @@ const FormBuilderPage = () => {
     return 'Untitled Form';
   }, [loadedFormTitle, selectedTemplate, location.state?.formTitle]);
 
+  const commitFormTitleEdit = useCallback(() => {
+    const next = draftFormTitle.trim() || 'Untitled Form';
+    setLoadedFormTitle(next);
+    setIsEditingFormTitle(false);
+    markFormTouched();
+  }, [draftFormTitle]);
+
+  const cancelFormTitleEdit = useCallback(() => {
+    setIsEditingFormTitle(false);
+  }, []);
+
+  const startFormTitleEdit = useCallback(() => {
+    setDraftFormTitle(publishFormTitle);
+    setIsEditingFormTitle(true);
+  }, [publishFormTitle]);
+
+  useLayoutEffect(() => {
+    if (!isEditingFormTitle) return;
+    const input = formTitleInputRef.current;
+    if (!input) return;
+    input.focus();
+    input.select();
+  }, [isEditingFormTitle]);
+
+  const flushBuilderDraft = useCallback(() => {
+    if (!activeFormId || screens.length === 0) return;
+    writeBuilderDraft(activeFormId, {
+      formId: activeFormId,
+      templateId: location.state?.templateId ?? lastHydratedTemplateIdRef.current,
+      formTitle: publishFormTitle,
+      screens,
+      nextId: nextIdRef.current,
+      intro: {
+        title: introTitle,
+        description: introDescription,
+        buttonText: introButtonText,
+        textSize: welcomeTextSize,
+        alignment: welcomeAlignment,
+      },
+      end: {
+        title: endScreenTitle,
+        description: endScreenDescription,
+        buttonText: endScreenButtonText,
+      },
+      logicConnections,
+      logicIfRulesByEdge,
+    });
+  }, [
+    activeFormId,
+    screens,
+    publishFormTitle,
+    introTitle,
+    introDescription,
+    introButtonText,
+    welcomeTextSize,
+    welcomeAlignment,
+    endScreenTitle,
+    endScreenDescription,
+    endScreenButtonText,
+    logicConnections,
+    logicIfRulesByEdge,
+    location.state?.templateId,
+  ]);
+
+  const restoreFromBuilderBaseline = useCallback(() => {
+    if (!builderBaselineRef.current) return;
+    try {
+      const snap = JSON.parse(builderBaselineRef.current);
+      if (Array.isArray(snap.screens)) {
+        setScreens(snap.screens);
+        setActiveScreenId(snap.screens[0]?.id ?? null);
+      }
+      if (snap.intro) {
+        setIntroTitle(snap.intro.title);
+        setIntroDescription(snap.intro.description);
+        setIntroButtonText(snap.intro.buttonText);
+        setWelcomeTextSize(snap.intro.textSize ?? 'M');
+        setWelcomeAlignment(snap.intro.alignment ?? 'left');
+        setDraftTitle(snap.intro.title);
+        setDraftDescription(snap.intro.description);
+        setDraftButtonText(snap.intro.buttonText);
+      }
+      if (snap.end) {
+        setEndScreenTitle(snap.end.title);
+        setEndScreenDescription(snap.end.description);
+        setEndScreenButtonText(snap.end.buttonText);
+        setDraftEndTitle(snap.end.title);
+        setDraftEndDescription(snap.end.description);
+        setDraftEndButtonText(snap.end.buttonText);
+      }
+      if (Array.isArray(snap.logicConnections)) {
+        setLogicConnections(snap.logicConnections);
+      }
+      if (snap.logicIfRulesByEdge && typeof snap.logicIfRulesByEdge === 'object') {
+        setLogicIfRulesByEdge(snap.logicIfRulesByEdge);
+      }
+    } catch {
+      /* ignore malformed snapshot */
+    }
+    introEditSnapshotRef.current = null;
+    endEditSnapshotRef.current = null;
+    setIsEditingContent(false);
+    setIsEditingEndScreen(false);
+    setIsEditingCtaCard(false);
+    setIsEditingHeadingCard(false);
+    closeAllRightPanels();
+  }, [closeAllRightPanels]);
+
+  const performLeaveBuilder = useCallback(() => {
+    if (fromOnboarding) {
+      navigate('/onboarding');
+      return;
+    }
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate('/dashboard');
+  }, [fromOnboarding, navigate]);
+
+  const discardAndLeaveBuilder = useCallback(() => {
+    restoreFromBuilderBaseline();
+    if (activeFormId) {
+      clearBuilderDraft(activeFormId);
+    }
+    setUnsavedChangesPrompt(null);
+    performLeaveBuilder();
+  }, [restoreFromBuilderBaseline, activeFormId, performLeaveBuilder]);
+
+  const shouldConfirmLeaveBuilder = () => {
+    if (screens.length === 0) return false;
+    if (screens.some((s) => s.type === 'content')) return true;
+    return (
+      formTouchedRef.current ||
+      isFormDirty ||
+      hasChanges ||
+      hasEndScreenChanges ||
+      isEditingContent ||
+      isEditingEndScreen ||
+      isEditingCtaCard ||
+      isEditingHeadingCard
+    );
+  };
+
+  const handleHeaderBack = () => {
+    if (shouldConfirmLeaveBuilder()) {
+      setUnsavedChangesPrompt('leave');
+      return;
+    }
+    performLeaveBuilder();
+  };
+
+  const handleUnsavedDiscard = () => {
+    if (unsavedChangesPrompt === 'leave') {
+      discardAndLeaveBuilder();
+    } else if (unsavedChangesPrompt === 'end') {
+      discardEndEdits();
+    } else {
+      discardIntroEdits();
+    }
+  };
+
+  const handleUnsavedSave = () => {
+    if (unsavedChangesPrompt === 'leave') {
+      flushBuilderDraft();
+      builderBaselineRef.current = serializeBuilderState();
+      formTouchedRef.current = false;
+      setIsFormDirty(false);
+      setUnsavedChangesPrompt(null);
+      performLeaveBuilder();
+      return;
+    }
+    if (unsavedChangesPrompt === 'end') {
+      handleSaveEndEdit();
+    } else {
+      handleSaveIntroEdit();
+    }
+    setUnsavedChangesPrompt(null);
+  };
+
   const formAccentColor = location.state?.formColor ?? '#3b7bf6';
 
   if (isPublishView) {
-    return <FormPublishView formTitle={publishFormTitle} />;
+    return (
+      <FormPublishView formTitle={publishFormTitle} />
+    );
   }
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-white">
-      {/* â”€â”€ Topbar â”€â”€ */}
+      {/* ── Topbar ── */}
       {!isPreview && (
       <header className="h-[48px] shrink-0 bg-white border-b border-[#e4e2dc] flex items-center px-6 z-10 gap-4">
         <div className="flex items-center shrink-0">
           <img src={clearformLogo} alt="Clearform" className="h-[26px] w-auto object-contain" />
         </div>
 
-        <div className="flex-1 flex items-center justify-center min-w-0 overflow-hidden">
-          <StepBar activeStep={3} />
-        </div>
+        {showOnboardingStepper && (
+          <div className="flex-1 flex items-center justify-center min-w-0 overflow-hidden">
+            <StepBar activeStep={3} />
+          </div>
+        )}
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div
+          className={`flex items-center gap-2 shrink-0${showOnboardingStepper ? '' : ' ml-auto'}`}
+        >
           <button
-            onClick={() => navigate(-1)}
+            type="button"
+            onClick={handleHeaderBack}
             className="px-[15px] py-[8px] bg-white border border-[#e4e2dc] rounded-[8px] text-[12px] font-medium text-[#1a1a1a] hover:bg-[#f4f3ef] transition-colors cursor-pointer whitespace-nowrap"
           >
             Back
@@ -6103,23 +7649,22 @@ const FormBuilderPage = () => {
       </header>
       )}
 
-      {/* â”€â”€ Body: Sidebar + Screens Panel + Content + Config Panel â”€â”€ */}
+      {/* ── Body: Sidebar + Screens Panel + Content + Config Panel ── */}
       <LayoutGroup>
-      <div className="flex flex-1 overflow-hidden">
-        {/* â”€â”€ Icon sidebar (collapsible) â”€â”€ */}
+      <div className="relative flex flex-1 overflow-hidden">
+        {/* ── Icon sidebar (collapsible) ── */}
         {!isPreview && <Sidebar hideLogo />}
 
-        {/* â”€â”€ Screens panel (visible after first screen is added) â”€â”€ */}
+        {/* ── Screens panel (visible after first screen is added) ── */}
         {!isPreview && hasScreens && (
           <motion.div
             key="screens-panel"
-            initial={{ width: 0, opacity: 0 }}
+            initial={skipPanelEnterRef.current ? false : { width: 0, opacity: 0 }}
             animate={{ width: 200, opacity: 1 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="shrink-0 bg-[#f7f7f8] border-r border-[#e4e2dc] flex flex-col overflow-hidden"
-            style={{ width: 200 }}
+            className="shrink-0 self-stretch bg-[#f7f7f8] border-r border-[#e4e2dc] flex flex-col overflow-hidden min-h-0"
           >
-            <div className="w-[200px] flex flex-col h-full min-h-0 overflow-hidden">
+            <div className="w-[200px] flex flex-1 flex-col min-h-0 overflow-hidden">
               {/* Add screen button - sticky at top */}
               <div className="px-[15px] pt-[16px] pb-[24px] shrink-0">
                 <button
@@ -6204,32 +7749,60 @@ const FormBuilderPage = () => {
 
                 const hasContentScreens = contentScreens.length > 0;
 
+                const renderStartRow = () =>
+                  logicIntro ? (
+                    <button
+                      type="button"
+                      onClick={() => handleScreenRowClick(logicIntro)}
+                      className={`flex items-center gap-[8px] px-[14px] py-[9px] w-full text-left transition-colors cursor-pointer ${
+                        activeScreenId === logicIntro.id ? 'bg-white/60' : 'hover:bg-white/40'
+                      }`}
+                    >
+                      <div className="w-[30px] h-[30px] rounded-[8px] bg-[#dedcde] flex items-center justify-center shrink-0">
+                        <PagesStartIcon size={14} className="text-[#3C323E] shrink-0" />
+                      </div>
+                      <span className={`${SCREEN_CARD_NAME_CLASS} w-full`}>{logicIntro.name}</span>
+                    </button>
+                  ) : null;
+
+                const renderEndRow = () =>
+                  logicEnd ? (
+                    <button
+                      type="button"
+                      onClick={() => handleScreenRowClick(logicEnd)}
+                      className={`flex items-center gap-[8px] px-[14px] py-[9px] w-full text-left transition-colors cursor-pointer ${
+                        activeScreenId === logicEnd.id ? 'bg-white/60' : 'hover:bg-white/40'
+                      }`}
+                    >
+                      <div className="w-[30px] h-[30px] rounded-[8px] bg-[#eef2ff] flex items-center justify-center shrink-0">
+                        <PagesEndIcon size={14} className="text-[#3C323E] shrink-0" />
+                      </div>
+                      <span className={`${SCREEN_CARD_NAME_CLASS} w-full`}>{logicEnd.name}</span>
+                    </button>
+                  ) : null;
+
                 return (
                   <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
-                    {/* Start + End are fixed chrome; only question rows scroll once added */}
-                    {logicIntro && (
-                      <div className="shrink-0 border-b border-[#e4e2dc]/70 bg-[#f7f7f8]">
-                        <button
-                          type="button"
-                          onClick={() => handleScreenRowClick(logicIntro)}
-                          className={`flex items-center gap-[8px] px-[14px] py-[9px] w-full text-left transition-colors cursor-pointer ${
-                            activeScreenId === logicIntro.id ? 'bg-white/60' : 'hover:bg-white/40'
-                          }`}
-                        >
-                          <div className="w-[30px] h-[30px] rounded-[8px] bg-[#dedcde] flex items-center justify-center shrink-0">
-                            <PagesStartIcon size={14} className="text-[#3C323E] shrink-0" />
-                          </div>
-                          <span className="text-[#1a1a1c] text-[12.5px] font-medium leading-none truncate">
-                            {logicIntro.name}
-                          </span>
-                        </button>
+                    {/* No questions yet: start and end stacked together at the top */}
+                    {!hasContentScreens ? (
+                      <div className="shrink-0 flex flex-col bg-[#f7f7f8] border-b border-[#e4e2dc]/70">
+                        {renderStartRow()}
+                        {renderEndRow()}
                       </div>
-                    )}
+                    ) : (
+                      <div
+                        ref={contentScreensScrollRef}
+                        className="flex flex-1 min-h-0 flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain"
+                      >
+                        {logicIntro && (
+                          <div className="sticky top-0 z-10 shrink-0 border-b border-[#e4e2dc]/70 bg-[#f7f7f8]">
+                            {renderStartRow()}
+                          </div>
+                        )}
 
-                    {hasContentScreens ? (
-                      <div className="flex flex-1 min-h-0 flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain">
-                        <div className="flex shrink-0 flex-col">
-                          {contentScreens.map((screen) => {
+                        <LayoutGroup id="content-screens-list">
+                          <div className="flex flex-col shrink-0">
+                            {contentScreens.map((screen) => {
                             const isActive = activeScreenId === screen.id;
 
                             const contentIndex =
@@ -6243,18 +7816,47 @@ const FormBuilderPage = () => {
                             const isDraggingRow = contentDraggingId === screen.id;
 
                             return (
-                              <div
+                              <motion.div
                                 key={screen.id}
-                                className="px-[14px] py-[4px]"
+                                layout
+                                data-content-screen-row
+                                data-screen-id={screen.id}
+                                transition={{
+                                  layout: { type: 'spring', stiffness: 520, damping: 36, mass: 0.85 },
+                                }}
+                                className={`relative px-[14px] py-[4px] ${isDraggingRow ? 'z-20' : 'z-0'}`}
                                 onDragOver={(e) => handleContentRowDragOver(e, screen.id)}
-                                onDrop={(e) => handleContentRowDrop(e, screen.id)}
+                                onDrop={handleContentRowDrop}
                               >
-                                <div
-                                  className={`relative flex w-full items-center overflow-hidden transition-colors h-[48px] ${
+                                {isDropTarget && !isDraggingRow && (
+                                  <motion.div
+                                    layoutId="screen-drop-indicator"
+                                    className="pointer-events-none absolute left-[18px] right-[18px] top-[2px] h-[2px] rounded-full bg-[#4f46e5]"
+                                    initial={{ opacity: 0, scaleX: 0.4 }}
+                                    animate={{ opacity: 1, scaleX: 1 }}
+                                    exit={{ opacity: 0, scaleX: 0.4 }}
+                                    transition={{ duration: 0.15, ease: 'easeOut' }}
+                                  />
+                                )}
+                                <motion.div
+                                  layout="position"
+                                  animate={{
+                                    scale: isDraggingRow ? 1.02 : 1,
+                                    opacity: isDraggingRow ? 0.45 : 1,
+                                    boxShadow: isDraggingRow
+                                      ? '0 10px 28px rgba(79, 70, 229, 0.12)'
+                                      : '0 0 0 rgba(0,0,0,0)',
+                                  }}
+                                  transition={{
+                                    scale: { type: 'spring', stiffness: 400, damping: 28 },
+                                    opacity: { duration: 0.15 },
+                                    boxShadow: { duration: 0.15 },
+                                  }}
+                                  className={`relative flex w-full items-center overflow-hidden h-[48px] ${
                                     isActive
                                       ? 'bg-[#eeeeec] rounded-tl-[8px] rounded-tr-[8px] rounded-br-[8px]'
-                                      : `rounded-[8px] hover:bg-white/60${isDropTarget ? ' ring-1 ring-[#4f46e5]/45 ring-inset' : ''}`
-                                  }${isActive && isDropTarget ? ' ring-1 ring-[#4f46e5]/45 ring-inset' : ''}${isDraggingRow ? ' opacity-60' : ''}`}
+                                      : `rounded-[8px] hover:bg-white/60${isDropTarget && !isDraggingRow ? ' bg-white/80 ring-1 ring-[#4f46e5]/35 ring-inset' : ''}`
+                                  }${isActive && isDropTarget && !isDraggingRow ? ' ring-1 ring-[#4f46e5]/35 ring-inset' : ''}`}
                                 >
                                   {isActive && (
                                     <div
@@ -6268,7 +7870,7 @@ const FormBuilderPage = () => {
                                     onDragStart={(e) => handleContentRowDragStart(e, screen.id)}
                                     onDragEnd={handleContentRowDragEnd}
                                     onClick={(e) => e.stopPropagation()}
-                                    className="flex h-full w-[20px] shrink-0 cursor-grab active:cursor-grabbing items-center justify-center text-[#b8b6b0] hover:text-[#9c9a94]"
+                                    className="flex h-full w-[20px] shrink-0 cursor-grab active:cursor-grabbing items-center justify-center text-[#b8b6b0] hover:text-[#9c9a94] touch-none"
                                     title="Drag to reorder"
                                     aria-label={`Drag to reorder screen ${contentIndex}`}
                                   >
@@ -6310,40 +7912,26 @@ const FormBuilderPage = () => {
                                     </div>
 
                                     <div className="flex-1 min-w-0 flex flex-col gap-[2px] items-start justify-center pr-[8px] py-[8px]">
-                                      <span className="text-[#1a1a1c] text-[12.5px] font-semibold leading-none truncate w-full text-left">
+                                      <span className={`${SCREEN_CARD_NAME_CLASS} w-full text-left`}>
                                         {screen.label}
                                       </span>
-                                      <span className="text-[#8a8880] text-[11px] font-normal leading-none truncate w-full text-left">
+                                      <span className={`${SCREEN_CARD_PREVIEW_CLASS} w-full text-left`}>
                                         {questionText}
                                       </span>
                                     </div>
                                   </button>
-                                </div>
-                              </div>
+                                </motion.div>
+                              </motion.div>
                             );
-                          })}
-                        </div>
-                        {/* Fills leftover height so End stays visually docked under short lists; collapses when rows overflow */}
-                        <div className="flex-1 min-h-0 shrink" aria-hidden />
-                      </div>
-                    ) : null}
-
-                    {logicEnd && (
-                      <div className="shrink-0 border-t border-[#e4e2dc]/70 bg-[#f7f7f8]">
-                        <button
-                          type="button"
-                          onClick={() => handleScreenRowClick(logicEnd)}
-                          className={`flex items-center gap-[8px] px-[14px] py-[9px] w-full text-left transition-colors cursor-pointer ${
-                            activeScreenId === logicEnd.id ? 'bg-white/60' : 'hover:bg-white/40'
-                          }`}
-                        >
-                          <div className="w-[30px] h-[30px] rounded-[8px] bg-[#eef2ff] flex items-center justify-center shrink-0">
-                            <PagesEndIcon size={14} className="text-[#3C323E] shrink-0" />
+                              })}
                           </div>
-                          <span className="text-[#1a1a1c] text-[12.5px] font-medium leading-none truncate">
-                            {logicEnd.name}
-                          </span>
-                        </button>
+                        </LayoutGroup>
+
+                        {logicEnd && (
+                          <div className="sticky bottom-0 z-10 shrink-0 border-t border-[#e4e2dc]/70 bg-[#f7f7f8]">
+                            {renderEndRow()}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -6362,10 +7950,8 @@ const FormBuilderPage = () => {
           onChange={handleImageUpload}
         />
 
-        {/* â”€â”€ Main content area â”€â”€ */}
-        <motion.div
-          layout
-          transition={{ layout: { duration: 0.25, ease: [0.32, 0.72, 0, 1] } }}
+        {/* ── Main content area ── */}
+        <div
           className={`flex-1 flex flex-col overflow-hidden min-w-0 relative ${isPreview ? 'bg-[#f5f4f0]' : 'bg-white'}`}
         >
           {/* Tab bar */}
@@ -6422,28 +8008,54 @@ const FormBuilderPage = () => {
             })}
             </div>
 
-            <div className="flex items-center gap-2 shrink-0 ml-2" title={publishFormTitle}>
-              <span className="text-[12.5px] font-normal text-[#646464] whitespace-nowrap">
-                Form name
-              </span>
-              <span className="text-[16px] font-normal text-[#686868] leading-none select-none">
-                ›
-              </span>
-              <div className="flex items-center gap-[6px] h-[25px] max-w-[min(280px,32vw)] px-3 border border-[rgba(0,0,0,0.1)] rounded-[6px] bg-white">
+            <div className="flex items-center gap-2 shrink-0 ml-2">
+              <div
+                className={`flex items-center gap-[6px] h-[25px] max-w-[min(280px,32vw)] px-3 border rounded-[6px] bg-white ${
+                  isEditingFormTitle
+                    ? 'border-[#17160e] ring-1 ring-[#17160e]/10'
+                    : 'border-[rgba(0,0,0,0.1)]'
+                }`}
+              >
                 <span
                   className="w-[10px] h-[10px] rounded-full shrink-0"
                   style={{ backgroundColor: formAccentColor }}
                   aria-hidden
                 />
-                <span className="text-[12.5px] font-medium text-[#17160e] truncate">
-                  {publishFormTitle}
-                </span>
+                {isEditingFormTitle ? (
+                  <input
+                    ref={formTitleInputRef}
+                    type="text"
+                    value={draftFormTitle}
+                    onChange={(e) => setDraftFormTitle(e.target.value)}
+                    onBlur={commitFormTitleEdit}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        commitFormTitleEdit();
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        cancelFormTitleEdit();
+                      }
+                    }}
+                    className="min-w-0 flex-1 text-[12.5px] font-medium text-[#17160e] bg-transparent border-0 outline-none p-0"
+                    aria-label="Form name"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={startFormTitleEdit}
+                    className="min-w-0 flex-1 text-left text-[12.5px] font-medium text-[#17160e] truncate cursor-text hover:text-[#000000] focus:outline-none focus-visible:underline"
+                    title="Click to rename form"
+                  >
+                    {publishFormTitle}
+                  </button>
+                )}
               </div>
             </div>
           </div>
           )}
 
-          {/* ── Settings Panel ── */}
+          {/* -- Settings Panel -- */}
           {activeTab === 'settings' ? (
             <div className="flex-1 overflow-y-auto bg-[#fafaf9]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
               <div className="max-w-[678px] mx-auto py-8 px-6">
@@ -6709,7 +8321,7 @@ const FormBuilderPage = () => {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setLogicModeManual(true)}
+                    onClick={selectManualLogicMode}
                     className={`rounded-full border px-[13px] py-[5px] text-[12px] font-semibold transition-colors cursor-pointer ${
                       logicModeManual
                         ? 'bg-[#f4f4f2] border-[#d4d4d0] text-[#111110]'
@@ -6720,7 +8332,7 @@ const FormBuilderPage = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setLogicModeManual(false)}
+                    onClick={selectAiDrivenLogicMode}
                     className={`flex items-center gap-2 rounded-full border px-[12px] py-[4px] text-[12px] font-semibold transition-colors cursor-pointer ${
                       !logicModeManual
                         ? 'bg-[#f4f4f2] border-[#d4d4d0] text-[#111110]'
@@ -6734,14 +8346,55 @@ const FormBuilderPage = () => {
                   </button>
                 </div>
               </div>
-              {!logicModeManual || contentScreens.length === 0 || logicFlowNodes.length === 0 ? (
+              {!showLogicCanvas ? (
+                aiLogicGenerationFailed ? (
+                  <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+                    <AiLogicGenerationFailedBanner message={aiLogicGen.errorMessage} />
+                    <div
+                      className={LOGIC_CANVAS_VIEWPORT_CLASS}
+                      style={LOGIC_CANVAS_DOT_GRID_STYLE}
+                    >
+                      <LogicCanvasActionsPanel
+                        onAddIntegration={openLogicCanvasIntegrations}
+                        onAddWebhook={openLogicCanvasWebhook}
+                      />
+                      <div className="flex h-full min-h-0 items-center justify-center overflow-auto px-5 py-5">
+                        <AiLogicGenerationFailedPanel
+                          onRetry={handleAiLogicRetry}
+                          onSwitchToManual={selectManualLogicMode}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+                    <AiLogicIdleBanner
+                      onGenerate={handleGenerateAiLogic}
+                      disabled={aiLogicGenerating}
+                    />
+                    <div
+                      className={LOGIC_CANVAS_VIEWPORT_CLASS}
+                      style={LOGIC_CANVAS_DOT_GRID_STYLE}
+                    >
+                      <LogicCanvasActionsPanel
+                        onAddIntegration={openLogicCanvasIntegrations}
+                        onAddWebhook={openLogicCanvasWebhook}
+                      />
+                      <div className="flex h-full min-h-0 items-center justify-center overflow-auto px-5 py-5">
+                        {aiLogicGenerating ? (
+                          <p className="text-[14px] text-[#6b6b68] text-center max-w-md leading-relaxed">
+                            Generating AI logic from your form…
+                          </p>
+                        ) : (
+                          <AiLogicEmptyPanel />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              ) : contentScreens.length === 0 || logicFlowNodes.length === 0 ? (
                 <div className="flex-1 overflow-auto min-h-0 flex items-start justify-center p-8">
-                  {!logicModeManual ? (
-                    <p className="text-[14px] text-[#6b6b68] mt-16 text-center max-w-md leading-relaxed">
-                      AI-Driven Logic uses your form context to suggest screen order and branches. This mode is not
-                      available in this build yet.
-                    </p>
-                  ) : contentScreens.length === 0 ? (
+                  {contentScreens.length === 0 ? (
                     <p className="text-[14px] text-[#6b6b68] mt-16 text-center max-w-md leading-relaxed">
                       Add at least one question between the start and end screens from the Content tab to open the logic
                       canvas.
@@ -6753,16 +8406,24 @@ const FormBuilderPage = () => {
                   )}
                 </div>
               ) : (
-                <div
-                  ref={logicViewportRef}
-                  className="flex-1 min-h-0 overflow-hidden relative bg-[#e8e8e6] touch-none select-none isolate"
-                  style={{
-                    backgroundImage:
-                      'radial-gradient(circle at center, rgba(0,0,0,0.08) 1.25px, transparent 1.25px)',
-                    backgroundSize: '22px 22px',
-                  }}
-                  onWheel={handleLogicCanvasWheel}
-                >
+                <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+                  {!logicModeManual && aiLogicReady ? (
+                    <div className="shrink-0 border-b border-[#e5e5e2] bg-[#f0fdf4] px-5 py-2">
+                      <p className="text-[12px] font-medium text-[#166534]">
+                        AI logic applied — edit on the canvas below or switch to Manual Logic anytime.
+                      </p>
+                    </div>
+                  ) : null}
+                  <div
+                    ref={logicViewportRef}
+                    className={`${LOGIC_CANVAS_VIEWPORT_CLASS} touch-none select-none flex-1 min-h-0`}
+                    style={LOGIC_CANVAS_DOT_GRID_STYLE}
+                    onWheel={handleLogicCanvasWheel}
+                  >
+                  <LogicCanvasActionsPanel
+                    onAddIntegration={openLogicCanvasIntegrations}
+                    onAddWebhook={openLogicCanvasWebhook}
+                  />
                   {logicConnectorMenu ? (
                     <div
                       className="absolute z-[50] w-[125px] rounded-[10px] border border-[#e2e0dc] bg-white py-0.5 shadow-[0_8px_28px_rgba(0,0,0,0.14)]"
@@ -6770,7 +8431,12 @@ const FormBuilderPage = () => {
                       role="menu"
                       onPointerDown={(e) => e.stopPropagation()}
                     >
-                      {logicConnectorMenu.mode === 'chooseEdgeKind' ? (
+                      {(() => {
+                        const menuFromScreen = screens.find(
+                          (s) => s.id === logicConnectorMenu.fromId
+                        );
+                        const showIfLogicOption = screenSupportsIfThenLogic(menuFromScreen);
+                        return logicConnectorMenu.mode === 'chooseEdgeKind' ? (
                         <>
                           <button
                             type="button"
@@ -6787,6 +8453,7 @@ const FormBuilderPage = () => {
                             <RiArrowRightLine className="shrink-0 text-[#3c323e]" size={15} aria-hidden />
                             Next
                           </button>
+                          {showIfLogicOption ? (
                           <button
                             type="button"
                             role="menuitem"
@@ -6802,6 +8469,7 @@ const FormBuilderPage = () => {
                             <RiGitBranchLine className="shrink-0 text-[#3c323e]" size={15} aria-hidden />
                             If logic
                           </button>
+                          ) : null}
                           <button
                             type="button"
                             role="menuitem"
@@ -6844,6 +8512,7 @@ const FormBuilderPage = () => {
                             <RiArrowRightLine className="shrink-0 text-[#3c323e]" size={15} aria-hidden />
                             Next
                           </button>
+                          {showIfLogicOption ? (
                           <button
                             type="button"
                             role="menuitem"
@@ -6853,6 +8522,7 @@ const FormBuilderPage = () => {
                             <RiGitBranchLine className="shrink-0 text-[#3c323e]" size={15} aria-hidden />
                             If logic
                           </button>
+                          ) : null}
                           <button
                             type="button"
                             role="menuitem"
@@ -6872,7 +8542,8 @@ const FormBuilderPage = () => {
                             End
                           </button>
                         </>
-                      )}
+                      );
+                      })()}
                     </div>
                   ) : null}
                   <div
@@ -6942,7 +8613,7 @@ const FormBuilderPage = () => {
                               refY="3.5"
                               orient="auto"
                             >
-                              <path d="M0 0 L7 3.5 L0 7 Z" fill="#1a1a1a" />
+                              <path d="M0 0 L7 3.5 L0 7 Z" fill={LOGIC_EDGE_STROKE_STRONG} />
                             </marker>
                             <marker
                               id="logicFlowArrowHeadRed"
@@ -6964,7 +8635,7 @@ const FormBuilderPage = () => {
                               refY="3.5"
                               orient="auto"
                             >
-                              <path d="M0 0 L7 3.5 L0 7 Z" fill="#8a8880" />
+                              <path d="M0 0 L7 3.5 L0 7 Z" fill={LOGIC_EDGE_STROKE} />
                             </marker>
                             <marker
                               id="logicFlowArrowHeadGreen"
@@ -6978,23 +8649,30 @@ const FormBuilderPage = () => {
                               <path d="M0 0 L7 3.5 L0 7 Z" fill={LOGIC_EDGE_KIND_HOVER_STROKE} />
                             </marker>
                           </defs>
-                          {logicConnectionsForRender.map((c, i) => {
+                          {logicConnectionsDrawOrder.map((c) => {
                             const a = logicPortPositions.get(c.from);
                             const b = logicPortPositions.get(c.to);
                             if (!a || !b || a.outX == null || b.inX == null) return null;
-                            const { x0, y0, x1, y1 } = logicConnectionEndpoints(
-                              c,
-                              logicConnByFrom,
-                              logicConnByTo,
-                              a,
-                              b
+                            const { x0, y0, x1, y1, prefixWaypoints, suffixWaypoints } =
+                              logicConnectionEndpoints(
+                                c,
+                                logicConnByFrom,
+                                logicConnByTo,
+                                a,
+                                b
+                              );
+                            const edgeObstacles = logicObstacles.filter(
+                              (o) => o.id !== c.from && o.id !== c.to
                             );
-                            const d = logicBezierConnectionPath(x0, y0, x1, y1);
+                            const pathMeta = buildLogicConnectionPath(x0, y0, x1, y1, edgeObstacles, {
+                              prefixWaypoints,
+                              suffixWaypoints,
+                            });
                             const edgeKey = `${c.from}-${c.to}`;
                             return (
                               <LogicEdgePathGroup
-                                key={`${c.from}-${c.to}-${i}`}
-                                d={d}
+                                key={`edge-${c.from}-${c.to}`}
+                                d={pathMeta.d}
                                 edgeKey={edgeKey}
                                 kind={c.kind}
                                 connection={c}
@@ -7010,29 +8688,84 @@ const FormBuilderPage = () => {
                             (() => {
                               const a = logicPortPositions.get(logicConnectDrag.fromId);
                               if (!a || a.outX == null) return null;
-                              const d = logicBezierConnectionPath(
+                              const dragObstacles = logicObstacles.filter(
+                                (o) => o.id !== logicConnectDrag.fromId
+                              );
+                              const pathMeta = buildLogicConnectionSegment(
                                 a.outX,
                                 a.portY,
                                 logicConnectDrag.x1,
-                                logicConnectDrag.y1
+                                logicConnectDrag.y1,
+                                dragObstacles
                               );
-                              const strokeProps = getLogicEdgePathProps(logicConnectDrag.kind);
-                              return <path d={d} {...strokeProps} opacity={0.88} />;
+                              const strokeProps = getLogicConnectDragPathProps(logicConnectDrag.kind);
+                              return <path d={pathMeta.d} {...strokeProps} opacity={0.88} />;
                             })()}
+                        </svg>
+                        <svg
+                          className="absolute left-0 top-0 z-[8] overflow-visible"
+                          style={{ pointerEvents: 'none' }}
+                          width={logicBoardSize.width}
+                          height={logicBoardSize.height}
+                        >
+                          {logicConnectionsForRender.map((c, i) => {
+                            const a = logicPortPositions.get(c.from);
+                            const b = logicPortPositions.get(c.to);
+                            if (!a || !b || a.outX == null || b.inX == null) return null;
+                            const { x0, y0, x1, y1, prefixWaypoints, suffixWaypoints } =
+                              logicConnectionEndpoints(
+                                c,
+                                logicConnByFrom,
+                                logicConnByTo,
+                                a,
+                                b
+                              );
+                            const edgeObstacles = logicObstacles.filter(
+                              (o) => o.id !== c.from && o.id !== c.to
+                            );
+                            const pathMeta = buildLogicConnectionPath(x0, y0, x1, y1, edgeObstacles, {
+                              prefixWaypoints,
+                              suffixWaypoints,
+                            });
+                            const edgeKey = `${c.from}-${c.to}`;
+                            return (
+                              <LogicEdgePathGroup
+                                key={`${c.from}-${c.to}-${i}-hit`}
+                                d={pathMeta.d}
+                                edgeKey={edgeKey}
+                                kind={c.kind}
+                                connection={c}
+                                disconnectHoveredKey={logicDisconnectHoveredKey}
+                                kindHoveredKey={logicEdgeKindHoveredKey}
+                                onKindEnter={setLogicEdgeKindHoveredKey}
+                                onKindLeave={() => setLogicEdgeKindHoveredKey(null)}
+                                onEdgeClick={openLogicOptionsForEdge}
+                                hitsOnly
+                              />
+                            );
+                          })}
                         </svg>
                         {logicConnectionsForRender.map((c, i) => {
                           const a = logicPortPositions.get(c.from);
                           const b = logicPortPositions.get(c.to);
                           if (!a || !b || a.outX == null || b.inX == null) return null;
-                          const { x0, y0, x1, y1 } = logicConnectionEndpoints(
-                            c,
-                            logicConnByFrom,
-                            logicConnByTo,
-                            a,
-                            b
+                          const { x0, y0, x1, y1, prefixWaypoints, suffixWaypoints } =
+                            logicConnectionEndpoints(
+                              c,
+                              logicConnByFrom,
+                              logicConnByTo,
+                              a,
+                              b
+                            );
+                          const edgeObstacles = logicObstacles.filter(
+                            (o) => o.id !== c.from && o.id !== c.to
                           );
-                          const mid = logicBezierMidpoint(x0, y0, x1, y1);
-                          const lineDisconnect = logicBezierPointAt(x0, y0, x1, y1, 0.38);
+                          const pathMeta = buildLogicConnectionPath(x0, y0, x1, y1, edgeObstacles, {
+                            prefixWaypoints,
+                            suffixWaypoints,
+                          });
+                          const mid = logicConnectionPathMidpoint(pathMeta);
+                          const lineDisconnect = logicConnectionPathPointAt(pathMeta, 0.38);
                           const edgeKey = `${c.from}-${c.to}`;
                           const hasKind = c.kind != null;
                           const meta = hasKind ? logicEdgeKindControlMeta(c.kind) : null;
@@ -7069,6 +8802,11 @@ const FormBuilderPage = () => {
                                 meta={meta}
                                 showClearLogic={c.kind === LOGIC_EDGE_KIND.if}
                                 onClearLogic={() => clearLogicForConnection(c.from, c.to)}
+                                onPillClick={
+                                  c.kind === LOGIC_EDGE_KIND.if
+                                    ? () => openIfThenLogicPanel(c.from, { to: c.to })
+                                    : undefined
+                                }
                               />
                             </Fragment>
                           );
@@ -7078,34 +8816,45 @@ const FormBuilderPage = () => {
                     </div>
                   </div>
                 </div>
+                </div>
               )}
             </div>
           ) : (
-            /* â”€â”€ Scaled preview canvas â”€â”€ */
-            <motion.div
-              layout
+            /* ── Scaled preview canvas ── */
+            <div
               ref={canvasContainerRef}
-              className="flex-1 overflow-hidden relative flex items-center justify-center transition-colors duration-300"
+              className="flex-1 overflow-hidden relative flex items-center justify-center transition-colors duration-300 p-10 min-h-0"
               style={{ backgroundColor: isPreview ? '#f5f4f0' : designBackground }}
             >
-              {/* Scaled form frame â€” transparent, just a scaling container */}
+              {/* Scaled form frame � page indicator + card + powered-by (Figma 2521:8332) */}
               <div
+                className="flex flex-col shrink-0 origin-center"
                 style={{
                   width: CANVAS_BASE_W,
                   height: CANVAS_BASE_H,
                   transform: `scale(${canvasScale})`,
                   transformOrigin: 'center center',
-                  flexShrink: 0,
                   display: 'flex',
                   flexDirection: 'column',
-                  opacity: canvasScale === 0 ? 0 : 1,
-                  transition: 'opacity 0.15s ease',
                   fontFamily: TYPOGRAPHY_FONTS[designTypography] ?? TYPOGRAPHY_FONTS.default,
                 }}
               >
+              {hasScreens && (
+                isPreview ? (
+                  <PreviewPageIndicator current={activeScreenIdx + 1} total={screens.length} />
+                ) : (
+                  <motion.div
+                    layout
+                    aria-hidden
+                    className="shrink-0 w-full"
+                    style={{ height: PREVIEW_PAGE_INDICATOR_H }}
+                  />
+                )
+              )}
+              <motion.div layout className="flex-1 min-h-0 flex flex-col w-full">
               <AnimatePresence mode="wait">
                 {showContentPanel && !isPreview ? (
-                  /* â”€â”€ Empty state while user selects a content block â”€â”€ */
+                  /* ── Empty state while user selects a content block ── */
                   <motion.div
                     key="content-panel-empty"
                     initial={{ opacity: 0, y: 6 }}
@@ -7134,7 +8883,7 @@ const FormBuilderPage = () => {
                   </motion.div>
                 ) : activeScreen?.type === 'intro' ? (
                       introEssential ? (
-                        /* â”€â”€ Essential selected: show matching ContentCard â”€â”€ */
+                        /* ── Essential selected: show matching ContentCard ── */
                         <motion.div
                           key={`intro-essential-${introEssential}`}
                           initial={{ opacity: 0, y: 6 }}
@@ -7147,6 +8896,7 @@ const FormBuilderPage = () => {
                             <ContentCard
                               block={ESSENTIAL_TO_BLOCK[introEssential]}
                               blockNum={1}
+                              isIntroScreen
                               onDelete={() =>
                                 requestDeleteScreen({
                                   kind: 'intro',
@@ -7156,7 +8906,7 @@ const FormBuilderPage = () => {
                               fullCanvas={designLayoutStyle === 'fullCanvas'}
                               cardColor={hexToRgba(designCardColor, designCardOpacity)}
                               cardImage={designCardImage}
-                              ctaConfig={{ ctaButtonLabel, ctaButtonSize, ctaButtonStyle, ctaCornerRadius, ctaShowIcon, ctaHeadingSize, ctaBodySize, ctaFontWeight, ctaTextAlign, ctaPadding, ctaTextColor, ctaBtnColor, ctaLabelColor, ctaContentWidth }}
+                              ctaConfig={{ ctaButtonLabel, ctaHeadingText, ctaHelperText, ctaDurationText, ctaButtonSize, ctaButtonStyle, ctaCornerRadius, ctaShowIcon, ctaHeadingSize, ctaBodySize, ctaFontWeight, ctaTextAlign, ctaPadding, ctaTextColor, ctaBtnColor, ctaLabelColor, ctaContentWidth, isEditingCard: isEditingCtaCard, onEditToggle: () => setIsEditingCtaCard((p) => !p), setCtaHeadingText, setCtaHelperText, setCtaDurationText }}
                               headingConfig={{ headingText, subHeading, headingRequired, headingHidden, headingLevel, headingTextSize, headingAlignment, headingFontWeight, isEditingCard: isEditingHeadingCard, onEditToggle: () => setIsEditingHeadingCard(p => !p), setHeadingText, setSubHeading, headingAnswerText, setHeadingAnswerText }}
                               descriptionConfig={{ descriptionContent, descriptionHidden, descriptionShowCharCount, descriptionCharLimit, descriptionFormatting, descriptionTextSize, descriptionAlignment }}
                               imageConfig={{ imageHidden, imagePreview, imageAltText, imageCaption, imageLinkOnClick, imageLinkUrl, imageOpenInNewTab, imageAlignment, imageWidth, imageCornerRadius, imageQuestion, imageDescription, onRemoveImage: () => { setImagePreview(null); setImageFileName(''); } }}
@@ -7166,6 +8916,10 @@ const FormBuilderPage = () => {
                               addressConfig={{ addressQuestion, addressHelperText, addressFields, addressRequired }}
                               workConfig={{ workQuestion, workHelperText, workFields, workRequired }}
                               shortTextConfig={{ shortTextQuestion, shortTextHelperText, shortTextPlaceholder, shortTextMaxChars, shortTextMinChars, shortTextValidation, shortTextAlign, shortTextSize, shortTextRequired, shortTextHidden }}
+                              shortTextResponseQualityConfig={{
+                                enabled: shortTextResponseQualityEnabled,
+                                options: shortTextResponseQualityOptions,
+                              }}
                               longTextConfig={{ longTextQuestion, longTextHelperText, longTextPlaceholder, longTextMaxChars, longTextMinChars, longTextValidation, longTextAlign, longTextSize, longTextRequired, longTextHidden }}
                               responseQualityConfig={{ enabled: responseQualityEnabled, options: responseQualityOptions }}
                               singleConfig={{ singleQuestion, singleHelperText, singleOptions, singleLayout, singleOptionHeight, singleRequired, singleAllowOther, singleRandomize, singleMultipleSelect, singleMinChoices, singleMaxChoices, singleShowKeyboardHints, onOpenPanel: () => { closeAllRightPanels(); setTimeout(() => setShowSingleConfigPanel(true), 300); } }}
@@ -7210,7 +8964,7 @@ const FormBuilderPage = () => {
                           </div>
                         </motion.div>
                       ) : (
-                        /* â”€â”€ Default welcome card â”€â”€ */
+                        /* ── Default welcome card ── */
                         <motion.div
                           key="intro-screen"
                           initial={{ opacity: 0, y: 6 }}
@@ -7239,7 +8993,7 @@ const FormBuilderPage = () => {
                             }}
                           >
                             {/* Card body */}
-                            <div className={`flex-1 flex flex-col items-center justify-center gap-4 ${deviceView === 'mobile' ? 'px-[32px] py-[28px]' : 'px-[52px] py-[44px]'}`}>
+                            <div className={`flex-1 flex flex-col ${welcomeItemsAlignClass} justify-center gap-4 ${deviceView === 'mobile' ? 'px-[32px] py-[28px]' : 'px-[52px] py-[44px]'}`}>
                               {/* Logo upload */}
                               <button
                                 onClick={() => !isPreview && isEditingContent && logoInputRef.current?.click()}
@@ -7261,11 +9015,17 @@ const FormBuilderPage = () => {
                                   type="text"
                                   value={draftTitle}
                                   onChange={(e) => setDraftTitle(e.target.value)}
-                                  className={`text-[#18181a] ${deviceView === 'mobile' ? 'text-[28px] leading-[33.6px]' : 'text-[24px] leading-[28.8px]'} font-bold text-center bg-transparent border-b border-[#c8c6c0] outline-none w-full max-w-[320px] pb-[2px] focus:border-[#18181a] transition-colors`}
+                                  className={`text-[#18181a] font-bold bg-transparent border-b border-[#c8c6c0] outline-none w-full max-w-[320px] pb-[2px] focus:border-[#18181a] transition-colors ${welcomeTextAlignClass}`}
+                                  style={{ fontSize: welcomeSize.title, lineHeight: welcomeSize.titleLeading }}
                                   placeholder="Title"
                                 />
                               ) : (
-                                <p className={`text-[#18181a] ${deviceView === 'mobile' ? 'text-[28px] leading-[33.6px]' : 'text-[24px] leading-[28.8px]'} font-bold text-center`}>{introTitle}</p>
+                                <p
+                                  className={`text-[#18181a] font-bold ${welcomeTextAlignClass}`}
+                                  style={{ fontSize: welcomeSize.title, lineHeight: welcomeSize.titleLeading }}
+                                >
+                                  {introTitle}
+                                </p>
                               )}
 
                               {isEditingContent ? (
@@ -7273,15 +9033,21 @@ const FormBuilderPage = () => {
                                   value={draftDescription}
                                   onChange={(e) => setDraftDescription(e.target.value)}
                                   rows={2}
-                                  className={`text-[#8c8a84] text-[15px] font-normal text-center bg-transparent border-b border-[#c8c6c0] outline-none w-full max-w-[360px] resize-none pb-[2px] focus:border-[#18181a] transition-colors leading-normal`}
+                                  className={`text-[#8c8a84] font-normal bg-transparent border-b border-[#c8c6c0] outline-none w-full max-w-[360px] resize-none pb-[2px] focus:border-[#18181a] transition-colors leading-normal ${welcomeTextAlignClass}`}
+                                  style={{ fontSize: welcomeSize.desc }}
                                   placeholder="Add the purpose of form here"
                                 />
                               ) : (
-                                <p className="text-[#8c8a84] text-[15px] font-normal text-center">{introDescription}</p>
+                                <p
+                                  className={`text-[#8c8a84] font-normal ${welcomeTextAlignClass}`}
+                                  style={{ fontSize: welcomeSize.desc }}
+                                >
+                                  {introDescription}
+                                </p>
                               )}
 
                               {isEditingContent ? (
-                                <div className={`flex items-center gap-2 w-full ${deviceView === 'mobile' ? 'max-w-[320px]' : 'max-w-[280px]'}`}>
+                                <div className={`flex items-center gap-2 w-full ${welcomeJustifyClass} ${deviceView === 'mobile' ? 'max-w-[320px]' : 'max-w-[280px]'}`}>
                                   <input
                                     type="text"
                                     value={draftButtonText}
@@ -7316,7 +9082,7 @@ const FormBuilderPage = () => {
                                 <RiDeleteBin6Line size={12} className="shrink-0" />
                                 Delete
                               </button>
-                              {!isEditingContent ? (
+                              {!isEditingContent && (
                                 <button
                                   onClick={handleEditContent}
                                   className="flex items-center gap-[5px] px-[14px] py-[8px] rounded-[8px] bg-[rgba(255,255,255,0.7)] border border-[rgba(0,0,0,0.16)] text-[#444] text-[12px] font-normal cursor-pointer hover:bg-[rgba(245,245,245,0.9)] transition-colors whitespace-nowrap"
@@ -7324,35 +9090,25 @@ const FormBuilderPage = () => {
                                   <RiPencilLine size={12} className="shrink-0" />
                                   Edit content
                                 </button>
-                              ) : (
+                              )}
+                              {isEditingContent && <div className="flex-1" />}
+                              {isEditingContent && (
                                 <button
-                                  onClick={() => setIsEditingContent(false)}
-                                  className="flex items-center gap-[5px] px-[14px] py-[8px] rounded-[8px] bg-[rgba(255,255,255,0.7)] border border-[rgba(0,0,0,0.16)] text-[#444] text-[12px] font-normal cursor-pointer hover:bg-[rgba(245,245,245,0.9)] transition-colors whitespace-nowrap"
+                                  type="button"
+                                  onClick={handleSaveIntroEdit}
+                                  className="flex items-center gap-[5px] px-[16px] py-[8px] rounded-[8px] bg-[#111] text-white text-[12px] font-medium cursor-pointer hover:bg-[#2c2c2c] transition-colors whitespace-nowrap"
                                 >
-                                  <RiArrowLeftLine size={12} className="shrink-0" aria-hidden />
-                                  Back
+                                  <RiCheckLine size={11} className="shrink-0" />
+                                  Save
                                 </button>
                               )}
-                              <div className="flex-1" />
-                              <button
-                                onClick={handleSaveContent}
-                                disabled={!hasChanges}
-                                className={`flex items-center gap-[5px] px-[16px] py-[8px] rounded-[8px] text-[12px] font-medium transition-colors whitespace-nowrap ${
-                                  hasChanges
-                                    ? 'bg-[#111] text-white cursor-pointer hover:bg-[#2c2c2c]'
-                                    : 'bg-[#d4d2cc] text-[#a0a09a] cursor-not-allowed'
-                                }`}
-                              >
-                                <RiCheckLine size={11} className="shrink-0" />
-                                Save
-                              </button>
                             </div>
                             )}
                           </motion.div>
                         </motion.div>
                       )
                     ) : activeScreen?.type === 'content' ? (
-                      /* â”€â”€ Content screen card â”€â”€ */
+                      /* ── Content screen card ── */
                       <motion.div
                         key={`content-${activeScreen.id}`}
                         initial={{ opacity: 0, y: 6 }}
@@ -7375,7 +9131,7 @@ const FormBuilderPage = () => {
                             fullCanvas={designLayoutStyle === 'fullCanvas'}
                             cardColor={hexToRgba(designCardColor, designCardOpacity)}
                             cardImage={designCardImage}
-                            ctaConfig={{ ctaButtonLabel, ctaButtonSize, ctaButtonStyle, ctaCornerRadius, ctaShowIcon, ctaHeadingSize, ctaBodySize, ctaFontWeight, ctaTextAlign, ctaPadding, ctaTextColor, ctaBtnColor, ctaLabelColor, ctaContentWidth }}
+                            ctaConfig={{ ctaButtonLabel, ctaHeadingText, ctaHelperText, ctaDurationText, ctaButtonSize, ctaButtonStyle, ctaCornerRadius, ctaShowIcon, ctaHeadingSize, ctaBodySize, ctaFontWeight, ctaTextAlign, ctaPadding, ctaTextColor, ctaBtnColor, ctaLabelColor, ctaContentWidth, isEditingCard: isEditingCtaCard, onEditToggle: () => setIsEditingCtaCard((p) => !p), setCtaHeadingText, setCtaHelperText, setCtaDurationText }}
                             headingConfig={{ headingText, subHeading, headingRequired, headingHidden, headingLevel, headingTextSize, headingAlignment, headingFontWeight, isEditingCard: isEditingHeadingCard, onEditToggle: () => setIsEditingHeadingCard(p => !p), setHeadingText, setSubHeading, headingAnswerText, setHeadingAnswerText }}
                             descriptionConfig={{ descriptionContent, descriptionHidden, descriptionShowCharCount, descriptionCharLimit, descriptionFormatting, descriptionTextSize, descriptionAlignment }}
                             imageConfig={{ imageHidden, imagePreview, imageAltText, imageCaption, imageLinkOnClick, imageLinkUrl, imageOpenInNewTab, imageAlignment, imageWidth, imageCornerRadius, imageQuestion, imageDescription, onRemoveImage: () => { setImagePreview(null); setImageFileName(''); } }}
@@ -7385,6 +9141,10 @@ const FormBuilderPage = () => {
                             addressConfig={{ addressQuestion, addressHelperText, addressFields, addressRequired }}
                             workConfig={{ workQuestion, workHelperText, workFields, workRequired }}
                             shortTextConfig={{ shortTextQuestion, shortTextHelperText, shortTextPlaceholder, shortTextMaxChars, shortTextMinChars, shortTextValidation, shortTextAlign, shortTextSize, shortTextRequired, shortTextHidden }}
+                            shortTextResponseQualityConfig={{
+                              enabled: shortTextResponseQualityEnabled,
+                              options: shortTextResponseQualityOptions,
+                            }}
                             longTextConfig={{ longTextQuestion, longTextHelperText, longTextPlaceholder, longTextMaxChars, longTextMinChars, longTextValidation, longTextAlign, longTextSize, longTextRequired, longTextHidden }}
                             responseQualityConfig={{ enabled: responseQualityEnabled, options: responseQualityOptions }}
                             singleConfig={{ singleQuestion, singleHelperText, singleOptions, singleLayout, singleOptionHeight, singleRequired, singleAllowOther, singleRandomize, singleMultipleSelect, singleMinChoices, singleMaxChoices, singleShowKeyboardHints, onOpenPanel: () => { closeAllRightPanels(); setTimeout(() => setShowSingleConfigPanel(true), 300); } }}
@@ -7431,7 +9191,7 @@ const FormBuilderPage = () => {
                         </div>
                       </motion.div>
                 ) : activeScreen?.type === 'end' ? (
-                      /* â”€â”€ End screen card â”€â”€ */
+                      /* ── End screen card ── */
                       <motion.div
                         key="end-screen"
                         initial={{ opacity: 0, y: 6 }}
@@ -7511,7 +9271,9 @@ const FormBuilderPage = () => {
                             )}
                           </div>
 
-                          {/* Card footer */}
+                                                      {isPreview ? previewStepNavEl : null}
+
+                            {/* Card footer */}
                           {!isPreview && (
                           <div className="border-t border-[rgba(0,0,0,0.1)] flex items-center gap-2 px-[20px] py-[10px] shrink-0">
                             <button
@@ -7536,35 +9298,44 @@ const FormBuilderPage = () => {
                               </button>
                             ) : (
                               <button
-                                onClick={() => setIsEditingEndScreen(false)}
+                                onClick={handleBackFromEndEdit}
                                 className="flex items-center gap-[5px] px-[14px] py-[8px] rounded-[8px] bg-[rgba(255,255,255,0.7)] border border-[rgba(0,0,0,0.16)] text-[#444] text-[12px] font-normal cursor-pointer hover:bg-[rgba(245,245,245,0.9)] transition-colors whitespace-nowrap"
                               >
                                 <RiArrowLeftLine size={12} className="shrink-0" aria-hidden />
                                 Back
                               </button>
                             )}
-                            <div className="flex-1" />
-                            <button
-                              onClick={handleSaveEndScreen}
-                              disabled={!hasEndScreenChanges}
-                              className={`flex items-center gap-[5px] px-[16px] py-[8px] rounded-[8px] text-[12px] font-medium transition-colors whitespace-nowrap ${
-                                hasEndScreenChanges
-                                  ? 'bg-[#111] text-white cursor-pointer hover:bg-[#2c2c2c]'
-                                  : 'bg-[#d4d2cc] text-[#a0a09a] cursor-not-allowed'
-                              }`}
-                            >
-                              <RiCheckLine size={11} className="shrink-0" />
-                              Save
-                            </button>
+                            {isEditingEndScreen && <div className="flex-1" />}
+                            {isEditingEndScreen && (
+                              <button
+                                type="button"
+                                onClick={handleSaveEndEdit}
+                                className="flex items-center gap-[5px] px-[16px] py-[8px] rounded-[8px] bg-[#111] text-white text-[12px] font-medium cursor-pointer hover:bg-[#2c2c2c] transition-colors whitespace-nowrap"
+                              >
+                                <RiCheckLine size={11} className="shrink-0" />
+                                Save
+                              </button>
+                            )}
                           </div>
                           )}
                         </motion.div>
                       </motion.div>
                 ) : null}
               </AnimatePresence>
+              </motion.div>
+              {hasScreens && (
+                isPreview ? <PreviewPoweredBy /> : (
+                  <motion.div
+                    layout
+                    aria-hidden
+                    className="shrink-0 w-full"
+                    style={{ height: PREVIEW_POWERED_BY_H }}
+                  />
+                )
+              )}
               </div>{/* end scaled frame */}
 
-              {/* â”€â”€ Viewport / Preview toggle (floating top-right) â”€â”€ */}
+              {/* ── Viewport / Preview toggle (floating top-right) ── */}
               <div className="absolute top-[10px] right-[12px] z-10">
                 <div
                   className="inline-flex items-center bg-white border border-[#e4e2dc] rounded-[8px] p-[3px] gap-[2px]"
@@ -7593,10 +9364,10 @@ const FormBuilderPage = () => {
                   </button>
                 </div>
               </div>
-            </motion.div>
+            </div>
           )}
 
-          {/* Footer â€” screen navigation (hidden on Logic tab; preview uses in-card Back/Next) */}
+          {/* Footer — screen navigation (hidden on Logic tab; preview uses in-card Back/Next) */}
           {!isPreview && activeTab !== 'logic' && (
           <div className="h-[51px] shrink-0 border-t border-[#e4e2dc] flex items-center px-6 bg-white">
             {hasScreens ? (
@@ -7635,7 +9406,7 @@ const FormBuilderPage = () => {
           </div>
           )}
 
-          {/* â”€â”€ Theme selection overlay â”€â”€ */}
+          {/* ── Theme selection overlay ── */}
           <AnimatePresence>
             {showThemeOverlay && (
               <motion.div
@@ -7666,7 +9437,7 @@ const FormBuilderPage = () => {
                       onClick={() => setShowThemeOverlay(false)}
                       className="w-[24px] h-[24px] flex items-center justify-center rounded-[6px] text-[#7a7a72] text-[16px] cursor-pointer hover:bg-[#f4f3ef] transition-colors"
                     >
-                      Ã—
+                      ×
                     </button>
                   </div>
 
@@ -7714,15 +9485,15 @@ const FormBuilderPage = () => {
             )}
           </AnimatePresence>
 
-        </motion.div>
+        </div>
 
-        {/* â”€â”€ Configure panel (right) â”€â”€ */}
+        {/* ── Configure panel (right) ── */}
         {!isPreview && <>
         <AnimatePresence>
         {showConfigPanel && (
           <motion.div
             key="config-panel"
-            initial={{ width: 0 }}
+            initial={skipPanelEnterRef.current ? false : { width: 0 }}
             animate={{ width: 280 }}
             exit={{ width: 0 }}
             transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}
@@ -7776,7 +9547,7 @@ const FormBuilderPage = () => {
                       style={{ overflow: 'hidden' }}
                     >
                       <motion.div
-                        className="grid grid-cols-3 gap-2 pb-[2px]"
+                        className={CONFIGURE_TILE_GRID}
                         variants={{ show: { transition: { staggerChildren: 0.035 } }, hidden: {} }}
                         initial="hidden"
                         animate="show"
@@ -7795,14 +9566,14 @@ const FormBuilderPage = () => {
                                 if (activeScreen?.type === 'intro')
                                   setIntroEssential((prev) => (prev === label ? null : label));
                               }}
-                              className={`rounded-[8px] flex flex-col items-center justify-center gap-[5px] pt-[15px] pb-[14px] px-[5px] min-h-[64px] cursor-pointer transition-colors border ${
+                              className={`${CONFIGURE_TILE_BASE} ${
                                 isActive
                                   ? 'bg-[#eef2ff] border-indigo-300'
                                   : 'bg-white border-[#e5e3dc] hover:bg-[#f9f8f6]'
                               }`}
                             >
-                              <Icon size={16} className={`shrink-0 ${isActive ? 'text-indigo-500' : 'text-[#6a6a6a]'}`} />
-                              <span className={`text-[10px] leading-[12px] text-center ${isActive ? 'text-indigo-600 font-medium' : 'text-[#6a6a6a]'}`}>
+                              <Icon size={12} className={`shrink-0 ${isActive ? 'text-indigo-500' : 'text-[#6a6a6a]'}`} />
+                              <span className={`text-[9px] leading-[10px] text-center ${isActive ? 'text-indigo-600 font-medium' : 'text-[#6a6a6a]'}`}>
                                 {label}
                               </span>
                             </motion.button>
@@ -7857,7 +9628,7 @@ const FormBuilderPage = () => {
                                   {catLabel}
                                 </span>
                                 <motion.div
-                                  className="grid grid-cols-3 gap-2"
+                                  className={CONFIGURE_TILE_GRID}
                                   variants={{ show: { transition: { staggerChildren: 0.04 } }, hidden: {} }}
                                   initial="hidden"
                                   animate="show"
@@ -7872,21 +9643,19 @@ const FormBuilderPage = () => {
                                           show: { opacity: 1, y: 0 },
                                         }}
                                         transition={{ duration: 0.15, ease: 'easeOut' }}
-                                        whileHover={{ scale: 1.03 }}
-                                        whileTap={{ scale: 0.97 }}
                                         onClick={() => setSelectedTemplate(isSelected ? null : `${catLabel}:${itemLabel}`)}
-                                        className={`flex flex-col items-center justify-center gap-[5px] pt-[15px] pb-[14px] px-[5px] min-h-[64px] rounded-[8px] border cursor-pointer transition-colors ${
+                                        className={`${CONFIGURE_TILE_BASE} ${
                                           isSelected
                                             ? 'bg-[#ebeaff] border-[#a39eff]'
                                             : 'bg-white border-[#e5e3dc] hover:bg-[#f9f8f6]'
                                         }`}
                                       >
                                         <Icon
-                                          size={16}
+                                          size={12}
                                           className={`shrink-0 ${isSelected ? 'text-[#5b55e8]' : 'text-[#6a6a6a]'}`}
                                         />
                                         <span
-                                          className={`text-[10px] leading-[12px] text-center ${
+                                          className={`text-[9px] leading-[10px] text-center ${
                                             isSelected ? 'text-black font-medium' : 'text-[#6a6a6a] font-normal'
                                           }`}
                                         >
@@ -7945,7 +9714,7 @@ const FormBuilderPage = () => {
                                 value={welcomePlaceholder}
                                 onChange={(e) => setWelcomePlaceholder(e.target.value)}
                                 className="w-full text-[12px] text-[#111] bg-transparent outline-none font-normal leading-normal"
-                                placeholder="Type your answer hereâ€¦"
+                                placeholder="Type your answer here…"
                               />
                             </div>
                           </div>
@@ -7974,7 +9743,7 @@ const FormBuilderPage = () => {
                               <button
                                 onClick={() => setWelcomeMinLength((v) => Math.max(0, v - 1))}
                                 className="bg-[rgba(255,255,255,0.8)] w-[20px] h-[20px] rounded-[5px] flex items-center justify-center cursor-pointer hover:bg-white transition-colors text-[14px] text-[#555] font-medium leading-none"
-                              >âˆ’</button>
+                              >−</button>
                               <span className="min-w-[28px] text-center text-[13px] font-medium text-[#111]">{welcomeMinLength}</span>
                               <button
                                 onClick={() => setWelcomeMinLength((v) => Math.min(welcomeMaxLength, v + 1))}
@@ -7990,7 +9759,7 @@ const FormBuilderPage = () => {
                               <button
                                 onClick={() => setWelcomeMaxLength((v) => Math.max(welcomeMinLength, v - 1))}
                                 className="bg-[rgba(255,255,255,0.8)] w-[20px] h-[20px] rounded-[5px] flex items-center justify-center cursor-pointer hover:bg-white transition-colors text-[14px] text-[#555] font-medium leading-none"
-                              >âˆ’</button>
+                              >−</button>
                               <span className="min-w-[28px] text-center text-[13px] font-medium text-[#111]">{welcomeMaxLength}</span>
                               <button
                                 onClick={() => setWelcomeMaxLength((v) => v + 1)}
@@ -8110,7 +9879,7 @@ const FormBuilderPage = () => {
         )}
         </AnimatePresence>
 
-        {/* â”€â”€ Content panel (right) â€“ shown when Add Screen is clicked after intro â”€â”€ */}
+        {/* ── Content panel (right) – shown when Add Screen is clicked after intro ── */}
         <AnimatePresence>
           {showContentPanel && (
             <motion.div
@@ -8181,7 +9950,7 @@ const FormBuilderPage = () => {
                             style={{ overflow: 'hidden' }}
                           >
                             <motion.div
-                              className="grid grid-cols-3 gap-2 pb-[2px]"
+                              className={CONFIGURE_TILE_GRID}
                               variants={{
                                 show: { transition: { staggerChildren: 0.04 } },
                                 hidden: {},
@@ -8197,22 +9966,20 @@ const FormBuilderPage = () => {
                                     show: { opacity: 1, y: 0 },
                                   }}
                                   transition={{ duration: 0.15, ease: 'easeOut' }}
-                                  whileHover={{ scale: 1.04 }}
-                                  whileTap={{ scale: 0.96 }}
                                   onClick={() => addContentScreen(key, itemLabel)}
-                                  className="flex flex-col items-center justify-center gap-[5px] pt-[15px] pb-[14px] px-[5px] min-h-[64px] rounded-[8px] border cursor-pointer transition-colors bg-white border-[#e5e3dc] hover:bg-[#f4f3ef] active:bg-[#ebeaff] active:border-[#a39eff]"
+                                  className={`${CONFIGURE_TILE_BASE} bg-white border-[#e5e3dc] hover:bg-[#f4f3ef] active:bg-[#ebeaff] active:border-[#a39eff]`}
                                 >
-                                  <Icon size={16} className="shrink-0 text-[#6a6a6a]" />
+                                  <Icon size={12} className="shrink-0 text-[#6a6a6a]" />
                                   {itemLabel.length > 13 ? (
                                     <div
-                                      className="label-marquee text-[10px] leading-[12px] text-[#6a6a6a] font-normal"
+                                      className="label-marquee text-[9px] leading-[10px] text-[#6a6a6a] font-normal"
                                       style={{ fontFamily: "'DM Sans', sans-serif", fontVariationSettings: "'opsz' 14" }}
                                     >
                                       <span>{itemLabel}</span>
                                     </div>
                                   ) : (
                                     <span
-                                      className="text-[10px] leading-[12px] text-center whitespace-nowrap text-[#6a6a6a] font-normal"
+                                      className="text-[9px] leading-[10px] text-center whitespace-nowrap text-[#6a6a6a] font-normal"
                                       style={{ fontFamily: "'DM Sans', sans-serif", fontVariationSettings: "'opsz' 14" }}
                                     >
                                       {itemLabel}
@@ -8233,7 +10000,7 @@ const FormBuilderPage = () => {
           )}
         </AnimatePresence>
 
-        {/* â”€â”€ CTA Configure panel (right) â”€â”€ */}
+        {/* ── CTA Configure panel (right) ── */}
         <AnimatePresence>
           {showCtaConfigPanel && (
             <motion.div
@@ -8267,7 +10034,7 @@ const FormBuilderPage = () => {
                 {/* Scrollable content */}
                 <div className="flex-1 overflow-y-auto">
 
-                  {/* â”€â”€ BUTTON section â”€â”€ */}
+                  {/* ── BUTTON section ── */}
                   <div className="border-b border-[rgba(0,0,0,0.09)]">
                     <button
                       onClick={() => setCtaSections((p) => ({ ...p, button: !p.button }))}
@@ -8465,7 +10232,7 @@ const FormBuilderPage = () => {
                                     +
                                   </button>
                                 </div>
-                                {/* Color grid â€“ shown only after clicking + */}
+                                {/* Color grid – shown only after clicking + */}
                                 <AnimatePresence initial={false}>
                                   {ctaBtnColorGridOpen && (
                                     <motion.div
@@ -8567,7 +10334,7 @@ const FormBuilderPage = () => {
                                     +
                                   </button>
                                 </div>
-                                {/* Color grid â€“ shown only after clicking + */}
+                                {/* Color grid – shown only after clicking + */}
                                 <AnimatePresence initial={false}>
                                   {ctaColorGridOpen && (
                                     <motion.div
@@ -8705,7 +10472,7 @@ const FormBuilderPage = () => {
                     </AnimatePresence>
                   </div>
 
-                  {/* â”€â”€ TYPOGRAPHY section â”€â”€ */}
+                  {/* ── TYPOGRAPHY section ── */}
                   <div className="border-b border-[rgba(0,0,0,0.09)]">
                     <button
                       onClick={() => setCtaSections((p) => ({ ...p, typography: !p.typography }))}
@@ -8867,7 +10634,7 @@ const FormBuilderPage = () => {
                     </AnimatePresence>
                   </div>
 
-                  {/* â”€â”€ SPACING section â”€â”€ */}
+                  {/* ── SPACING section ── */}
                   <div className="border-b border-[rgba(0,0,0,0.09)]">
                     <button
                       onClick={() => setCtaSections((p) => ({ ...p, spacing: !p.spacing }))}
@@ -8967,7 +10734,7 @@ const FormBuilderPage = () => {
           )}
         </AnimatePresence>
 
-        {/* â”€â”€ Heading Configure panel (right) â”€â”€ */}
+        {/* ── Heading Configure panel (right) ── */}
         <AnimatePresence>
           {showHeadingConfigPanel && (
             <motion.div
@@ -9005,7 +10772,7 @@ const FormBuilderPage = () => {
                 {/* Scrollable content */}
                 <div className="flex-1 overflow-y-auto">
 
-                  {/* â”€â”€ FIELD SETTINGS â”€â”€ */}
+                  {/* ── FIELD SETTINGS ── */}
                   <div className="border-t border-[rgba(0,0,0,0.06)]">
                     <button
                       onClick={() => setHeadingSections((p) => ({ ...p, fieldSettings: !p.fieldSettings }))}
@@ -9134,7 +10901,7 @@ const FormBuilderPage = () => {
                     </AnimatePresence>
                   </div>
 
-                  {/* â”€â”€ CONDITIONAL LOGIC â”€â”€ */}
+                  {/* ── CONDITIONAL LOGIC ── */}
                   <div className="border-t border-[rgba(0,0,0,0.06)]">
                     <button
                       onClick={() => setHeadingSections((p) => ({ ...p, conditionalLogic: !p.conditionalLogic }))}
@@ -9163,22 +10930,18 @@ const FormBuilderPage = () => {
                           style={{ overflow: 'hidden' }}
                         >
                           <div className="px-4 pb-[15px]">
-                            <div className="bg-[#f8f8f8] rounded-[8px] px-3 py-[10px] flex flex-col gap-[6px]">
-                              <span className="text-[10px] font-bold tracking-[0.55px] uppercase text-[#aaa]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                                SHOW THIS BLOCK IF
-                              </span>
-                              <button className="flex items-center gap-[5px] cursor-pointer hover:opacity-70 transition-opacity">
-                                <RiAddLine size={14} className="text-[#555] shrink-0" />
-                                <span className="text-[12px] text-[#555]" style={{ fontFamily: "'DM Sans', sans-serif" }}>Add condition</span>
-                              </button>
-                            </div>
+                            <BlockVisibilityConditions
+                              conditions={showIfConditions}
+                              onChange={setShowIfConditions}
+                              priorScreens={priorScreensForActive}
+                            />
                           </div>
                         </motion.div>
                       )}
                     </AnimatePresence>
                   </div>
 
-                  {/* â”€â”€ APPEARANCE â”€â”€ */}
+                  {/* ── APPEARANCE ── */}
                   <div className="border-t border-[rgba(0,0,0,0.06)]">
                     <button
                       onClick={() => setHeadingSections((p) => ({ ...p, appearance: !p.appearance }))}
@@ -9286,7 +11049,7 @@ const FormBuilderPage = () => {
           )}
         </AnimatePresence>
 
-        {/* â”€â”€ Description Configure panel (right) â”€â”€ */}
+        {/* ── Description Configure panel (right) ── */}
         <AnimatePresence>
           {showDescriptionConfigPanel && (
             <motion.div
@@ -9324,7 +11087,7 @@ const FormBuilderPage = () => {
                 {/* Scrollable content */}
                 <div className="flex-1 overflow-y-auto">
 
-                  {/* â”€â”€ FIELD SETTINGS â”€â”€ */}
+                  {/* ── FIELD SETTINGS ── */}
                   <div className="border-t border-[rgba(0,0,0,0.06)]">
                     <button
                       onClick={() => setDescriptionSections((p) => ({ ...p, fieldSettings: !p.fieldSettings }))}
@@ -9460,7 +11223,7 @@ const FormBuilderPage = () => {
                     </AnimatePresence>
                   </div>
 
-                  {/* â”€â”€ CONDITIONAL LOGIC â”€â”€ */}
+                  {/* ── CONDITIONAL LOGIC ── */}
                   <div className="border-t border-[rgba(0,0,0,0.06)]">
                     <button
                       onClick={() => setDescriptionSections((p) => ({ ...p, conditionalLogic: !p.conditionalLogic }))}
@@ -9489,22 +11252,18 @@ const FormBuilderPage = () => {
                           style={{ overflow: 'hidden' }}
                         >
                           <div className="px-4 pb-[15px]">
-                            <div className="bg-[#f8f8f8] rounded-[8px] px-3 py-[10px] flex flex-col gap-[6px]">
-                              <span className="text-[10px] font-bold tracking-[0.55px] uppercase text-[#aaa]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                                SHOW THIS BLOCK IF
-                              </span>
-                              <button className="flex items-center gap-[5px] cursor-pointer hover:opacity-70 transition-opacity">
-                                <RiAddLine size={14} className="text-[#555] shrink-0" />
-                                <span className="text-[12px] text-[#555]" style={{ fontFamily: "'DM Sans', sans-serif" }}>Add condition</span>
-                              </button>
-                            </div>
+                            <BlockVisibilityConditions
+                              conditions={showIfConditions}
+                              onChange={setShowIfConditions}
+                              priorScreens={priorScreensForActive}
+                            />
                           </div>
                         </motion.div>
                       )}
                     </AnimatePresence>
                   </div>
 
-                  {/* â”€â”€ APPEARANCE â”€â”€ */}
+                  {/* ── APPEARANCE ── */}
                   <div className="border-t border-[rgba(0,0,0,0.06)]">
                     <button
                       onClick={() => setDescriptionSections((p) => ({ ...p, appearance: !p.appearance }))}
@@ -9591,7 +11350,7 @@ const FormBuilderPage = () => {
           )}
         </AnimatePresence>
 
-        {/* â”€â”€ Image Configure panel (right) â”€â”€ */}
+        {/* ── Image Configure panel (right) ── */}
         <AnimatePresence>
           {showImageConfigPanel && (
             <motion.div
@@ -9629,7 +11388,7 @@ const FormBuilderPage = () => {
                 {/* Scrollable content */}
                 <div className="flex-1 overflow-y-auto">
 
-                  {/* â”€â”€ FIELD SETTINGS â”€â”€ */}
+                  {/* ── FIELD SETTINGS ── */}
                   <div className="border-t border-[rgba(0,0,0,0.06)]">
                     <button
                       onClick={() => setImageSections((p) => ({ ...p, fieldSettings: !p.fieldSettings }))}
@@ -9852,7 +11611,7 @@ const FormBuilderPage = () => {
                     </AnimatePresence>
                   </div>
 
-                  {/* â”€â”€ CONDITIONAL LOGIC â”€â”€ */}
+                  {/* ── CONDITIONAL LOGIC ── */}
                   <div className="border-t border-[rgba(0,0,0,0.06)]">
                     <button
                       onClick={() => setImageSections((p) => ({ ...p, conditionalLogic: !p.conditionalLogic }))}
@@ -9881,22 +11640,18 @@ const FormBuilderPage = () => {
                           style={{ overflow: 'hidden' }}
                         >
                           <div className="px-4 pt-[4px] pb-[14px]">
-                            <div className="bg-[#f8f8f8] rounded-[8px] px-[12px] py-[10px] flex flex-col gap-[6px]">
-                              <span className="text-[10px] font-bold tracking-[0.55px] uppercase text-[#aaa]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                                SHOW THIS BLOCK IF
-                              </span>
-                              <button className="flex items-center gap-[5px] text-[12px] text-[#555] cursor-pointer hover:text-[#111] transition-colors">
-                                <RiAddLine size={14} className="shrink-0" />
-                                Add condition
-                              </button>
-                            </div>
+                            <BlockVisibilityConditions
+                              conditions={showIfConditions}
+                              onChange={setShowIfConditions}
+                              priorScreens={priorScreensForActive}
+                            />
                           </div>
                         </motion.div>
                       )}
                     </AnimatePresence>
                   </div>
 
-                  {/* â”€â”€ APPEARANCE â”€â”€ */}
+                  {/* ── APPEARANCE ── */}
                   <div className="border-t border-[rgba(0,0,0,0.06)]">
                     <button
                       onClick={() => setImageSections((p) => ({ ...p, appearance: !p.appearance }))}
@@ -10001,7 +11756,7 @@ const FormBuilderPage = () => {
           )}
         </AnimatePresence>
 
-        {/* â”€â”€ Video Configure panel â”€â”€ */}
+        {/* ── Video Configure panel ── */}
         <AnimatePresence>
           {showVideoConfigPanel && (
             <motion.div
@@ -10143,7 +11898,7 @@ const FormBuilderPage = () => {
           )}
         </AnimatePresence>
 
-        {/* â”€â”€ Contact Configure panel â”€â”€ */}
+        {/* ── Contact Configure panel ── */}
         <AnimatePresence>
           {showContactConfigPanel && (
             <motion.div
@@ -10247,7 +12002,7 @@ const FormBuilderPage = () => {
           )}
         </AnimatePresence>
 
-        {/* â”€â”€ Address Configure panel â”€â”€ */}
+        {/* ── Address Configure panel ── */}
         <AnimatePresence>
           {showAddressConfigPanel && (
             <motion.div
@@ -10349,7 +12104,7 @@ const FormBuilderPage = () => {
           )}
         </AnimatePresence>
 
-        {/* â”€â”€ Work Info Configure panel â”€â”€ */}
+        {/* ── Work Info Configure panel ── */}
         <AnimatePresence>
           {showWorkConfigPanel && (
             <motion.div
@@ -10450,7 +12205,7 @@ const FormBuilderPage = () => {
           )}
         </AnimatePresence>
 
-        {/* â”€â”€ Date Configure panel â”€â”€ */}
+        {/* ── Date Configure panel ── */}
         <AnimatePresence>
           {showDateConfigPanel && (
             <motion.div
@@ -10510,7 +12265,7 @@ const FormBuilderPage = () => {
           )}
         </AnimatePresence>
 
-        {/* â”€â”€ Time Configure panel â”€â”€ */}
+        {/* ── Time Configure panel ── */}
         <AnimatePresence>
           {showTimeConfigPanel && (
             <motion.div
@@ -10540,7 +12295,7 @@ const FormBuilderPage = () => {
           )}
         </AnimatePresence>
 
-        {/* â”€â”€ Short Text Configure panel â”€â”€ */}
+        {/* ── Short Text Configure panel ── */}
         <AnimatePresence>
           {showShortTextConfigPanel && (
             <motion.div
@@ -10664,13 +12419,37 @@ const FormBuilderPage = () => {
                     </AnimatePresence>
                   </div>
 
+                  <div className="border-t border-[rgba(0,0,0,0.06)]">
+                    <button onClick={() => setShortTextSections((p) => ({ ...p, responseQuality: !p.responseQuality }))} className="flex items-center justify-between w-full px-4 py-[10px] cursor-pointer">
+                      <span className="text-[9.5px] font-bold tracking-[0.7px] uppercase text-[#999]" style={{ fontFamily: "'DM Sans', sans-serif" }}>RESPONSE QUALITY SCORING</span>
+                      <motion.span animate={{ rotate: shortTextSections.responseQuality ? 180 : 0 }} transition={{ duration: 0.2 }} className="flex items-center shrink-0">
+                        <RiArrowDownSLine size={14} className="text-[#999]" />
+                      </motion.span>
+                    </button>
+                    <AnimatePresence initial={false}>
+                      {shortTextSections.responseQuality && (
+                        <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden w-full">
+                          <div className="w-full">
+                            <ResponseQualityScoringCard
+                              enabled={shortTextResponseQualityEnabled}
+                              onEnabledChange={setShortTextResponseQualityEnabled}
+                              options={shortTextResponseQualityOptions}
+                              onOptionsChange={setShortTextResponseQualityOptions}
+                              onSave={() => {}}
+                            />
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
                 </div>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* â”€â”€ Long Text Configure panel â”€â”€ */}
+        {/* ── Long Text Configure panel ── */}
         <AnimatePresence>
           {showLongTextConfigPanel && (
             <motion.div
@@ -10824,7 +12603,7 @@ const FormBuilderPage = () => {
           )}
         </AnimatePresence>
 
-        {/* â”€â”€ Single Choice Configure panel â”€â”€ */}
+        {/* ── Single Choice Configure panel ── */}
         <AnimatePresence>
           {showSingleConfigPanel && (
             <motion.div
@@ -10879,7 +12658,7 @@ const FormBuilderPage = () => {
                                       onChange={(e) => setSingleOptions((prev) => prev.map((o, idx) => idx === i ? e.target.value : o))}
                                       className="flex-1 border border-[rgba(0,0,0,0.12)] rounded-[6px] px-3 py-[6px] text-[12px] bg-white outline-none focus:border-[#111] transition-colors" />
                                     <button onClick={() => setSingleOptions((prev) => prev.filter((_, idx) => idx !== i))}
-                                      className="text-[#d63030] text-[16px] leading-none px-1 cursor-pointer hover:text-[#b02020] shrink-0">Ã—</button>
+                                      className="text-[#d63030] text-[16px] leading-none px-1 cursor-pointer hover:text-[#b02020] shrink-0">×</button>
                                   </div>
                                 ))}
                               </div>
@@ -10922,9 +12701,9 @@ const FormBuilderPage = () => {
                                       return Math.max(0, (p ?? 0) - 1);
                                     })}
                                     className="w-[20px] h-[20px] bg-[rgba(255,255,255,0.8)] rounded-[5px] flex items-center justify-center text-[#444] text-[14px] leading-none cursor-pointer hover:bg-white transition-colors shrink-0"
-                                  >âˆ’</button>
+                                  >−</button>
                                   <span className="min-w-[28px] text-center text-[13px] font-medium text-[#111]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                                    {isInfinite && val === null ? 'âˆž' : val}
+                                    {isInfinite && val === null ? '∞' : val}
                                   </span>
                                   <button
                                     onClick={() => set((p) => {
@@ -11014,7 +12793,7 @@ const FormBuilderPage = () => {
           )}
         </AnimatePresence>
 
-        {/* â”€â”€ Multiple Choice Configure panel â”€â”€ */}
+        {/* ── Multiple Choice Configure panel ── */}
         <AnimatePresence>
           {showMultipleConfigPanel && (
             <motion.div
@@ -11041,7 +12820,7 @@ const FormBuilderPage = () => {
                 {/* Scrollable content */}
                 <div className="flex-1 overflow-y-auto">
 
-                  {/* â”€â”€ FIELD SETTINGS â”€â”€ */}
+                  {/* ── FIELD SETTINGS ── */}
                   <div className="border-b border-[rgba(0,0,0,0.09)]">
                     <button
                       onClick={() => setMultipleSections((p) => ({ ...p, fieldSettings: !p.fieldSettings }))}
@@ -11105,9 +12884,9 @@ const FormBuilderPage = () => {
                                       return Math.max(0, (p ?? 0) - 1);
                                     })}
                                     className="w-[20px] h-[20px] bg-[rgba(255,255,255,0.8)] rounded-[5px] flex items-center justify-center text-[#444] text-[14px] leading-none cursor-pointer hover:bg-white transition-colors shrink-0"
-                                  >âˆ’</button>
+                                  >−</button>
                                   <span className="min-w-[28px] text-center text-[13px] font-medium text-[#111]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-                                    {isInfinite && val === null ? 'âˆž' : val}
+                                    {isInfinite && val === null ? '∞' : val}
                                   </span>
                                   <button
                                     onClick={() => set((p) => {
@@ -11143,7 +12922,7 @@ const FormBuilderPage = () => {
                     </AnimatePresence>
                   </div>
 
-                  {/* â”€â”€ OPTIONS â”€â”€ */}
+                  {/* ── OPTIONS ── */}
                   <div className="border-b border-[rgba(0,0,0,0.09)]">
                     <button
                       onClick={() => setMultipleSections((p) => ({ ...p, options: !p.options }))}
@@ -11193,7 +12972,7 @@ const FormBuilderPage = () => {
                                 style={{ fontFamily: "'DM Sans', sans-serif" }}
                               />
                             </div>
-                            {/* Options list â€“ scrollable */}
+                            {/* Options list – scrollable */}
                             <div className="flex flex-col gap-[6px] max-h-[200px] overflow-y-auto pr-[2px]">
                               {multipleOptions.map((opt, i) => (
                                 <div key={i} className="flex gap-[6px] items-center">
@@ -11207,7 +12986,7 @@ const FormBuilderPage = () => {
                                   <button
                                     onClick={() => setMultipleOptions((prev) => prev.filter((_, idx) => idx !== i))}
                                     className="w-[22px] h-[22px] flex items-center justify-center text-[#bbb] text-[15px] leading-none cursor-pointer hover:text-[#d63030] transition-colors shrink-0"
-                                  >Ã—</button>
+                                  >×</button>
                                 </div>
                               ))}
                             </div>
@@ -11225,7 +13004,7 @@ const FormBuilderPage = () => {
                     </AnimatePresence>
                   </div>
 
-                  {/* â”€â”€ APPEARANCE â”€â”€ */}
+                  {/* ── APPEARANCE ── */}
                   <div className="border-b border-[rgba(0,0,0,0.09)]">
                     <button
                       onClick={() => setMultipleSections((p) => ({ ...p, appearance: !p.appearance }))}
@@ -11309,7 +13088,7 @@ const FormBuilderPage = () => {
           )}
         </AnimatePresence>
 
-        {/* â”€â”€ Media Choices Configure panel â”€â”€ */}
+        {/* ── Media Choices Configure panel ── */}
         <AnimatePresence>
           {showMediaConfigPanel && (
             <motion.div
@@ -11334,7 +13113,7 @@ const FormBuilderPage = () => {
                 </div>
                 <div className="flex-1 overflow-y-auto">
 
-                  {/* â”€â”€ FIELD SETTINGS â”€â”€ */}
+                  {/* ── FIELD SETTINGS ── */}
                   <div className="border-t border-[#f0f0f0]">
                     <button onClick={() => setMediaSections((p) => ({ ...p, fieldSettings: !p.fieldSettings }))} className="flex items-center justify-between w-full px-4 py-[10px] cursor-pointer">
                       <span className="text-[10px] font-bold tracking-[0.7px] uppercase text-[#999]" style={{ fontFamily: 'Arial, sans-serif' }}>FIELD SETTINGS</span>
@@ -11378,7 +13157,7 @@ const FormBuilderPage = () => {
                               <label className="text-[12px] text-[#444]" style={{ fontFamily: 'Arial, sans-serif' }}>Min choices</label>
                               <div className="flex items-center gap-[10px]">
                                 <button onClick={() => setMediaMinChoices((v) => Math.max(1, v - 1))}
-                                  className="w-[26px] h-[26px] border border-[#e0e0e0] rounded-[6px] bg-white flex items-center justify-center text-[#555] text-[16px] leading-none cursor-pointer hover:border-[#999] transition-colors">âˆ’</button>
+                                  className="w-[26px] h-[26px] border border-[#e0e0e0] rounded-[6px] bg-white flex items-center justify-center text-[#555] text-[16px] leading-none cursor-pointer hover:border-[#999] transition-colors">−</button>
                                 <span className="text-[13px] text-[#222] text-center min-w-[24px]" style={{ fontFamily: 'Arial, sans-serif' }}>{mediaMinChoices}</span>
                                 <button onClick={() => setMediaMinChoices((v) => mediaMaxChoices === null ? v + 1 : Math.min(mediaMaxChoices, v + 1))}
                                   className="w-[26px] h-[26px] border border-[#e0e0e0] rounded-[6px] bg-white flex items-center justify-center text-[#555] text-[16px] leading-none cursor-pointer hover:border-[#999] transition-colors">+</button>
@@ -11389,8 +13168,8 @@ const FormBuilderPage = () => {
                               <label className="text-[12px] text-[#444]" style={{ fontFamily: 'Arial, sans-serif' }}>Max choices</label>
                               <div className="flex items-center gap-[10px]">
                                 <button onClick={() => setMediaMaxChoices((v) => v === null ? mediaOptions.length : Math.max(mediaMinChoices, v - 1))}
-                                  className="w-[26px] h-[26px] border border-[#e0e0e0] rounded-[6px] bg-white flex items-center justify-center text-[#555] text-[16px] leading-none cursor-pointer hover:border-[#999] transition-colors">âˆ’</button>
-                                <span className="text-[13px] text-[#222] text-center min-w-[24px]" style={{ fontFamily: 'Arial, sans-serif' }}>{mediaMaxChoices === null ? 'âˆž' : mediaMaxChoices}</span>
+                                  className="w-[26px] h-[26px] border border-[#e0e0e0] rounded-[6px] bg-white flex items-center justify-center text-[#555] text-[16px] leading-none cursor-pointer hover:border-[#999] transition-colors">−</button>
+                                <span className="text-[13px] text-[#222] text-center min-w-[24px]" style={{ fontFamily: 'Arial, sans-serif' }}>{mediaMaxChoices === null ? '∞' : mediaMaxChoices}</span>
                                 <button onClick={() => setMediaMaxChoices((v) => v === null ? null : (v >= mediaOptions.length ? null : v + 1))}
                                   className="w-[26px] h-[26px] border border-[#e0e0e0] rounded-[6px] bg-white flex items-center justify-center text-[#555] text-[16px] leading-none cursor-pointer hover:border-[#999] transition-colors">+</button>
                               </div>
@@ -11401,7 +13180,7 @@ const FormBuilderPage = () => {
                     </AnimatePresence>
                   </div>
 
-                  {/* â”€â”€ OPTIONS â”€â”€ */}
+                  {/* ── OPTIONS ── */}
                   <div className="border-t border-[#f0f0f0]">
                     <button onClick={() => setMediaSections((p) => ({ ...p, options: !p.options }))} className="flex items-center justify-between w-full px-4 py-[10px] cursor-pointer">
                       <span className="text-[10px] font-bold tracking-[0.7px] uppercase text-[#999]" style={{ fontFamily: 'Arial, sans-serif' }}>OPTIONS</span>
@@ -11431,11 +13210,11 @@ const FormBuilderPage = () => {
                                       <img src={opt.image} alt={opt.label} className="w-full object-cover" style={{ aspectRatio: '16/4' }} />
                                       <button
                                         onClick={(e) => { e.preventDefault(); setMediaOptions((prev) => prev.map((o, idx) => idx === i ? { ...o, image: null } : o)); }}
-                                        className="absolute top-1 right-1 w-[18px] h-[18px] bg-black/50 rounded-full flex items-center justify-center text-white text-[10px] hover:bg-black/70 transition-colors">Ã—</button>
+                                        className="absolute top-1 right-1 w-[18px] h-[18px] bg-black/50 rounded-full flex items-center justify-center text-white text-[10px] hover:bg-black/70 transition-colors">×</button>
                                     </div>
                                   ) : (
                                     <div className="bg-[#fafafa] border border-dashed border-[#d0d0d0] rounded-[8px] py-[12px] flex items-center justify-center hover:border-[#999] hover:bg-[#f5f5f5] transition-colors">
-                                      <span className="text-[13px] text-[#ccc]" style={{ fontFamily: 'Arial, sans-serif' }}>ðŸ–¼ Upload image</span>
+                                      <span className="text-[13px] text-[#ccc]" style={{ fontFamily: 'Arial, sans-serif' }}>🖼 Upload image</span>
                                     </div>
                                   )}
                                 </label>
@@ -11447,7 +13226,7 @@ const FormBuilderPage = () => {
                                     className="flex-1 border border-[#e8e8e8] rounded-[7px] px-[11px] py-[9px] text-[13px] bg-[#fafafa] outline-none focus:border-[#111] transition-colors" style={{ fontFamily: 'Arial, sans-serif' }} />
                                   {mediaOptions.length > 1 && (
                                     <button onClick={() => setMediaOptions((prev) => prev.filter((_, idx) => idx !== i))}
-                                      className="w-[22px] h-[22px] rounded-full flex items-center justify-center text-[#d63030] hover:bg-red-50 transition-colors shrink-0 text-[14px] leading-none">Ã—</button>
+                                      className="w-[22px] h-[22px] rounded-full flex items-center justify-center text-[#d63030] hover:bg-red-50 transition-colors shrink-0 text-[14px] leading-none">×</button>
                                   )}
                                 </div>
                               </div>
@@ -11462,7 +13241,7 @@ const FormBuilderPage = () => {
                     </AnimatePresence>
                   </div>
 
-                  {/* â”€â”€ CONDITIONAL LOGIC â”€â”€ */}
+                  {/* ── CONDITIONAL LOGIC ── */}
                   <div className="border-t border-[#f0f0f0]">
                     <button onClick={() => setMediaSections((p) => ({ ...p, conditionalLogic: !p.conditionalLogic }))} className="flex items-center justify-between w-full px-4 py-[10px] cursor-pointer">
                       <span className="text-[10px] font-bold tracking-[0.7px] uppercase text-[#999]" style={{ fontFamily: 'Arial, sans-serif' }}>CONDITIONAL LOGIC</span>
@@ -11474,20 +13253,18 @@ const FormBuilderPage = () => {
                       {mediaSections.conditionalLogic && (
                         <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                           <div className="px-4 pt-1 pb-4">
-                            <div className="bg-[#f8f8f8] rounded-[8px] px-3 py-[10px] flex flex-col gap-[6px]">
-                              <span className="text-[11px] font-bold tracking-[0.55px] uppercase text-[#aaa]" style={{ fontFamily: 'Arial, sans-serif' }}>SHOW THIS BLOCK IF</span>
-                              <button className="flex items-center gap-[5px] text-[12px] text-[#555] cursor-pointer hover:text-[#111] transition-colors" style={{ fontFamily: 'Arial, sans-serif' }}>
-                                <span className="text-[14px] leading-none">âŠ•</span>
-                                <span>Add condition</span>
-                              </button>
-                            </div>
+                            <BlockVisibilityConditions
+                              conditions={showIfConditions}
+                              onChange={setShowIfConditions}
+                              priorScreens={priorScreensForActive}
+                            />
                           </div>
                         </motion.div>
                       )}
                     </AnimatePresence>
                   </div>
 
-                  {/* â”€â”€ APPEARANCE â”€â”€ */}
+                  {/* ── APPEARANCE ── */}
                   <div className="border-t border-[#f0f0f0]">
                     <button onClick={() => setMediaSections((p) => ({ ...p, appearance: !p.appearance }))} className="flex items-center justify-between w-full px-4 py-[10px] cursor-pointer">
                       <span className="text-[10px] font-bold tracking-[0.7px] uppercase text-[#999]" style={{ fontFamily: 'Arial, sans-serif' }}>APPEARANCE</span>
@@ -11554,7 +13331,7 @@ const FormBuilderPage = () => {
           )}
         </AnimatePresence>
 
-        {/* â”€â”€ Map Configure panel â”€â”€ */}
+        {/* ── Map Configure panel ── */}
         <AnimatePresence>
           {showMapConfigPanel && (
             <motion.div
@@ -11597,12 +13374,15 @@ const FormBuilderPage = () => {
                 setMapHeight={setMapHeight}
                 mapType={mapType}
                 setMapType={setMapType}
+                showIfConditions={showIfConditions}
+                onShowIfConditionsChange={setShowIfConditions}
+                priorScreens={priorScreensForActive}
               />
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* â”€â”€ Captcha Configure panel â”€â”€ */}
+        {/* ── Captcha Configure panel ── */}
         <AnimatePresence>
           {showCaptchaConfigPanel && (
             <motion.div
@@ -11625,7 +13405,7 @@ const FormBuilderPage = () => {
 
                 <div className="flex-1 overflow-y-auto">
 
-                  {/* â”€â”€ FIELD SETTINGS â”€â”€ */}
+                  {/* ── FIELD SETTINGS ── */}
                   <div className="border-b border-[rgba(0,0,0,0.09)]">
                     <button
                       onClick={() => setCaptchaSections((p) => ({ ...p, fieldSettings: !p.fieldSettings }))}
@@ -11722,7 +13502,7 @@ const FormBuilderPage = () => {
                     </AnimatePresence>
                   </div>
 
-                  {/* â”€â”€ BEHAVIOUR â”€â”€ */}
+                  {/* ── BEHAVIOUR ── */}
                   <div className="border-b border-[rgba(0,0,0,0.09)]">
                     <button
                       onClick={() => setCaptchaSections((p) => ({ ...p, behaviour: !p.behaviour }))}
@@ -11773,7 +13553,7 @@ const FormBuilderPage = () => {
                               </button>
                             </div>
 
-                            {/* Badge position â€” only visible when badge is shown */}
+                            {/* Badge position — only visible when badge is shown */}
                             <AnimatePresence initial={false}>
                               {captchaShowBadge && (
                                 <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.18 }} className="overflow-hidden flex flex-col gap-[6px]">
@@ -11822,7 +13602,7 @@ const FormBuilderPage = () => {
                     </AnimatePresence>
                   </div>
 
-                  {/* â”€â”€ CONDITIONAL LOGIC â”€â”€ */}
+                  {/* ── CONDITIONAL LOGIC ── */}
                   <div className="border-b border-[rgba(0,0,0,0.09)]">
                     <button
                       onClick={() => setCaptchaSections((p) => ({ ...p, conditionalLogic: !p.conditionalLogic }))}
@@ -11837,11 +13617,11 @@ const FormBuilderPage = () => {
                       {captchaSections.conditionalLogic && (
                         <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
                           <div className="px-4 pb-[14px] pt-[6px] flex flex-col gap-[10px]">
-                            <span className="text-[9.5px] font-semibold tracking-[1.235px] uppercase text-[#bbb]" style={{ fontFamily: "'DM Sans', sans-serif" }}>SHOW THIS BLOCK IF</span>
-                            <button className="flex items-center gap-[5px] px-[12px] py-[7px] rounded-[7px] border border-dashed border-[rgba(0,0,0,0.2)] text-[#666] text-[12px] cursor-pointer hover:border-[#999] hover:text-[#333] transition-colors w-full">
-                              <RiAddLine size={13} className="shrink-0" />
-                              Add condition
-                            </button>
+                            <BlockVisibilityConditions
+                              conditions={showIfConditions}
+                              onChange={setShowIfConditions}
+                              priorScreens={priorScreensForActive}
+                            />
                           </div>
                         </motion.div>
                       )}
@@ -11854,7 +13634,7 @@ const FormBuilderPage = () => {
           )}
         </AnimatePresence>
 
-        {/* â”€â”€ Multi-image upload Configure panel â”€â”€ */}
+        {/* ── Multi-image upload Configure panel ── */}
         <AnimatePresence>
           {showMultiImageConfigPanel && (
             <motion.div
@@ -11877,7 +13657,7 @@ const FormBuilderPage = () => {
 
                 <div className="flex-1 overflow-y-auto">
 
-                  {/* â”€â”€ FIELD SETTINGS â”€â”€ */}
+                  {/* ── FIELD SETTINGS ── */}
                   <div className="border-b border-[rgba(0,0,0,0.09)]">
                     <button
                       onClick={() => setMultiImageSections((p) => ({ ...p, fieldSettings: !p.fieldSettings }))}
@@ -11937,7 +13717,7 @@ const FormBuilderPage = () => {
                                   onClick={() => setMultiImageMaxFiles(p => Math.max(1, p - 1))}
                                   disabled={multiImageMaxFiles <= 1}
                                   className={`w-[20px] h-[20px] rounded-[5px] bg-[rgba(255,255,255,0.8)] flex items-center justify-center transition-colors text-[14px] leading-none font-light select-none ${multiImageMaxFiles <= 1 ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer hover:bg-white text-[#111]'}`}
-                                >âˆ’</button>
+                                >−</button>
                                 <span className="text-[13px] font-medium text-[#111] min-w-[28px] text-center">{multiImageMaxFiles}</span>
                                 <button
                                   onClick={() => setMultiImageMaxFiles(p => Math.min(9, p + 1))}
@@ -11968,7 +13748,7 @@ const FormBuilderPage = () => {
                                         className={`w-full flex items-center justify-between px-[10px] py-[8px] text-[12.5px] cursor-pointer transition-colors ${configureMaxFileSize === opt ? 'bg-[#ebebea] font-medium' : 'hover:bg-[#f5f4f0]'} text-[#1a1a1a]`}
                                       >
                                         <span>{opt}</span>
-                                        {configureMaxFileSize === opt && <span className="text-[11px]">âœ“</span>}
+                                        {configureMaxFileSize === opt && <span className="text-[11px]">✓</span>}
                                       </button>
                                     ))}
                                   </div>
@@ -12015,7 +13795,7 @@ const FormBuilderPage = () => {
                     </AnimatePresence>
                   </div>
 
-                  {/* â”€â”€ APPEARANCE â”€â”€ */}
+                  {/* ── APPEARANCE ── */}
                   <div className="border-b border-[rgba(0,0,0,0.09)]">
                     <button
                       onClick={() => setMultiImageSections((p) => ({ ...p, appearance: !p.appearance }))}
@@ -12069,7 +13849,7 @@ const FormBuilderPage = () => {
           )}
         </AnimatePresence>
 
-        {/* â”€â”€ Rating Configure panel â”€â”€ */}
+        {/* ── Rating Configure panel ── */}
         <AnimatePresence>
           {showRatingConfigPanel && (
             <motion.div
@@ -12092,7 +13872,7 @@ const FormBuilderPage = () => {
 
                 <div className="flex-1 overflow-y-auto">
 
-                  {/* â”€â”€ FIELD SETTINGS section â”€â”€ */}
+                  {/* ── FIELD SETTINGS section ── */}
                   <div className="border-b border-[rgba(0,0,0,0.09)]">
                     <button onClick={() => setRatingSections((p) => ({ ...p, fieldSettings: !p.fieldSettings }))} className="flex items-center justify-between w-full px-4 py-[10px] cursor-pointer">
                       <span className="text-[9.5px] font-semibold tracking-[1.2px] uppercase text-[#bbb]">FIELD SETTINGS</span>
@@ -12141,7 +13921,7 @@ const FormBuilderPage = () => {
                                 <button
                                   onClick={() => setRatingMaxRating((p) => Math.max(ratingStyle === '1-10' ? 10 : 2, p - 1))}
                                   className="w-[20px] h-[20px] bg-[rgba(255,255,255,0.8)] rounded-[5px] flex items-center justify-center text-[14px] text-[#444] cursor-pointer hover:bg-white transition-colors leading-none"
-                                >âˆ’</button>
+                                >−</button>
                                 <span className="text-[13px] font-medium text-[#111] min-w-[28px] text-center">{ratingStyle === '1-10' ? 10 : ratingMaxRating}</span>
                                 <button
                                   onClick={() => { if (ratingStyle !== '1-10') setRatingMaxRating((p) => Math.min(10, p + 1)); }}
@@ -12171,7 +13951,7 @@ const FormBuilderPage = () => {
                                         : 'text-[#777] hover:text-[#444]'
                                     }`}
                                   >
-                                    <Icon size={14} />
+                                    {icon}
                                     {val}
                                   </button>
                                 ))}
@@ -12217,7 +13997,7 @@ const FormBuilderPage = () => {
                     </AnimatePresence>
                   </div>
 
-                  {/* â”€â”€ APPEARANCE section â”€â”€ */}
+                  {/* ── APPEARANCE section ── */}
                   <div className="border-b border-[rgba(0,0,0,0.09)]">
                     <button onClick={() => setRatingSections((p) => ({ ...p, appearance: !p.appearance }))} className="flex items-center justify-between w-full px-4 py-[10px] cursor-pointer">
                       <span className="text-[9.5px] font-semibold tracking-[1.2px] uppercase text-[#bbb]">APPEARANCE</span>
@@ -12260,7 +14040,7 @@ const FormBuilderPage = () => {
           )}
         </AnimatePresence>
 
-        {/* â”€â”€ If / Then Logic panel (Logic tab) â”€â”€ */}
+        {/* ── If / Then Logic panel (Logic tab) ── */}
         <AnimatePresence>
           {ifThenLogicPanelEdge != null && ifThenDraft && activeTab === 'logic' && (() => {
             const { from, to } = ifThenLogicPanelEdge;
@@ -12272,7 +14052,7 @@ const FormBuilderPage = () => {
               ? getLogicCardQuestionText(toScreen) || toScreen.name || toScreen.label || 'Screen'
               : null;
             const screenSubtitle =
-              toLabel != null ? `${fromLabel} â†’ ${toLabel}` : `${fromLabel} Screen`;
+              toLabel != null ? `${fromLabel} → ${toLabel}` : `${fromLabel} Screen`;
             return (
               <motion.div
                 key="if-then-logic-panel"
@@ -12280,12 +14060,11 @@ const FormBuilderPage = () => {
                 animate={{ width: 320 }}
                 exit={{ width: 0 }}
                 transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}
-                className="shrink-0 overflow-visible h-full"
+                className="absolute right-0 top-0 bottom-0 z-[70] shrink-0 overflow-visible h-full pointer-events-auto"
               >
                 <IfThenLogicPanel
                   screenSubtitle={screenSubtitle}
-                  fieldOptions={getLogicFieldOptionsForScreen(logicScreen)}
-                  fixedThenScreenId={to}
+                  questionOptions={getLogicQuestionOptionsForForm()}
                   destinationOptions={[
                     ...screens
                       .filter((s) => s.type === 'content' && s.id !== from)
@@ -12308,7 +14087,7 @@ const FormBuilderPage = () => {
           })()}
         </AnimatePresence>
 
-        {/* â”€â”€ Design / Customization panel (right) â”€â”€ */}
+        {/* ── Design / Customization panel (right) ── */}
         <AnimatePresence>
         {showDesignPanel && (
           <motion.div
@@ -12332,14 +14111,14 @@ const FormBuilderPage = () => {
                 onClick={() => { setShowDesignPanel(false); setActiveTab('content'); }}
                 className="flex items-center justify-center cursor-pointer text-[#7a7a72] text-[18px] leading-none hover:text-[#1a1a1a] transition-colors"
               >
-                Ã—
+                ×
               </button>
             </div>
 
             {/* Scrollable content */}
             <div className="flex-1 overflow-y-auto">
 
-              {/* â”€â”€ LAYOUT STYLE â”€â”€ */}
+              {/* ── LAYOUT STYLE ── */}
               <div className="border-b border-[#e4e2dc] flex flex-col gap-3 px-4 py-4">
                 <span className="text-[10px] font-semibold tracking-[0.6px] uppercase text-[#7a7a72]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
                   Layout Style
@@ -12365,9 +14144,9 @@ const FormBuilderPage = () => {
                 </div>
               </div>
 
-              {/* â”€â”€ BACKGROUND â”€â”€ */}
+              {/* ── BACKGROUND ── */}
               <div className="border-b border-[#e3e1da] flex flex-col gap-2 px-4 py-[13px]">
-                {/* Theme preview card â€” clickable to open overlay */}
+                {/* Theme preview card — clickable to open overlay */}
                 <button
                   onClick={() => setShowThemeOverlay(true)}
                   className="bg-white border border-[rgba(81,76,84,0.15)] rounded-[12px] overflow-hidden w-full text-left hover:border-[rgba(81,76,84,0.35)] transition-colors cursor-pointer"
@@ -12418,7 +14197,7 @@ const FormBuilderPage = () => {
                 </div>
               </div>
 
-              {/* â”€â”€ CARD COLOR â”€â”€ */}
+              {/* ── CARD COLOR ── */}
               <div className="border-b border-[#e4e2dc] flex flex-col gap-3 px-4 py-4">
                 <span className="text-[10px] font-semibold tracking-[0.6px] uppercase text-[#7a7a72]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
                   Card Color
@@ -12500,7 +14279,7 @@ const FormBuilderPage = () => {
                 </div>
               </div>
 
-              {/* â”€â”€ CARD OPACITY â”€â”€ */}
+              {/* ── CARD OPACITY ── */}
               <div className="border-b border-[#e4e2dc] flex flex-col gap-2 px-4 py-4">
                 <span className="text-[9.5px] font-medium tracking-[1.235px] uppercase text-[#aaa]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
                   Card Opacity
@@ -12533,7 +14312,7 @@ const FormBuilderPage = () => {
                 </div>
               </div>
 
-              {/* â”€â”€ TEXT COLOR â”€â”€ */}
+              {/* ── TEXT COLOR ── */}
               <div className="border-b border-[#e4e2dc] flex flex-col gap-3 px-4 py-4">
                 <span className="text-[10px] font-semibold tracking-[0.6px] uppercase text-[#7a7a72]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
                   Text Color
@@ -12564,7 +14343,7 @@ const FormBuilderPage = () => {
                 </div>
               </div>
 
-              {/* â”€â”€ TYPOGRAPHY â”€â”€ */}
+              {/* ── TYPOGRAPHY ── */}
               <div className="border-b border-[#e4e2dc] flex flex-col gap-2 px-4 py-4">
                 <span className="text-[10px] font-semibold tracking-[0.6px] uppercase text-[#7a7a72]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
                   Typography
@@ -12613,6 +14392,14 @@ const FormBuilderPage = () => {
         screenLabel={pendingScreenDelete?.screenLabel}
         onCancel={closeDeleteScreenModal}
         onConfirm={confirmScreenDelete}
+      />
+
+      <UnsavedChangesModal
+        open={Boolean(unsavedChangesPrompt)}
+        scope={unsavedChangesPrompt === 'leave' ? 'builder' : 'screen'}
+        onCancel={closeUnsavedChangesModal}
+        onDiscard={handleUnsavedDiscard}
+        onSave={handleUnsavedSave}
       />
 
       <PublishFormModal

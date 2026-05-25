@@ -1,9 +1,12 @@
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
 
 const ease = [0.25, 0.1, 0.25, 1];
 
 export default function ProfileModal({ open, onClose, children, className = '', widthClass = 'w-[min(100%,440px)]' }) {
-  return (
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
     <AnimatePresence>
       {open ? (
         <>
@@ -15,7 +18,7 @@ export default function ProfileModal({ open, onClose, children, className = '', 
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             onClick={onClose}
-            className="fixed inset-0 z-[300] cursor-default border-0 bg-black/20"
+            className="fixed inset-0 z-[9998] cursor-default border-0 bg-black/20"
           />
           <motion.div
             role="dialog"
@@ -24,12 +27,13 @@ export default function ProfileModal({ open, onClose, children, className = '', 
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 10 }}
             transition={{ duration: 0.22, ease }}
-            className={`fixed top-1/2 left-1/2 z-[301] max-h-[min(92vh,720px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[12px] bg-white shadow-[0_24px_60px_rgba(0,0,0,0.18)] ${widthClass} ${className}`}
+            className={`fixed top-1/2 left-1/2 z-[9999] max-h-[min(92vh,720px)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[14px] bg-white shadow-[0_24px_60px_rgba(0,0,0,0.18)] ${widthClass} ${className}`}
           >
             {children}
           </motion.div>
         </>
       ) : null}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

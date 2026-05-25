@@ -2,7 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { AnimatePresence, motion } from 'motion/react';
 import { RiNotification3Line } from 'react-icons/ri';
-import { openFormOverlay, openCreateNewFormModal, toggleNotificationCenter } from '@/store/slices/uiSlice';
+import {
+  openFormOverlay,
+  openCreateNewFormModal,
+  toggleNotificationCenter,
+  toggleIntegrationsPanel,
+} from '@/store/slices/uiSlice';
+import boxesPlusIcon from '@/assets/Icons/boxes-plus.svg';
+import IntegrationsPanel from '@/features/forms/components/IntegrationsPanel';
 import SearchDropdown from './SearchPalette';
 
 const shimmer = 'relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_1.5s_infinite] before:bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.6),transparent)]';
@@ -17,7 +24,12 @@ const SearchIcon = () => (
   </svg>
 );
 
-const Topbar = ({ title = 'All forms', useFormsLoading = true }) => {
+const TITLE_CLASS = {
+  default: 'text-[20px] font-medium text-[#1a1a1c] tracking-[-0.2px] leading-[25px]',
+  sm: 'text-[13px] font-medium text-[#111110] leading-normal',
+};
+
+const Topbar = ({ title = 'All forms', titleSize = 'default', useFormsLoading = true }) => {
   const dispatch = useDispatch();
   const formsLoading = useSelector((s) => s.forms.isLoading);
   const isLoading = useFormsLoading ? formsLoading : false;
@@ -79,7 +91,10 @@ const Topbar = ({ title = 'All forms', useFormsLoading = true }) => {
         >
           <Sk className="h-[20px] w-[80px] rounded-[6px]" />
           <Sk className="h-[38px] w-[400px] rounded-[8px]" />
-          <Sk className="h-8 w-8 rounded-[6px]" />
+          <div className="flex gap-2">
+            <Sk className="h-8 w-8 rounded-[6px]" />
+            <Sk className="h-8 w-8 rounded-[6px]" />
+          </div>
         </motion.header>
       ) : (
         <motion.header
@@ -91,7 +106,9 @@ const Topbar = ({ title = 'All forms', useFormsLoading = true }) => {
           className="h-[52px] shrink-0 bg-white border-b border-[#e5e3dc] flex items-center justify-between px-6"
         >
           {/* Page title */}
-          <h1 className="text-[20px] font-medium text-[#1a1a1c] tracking-[-0.2px] leading-[25px] whitespace-nowrap">
+          <h1
+            className={`whitespace-nowrap ${TITLE_CLASS[titleSize] ?? TITLE_CLASS.default}`}
+          >
             {title}
           </h1>
 
@@ -137,30 +154,44 @@ const Topbar = ({ title = 'All forms', useFormsLoading = true }) => {
             </div>
           </div>
 
-          {/* Notification bell */}
-          <div className="relative p-0.5">
+          {/* Integrations + notifications */}
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => dispatch(toggleNotificationCenter())}
-              className="w-8 h-8 bg-white border border-[rgba(0,0,0,0.08)] rounded-[6px] flex items-center justify-center hover:bg-[#f4f3ef] transition-colors cursor-pointer"
-              aria-label="Toggle notifications"
+              type="button"
+              onClick={() => dispatch(toggleIntegrationsPanel())}
+              className="flex size-8 items-center justify-center rounded-[6px] border border-[rgba(0,0,0,0.08)] bg-white transition-colors hover:bg-[#f4f3ef] cursor-pointer"
+              aria-label="Toggle integrations"
             >
-              <RiNotification3Line size={15} className="text-[#6b6966]" />
+              <img src={boxesPlusIcon} alt="" className="size-[16px]" aria-hidden />
             </button>
-            <AnimatePresence>
-              {unreadCount > 0 && (
-                <motion.span
-                  key="unread-badge"
-                  initial={{ opacity: 0, scale: 0.65 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.65 }}
-                  transition={{ duration: 0.16, ease: topbarEase }}
-                  className="absolute -top-[1px] -right-[1px] min-w-[15px] h-[15px] px-[4px] bg-[#d4522a] rounded-full border border-white text-[9px] text-white font-semibold leading-[13px] text-center"
-                >
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </motion.span>
-              )}
-            </AnimatePresence>
+
+            <div className="relative p-0.5">
+              <button
+                type="button"
+                onClick={() => dispatch(toggleNotificationCenter())}
+                className="flex size-8 items-center justify-center rounded-[6px] border border-[rgba(0,0,0,0.08)] bg-white transition-colors hover:bg-[#f4f3ef] cursor-pointer"
+                aria-label="Toggle notifications"
+              >
+                <RiNotification3Line size={15} className="text-[#6b6966]" />
+              </button>
+              <AnimatePresence>
+                {unreadCount > 0 && (
+                  <motion.span
+                    key="unread-badge"
+                    initial={{ opacity: 0, scale: 0.65 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.65 }}
+                    transition={{ duration: 0.16, ease: topbarEase }}
+                    className="absolute -top-[1px] -right-[1px] min-w-[15px] h-[15px] px-[4px] bg-[#d4522a] rounded-full border border-white text-[9px] text-white font-semibold leading-[13px] text-center"
+                  >
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
+
+          <IntegrationsPanel />
 
           {/* Dropdown — fixed-positioned below the search bar */}
           <SearchDropdown

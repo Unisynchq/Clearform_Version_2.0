@@ -20,6 +20,7 @@ import FormContextMenu from '../components/FormContextMenu';
 import DeleteFormModal from '../components/DeleteFormModal';
 import DuplicateFormModal from '../components/DuplicateFormModal';
 import ArchiveFormModal from '../components/ArchiveFormModal';
+import PauseFormModal from '../components/PauseFormModal';
 import FormOverlayModal from '../components/FormOverlayModal';
 import NewWorkspaceEmpty from '../components/NewWorkspaceEmpty';
 import CreateWorkspaceModal from '../components/CreateWorkspaceModal';
@@ -184,6 +185,7 @@ const AllFormsPage = () => {
       <DeleteFormModal />
       <DuplicateFormModal />
       <ArchiveFormModal />
+      <PauseFormModal />
       <FormOverlayModal />
       <CreateWorkspaceModal />
       <ShareFormModal />

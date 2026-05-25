@@ -46,6 +46,17 @@ button[role="switch"] {
   100% { transform: translateX(-100%); }
 }
 
+/* Logic canvas: flowing dashes on the in-progress connection wire */
+@keyframes logic-connect-dash-flow {
+  to {
+    stroke-dashoffset: -11;
+  }
+}
+
+.logic-connect-drag-path {
+  animation: logic-connect-dash-flow 0.55s linear infinite;
+}
+
 .label-marquee {
   display: block;
   overflow: hidden;

@@ -10,6 +10,12 @@ const toNumber = (v) => {
 
 const toString = (v) => (v == null ? '' : String(v).trim());
 
+const splitMultiValue = (v) =>
+  String(v ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
 /** Build normalized field-id → answer map from ContentCard preview snap */
 export function buildLogicAnswersFromScreen(screen, snap) {
   if (!screen || !snap) return {};
@@ -37,24 +43,57 @@ export function buildLogicAnswersFromScreen(screen, snap) {
   }
 
   if (label === 'Address') {
-    answers.address = [pf('a.st'), pf('a.ci'), pf('a.ste'), pf('a.po')].filter(Boolean).join(', ');
+    answers.address = [pf('a.st'), pf('a.ci'), pf('a.ste'), pf('a.po'), pf('a.ct')].filter(Boolean).join(', ');
   }
 
-  if (label === 'Single' || label === 'Multiple') {
+  if (label === 'Work Info') {
+    const parts = [pf('w.co'), pf('w.ti'), pf('w.ind'), pf('w.ts')].filter(Boolean);
+    answers['contact-info'] = parts.join(' ');
+    answers['short-text'] = pf('w.ti');
+    answers['long-text'] = pf('w.ind');
+  }
+
+  if (label === 'Single') {
     const picks = snap.previewPicks ?? [];
     answers['multiple-choice'] = picks[0] ?? '';
     answers['picture-choice'] = picks[0] ?? '';
   }
 
-  if (label === 'Media') {
+  if (label === 'Multiple') {
     const picks = snap.previewPicks ?? [];
+    answers['multiple-choice'] = picks.join(', ');
     answers['picture-choice'] = picks[0] ?? '';
-    answers['multiple-choice'] = picks.length;
   }
 
-  if (label === 'Date' || label === 'Time') {
-    answers.date = pf('dateAns');
+  if (label === 'Media') {
+    const picks = snap.previewPicks ?? [];
+    answers['picture-choice'] = picks.length ? picks.join(', ') : '';
+    answers['multiple-choice'] = picks.join(', ');
+  }
+
+  if (label === 'Date') {
+    answers.date = pf('dateAns') || pf('date');
     answers.number = pf('numAns');
+  }
+
+  if (label === 'Time') {
+    const sel = snap.timeSelection;
+    if (sel) {
+      const parts = [sel.hour, sel.minute, sel.second ?? 0].map((n) => String(n).padStart(2, '0'));
+      answers.number = parts.join(':');
+      answers.date = parts.join(':');
+    } else {
+      answers.date = pf('dateAns');
+      answers.number = pf('numAns');
+    }
+  }
+
+  if (label === 'Maps') {
+    const sel = snap.mapSelection;
+    answers.address = (sel?.address ?? pf('map.address')).trim();
+    if (sel?.lat != null && sel?.lng != null) {
+      answers['short-text'] = `${sel.lat},${sel.lng}`;
+    }
   }
 
   if (label === 'Video') {
@@ -62,7 +101,11 @@ export function buildLogicAnswersFromScreen(screen, snap) {
   }
 
   if (label === 'Upload' || label === 'Multi-image upload') {
-    answers['file-upload'] = pf('uploadAns') || 'uploaded';
+    answers['file-upload'] = pf('uploadAns') || (snap.uploadedFiles?.length ? 'uploaded' : '');
+  }
+
+  if (label === 'Captcha') {
+    answers['short-text'] = snap.captchaChecked ? 'passed' : '';
   }
 
   if (label === 'Heading') {
@@ -73,6 +116,57 @@ export function buildLogicAnswersFromScreen(screen, snap) {
   }
 
   return answers;
+}
+
+/** Screens that appear before `currentScreenId` in form order. */
+export function getPriorContentScreens(screens, currentScreenId) {
+  const idx = screens.findIndex((s) => s.id === currentScreenId);
+  if (idx < 0) return [];
+  return screens.slice(0, idx).filter((s) => s.type === 'content');
+}
+
+/** Lookup answer for a condition that references a specific prior screen. */
+export function getAnswerForCondition(condition, answersByScreenId) {
+  const screenAnswers = answersByScreenId[condition.sourceScreenId] ?? {};
+  return screenAnswers[condition.fieldId];
+}
+
+/** All conditions must match (AND). Empty list = visible. */
+export function evaluateVisibilityConditions(conditions, answersByScreenId) {
+  const list = conditions ?? [];
+  if (!list.length) return true;
+  return list.every((c) => {
+    if (c.sourceScreenId == null || !c.fieldId) return false;
+    const answer = getAnswerForCondition(c, answersByScreenId);
+    return evaluateCondition(answer, c);
+  });
+}
+
+export function isScreenVisibleInPreview(screen, answersByScreenId) {
+  if (!screen || screen.type !== 'content') return true;
+  const conditions = screen.config?.showIfConditions;
+  return evaluateVisibilityConditions(conditions, answersByScreenId);
+}
+
+/** Resolve next screen, skipping content screens that fail visibility rules in preview. */
+export function resolveVisibleNextScreenId(params) {
+  const { fromScreenId, screens } = params;
+  const visited = new Set();
+  let cur = fromScreenId;
+
+  while (cur != null && !visited.has(cur)) {
+    visited.add(cur);
+    const nextId = resolveNextScreenId({ ...params, fromScreenId: cur });
+    if (nextId == null) return null;
+
+    const nextScreen = screens.find((s) => s.id === nextId);
+    if (!nextScreen || nextScreen.type !== 'content') return nextId;
+    if (isScreenVisibleInPreview(nextScreen, params.answersByScreenId ?? {})) return nextId;
+
+    cur = nextId;
+  }
+
+  return null;
 }
 
 export function evaluateCondition(answer, condition) {
@@ -122,6 +216,16 @@ export function evaluateCondition(answer, condition) {
       return t.length > 0 && a.includes(t);
     case 'not_contains':
       return t.length === 0 || !a.includes(t);
+    case 'includes': {
+      if (!t.length) return false;
+      const parts = splitMultiValue(answer);
+      return parts.some((p) => p.toLowerCase() === t);
+    }
+    case 'not_includes': {
+      if (!t.length) return true;
+      const parts = splitMultiValue(answer);
+      return !parts.some((p) => p.toLowerCase() === t);
+    }
     case 'is_empty':
       return a.length === 0;
     case 'is_not_empty':
@@ -132,11 +236,20 @@ export function evaluateCondition(answer, condition) {
 }
 
 /** All conditions in a rule must match (AND) */
-export function evaluateRule(rule, answersByFieldId) {
+export function evaluateRule(rule, answersByScreenId, { fromScreenId } = {}) {
   const conditions = rule?.conditions ?? [];
   if (!conditions.length) return false;
   return conditions.every((c) => {
-    const answer = answersByFieldId[c.fieldId];
+    let answer;
+    if (c.sourceScreenId != null) {
+      answer = getAnswerForCondition(c, answersByScreenId);
+    } else if (fromScreenId != null && answersByScreenId && typeof answersByScreenId === 'object') {
+      answer = (answersByScreenId[fromScreenId] ?? {})[c.fieldId];
+    } else if (answersByScreenId && answersByScreenId[c.fieldId] !== undefined) {
+      answer = answersByScreenId[c.fieldId];
+    } else {
+      answer = undefined;
+    }
     return evaluateCondition(answer, c);
   });
 }
@@ -159,7 +272,6 @@ export function resolveNextScreenId({
   const from = screens.find((s) => s.id === fromScreenId);
   if (!from) return null;
 
-  const answers = answersByScreenId[fromScreenId] ?? {};
   const ifEdges = logicConnections
     .filter((c) => c.from === fromScreenId && c.kind === 'if')
     .sort((a, b) => a.to - b.to);
@@ -168,10 +280,19 @@ export function resolveNextScreenId({
     const edgeRules = logicIfRulesByEdge[logicEdgeKey(edge.from, edge.to)];
     if (!edgeRules?.rules?.length) continue;
     for (const rule of edgeRules.rules) {
-      if (evaluateRule(rule, answers)) {
+      if (evaluateRule(rule, answersByScreenId, { fromScreenId })) {
         return edge.to;
       }
     }
+  }
+
+  const outgoing = logicConnections.filter((c) => c.from === fromScreenId && c.kind != null);
+  const nextEdge = outgoing.find((c) => c.kind === 'next');
+  if (nextEdge?.to != null) return nextEdge.to;
+
+  for (const edge of ifEdges) {
+    const edgeRules = logicIfRulesByEdge[logicEdgeKey(edge.from, edge.to)];
+    if (edgeRules?.elseScreenId != null) return edgeRules.elseScreenId;
   }
 
   if (logicElseByScreen[fromScreenId] != null) {
@@ -181,7 +302,7 @@ export function resolveNextScreenId({
   const screenRules = logicIfRulesByScreen[fromScreenId];
   if (screenRules?.rules?.length) {
     for (const rule of screenRules.rules) {
-      if (evaluateRule(rule, answers) && rule.thenScreenId != null) {
+      if (evaluateRule(rule, answersByScreenId, { fromScreenId }) && rule.thenScreenId != null) {
         return rule.thenScreenId;
       }
     }
@@ -190,12 +311,8 @@ export function resolveNextScreenId({
     }
   }
 
-  const outgoing = logicConnections.filter((c) => c.from === fromScreenId && c.kind != null);
   const ifEdge = outgoing.find((c) => c.kind === 'if');
   if (ifEdge?.to != null) return ifEdge.to;
-
-  const nextEdge = outgoing.find((c) => c.kind === 'next');
-  if (nextEdge?.to != null) return nextEdge.to;
 
   const skipEdge = outgoing.find((c) => c.kind === 'skip');
   if (skipEdge?.to != null) return skipEdge.to;
@@ -255,6 +372,8 @@ export function getOperatorsForFieldId(fieldId) {
     return [
       { id: 'eq', label: 'is' },
       { id: 'neq', label: 'is not' },
+      { id: 'includes', label: 'includes' },
+      { id: 'not_includes', label: 'does not include' },
       { id: 'is_empty', label: 'is empty' },
       { id: 'is_not_empty', label: 'is not empty' },
     ];
@@ -285,7 +404,7 @@ export function validateIfThenDraft(draft, destinationOptions) {
       errors.push(`Rule ${i + 1}: choose a destination screen.`);
     }
     rule.conditions?.forEach((c, j) => {
-      if (!c.fieldId) errors.push(`Rule ${i + 1}, condition ${j + 1}: choose a field.`);
+      if (!c.fieldId) errors.push(`Rule ${i + 1}, condition ${j + 1}: choose a question.`);
       const emptyVal = c.value === '' || c.value == null;
       const noValueOp = c.operator === 'is_empty' || c.operator === 'is_not_empty';
       if (!noValueOp && emptyVal && isNumericFieldId(c.fieldId)) {

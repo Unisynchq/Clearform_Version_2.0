@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   RiEditLine, RiBarChartLine, RiCloseLine, RiSparklingLine,
@@ -10,7 +11,9 @@ import {
 } from 'react-icons/ri';
 import { closeFormOverlay } from '@/store/slices/uiSlice';
 import { setFormPause, clearFormPause, unarchiveForm } from '@/store/slices/formsSlice';
+import { isFormPaused } from '../utils/formPause';
 import { formatResponseCount } from '@/constants';
+import { FORM_BUILDER_PATH, getFormBuilderState } from '../utils/formBuilderNavigation';
 
 /* ── Skeleton shimmer helper ── */
 const shimmer =
@@ -191,6 +194,7 @@ function buildCalendarGrid(year, month) {
 
 const FormOverlayModal = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { open, formId } = useSelector((s) => s.ui.formOverlay);
   const form = useSelector((s) => s.forms.forms.find((f) => f.id === formId));
   const [isLoading, setIsLoading]             = useState(false);
@@ -209,7 +213,7 @@ const FormOverlayModal = () => {
   const [ampm, setAmpm]           = useState('AM');
 
   // confirmed pause comes from Redux so it survives close/reopen
-  const confirmedPause = form?.pauseSettings?.confirmed ?? false;
+  const confirmedPause = isFormPaused(form);
   const pauseEndLabel  = form?.pauseSettings?.endLabel  ?? '';
   const timeRemaining  = formatTimeRemaining(form?.pauseSettings);
   const pauseType      = form?.pauseSettings?.pauseType ?? null;
@@ -230,6 +234,10 @@ const FormOverlayModal = () => {
     }, 700);
 
     queueMicrotask(() => {
+      if (form?.pauseSettings?.confirmed && !isFormPaused(form)) {
+        dispatch(clearFormPause(formId));
+      }
+
       setIsLoading(true);
       setFetchError(false);
       setActiveTab('overview');
@@ -386,11 +394,31 @@ const FormOverlayModal = () => {
 
                 {/* Draft footer */}
                 <div className="border-t border-[#f0ede8] flex items-center justify-center gap-[8px] px-[20px] pb-[16px] pt-[17px]">
-                  <button className="flex items-center gap-[4px] bg-[#1a1a1c] text-white text-[12px] font-medium h-[36px] px-[13px] rounded-[8px] hover:bg-[#2c2c2e] transition-colors cursor-pointer whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const builderState = getFormBuilderState(form, { startInPublishView: true });
+                      if (builderState) {
+                        dispatch(closeFormOverlay());
+                        navigate(FORM_BUILDER_PATH, { state: builderState });
+                      }
+                    }}
+                    className="flex items-center gap-[4px] bg-[#1a1a1c] text-white text-[12px] font-medium h-[36px] px-[13px] rounded-[8px] hover:bg-[#2c2c2e] transition-colors cursor-pointer whitespace-nowrap"
+                  >
                     <RiPencilLine size={14} />
                     Finish &amp; Publish
                   </button>
-                  <button className="flex items-center gap-[4px] bg-white text-[#333] text-[12.4px] font-medium h-[36px] px-[13px] rounded-[8px] border border-[#e0ddd8] hover:bg-[#f4f3ef] transition-colors cursor-pointer whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const builderState = getFormBuilderState(form, { preview: true });
+                      if (builderState) {
+                        dispatch(closeFormOverlay());
+                        navigate(FORM_BUILDER_PATH, { state: builderState });
+                      }
+                    }}
+                    className="flex items-center gap-[4px] bg-white text-[#333] text-[12.4px] font-medium h-[36px] px-[13px] rounded-[8px] border border-[#e0ddd8] hover:bg-[#f4f3ef] transition-colors cursor-pointer whitespace-nowrap"
+                  >
                     <RiEyeLine size={14} />
                     Preview
                   </button>
@@ -471,7 +499,17 @@ const FormOverlayModal = () => {
 
               {/* Buttons */}
               <div className="flex items-center gap-2 shrink-0">
-                <button className="flex items-center gap-1.5 px-3 py-[6px] text-[12px] font-medium text-[#1a1a1c] border border-[rgba(0,0,0,0.1)] rounded-[8px] hover:bg-[#f4f3ef] transition-colors cursor-pointer whitespace-nowrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const builderState = getFormBuilderState(form);
+                    if (builderState) {
+                      dispatch(closeFormOverlay());
+                      navigate(FORM_BUILDER_PATH, { state: builderState });
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-[6px] text-[12px] font-medium text-[#1a1a1c] border border-[rgba(0,0,0,0.1)] rounded-[8px] hover:bg-[#f4f3ef] transition-colors cursor-pointer whitespace-nowrap"
+                >
                   <RiEditLine size={12} />
                   Edit form
                 </button>
@@ -491,7 +529,16 @@ const FormOverlayModal = () => {
                     Unarchive
                   </button>
                 ) : (
-                  <button className="flex items-center gap-1.5 px-3 py-[6px] text-[12px] font-medium text-white bg-[#1a1a1c] rounded-[8px] hover:bg-[#2c2c2e] transition-colors cursor-pointer whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (formId != null) {
+                        dispatch(closeFormOverlay());
+                        navigate(`/dashboard/analytics?form=${formId}&tab=responses`);
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-[6px] text-[12px] font-medium text-white bg-[#1a1a1c] rounded-[8px] hover:bg-[#2c2c2e] transition-colors cursor-pointer whitespace-nowrap"
+                  >
                     <RiBarChartLine size={12} />
                     View analytics
                   </button>

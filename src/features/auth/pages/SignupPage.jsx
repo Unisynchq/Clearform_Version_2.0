@@ -4,7 +4,18 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { FcGoogle } from 'react-icons/fc';
 import { RiGlobalLine, RiArrowDownSLine, RiAppleFill, RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
-import { setField, setSubmitting, setAuthenticated } from '@/store/slices/authSlice';
+import { setField, setSubmitting, loginSuccess } from '@/store/slices/authSlice';
+import { resolveSignupNavigation } from '@/features/onboarding/utils/authOnboarding';
+import {
+  persistAccountPassword,
+  upsertUserAccount,
+} from '@/features/auth/utils/userAccountsStorage';
+import AuthFieldError from '@/features/auth/components/AuthFieldError';
+import {
+  hasValidationErrors,
+  validateSignupForm,
+} from '@/features/auth/utils/authValidation';
+import { useToast } from '@/hooks/useToast';
 import clearformLogoWhite from '@/assets/clearform-logo-white.svg';
 import bgImage from '@/assets/onboarding-bg.jpg';
 
@@ -32,9 +43,19 @@ const SocialButton = memo(({ children, label }) => (
   </motion.button>
 ));
 
-const InputField = memo(({ label, required, type = 'text', placeholder, value, onChange, name }) => {
+const inputBaseClass =
+  'w-full h-[40px] bg-[#fafafa] border rounded-[10px] px-[13px] text-[13px] text-[#0f0f0e] placeholder:text-[#757575] outline-none focus:bg-white transition-colors duration-150';
+const inputValidClass = 'border-[rgba(81,76,84,0.15)] focus:border-[rgba(81,76,84,0.4)]';
+const inputInvalidClass = 'border-[#c74e43] focus:border-[#c74e43]';
+const nameInputBaseClass =
+  'w-full h-[40px] bg-[#fafafa] border rounded-[8px] px-3 text-[13px] text-[#0f0f0e] placeholder:text-[#757575] outline-none focus:bg-white transition-colors duration-150';
+const nameInputValidClass = 'border-[#e1e0e2] focus:border-[rgba(81,76,84,0.4)]';
+const nameInputInvalidClass = 'border-[#c74e43] focus:border-[#c74e43]';
+
+const InputField = memo(({ label, required, type = 'text', placeholder, value, onChange, name, error }) => {
   const [showPassword, setShowPassword] = useState(false);
   const isPassword = type === 'password';
+  const errorId = `${name}-error`;
 
   return (
     <div className="flex flex-col gap-1.5 w-full">
@@ -51,7 +72,9 @@ const InputField = memo(({ label, required, type = 'text', placeholder, value, o
           onChange={onChange}
           placeholder={placeholder}
           autoComplete={isPassword ? 'new-password' : name === 'email' ? 'email' : 'given-name'}
-          className="w-full h-[40px] bg-[#fafafa] border border-[rgba(81,76,84,0.15)] rounded-[10px] px-[13px] text-[13px] text-[#0f0f0e] placeholder:text-[#757575] outline-none focus:border-[rgba(81,76,84,0.4)] focus:bg-white transition-colors duration-150"
+          aria-invalid={error ? 'true' : undefined}
+          aria-describedby={error ? errorId : undefined}
+          className={`${inputBaseClass} ${error ? inputInvalidClass : inputValidClass}`}
         />
         {isPassword && (
           <button
@@ -64,6 +87,32 @@ const InputField = memo(({ label, required, type = 'text', placeholder, value, o
           </button>
         )}
       </div>
+      <AuthFieldError id={errorId} message={error} />
+    </div>
+  );
+});
+
+const NameField = memo(({ id, label, name, value, onChange, placeholder, autoComplete, error }) => {
+  const errorId = `${name}-error`;
+
+  return (
+    <div className="flex flex-col gap-1 flex-1">
+      <label htmlFor={id} className="text-[12px] font-bold text-[#5a5a56] leading-[18px]">
+        {label}
+      </label>
+      <input
+        id={id}
+        type="text"
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        aria-invalid={error ? 'true' : undefined}
+        aria-describedby={error ? errorId : undefined}
+        className={`${nameInputBaseClass} ${error ? nameInputInvalidClass : nameInputValidClass}`}
+      />
+      <AuthFieldError id={errorId} message={error} />
     </div>
   );
 });
@@ -125,23 +174,55 @@ const LeftPanel = memo(() => {
 const SignupPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const { firstName, lastName, email, password, isSubmitting } = useSelector(
     (state) => state.auth
   );
+  const [errors, setErrors] = useState({});
 
   const handleChange = useCallback((e) => {
-    dispatch(setField({ field: e.target.name, value: e.target.value }));
+    const { name, value } = e.target;
+    dispatch(setField({ field: name, value }));
+    setErrors((prev) => (prev[name] ? { ...prev, [name]: null } : prev));
   }, [dispatch]);
 
   const handleSubmit = useCallback((e) => {
     e.preventDefault();
+    const nextErrors = validateSignupForm({ firstName, lastName, email, password });
+    setErrors(nextErrors);
+    if (hasValidationErrors(nextErrors)) return;
+
     dispatch(setSubmitting(true));
     setTimeout(() => {
       dispatch(setSubmitting(false));
-      dispatch(setAuthenticated(true));
-      navigate('/dashboard');
+      const trimmedFirst = firstName.trim();
+      const trimmedEmail = email.trim();
+      const trimmedLast = lastName.trim();
+      // Start onboarding before auth so GuestOnly routes to /onboarding, not /dashboard
+      const path = resolveSignupNavigation(dispatch);
+      dispatch(
+        loginSuccess({
+          email: trimmedEmail,
+          firstName: trimmedFirst,
+          lastName: trimmedLast,
+        })
+      );
+      upsertUserAccount({
+        email: trimmedEmail,
+        firstName: trimmedFirst,
+        lastName: trimmedLast,
+      });
+      persistAccountPassword(trimmedEmail, password);
+      showToast({
+        type: 'success',
+        message: trimmedFirst
+          ? `Welcome, ${trimmedFirst}! Your account is ready.`
+          : 'Account created successfully',
+        duration: 3000,
+      });
+      navigate(path, { replace: true });
     }, 1000);
-  }, [dispatch, navigate]);
+  }, [dispatch, navigate, email, firstName, lastName, password, showToast]);
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white">
@@ -170,46 +251,38 @@ const SignupPage = () => {
           <form onSubmit={handleSubmit} className="flex flex-col gap-[14px]" noValidate>
             {/* Name row */}
             <div className="flex items-start gap-4">
-              <div className="flex flex-col gap-1 flex-1">
-                <label htmlFor="firstName" className="text-[12px] font-bold text-[#5a5a56] leading-[18px]">
-                  First name
-                </label>
-                <input
-                  id="firstName"
-                  type="text"
-                  name="firstName"
-                  value={firstName}
-                  onChange={handleChange}
-                  placeholder="John"
-                  autoComplete="given-name"
-                  className="w-full h-[40px] bg-[#fafafa] border border-[#e1e0e2] rounded-[8px] px-3 text-[13px] text-[#0f0f0e] placeholder:text-[#757575] outline-none focus:border-[rgba(81,76,84,0.4)] focus:bg-white transition-colors duration-150"
-                />
-              </div>
-              <div className="flex flex-col gap-1 flex-1">
-                <label htmlFor="lastName" className="text-[12px] font-bold text-[#5a5a56] leading-[18px]">
-                  Last name
-                </label>
-                <input
-                  id="lastName"
-                  type="text"
-                  name="lastName"
-                  value={lastName}
-                  onChange={handleChange}
-                  placeholder="Doe"
-                  autoComplete="family-name"
-                  className="w-full h-[40px] bg-[#fafafa] border border-[#e1e0e2] rounded-[8px] px-3 text-[13px] text-[#0f0f0e] placeholder:text-[#757575] outline-none focus:border-[rgba(81,76,84,0.4)] focus:bg-white transition-colors duration-150"
-                />
-              </div>
+              <NameField
+                id="firstName"
+                label="First name"
+                name="firstName"
+                value={firstName}
+                onChange={handleChange}
+                placeholder="John"
+                autoComplete="given-name"
+                error={errors.firstName}
+              />
+              <NameField
+                id="lastName"
+                label="Last name"
+                name="lastName"
+                value={lastName}
+                onChange={handleChange}
+                placeholder="Doe"
+                autoComplete="family-name"
+                error={errors.lastName}
+              />
             </div>
 
             <InputField
               label="Email" required type="email" name="email"
               placeholder="johndoe@gmail.com" value={email} onChange={handleChange}
+              error={errors.email}
             />
 
             <InputField
               label="Password" required type="password" name="password"
               placeholder="Min. 8 characters" value={password} onChange={handleChange}
+              error={errors.password}
             />
 
             {/* Social login */}

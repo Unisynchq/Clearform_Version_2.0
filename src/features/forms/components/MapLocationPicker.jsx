@@ -27,6 +27,17 @@ const normalizeStyle = (style) => {
   return 'default';
 };
 
+const toValidCoord = (value, fallback) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+/** Leaflet leaves `_leaflet_id` on the DOM node; clear it so Strict Mode remounts can re-init. */
+const clearLeafletContainer = (el) => {
+  if (!el) return;
+  delete el._leaflet_id;
+};
+
 const pinIcon = () =>
   L.divIcon({
     className: '',
@@ -34,6 +45,11 @@ const pinIcon = () =>
     iconSize: [28, 28],
     iconAnchor: [14, 28],
   });
+
+const clampZoom = (value) => {
+  const z = Math.round(toValidCoord(value, 12));
+  return Math.min(20, Math.max(1, z));
+};
 
 /**
  * Interactive map with search, click-to-place, and draggable pin (mobile-style location pick).
@@ -70,8 +86,9 @@ export default function MapLocationPicker({
   const resolvedHeight = typeof height === 'number' ? height : (HEIGHT_PX[height] ?? HEIGHT_PX.M);
   const styleKey = normalizeStyle(mapStyle);
 
-  const lat = latitude ?? DEFAULT_MAP_CENTER.lat;
-  const lng = longitude ?? DEFAULT_MAP_CENTER.lng;
+  const lat = toValidCoord(latitude, DEFAULT_MAP_CENTER.lat);
+  const lng = toValidCoord(longitude, DEFAULT_MAP_CENTER.lng);
+  const safeZoom = clampZoom(zoom);
 
   const emitChange = useCallback(
     (next) => {
@@ -137,55 +154,114 @@ export default function MapLocationPicker({
     [emitChange, resolveAddress, restrictRadius, restrictRadiusKm, searchQuery]
   );
 
-  /* Initialize map */
+  /* Initialize map once the container has layout (avoids crashes in zero-width panels / Strict Mode). */
   useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current) return;
+    const container = mapRef.current;
+    if (!container) return undefined;
 
-    const map = L.map(mapRef.current, {
-      center: [lat, lng],
-      zoom,
-      zoomControl: height !== 'compact',
-      attributionControl: height !== 'compact',
-    });
+    let cancelled = false;
+    let resizeObserver = null;
+    let rafId = 0;
+    let initAttempts = 0;
 
-    const layerDef = TILE_LAYERS[styleKey] ?? TILE_LAYERS.default;
-    tileLayerRef.current = L.tileLayer(layerDef.url, { attribution: layerDef.attribution }).addTo(map);
-
-    const marker = L.marker([lat, lng], {
-      icon: pinIcon(),
-      draggable: allowPinMovement,
-    }).addTo(map);
-
-    markerRef.current = marker;
-    mapInstanceRef.current = map;
-
-    if (restrictRadius) {
-      radiusCircleRef.current = L.circle([lat, lng], {
-        radius: restrictRadiusKm * 1000,
-        color: '#2a9d6e',
-        fillColor: '#2a9d6e',
-        fillOpacity: 0.08,
-        weight: 1.5,
-      }).addTo(map);
-    }
-
-    marker.on('dragend', () => {
-      const pos = marker.getLatLng();
-      moveMarker(pos.lat, pos.lng);
-    });
-
-    map.on('click', (e) => {
-      if (!allowPinMovement) return;
-      moveMarker(e.latlng.lat, e.latlng.lng);
-    });
-
-    return () => {
-      clearTimeout(geocodeTimerRef.current);
-      map.remove();
+    const destroyMap = () => {
+      const map = mapInstanceRef.current;
+      if (map) {
+        try {
+          map.remove();
+        } catch {
+          /* ignore teardown races */
+        }
+      }
       mapInstanceRef.current = null;
       markerRef.current = null;
       tileLayerRef.current = null;
       radiusCircleRef.current = null;
+      clearLeafletContainer(container);
+    };
+
+    const createMap = () => {
+      if (cancelled || mapInstanceRef.current || !mapRef.current) return;
+
+      const el = mapRef.current;
+      if (el.clientWidth === 0 || el.clientHeight === 0) return;
+
+      clearLeafletContainer(el);
+
+      try {
+        const map = L.map(el, {
+          center: [lat, lng],
+          zoom: safeZoom,
+          zoomControl: height !== 'compact',
+          attributionControl: height !== 'compact',
+        });
+
+        const layerDef = TILE_LAYERS[styleKey] ?? TILE_LAYERS.default;
+        tileLayerRef.current = L.tileLayer(layerDef.url, { attribution: layerDef.attribution }).addTo(map);
+
+        const marker = L.marker([lat, lng], {
+          icon: pinIcon(),
+          draggable: allowPinMovement,
+        }).addTo(map);
+
+        markerRef.current = marker;
+        mapInstanceRef.current = map;
+
+        if (restrictRadius) {
+          radiusCircleRef.current = L.circle([lat, lng], {
+            radius: restrictRadiusKm * 1000,
+            color: '#2a9d6e',
+            fillColor: '#2a9d6e',
+            fillOpacity: 0.08,
+            weight: 1.5,
+          }).addTo(map);
+        }
+
+        marker.on('dragend', () => {
+          const pos = marker.getLatLng();
+          moveMarker(pos.lat, pos.lng);
+        });
+
+        map.on('click', (e) => {
+          if (!allowPinMovement) return;
+          moveMarker(e.latlng.lat, e.latlng.lng);
+        });
+
+        requestAnimationFrame(() => map.invalidateSize());
+      } catch {
+        clearLeafletContainer(el);
+      }
+    };
+
+    const tryCreateMap = () => {
+      if (cancelled || mapInstanceRef.current) return;
+      createMap();
+      if (!mapInstanceRef.current && initAttempts < 120) {
+        initAttempts += 1;
+        rafId = requestAnimationFrame(tryCreateMap);
+      }
+    };
+
+    tryCreateMap();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        const map = mapInstanceRef.current;
+        if (!map) {
+          tryCreateMap();
+          return;
+        }
+        map.invalidateSize();
+      });
+      resizeObserver.observe(container);
+    }
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(rafId);
+      clearTimeout(geocodeTimerRef.current);
+      resizeObserver?.disconnect();
+      destroyMap();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -193,9 +269,13 @@ export default function MapLocationPicker({
   /* Sync zoom */
   useEffect(() => {
     const map = mapInstanceRef.current;
-    if (!map || map.getZoom() === zoom) return;
-    map.setZoom(zoom);
-  }, [zoom]);
+    if (!map || map.getZoom() === safeZoom) return;
+    try {
+      map.setZoom(safeZoom);
+    } catch {
+      /* ignore invalid zoom during teardown */
+    }
+  }, [safeZoom]);
 
   /* Sync tile style */
   useEffect(() => {
@@ -222,10 +302,14 @@ export default function MapLocationPicker({
     const pos = marker.getLatLng();
     if (Math.abs(pos.lat - lat) < 1e-6 && Math.abs(pos.lng - lng) < 1e-6) return;
     skipFlyRef.current = true;
-    marker.setLatLng([lat, lng]);
-    map.setView([lat, lng], zoom);
+    try {
+      marker.setLatLng([lat, lng]);
+      map.setView([lat, lng], safeZoom);
+    } catch {
+      /* ignore during map teardown */
+    }
     skipFlyRef.current = false;
-  }, [lat, lng, zoom]);
+  }, [lat, lng, safeZoom]);
 
   useEffect(() => {
     if (address && address !== searchQuery) setSearchQuery(address);
@@ -257,7 +341,11 @@ export default function MapLocationPicker({
     skipFlyRef.current = false;
     moveMarker(item.lat, item.lng, { resolve: false });
     emitChange({ lat: item.lat, lng: item.lng, address: item.address });
-    mapInstanceRef.current?.flyTo([item.lat, item.lng], zoom, { duration: 0.45 });
+    try {
+      mapInstanceRef.current?.flyTo([item.lat, item.lng], safeZoom, { duration: 0.45 });
+    } catch {
+      /* ignore during map teardown */
+    }
   };
 
   return (

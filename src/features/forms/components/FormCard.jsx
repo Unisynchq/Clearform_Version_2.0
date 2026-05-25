@@ -2,9 +2,18 @@ import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'motion/react';
 import { RiFileTextLine, RiCheckLine } from 'react-icons/ri';
 import { openContextMenu, openFormOverlay, toggleCompareForm } from '@/store/slices/uiSlice';
-import { formatResponseCount } from '@/constants';
+import { formatResponseCount, MAX_COMPARE_FORMS } from '@/constants';
+import { isFormPaused } from '../utils/formPause';
 
-const StatusBadge = ({ status, isTargetReached }) => {
+const StatusBadge = ({ status, isTargetReached, isPaused }) => {
+  if (isPaused) {
+    return (
+      <span className="absolute top-2 right-2 px-[7px] py-[2px] rounded-[10px] text-[10px] font-medium tracking-[0.2px] leading-[15px] bg-[#fffbeb] text-[#92400e] border border-[#fde68a]">
+        Paused
+      </span>
+    );
+  }
+
   if (isTargetReached) {
     return (
       <span className="absolute top-2 right-2 px-[7px] py-[2px] rounded-[10px] text-[10px] font-medium tracking-[0.2px] leading-[15px] bg-[#efe9ff] text-[#6d47c6] border border-[#d9cdfc]">
@@ -41,9 +50,10 @@ const FormCard = ({ form }) => {
   const compareModeActive = useSelector((s) => s.ui.compareMode.active);
   const selectedFormIds = useSelector((s) => s.ui.compareMode.selectedFormIds);
   const isSelected = selectedFormIds.includes(form.id);
-  const isMaxed = selectedFormIds.length >= 4;
+  const isMaxed = selectedFormIds.length >= MAX_COMPARE_FORMS;
   const isDisabled = compareModeActive && isMaxed && !isSelected;
   const isTargetReached = !!form.responseLimit && form.responses >= form.responseLimit;
+  const isPaused = isFormPaused(form);
 
   const handleMoreClick = (e) => {
     e.stopPropagation();
@@ -96,7 +106,7 @@ const FormCard = ({ form }) => {
         style={{ background: `linear-gradient(140deg, ${form.gradientFrom} 0%, ${form.gradientTo} 100%)` }}
       >
         <ThumbnailLines overlayColor={form.overlayColor} />
-        <StatusBadge status={form.status} isTargetReached={isTargetReached} />
+        <StatusBadge status={form.status} isTargetReached={isTargetReached} isPaused={isPaused} />
       </div>
 
       {/* Card body */}
