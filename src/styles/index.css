@@ -1,0 +1,176 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Arimo:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background-color: #f4f3ef;
+  margin: 0;
+  padding: 0;
+}
+
+/* Avoid native button fill (often dark) on custom toggle switches */
+button[role="switch"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c9c7bf;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a6a0;
+}
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+@keyframes marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+
+/* Logic canvas: flowing dashes on the in-progress connection wire */
+@keyframes logic-connect-dash-flow {
+  to {
+    stroke-dashoffset: -11;
+  }
+}
+
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+
+@keyframes select-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes select-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+.animate-select-in {
+  animation: select-in 0.16s cubic-bezier(0.25, 0.1, 0.25, 1);
+  transform-origin: top center;
+}
+
+.animate-select-out {
+  animation: select-out 0.12s cubic-bezier(0.25, 0.1, 0.25, 1);
+  transform-origin: top center;
+}
+
+.animate-accordion-down {
+  animation: accordion-down 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.animate-accordion-up {
+  animation: accordion-up 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.logic-connect-drag-path {
+  animation: logic-connect-dash-flow 0.55s linear infinite;
+}
+
+@keyframes logic-card-highlight-pulse {
+  0%,
+  100% {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 0 0 0 rgba(124, 58, 237, 0.35);
+  }
+  50% {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 0 0 4px rgba(124, 58, 237, 0.2);
+  }
+}
+
+.logic-card-sidebar-highlight {
+  animation: logic-card-highlight-pulse 1.4s ease-in-out 2;
+}
+
+.label-marquee {
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  text-align: center;
+}
+
+.label-marquee span {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.label-marquee:hover span {
+  animation: marquee 2s linear infinite;
+  padding-left: 100%;
+}
+
+/* CTA configure panel range sliders */
+.cta-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+.cta-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #111;
+  cursor: pointer;
+  box-shadow: 0 0 0 2.5px white, 0 0 0 4px rgba(0, 0, 0, 0.12);
+}
+.cta-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #111;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 0 2.5px white, 0 0 0 4px rgba(0, 0, 0, 0.12);
+}
