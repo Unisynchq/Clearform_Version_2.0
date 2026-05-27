@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'motion/react';
 import { FiCopy } from 'react-icons/fi';
 import { closeDuplicateModal } from '../../redux/slices/uiSlice';
-import { addForm } from '../../redux/slices/formsSlice';
+import { duplicateFormThunk } from '../../redux/slices/formsSlice';
 
 const DuplicateFormModal = () => {
   const dispatch = useDispatch();
@@ -18,16 +18,7 @@ const DuplicateFormModal = () => {
 
   const handleDuplicate = () => {
     if (!form || !copyName.trim()) return;
-    dispatch(
-      addForm({
-        ...form,
-        id: Date.now(),
-        title: copyName.trim(),
-        status: 'draft',
-        responses: 0,
-        timeAgo: 'just now',
-      })
-    );
+    dispatch(duplicateFormThunk({ formId, copyName: copyName.trim() }));
     dispatch(closeDuplicateModal());
   };
 

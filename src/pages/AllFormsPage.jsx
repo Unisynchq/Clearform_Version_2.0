@@ -7,8 +7,10 @@ import {
   setLoading,
   setActiveFilter,
   setActiveWorkspace,
+  fetchWorkspaces,
+  fetchForms,
 } from '../redux/slices/formsSlice';
-import { openSearchPalette } from '../redux/slices/uiSlice';
+import { openSearchPalette, openNewFormModal } from '../redux/slices/uiSlice';
 import FilterTabs from '../components/ui/FilterTabs';
 import WorkspaceChips from '../components/ui/WorkspaceChips';
 import TemplateBanner from '../components/ui/TemplateBanner';
@@ -23,6 +25,7 @@ import FormOverlayModal from '../components/ui/FormOverlayModal';
 import NewWorkspaceEmpty from '../components/ui/NewWorkspaceEmpty';
 import CreateWorkspaceModal from '../components/ui/CreateWorkspaceModal';
 import ShareFormModal from '../components/ui/ShareFormModal';
+import NewFormModal from '../components/ui/NewFormModal';
 
 /* ── Empty state: no forms from filter ── */
 const FilterEmptyState = ({ hasFilters, onClearFilters }) => (
@@ -121,10 +124,10 @@ const AllFormsPage = () => {
   );
   const isNewWorkspace = activeWorkspace !== 'all' && selectedWorkspaceForms.length === 0;
 
-  /* Simulate initial 1.2s data load */
+  /* Fetch real data */
   useEffect(() => {
-    const t = setTimeout(() => dispatch(setLoading(false)), 1200);
-    return () => clearTimeout(t);
+    dispatch(fetchWorkspaces());
+    dispatch(fetchForms());
   }, [dispatch]);
 
   /* Global ⌘K listener */
@@ -158,6 +161,7 @@ const AllFormsPage = () => {
       <FormOverlayModal />
       <CreateWorkspaceModal />
       <ShareFormModal />
+      <NewFormModal />
       <div className="flex flex-col h-full">
         {/* Page heading + CTA */}
         <div className="flex items-end justify-between px-6 py-4">
@@ -172,6 +176,7 @@ const AllFormsPage = () => {
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
+            onClick={() => dispatch(openNewFormModal())}
             className="flex items-center gap-2 bg-[#1a1a1c] text-white text-[14px] font-medium px-[17px] py-[9px] rounded-lg border border-[#1a1a1c] hover:bg-[#2c2c2e] transition-colors cursor-pointer shrink-0"
           >
             <RiAddLine size={14} />

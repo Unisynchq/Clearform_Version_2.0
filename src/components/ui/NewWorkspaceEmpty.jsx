@@ -1,3 +1,4 @@
+import { useDispatch } from 'react-redux';
 import { motion } from 'motion/react';
 import {
   RiAddLine,
@@ -8,6 +9,7 @@ import {
   RiUserSearchLine,
   RiPhoneLine,
 } from 'react-icons/ri';
+import { openNewFormModal } from '../../redux/slices/uiSlice';
 
 const QUICK_TEMPLATES = [
   { id: 'nps', icon: RiSurveyLine, label: 'NPS Survey' },
@@ -17,7 +19,9 @@ const QUICK_TEMPLATES = [
   { id: 'contact', icon: RiPhoneLine, label: 'Contact us' },
 ];
 
-const NewWorkspaceEmpty = ({ workspaceName = 'Inc Corp' }) => (
+const NewWorkspaceEmpty = ({ workspaceName = 'Inc Corp' }) => {
+  const dispatch = useDispatch();
+  return (
   <motion.div
     initial={{ opacity: 0, y: 8 }}
     animate={{ opacity: 1, y: 0 }}
@@ -36,7 +40,10 @@ const NewWorkspaceEmpty = ({ workspaceName = 'Inc Corp' }) => (
 
     {/* CTAs */}
     <div className="flex items-center gap-3">
-      <button className="flex items-center gap-2 bg-[#1a1a1c] text-white text-[14px] font-medium px-[17px] py-[9px] rounded-lg hover:bg-[#2c2c2e] transition-colors cursor-pointer">
+      <button
+        onClick={() => dispatch(openNewFormModal())}
+        className="flex items-center gap-2 bg-[#1a1a1c] text-white text-[14px] font-medium px-[17px] py-[9px] rounded-lg hover:bg-[#2c2c2e] transition-colors cursor-pointer"
+      >
         <RiAddLine size={14} />
         Create a form
       </button>
@@ -67,6 +74,7 @@ const NewWorkspaceEmpty = ({ workspaceName = 'Inc Corp' }) => (
       </div>
     </div>
   </motion.div>
-);
+  );
+};
 
 export default NewWorkspaceEmpty;

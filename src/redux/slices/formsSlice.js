@@ -1,15 +1,149 @@
-import { createSlice } from '@reduxjs/toolkit';
-import { FORMS_DATA, NAV_WORKSPACES } from '../../constants';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import api from '../../services/api';
+
+export const fetchWorkspaces = createAsyncThunk(
+  'forms/fetchWorkspaces',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/workspaces');
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch workspaces');
+    }
+  }
+);
+
+export const fetchForms = createAsyncThunk(
+  'forms/fetchForms',
+  async (params, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/forms', { params });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch forms');
+    }
+  }
+);
+
+export const searchFormsThunk = createAsyncThunk(
+  'forms/searchForms',
+  async (query, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/forms', { params: { search: query } });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to search forms');
+    }
+  }
+);
+
+export const fetchAnalyticsThunk = createAsyncThunk(
+  'forms/fetchAnalytics',
+  async (formId, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/forms/${formId}/analytics`);
+      return { formId, data: response.data };
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch analytics');
+    }
+  }
+);
+
+export const fetchResponsesThunk = createAsyncThunk(
+  'forms/fetchResponses',
+  async (formId, { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/forms/${formId}/responses`);
+      return { formId, data: response.data };
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to fetch responses');
+    }
+  }
+);
+
+export const createFormThunk = createAsyncThunk(
+  'forms/createForm',
+  async ({ title, workspaceId = null }, { rejectWithValue }) => {
+    try {
+      const response = await api.post('/forms', { title, workspaceId });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to create form');
+    }
+  }
+);
+
+export const deleteFormThunk = createAsyncThunk(
+  'forms/deleteForm',
+  async (formId, { rejectWithValue }) => {
+    try {
+      await api.delete(`/forms/${formId}`);
+      return formId;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to delete form');
+    }
+  }
+);
+
+export const archiveFormThunk = createAsyncThunk(
+  'forms/archiveForm',
+  async (formId, { rejectWithValue }) => {
+    try {
+      await api.patch(`/forms/${formId}/archive`);
+      return formId;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to archive form');
+    }
+  }
+);
+
+export const duplicateFormThunk = createAsyncThunk(
+  'forms/duplicateForm',
+  async ({ formId, copyName }, { rejectWithValue }) => {
+    try {
+      const response = await api.post(`/forms/${formId}/duplicate`, { title: copyName });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to duplicate form');
+    }
+  }
+);
+
+export const pauseFormThunk = createAsyncThunk(
+  'forms/pauseForm',
+  async ({ formId, pauseSettings }, { rejectWithValue }) => {
+    try {
+      await api.post(`/forms/${formId}/pause`);
+      return { formId, pauseSettings };
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to pause form');
+    }
+  }
+);
+
+export const unpauseFormThunk = createAsyncThunk(
+  'forms/unpauseForm',
+  async (formId, { rejectWithValue }) => {
+    try {
+      await api.delete(`/forms/${formId}/pause`);
+      return formId;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to unpause form');
+    }
+  }
+);
 
 const initialState = {
-  forms: FORMS_DATA,
-  workspaces: NAV_WORKSPACES,
+  forms: [],
+  workspaces: [],
   activeFilter: 'all',
   activeWorkspace: 'all',
   searchQuery: '',
   showTemplateBanner: true,
   viewMode: 'grid', // 'grid' | 'list'
-  isLoading: true,  // simulates initial data fetch
+  isLoading: true,
+  error: null,
+  searchResults: [],
 };
 
 const formsSlice = createSlice({
@@ -62,6 +196,66 @@ const formsSlice = createSlice({
       const form = state.forms.find((f) => f.id === action.payload);
       if (form) form.status = 'archived';
     },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchWorkspaces.pending, (state) => {
+        state.error = null;
+      })
+      .addCase(fetchWorkspaces.fulfilled, (state, action) => {
+        state.workspaces = action.payload;
+      })
+      .addCase(fetchWorkspaces.rejected, (state, action) => {
+        state.error = action.payload;
+      })
+      .addCase(fetchForms.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchForms.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.forms = action.payload;
+      })
+      .addCase(fetchForms.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+      .addCase(deleteFormThunk.fulfilled, (state, action) => {
+        state.forms = state.forms.filter((f) => f.id !== action.payload);
+      })
+      .addCase(archiveFormThunk.fulfilled, (state, action) => {
+        const form = state.forms.find((f) => f.id === action.payload);
+        if (form) form.status = 'archived';
+      })
+      .addCase(duplicateFormThunk.fulfilled, (state, action) => {
+        state.forms.unshift(action.payload);
+      })
+      .addCase(pauseFormThunk.fulfilled, (state, action) => {
+        const form = state.forms.find((f) => f.id === action.payload.formId);
+        if (form) form.pauseSettings = action.payload.pauseSettings;
+      })
+      .addCase(unpauseFormThunk.fulfilled, (state, action) => {
+        const form = state.forms.find((f) => f.id === action.payload);
+        if (form) form.pauseSettings = null;
+      })
+      .addCase(searchFormsThunk.fulfilled, (state, action) => {
+        state.searchResults = action.payload;
+      })
+      .addCase(fetchAnalyticsThunk.fulfilled, (state, action) => {
+        const form = state.forms.find((f) => f.id === action.payload.formId);
+        if (form) form.analytics = action.payload.data;
+      })
+      .addCase(createFormThunk.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(createFormThunk.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.forms.unshift(action.payload);
+      })
+      .addCase(createFormThunk.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      });
   },
 });
 

@@ -204,6 +204,7 @@ const EmptyState = ({ query }) => (
 /* ─── SearchDropdown — pure dropdown panel, no own input ────────────────────── */
 const SearchDropdown = ({ open, query, anchorRef, onClose, onSelectRecent, onFormClick }) => {
   const forms = useSelector((s) => s.forms.forms);
+  const searchResults = useSelector((s) => s.forms.searchResults);
   const [pos, setPos] = useState({ top: 0, left: 0, width: 400 });
 
   /* Recalculate position whenever the dropdown opens */
@@ -219,9 +220,7 @@ const SearchDropdown = ({ open, query, anchorRef, onClose, onSelectRecent, onFor
   }, [open, anchorRef]);
 
   const trimmed = query.trim();
-  const matchingForms = trimmed
-    ? forms.filter((f) => f.title.toLowerCase().includes(trimmed.toLowerCase()))
-    : [];
+  const matchingForms = trimmed ? searchResults : [];
 
   const isDefault = !trimmed;
   const hasResults = matchingForms.length > 0;

@@ -7,7 +7,7 @@ import {
   RiArrowLeftSLine, RiArrowRightSLine, RiEarthLine,
 } from 'react-icons/ri';
 import { closeFormOverlay } from '../../redux/slices/uiSlice';
-import { setFormPause, clearFormPause } from '../../redux/slices/formsSlice';
+import { pauseFormThunk, unpauseFormThunk, fetchAnalyticsThunk } from '../../redux/slices/formsSlice';
 
 /* ── KPI stat card ──
    sub        = green ↑ trend line  (e.g. "5% this week")
@@ -115,6 +115,8 @@ const FormOverlayModal = () => {
     setResponseLimit('500');
     setSelectedPause(null);
     setNotificationsOn(false);
+
+    dispatch(fetchAnalyticsThunk(formId));
 
     // Restore picker to saved pause date if one exists, otherwise reset defaults
     const saved = form?.pauseSettings;
@@ -316,7 +318,7 @@ const FormOverlayModal = () => {
                 <div className="bg-[#f5f3ff] border border-[#e0daff] rounded-[12px] p-[13px] flex flex-col gap-[10px] w-full">
                   <p className="text-[12.1px] font-normal text-[#374151] leading-[20.8px]">
                     <span className="font-bold">✦ </span>
-                    Sentiment positive, completion above benchmark — but Step 3 is losing 28% of respondents. Improve it to gain ~30 more completions.
+                    {form.analytics?.insight || 'Analyzing sentiment and completion metrics...'}
                   </p>
                   <div className="flex items-center gap-[8px]">
                     <button className="flex items-center gap-1.5 bg-[#6366f1] text-white text-[12px] font-medium px-4 py-[7px] rounded-[8px] hover:bg-[#4f46e5] transition-colors cursor-pointer">
@@ -375,14 +377,14 @@ const FormOverlayModal = () => {
                       {/* Buttons */}
                       <div className="flex items-center gap-[6px] shrink-0">
                         <button
-                          onClick={() => { dispatch(clearFormPause(formId)); setSelectedPause('custom'); }}
+                          onClick={() => { dispatch(unpauseFormThunk(formId)); setSelectedPause('custom'); }}
                           className="flex items-center gap-[4px] px-[10px] py-[5px] text-[11.5px] font-medium text-[#1a1a1c] border border-[#e5e3dc] rounded-[7px] bg-white hover:bg-[#f4f3ef] transition-colors cursor-pointer"
                         >
                           <RiEditLine size={11} />
                           Edit
                         </button>
                         <button
-                          onClick={() => dispatch(clearFormPause(formId))}
+                          onClick={() => dispatch(unpauseFormThunk(formId))}
                           className="px-[10px] py-[5px] text-[11.5px] font-semibold text-white bg-[#16a34a] rounded-[7px] hover:bg-[#15803d] transition-colors cursor-pointer"
                         >
                           Resume now
@@ -623,7 +625,7 @@ const FormOverlayModal = () => {
                         <button
                           onClick={() => {
                             const label = `${MONTH_NAMES[viewMonth]} ${selDay}, ${viewYear} at ${hour}:${minute} ${ampm} IST`;
-                            dispatch(setFormPause({ formId, endLabel: label, viewYear, viewMonth, selDay }));
+                            dispatch(pauseFormThunk({ formId, pauseSettings: { confirmed: true, endLabel: label, viewYear, viewMonth, selDay } }));
                             setSelectedPause(null);
                           }}
                           className="bg-[#1a1a1a] border border-[#1a1a1a] rounded-[8px] px-[14px] py-[7px] text-[12px] font-medium text-white flex items-center gap-[5px] hover:bg-[#2c2c2e] transition-colors cursor-pointer"

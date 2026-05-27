@@ -3,29 +3,24 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { FcGoogle } from 'react-icons/fc';
-import { RiGlobalLine, RiArrowDownSLine, RiAppleFill, RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
-import { setField, setSubmitting, setAuthenticated } from '../redux/slices/authSlice';
+import { RiGlobalLine, RiArrowDownSLine, RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
+import { setField, setSubmitting, setAuthenticated, resetForm } from '../redux/slices/authSlice';
 import clearformLogo from '../assets/clearform-high-resolution-logo-transparent.png';
 import bgImage from '../assets/onboarding-bg.jpg';
+import { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { auth, googleProvider } from '../lib/firebase';
 
 /* ─── Static sub-components (memo prevents re-renders on form typing) ─── */
 
-const MicrosoftIcon = memo(() => (
-  <svg width="20" height="20" viewBox="0 0 21 21" fill="none" aria-hidden="true">
-    <rect x="0" y="0" width="10" height="10" fill="#F25022" />
-    <rect x="11" y="0" width="10" height="10" fill="#7FBA00" />
-    <rect x="0" y="11" width="10" height="10" fill="#00A4EF" />
-    <rect x="11" y="11" width="10" height="10" fill="#FFB900" />
-  </svg>
-));
-
-const SocialButton = memo(({ children, label }) => (
+const SocialButton = memo(({ children, label, onClick }) => (
   <button
     type="button"
+    onClick={onClick}
     aria-label={label}
-    className="flex items-center justify-center w-[58px] h-[40px] bg-white border border-[rgba(81,76,84,0.15)] rounded-[10px] hover:bg-[#f4f4f4] active:scale-95 transition-all cursor-pointer"
+    className="flex items-center justify-center w-full h-[40px] bg-white border border-[rgba(81,76,84,0.15)] rounded-[10px] hover:bg-[#f4f4f4] active:scale-95 transition-all cursor-pointer gap-2 px-4"
   >
     {children}
+    <span className="text-[13px] font-semibold text-[#0f0f0e]">{label}</span>
   </button>
 ));
 
@@ -47,7 +42,7 @@ const InputField = memo(({ label, required, type = 'text', placeholder, value, o
           value={value}
           onChange={onChange}
           placeholder={placeholder}
-          autoComplete={isPassword ? 'new-password' : name === 'email' ? 'email' : 'given-name'}
+          autoComplete={isPassword ? 'current-password' : name === 'email' ? 'email' : 'given-name'}
           className="w-full h-[40px] bg-[#fafafa] border border-[rgba(81,76,84,0.15)] rounded-[10px] px-[13px] text-[13px] text-[#0f0f0e] placeholder:text-[#757575] outline-none focus:border-[rgba(81,76,84,0.4)] focus:bg-white transition-colors duration-150"
         />
         {isPassword && (
@@ -115,7 +110,8 @@ const LeftPanel = memo(() => {
 const OnboardingPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { firstName, lastName, email, password, isSubmitting } = useSelector(
+  const [isSignUp, setIsSignUp] = useState(false); // default to Login page
+  const { firstName, lastName, email, password, isSubmitting, error } = useSelector(
     (state) => state.auth
   );
 
@@ -123,15 +119,47 @@ const OnboardingPage = () => {
     dispatch(setField({ field: e.target.name, value: e.target.value }));
   }, [dispatch]);
 
-  const handleSubmit = useCallback((e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
+    if (!email || !password) return;
+    if (isSignUp && (!firstName || !lastName)) return;
+    
     dispatch(setSubmitting(true));
-    setTimeout(() => {
-      dispatch(setSubmitting(false));
+    try {
+      if (isSignUp) {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(userCredential.user, {
+          displayName: `${firstName} ${lastName}`
+        });
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
       dispatch(setAuthenticated(true));
       navigate('/dashboard');
-    }, 1000);
+    } catch (err) {
+      dispatch(setField({ field: 'error', value: err.message }));
+    } finally {
+      dispatch(setSubmitting(false));
+    }
+  }, [dispatch, navigate, isSignUp, firstName, lastName, email, password]);
+
+  const handleSocialLogin = useCallback(async (provider) => {
+    dispatch(setSubmitting(true));
+    try {
+      await signInWithPopup(auth, provider);
+      dispatch(setAuthenticated(true));
+      navigate('/dashboard');
+    } catch (err) {
+      dispatch(setField({ field: 'error', value: err.message }));
+    } finally {
+      dispatch(setSubmitting(false));
+    }
   }, [dispatch, navigate]);
+
+  const handleToggleMode = useCallback(() => {
+    dispatch(resetForm());
+    setIsSignUp((prev) => !prev);
+  }, [dispatch]);
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white">
@@ -149,7 +177,7 @@ const OnboardingPage = () => {
           {/* Heading */}
           <div className="flex flex-col gap-1.5">
             <h1 className="text-[22px] font-bold text-[#0f0f0e] leading-[28px]">
-              Create your account
+              {isSignUp ? 'Create your account' : 'Log in to your account'}
             </h1>
             <p className="text-[14px] font-normal text-[#6b6860] leading-[20px]">
               Continue building forms, gathering responses, and automating your workflows.
@@ -157,40 +185,47 @@ const OnboardingPage = () => {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="flex flex-col gap-[14px]" noValidate>
-            {/* Name row */}
-            <div className="flex items-start gap-4">
-              <div className="flex flex-col gap-1 flex-1">
-                <label htmlFor="firstName" className="text-[12px] font-bold text-[#5a5a56] leading-[18px]">
-                  First name
-                </label>
-                <input
-                  id="firstName"
-                  type="text"
-                  name="firstName"
-                  value={firstName}
-                  onChange={handleChange}
-                  placeholder="John"
-                  autoComplete="given-name"
-                  className="w-full h-[40px] bg-[#fafafa] border border-[#e1e0e2] rounded-[8px] px-3 text-[13px] text-[#0f0f0e] placeholder:text-[#757575] outline-none focus:border-[rgba(81,76,84,0.4)] focus:bg-white transition-colors duration-150"
-                />
-              </div>
-              <div className="flex flex-col gap-1 flex-1">
-                <label htmlFor="lastName" className="text-[12px] font-bold text-[#5a5a56] leading-[18px]">
-                  Last name
-                </label>
-                <input
-                  id="lastName"
-                  type="text"
-                  name="lastName"
-                  value={lastName}
-                  onChange={handleChange}
-                  placeholder="Doe"
-                  autoComplete="family-name"
-                  className="w-full h-[40px] bg-[#fafafa] border border-[#e1e0e2] rounded-[8px] px-3 text-[13px] text-[#0f0f0e] placeholder:text-[#757575] outline-none focus:border-[rgba(81,76,84,0.4)] focus:bg-white transition-colors duration-150"
-                />
-              </div>
+          {error && (
+            <div className="p-3 bg-[#fff0ef] border border-[#f5c2c0] text-[#c74e43] rounded-[8px] text-[13px]">
+              {error}
             </div>
+          )}
+          <form onSubmit={handleSubmit} className="flex flex-col gap-[14px]" noValidate>
+            {/* Name row - only show on Sign Up */}
+            {isSignUp && (
+              <div className="flex items-start gap-4">
+                <div className="flex flex-col gap-1 flex-1">
+                  <label htmlFor="firstName" className="text-[12px] font-bold text-[#5a5a56] leading-[18px]">
+                    First name
+                  </label>
+                  <input
+                    id="firstName"
+                    type="text"
+                    name="firstName"
+                    value={firstName}
+                    onChange={handleChange}
+                    placeholder="John"
+                    autoComplete="given-name"
+                    className="w-full h-[40px] bg-[#fafafa] border border-[#e1e0e2] rounded-[8px] px-3 text-[13px] text-[#0f0f0e] placeholder:text-[#757575] outline-none focus:border-[rgba(81,76,84,0.4)] focus:bg-white transition-colors duration-150"
+                  />
+                </div>
+                <div className="flex flex-col gap-1 flex-1">
+                  <label htmlFor="lastName" className="text-[12px] font-bold text-[#5a5a56] leading-[18px]">
+                    Last name
+                  </label>
+                  <input
+                    id="lastName"
+                    type="text"
+                    name="lastName"
+                    value={lastName}
+                    onChange={handleChange}
+                    placeholder="Doe"
+                    autoComplete="family-name"
+                    className="w-full h-[40px] bg-[#fafafa] border border-[#e1e0e2] rounded-[8px] px-3 text-[13px] text-[#0f0f0e] placeholder:text-[#757575] outline-none focus:border-[rgba(81,76,84,0.4)] focus:bg-white transition-colors duration-150"
+                  />
+                </div>
+              </div>
+            )}
 
             <InputField
               label="Email" required type="email" name="email"
@@ -204,10 +239,8 @@ const OnboardingPage = () => {
 
             {/* Social login */}
             <div className="flex items-center justify-center gap-3 py-0.5">
-              <SocialButton label="Continue with Google"><FcGoogle size={22} /></SocialButton>
-              <SocialButton label="Continue with Microsoft"><MicrosoftIcon /></SocialButton>
-              <SocialButton label="Continue with Apple">
-                <RiAppleFill size={22} className="text-[#0f0f0e]" />
+              <SocialButton onClick={() => handleSocialLogin(googleProvider)} label="Continue with Google">
+                <FcGoogle size={22} />
               </SocialButton>
             </div>
 
@@ -223,15 +256,15 @@ const OnboardingPage = () => {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="white" strokeWidth="4" />
                     <path className="opacity-75" fill="white" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                ) : 'Create Account'}
+                ) : isSignUp ? 'Create Account' : 'Log In'}
               </button>
 
               <button
                 type="button"
-                onClick={() => navigate('/dashboard')}
+                onClick={handleToggleMode}
                 className="w-full h-[46px] border border-[rgba(0,0,0,0.2)] text-[#737373] text-[15px] font-normal rounded-[12px] flex items-center justify-center cursor-pointer hover:bg-[rgba(0,0,0,0.02)] active:scale-[0.99] transition-all duration-150"
               >
-                Already have an account? Log in
+                {isSignUp ? 'Already have an account? Log in' : "Don't have an account? Sign up"}
               </button>
             </div>
           </form>
@@ -245,7 +278,6 @@ const OnboardingPage = () => {
               </a>
             </div>
             <button className="flex items-center gap-1.5 border border-[rgba(81,76,84,0.15)] rounded-[8px] px-3 h-[30px] hover:bg-[#f4f3ef] transition-colors duration-150 cursor-pointer">
-              <RiGlobalLine size={14} className="text-[#655d67]" />
               <span className="text-[13px] text-[#655d67] leading-[20px]">English</span>
               <RiArrowDownSLine size={14} className="text-[#655d67]" />
             </button>

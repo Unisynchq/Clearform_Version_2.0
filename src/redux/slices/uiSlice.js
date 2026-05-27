@@ -33,6 +33,9 @@ const initialState = {
   createWorkspaceModal: {
     open: false,
   },
+  newFormModal: {
+    open: false,
+  },
   shareModal: {
     open: false,
     formId: null,
@@ -93,6 +96,12 @@ const uiSlice = createSlice({
     closeCreateWorkspaceModal(state) {
       state.createWorkspaceModal.open = false;
     },
+    openNewFormModal(state) {
+      state.newFormModal.open = true;
+    },
+    closeNewFormModal(state) {
+      state.newFormModal.open = false;
+    },
     openShareModal(state, action) {
       const { formId, formTitle } = action.payload;
       state.shareModal = { open: true, formId, formTitle };
@@ -117,6 +126,8 @@ export const {
   closeSearchPalette,
   openCreateWorkspaceModal,
   closeCreateWorkspaceModal,
+  openNewFormModal,
+  closeNewFormModal,
   openArchiveModal,
   closeArchiveModal,
   openShareModal,

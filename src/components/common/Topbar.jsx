@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 import { RiNotification3Line } from 'react-icons/ri';
 import { openFormOverlay } from '../../redux/slices/uiSlice';
+import { searchFormsThunk } from '../../redux/slices/formsSlice';
 import SearchDropdown from '../ui/SearchPalette';
 
 const SearchIcon = () => (
@@ -41,6 +42,15 @@ const Topbar = () => {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [isOpen]);
+
+  // Debounced search
+  useEffect(() => {
+    if (!query.trim()) return;
+    const timer = setTimeout(() => {
+      dispatch(searchFormsThunk(query.trim()));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query, dispatch]);
 
   const handleFormClick = (form) => {
     close();
