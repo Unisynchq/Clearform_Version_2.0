@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent (1).png';
+import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.png';
 import CheckoutStepper from '@/features/profile/components/billing/CheckoutStepper';
 import RazorpayCheckoutPlaceholder from '@/features/profile/components/billing/RazorpayCheckoutPlaceholder';
 import { PaymentMethodTabs } from '@/features/profile/components/billing/BillingPaymentForms';

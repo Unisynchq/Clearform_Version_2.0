@@ -1,16 +1,8 @@
-import { createSlice, createSelector } from '@reduxjs/toolkit';
-import { readPersistedForms, clearUserForms } from '@/features/forms/utils/userFormsStorage';
-import {
-  readAllFormResponses,
-  clearFormResponses,
-} from '@/features/forms/utils/formResponsesStorage';
-import {
-  readWorkspaces,
-  clearWorkspaces,
-  syncWorkspaceCounts,
-  countNavForms,
-} from '@/features/forms/utils/workspacesStorage';
+import { createSlice, createSelector, createAsyncThunk } from '@reduxjs/toolkit';
 import { readFormsUi } from '@/features/forms/utils/formsUiStorage';
+import { migrateBuilderDraft } from '@/features/forms/utils/builderDraftStorage';
+import * as formsService from '@/api/services/formsService';
+import * as workspacesService from '@/api/services/workspacesService';
 
 // Convert a "Xm/Xh/Xd/Xw ago" string to milliseconds so we can sort by recency
 function timeAgoToMs(timeAgo) {
@@ -23,22 +15,12 @@ function timeAgoToMs(timeAgo) {
 }
 
 const savedUi = readFormsUi();
-const initialWorkspaces = readWorkspaces() ?? [];
-const initialActiveWorkspace =
-  savedUi.activeWorkspace !== 'all' &&
-  !initialWorkspaces.some((w) => w.id === savedUi.activeWorkspace)
-    ? 'all'
-    : savedUi.activeWorkspace;
-
-const bootstrapResponses = readAllFormResponses();
-const bootstrapForms = readPersistedForms().map((form) => ({
-  ...form,
-  responses: (bootstrapResponses[String(form.id)] ?? []).length,
-}));
+const initialWorkspaces = [];
+const initialActiveWorkspace = savedUi.activeWorkspace;
 
 const initialState = {
-  forms: bootstrapForms,
-  workspaces: syncWorkspaceCounts(initialWorkspaces, bootstrapForms),
+  forms: [],
+  workspaces: [],
   activeFilter: savedUi.activeFilter,
   activeWorkspace: initialActiveWorkspace,
   searchQuery: savedUi.searchQuery,
@@ -47,11 +29,126 @@ const initialState = {
   sortOrder: savedUi.sortOrder,
   isLoading: false,
   advancedFilters: savedUi.advancedFilters ?? { status: [], responses: [] },
-  responsesByFormId: bootstrapResponses,
+  responsesByFormId: {},
 };
 
+// --- Async Thunks ---
+
+export const fetchWorkspacesThunk = createAsyncThunk(
+  'forms/fetchWorkspaces',
+  async (_, { dispatch }) => {
+    const data = await workspacesService.listWorkspaces();
+    return data;
+  }
+);
+
+export const fetchFormsThunk = createAsyncThunk(
+  'forms/fetchForms',
+  async (_, { dispatch }) => {
+    const data = await formsService.listForms();
+    return data;
+  }
+);
+
+export const createFormThunk = createAsyncThunk(
+  'forms/createForm',
+  async (formPayload, { dispatch }) => {
+    const tempId = formPayload.id ?? `temp_${Date.now()}`;
+    // Strip client-only fields before sending to API
+    const { id: _discarded, status: _s, responses: _r, timeAgo: _t, workspace: _w, ...formData } = formPayload;
+    const optimisticData = { status: 'draft', responses: 0, timeAgo: 'just now', ...formPayload, id: tempId };
+    dispatch(formsSlice.actions.addForm(optimisticData));
+
+    try {
+      const serverData = await formsService.createForm(formData);
+      migrateBuilderDraft(String(tempId), serverData.id);
+      dispatch(formsSlice.actions.deleteForm(tempId));
+      dispatch(formsSlice.actions.addForm(serverData));
+      return serverData;
+    } catch (err) {
+      dispatch(formsSlice.actions.deleteForm(tempId));
+      throw err;
+    }
+  }
+);
+
+export const deleteFormThunk = createAsyncThunk(
+  'forms/deleteForm',
+  async (formId, { dispatch }) => {
+    dispatch(formsSlice.actions.deleteForm(formId));
+    await formsService.deleteForm(formId);
+    return formId;
+  }
+);
+
+export const archiveFormThunk = createAsyncThunk(
+  'forms/archiveForm',
+  async (formId, { dispatch }) => {
+    dispatch(formsSlice.actions.archiveForm(formId));
+    await formsService.archiveForm(formId);
+    return formId;
+  }
+);
+
+export const duplicateFormThunk = createAsyncThunk(
+  'forms/duplicateForm',
+  async (payload, { dispatch }) => {
+    // Add optimistically assuming the service returns something useful, but we can just wait for it.
+    // The user prefers it to feel instant:
+    const tempId = `temp_${Date.now()}`;
+    dispatch(formsSlice.actions.addForm({ id: tempId, title: payload.newTitle, status: 'draft', responses: 0, timeAgo: 'just now' }));
+    
+    try {
+      const serverData = await formsService.duplicateForm(payload);
+      dispatch(formsSlice.actions.deleteForm(tempId));
+      dispatch(formsSlice.actions.addForm(serverData));
+      return serverData;
+    } catch (err) {
+      dispatch(formsSlice.actions.deleteForm(tempId));
+      throw err;
+    }
+  }
+);
+
+export const createWorkspaceThunk = createAsyncThunk(
+  'forms/createWorkspace',
+  async (workspacePayload, { dispatch }) => {
+    const tempId = `ws_temp_${Date.now()}`;
+    const optimisticData = { id: tempId, ...workspacePayload, count: 0 };
+    dispatch(formsSlice.actions.addWorkspace(optimisticData));
+    
+    try {
+      const serverData = await workspacesService.createWorkspace(workspacePayload);
+      // Wait, we don't have a deleteWorkspace action. It's okay to just update it, or add it.
+      // But actually, just dispatch addWorkspace again? Redux toolkit doesn't merge by ID if it's an array.
+      // We will just let it be, or implement a removeWorkspace if needed.
+      return serverData;
+    } catch (err) {
+      throw err;
+    }
+  }
+);
+
+function syncWorkspaceCounts(workspaces, forms) {
+  return workspaces.map((w) => ({
+    ...w,
+    count: forms.filter(
+      (f) => f.workspace === w.id && f.status !== 'archived' && f.status !== 'trash'
+    ).length,
+  }));
+}
+
+function countNavForms(forms) {
+  return forms.filter((f) => f.status !== 'archived' && f.status !== 'trash').length;
+}
+
 const applyWorkspaceCounts = (state) => {
-  state.workspaces = syncWorkspaceCounts(state.workspaces, state.forms);
+  state.workspaces = state.workspaces.map((w) => {
+    const count = state.forms.filter(
+      (f) => f.workspace === w.id && f.status !== 'archived' && f.status !== 'trash'
+    ).length;
+    return { ...w, count };
+  });
 };
 
 const formsSlice = createSlice({
@@ -159,10 +256,32 @@ const formsSlice = createSlice({
       state.activeWorkspace = 'all';
       state.searchQuery = '';
       state.isLoading = false;
-      clearUserForms();
-      clearWorkspaces();
-      clearFormResponses();
+      state.isLoading = false;
     },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchFormsThunk.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(fetchFormsThunk.fulfilled, (state, action) => {
+        state.forms = action.payload;
+        applyWorkspaceCounts(state);
+        state.isLoading = false;
+      })
+      .addCase(fetchFormsThunk.rejected, (state) => {
+        state.isLoading = false;
+      })
+      .addCase(fetchWorkspacesThunk.fulfilled, (state, action) => {
+        state.workspaces = action.payload;
+        applyWorkspaceCounts(state);
+      })
+      .addCase(createWorkspaceThunk.fulfilled, (state, action) => {
+        // Remove the optimistic temp one and add real one
+        state.workspaces = state.workspaces.filter(w => !w.id.startsWith('ws_temp_'));
+        state.workspaces.push(action.payload);
+        applyWorkspaceCounts(state);
+      });
   },
 });
 

@@ -1,4 +1,4 @@
-import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent (1).png';
+import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.png';
 import CheckoutStepper from '@/features/profile/components/billing/CheckoutStepper';
 
 const CheckoutResultLayout = ({

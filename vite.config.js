@@ -9,6 +9,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  server: {
+    watch: {
+      // iCloud creates "node_modules 2" duplicates — ignore any node_modules variant
+      ignored: (filePath) => filePath.includes('node_modules') || filePath.includes('/.git/'),
+    },
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),

@@ -1,5 +1,5 @@
 import { RiCloseLine } from 'react-icons/ri';
-import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent (1).png';
+import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.png';
 import {
   calculateCheckoutSummary,
   formatAttemptedAt,

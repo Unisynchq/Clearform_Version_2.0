@@ -13,6 +13,9 @@ node_modules_old
 dist
 dist-ssr
 *.local
+.env
+.env.local
+.env.*.local
 
 # Editor directories and files
 .vscode/*
@@ -24,3 +27,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+* 2
+* 3
+* 4
+*.bak
+*.nosync

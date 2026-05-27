@@ -9,15 +9,14 @@ import FormRespondentView from '@/features/forms/components/FormRespondentView';
  * Public respondent route — loads published snapshot and runs logicEngine navigation.
  */
 export default function PublicFormPage() {
-  const { formId: formIdParam } = useParams();
-  const formId = formIdParam != null ? Number(formIdParam) : null;
+  const { formId } = useParams();
 
   const { draft, blocked } = useMemo(() => {
-    if (formId == null || Number.isNaN(formId)) {
+    if (!formId) {
       return { draft: null, blocked: 'invalid' };
     }
     const forms = readUserForms();
-    const meta = forms.find((f) => Number(f.id) === formId);
+    const meta = forms.find((f) => String(f.id) === formId);
     if (!meta) {
       return { draft: null, blocked: 'not_found' };
     }

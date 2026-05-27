@@ -2,7 +2,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'motion/react';
 import { FiArchive, FiAlertTriangle } from 'react-icons/fi';
 import { closeArchiveModal } from '@/store/slices/uiSlice';
-import { archiveForm } from '@/store/slices/formsSlice';
+import { archiveFormThunk } from '@/store/slices/formsSlice';
 
 const ArchiveFormModal = () => {
   const dispatch = useDispatch();
@@ -12,7 +12,7 @@ const ArchiveFormModal = () => {
   const pendingResponses = form?.responses ?? responses ?? 0;
 
   const handleArchive = () => {
-    if (formId) dispatch(archiveForm(formId));
+    if (formId) dispatch(archiveFormThunk(formId));
     dispatch(closeArchiveModal());
   };
 

@@ -1,8 +1,5 @@
 import { RiErrorWarningFill } from 'react-icons/ri';
 
-/**
- * Figma: Clearform-Changes — AI logic generation failed banner (node 1992:42305).
- */
 const AiLogicGenerationFailedBanner = ({
   title = 'Generation failed',
   message = 'Server error (API 429) — please retry.',

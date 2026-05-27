@@ -8,9 +8,13 @@
 | App | Clearform form builder (`clearform-version-2`) |
 | Stack | React 19, Vite 8, Redux Toolkit, Tailwind 4, Motion (`motion/react`), Radix UI |
 
-## Project status (May 2026)
+## Project status (May 2026 — updated 28 May)
 
-Frontend prototype is **feature-complete for demo and assignment**. Persistence is **localStorage + Redux** until backend is connected via `VITE_API_BASE_URL`.
+Frontend is **connected to the NestJS backend** running at `localhost:3000/api/v1`.
+- `VITE_API_BASE_URL=http://localhost:3000/api/v1` and `VITE_USE_MOCK_API=false` are set in `.env.local`
+- All 4 dashboard sub-routes now registered in `AppRoutes.jsx` (profile, analytics, templates, help)
+- Firebase ID Token auth: token stored in `sessionStorage['clearform:auth-token']`, sent as `Authorization: Bearer` header
+- iCloud Drive creates `node_modules 2/` duplicates — Vite watcher is configured to ignore them (`vite.config.js`)
 
 See also:
 
@@ -51,10 +55,20 @@ See also:
 - `LogicEdgePathGroup` extraction
 - Logic card enter animations on flow cards
 
+## Running locally
+
+```bash
+# Frontend (from Clearform_Version_2.0/)
+bun run dev          # starts at localhost:5173 (or 5174 if 5173 is taken)
+
+# Backend (from clearform-backend/) — must be running for API calls to work
+bun run start:dev    # starts at localhost:3000
+```
+
 ## Verification
 
 ```bash
-npm run build
+bun run build
 npm run test:smoke
 ```
 

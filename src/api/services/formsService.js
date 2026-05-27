@@ -1,54 +1,66 @@
 import { apiClient } from '@/api/client';
 import { API_ENDPOINTS } from '@/api/endpoints';
-import { isApiConfigured } from '@/config/env';
-import { readBuilderDraft, writeBuilderDraft } from '@/features/forms/utils/builderDraftStorage';
-import { readPublishedForm, writePublishedForm } from '@/features/forms/utils/publishedFormStorage';
-import { readPersistedForms } from '@/features/forms/utils/userFormsStorage';
-
-/**
- * Forms API facade — today reads/writes localStorage when API is not configured.
- * Swap implementations per method when backend is live (keep return shapes stable).
- */
 
 export async function listForms() {
-  if (isApiConfigured()) {
-    return apiClient(API_ENDPOINTS.forms.list);
-  }
-  return readPersistedForms();
+  return apiClient(API_ENDPOINTS.forms.list);
 }
 
 export async function getBuilderSnapshot(formId) {
-  if (isApiConfigured()) {
-    return apiClient(API_ENDPOINTS.forms.builderSnapshot(formId));
-  }
-  return readBuilderDraft(formId);
+  return apiClient(API_ENDPOINTS.forms.builderSnapshot(formId));
 }
 
 export async function saveBuilderSnapshot(formId, snapshot) {
-  if (isApiConfigured()) {
-    return apiClient(API_ENDPOINTS.forms.builderSnapshot(formId), {
-      method: 'PUT',
-      body: snapshot,
-    });
-  }
-  writeBuilderDraft(formId, snapshot);
-  return snapshot;
+  return apiClient(API_ENDPOINTS.forms.builderSnapshot(formId), {
+    method: 'PUT',
+    body: snapshot,
+  });
 }
 
-export async function publishForm(formId, snapshot) {
-  if (isApiConfigured()) {
-    return apiClient(API_ENDPOINTS.forms.publish(formId), {
-      method: 'POST',
-      body: snapshot,
-    });
-  }
-  writePublishedForm(formId, snapshot);
-  return { formId, status: 'live', publishedAt: Date.now() };
+export async function publishForm(formId) {
+  return apiClient(API_ENDPOINTS.forms.publish(formId), {
+    method: 'POST',
+  });
+}
+
+export async function unpublishForm(formId) {
+  return apiClient(API_ENDPOINTS.forms.unpublish(formId), {
+    method: 'POST',
+  });
 }
 
 export async function getPublishedForm(formId) {
-  if (isApiConfigured()) {
-    return apiClient(API_ENDPOINTS.forms.published(formId));
-  }
-  return readPublishedForm(formId);
+  return apiClient(API_ENDPOINTS.forms.published(formId));
+}
+
+export async function createForm(data) {
+  return apiClient(API_ENDPOINTS.forms.list, {
+    method: 'POST',
+    body: data,
+  });
+}
+
+export async function updateForm(id, data) {
+  return apiClient(API_ENDPOINTS.forms.byId(id), {
+    method: 'PATCH',
+    body: data,
+  });
+}
+
+export async function deleteForm(id) {
+  return apiClient(API_ENDPOINTS.forms.byId(id), {
+    method: 'DELETE',
+  });
+}
+
+export async function archiveForm(id) {
+  return apiClient(API_ENDPOINTS.forms.archive(id), {
+    method: 'PATCH',
+  });
+}
+
+export async function duplicateForm({ originalId, newTitle }) {
+  return apiClient(API_ENDPOINTS.forms.duplicate(originalId), {
+    method: 'POST',
+    body: { title: newTitle },
+  });
 }

@@ -1,7 +1,7 @@
 # Progress — Clearform v2
 
-**Last updated:** 27 May 2026  
-**Build:** `npm run build` — pass  
+**Last updated:** 28 May 2026  
+**Build:** `bun run build` (use Bun, not npm)  
 **Smoke:** `npm run test:smoke` — pass (prior runs)
 
 ---
@@ -20,6 +20,10 @@
 | Dashboard slower entrance | Done |
 | Backend API scaffolding | Done |
 | Docs + assignment report | Done |
+| Blank screen fix (formsSlice) | Done |
+| Frontend routes (profile/analytics/templates/help) | Done |
+| Vite watcher fix (iCloud node_modules 2) | Done |
+| Backend connected (NestJS, Supabase, local Redis) | Done |
 
 ---
 
@@ -56,6 +60,15 @@
 - [x] `.env.example`
 - [x] `BACKEND_HANDOFF.md`
 - [x] `ASSIGNMENT_REPORT.md`
+
+### Phase 8 — Backend connected + routing fixes (28 May 2026)
+
+- [x] Fixed blank screen: added missing `syncWorkspaceCounts` + `countNavForms` in `formsSlice.js`
+- [x] Fixed Vite freezing: `vite.config.js` — `server.watch.ignored` excludes all `node_modules*` paths (iCloud creates `node_modules 2/` duplicate)
+- [x] Added missing routes in `AppRoutes.jsx`: `/dashboard/profile`, `/dashboard/analytics`, `/dashboard/templates`, `/dashboard/help`
+- [x] Backend NestJS running at `localhost:3000/api/v1` — all 18 endpoints live
+- [x] `VITE_API_BASE_URL=http://localhost:3000/api/v1` confirmed in `.env.local`
+- [x] `VITE_USE_MOCK_API=false` — real API calls active
 
 ---
 

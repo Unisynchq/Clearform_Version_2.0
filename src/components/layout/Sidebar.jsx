@@ -18,7 +18,7 @@ import {
 import { readProfileSettings } from '@/features/profile/utils/profileSettingsStorage';
 import { openCreateWorkspaceModal, openWorkspaceContextMenu } from '@/store/slices/uiSlice';
 import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.png';
-import clearformLogoIcon from '@/assets/clearform-high-resolution-logo-transparent (1).png';
+const clearformLogoIcon = clearformLogo;
 import SidebarSkeleton from './SidebarSkeleton';
 
 const getProfileDisplay = ({ firstName, lastName, email, displayName: savedName }) => {

@@ -3,25 +3,16 @@ import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'motion/react';
 import { FiCopy } from 'react-icons/fi';
 import { closeDuplicateModal } from '@/store/slices/uiSlice';
-import { addForm } from '@/store/slices/formsSlice';
+import { duplicateFormThunk } from '@/store/slices/formsSlice';
 
 /* Remount when `formId` changes so the text field initializes without a sync effect. */
-const DuplicateFormModalInner = ({ formTitle, form }) => {
+const DuplicateFormModalInner = ({ formTitle, form, formId }) => {
   const dispatch = useDispatch();
   const [copyName, setCopyName] = useState(() => `Copy of ${formTitle}`);
 
   const handleDuplicate = () => {
     if (!form || !copyName.trim()) return;
-    dispatch(
-      addForm({
-        ...form,
-        id: Date.now(),
-        title: copyName.trim(),
-        status: 'draft',
-        responses: 0,
-        timeAgo: 'just now',
-      })
-    );
+    dispatch(duplicateFormThunk({ originalId: formId, newTitle: copyName.trim() }));
     dispatch(closeDuplicateModal());
   };
 

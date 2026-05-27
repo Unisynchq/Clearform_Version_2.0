@@ -9,7 +9,7 @@ import {
   RiUserSearchLine,
   RiPhoneLine,
 } from 'react-icons/ri';
-import { openNewFormModal } from '../../redux/slices/uiSlice';
+import { openCreateNewFormModal } from '@/store/slices/uiSlice';
 
 const QUICK_TEMPLATES = [
   { id: 'nps', icon: RiSurveyLine, label: 'NPS Survey' },
@@ -41,7 +41,7 @@ const NewWorkspaceEmpty = ({ workspaceName = 'Inc Corp' }) => {
     {/* CTAs */}
     <div className="flex items-center gap-3">
       <button
-        onClick={() => dispatch(openNewFormModal())}
+        onClick={() => dispatch(openCreateNewFormModal())}
         className="flex items-center gap-2 bg-[#1a1a1c] text-white text-[14px] font-medium px-[17px] py-[9px] rounded-lg hover:bg-[#2c2c2e] transition-colors cursor-pointer"
       >
         <RiAddLine size={14} />

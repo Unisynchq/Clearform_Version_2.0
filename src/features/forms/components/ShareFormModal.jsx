@@ -171,7 +171,7 @@ const SHARE_CHANNELS = [
 ───────────────────────────────────────── */
 const ShareFormModal = () => {
   const dispatch = useDispatch();
-  const { open, formTitle } = useSelector((s) => s.ui.shareModal);
+  const { open, formTitle, formId } = useSelector((s) => s.ui.shareModal);
 
   /* ── Copy link ── */
   const [copied, setCopied] = useState(false);
@@ -202,11 +202,8 @@ const ShareFormModal = () => {
   const [triggerClosed,   setTriggerClosed]   = useState(true);
   const [triggerUpdated,  setTriggerUpdated]  = useState(false);
 
-  const slug    = formTitle
-    ? formTitle.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-    : 'form';
-  const formUrl = `form.clearform.io/${slug}`;
-  const fullUrl = `https://${formUrl}`;
+  const fullUrl = formId ? `${window.location.origin}/f/${formId}` : '';
+  const formUrl = fullUrl.replace(/^https?:\/\//, '');
 
   /* ── Handlers: copy ── */
   const handleCopyLink = () => {

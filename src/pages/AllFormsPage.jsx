@@ -7,25 +7,25 @@ import {
   setLoading,
   setActiveFilter,
   setActiveWorkspace,
-  fetchWorkspaces,
-  fetchForms,
-} from '../redux/slices/formsSlice';
-import { openSearchPalette, openNewFormModal } from '../redux/slices/uiSlice';
-import FilterTabs from '../components/ui/FilterTabs';
-import WorkspaceChips from '../components/ui/WorkspaceChips';
-import TemplateBanner from '../components/ui/TemplateBanner';
-import FormCard from '../components/ui/FormCard';
-import FormListRow from '../components/ui/FormListRow';
-import { SkeletonGrid, SkeletonList } from '../components/ui/SkeletonCard';
-import FormContextMenu from '../components/ui/FormContextMenu';
-import DeleteFormModal from '../components/ui/DeleteFormModal';
-import DuplicateFormModal from '../components/ui/DuplicateFormModal';
-import ArchiveFormModal from '../components/ui/ArchiveFormModal';
-import FormOverlayModal from '../components/ui/FormOverlayModal';
-import NewWorkspaceEmpty from '../components/ui/NewWorkspaceEmpty';
-import CreateWorkspaceModal from '../components/ui/CreateWorkspaceModal';
-import ShareFormModal from '../components/ui/ShareFormModal';
-import NewFormModal from '../components/ui/NewFormModal';
+  fetchFormsThunk,
+  fetchWorkspacesThunk,
+} from '@/store/slices/formsSlice';
+import { openSearchPalette, openCreateNewFormModal } from '@/store/slices/uiSlice';
+import FilterTabs from "@/features/forms/components/FilterTabs";
+import WorkspaceChips from "@/features/forms/components/WorkspaceChips";
+import TemplateBanner from "@/features/forms/components/TemplateBanner";
+import FormCard from "@/features/forms/components/FormCard";
+import FormListRow from "@/features/forms/components/FormListRow";
+import { SkeletonGrid, SkeletonList } from "@/features/forms/components/SkeletonCard";
+import FormContextMenu from "@/features/forms/components/FormContextMenu";
+import DeleteFormModal from "@/features/forms/components/DeleteFormModal";
+import DuplicateFormModal from "@/features/forms/components/DuplicateFormModal";
+import ArchiveFormModal from "@/features/forms/components/ArchiveFormModal";
+import FormOverlayModal from "@/features/forms/components/FormOverlayModal";
+import NewWorkspaceEmpty from "@/features/forms/components/NewWorkspaceEmpty";
+import CreateWorkspaceModal from "@/features/forms/components/CreateWorkspaceModal";
+import ShareFormModal from "@/features/forms/components/ShareFormModal";
+import CreateNewFormModal from "@/features/forms/components/CreateNewFormModal";
 
 /* ── Empty state: no forms from filter ── */
 const FilterEmptyState = ({ hasFilters, onClearFilters }) => (
@@ -124,10 +124,10 @@ const AllFormsPage = () => {
   );
   const isNewWorkspace = activeWorkspace !== 'all' && selectedWorkspaceForms.length === 0;
 
-  /* Fetch real data */
+  /* Fetch real data on mount */
   useEffect(() => {
-    dispatch(fetchWorkspaces());
-    dispatch(fetchForms());
+    dispatch(fetchWorkspacesThunk());
+    dispatch(fetchFormsThunk());
   }, [dispatch]);
 
   /* Global ⌘K listener */
@@ -161,7 +161,7 @@ const AllFormsPage = () => {
       <FormOverlayModal />
       <CreateWorkspaceModal />
       <ShareFormModal />
-      <NewFormModal />
+      <CreateNewFormModal />
       <div className="flex flex-col h-full">
         {/* Page heading + CTA */}
         <div className="flex items-end justify-between px-6 py-4">
@@ -176,7 +176,7 @@ const AllFormsPage = () => {
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => dispatch(openNewFormModal())}
+            onClick={() => dispatch(openCreateNewFormModal())}
             className="flex items-center gap-2 bg-[#1a1a1c] text-white text-[14px] font-medium px-[17px] py-[9px] rounded-lg border border-[#1a1a1c] hover:bg-[#2c2c2e] transition-colors cursor-pointer shrink-0"
           >
             <RiAddLine size={14} />

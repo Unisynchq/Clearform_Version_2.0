@@ -27,10 +27,9 @@ export function getFormBuilderPath(formId) {
 
 /**
  * @param {string|undefined} routeParam — from useParams().formId
- * @returns {number|null}
+ * @returns {string|null}
  */
 export function parseFormBuilderRouteId(routeParam) {
   if (!routeParam || routeParam === FORM_BUILDER_NEW_SEGMENT) return null;
-  const n = Number(routeParam);
-  return Number.isFinite(n) ? n : null;
+  return routeParam;
 }

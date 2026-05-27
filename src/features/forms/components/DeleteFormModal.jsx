@@ -1,8 +1,8 @@
 import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'motion/react';
 import { FiTrash2, FiAlertTriangle } from 'react-icons/fi';
-import { closeDeleteModal } from '../../redux/slices/uiSlice';
-import { deleteFormThunk } from '../../redux/slices/formsSlice';
+import { closeDeleteModal } from '@/store/slices/uiSlice';
+import { deleteFormThunk } from '@/store/slices/formsSlice';
 
 const DeleteFormModal = () => {
   const dispatch = useDispatch();

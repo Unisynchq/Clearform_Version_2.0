@@ -6,7 +6,7 @@ import {
   RiArrowUpSLine,
   RiLayoutGridLine,
 } from 'react-icons/ri';
-import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent (1).png';
+import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.png';
 import BillingChoosePlanModal from '@/features/profile/components/BillingChoosePlanModal';
 import BillingInvoiceExpanded from '@/features/profile/components/billing/BillingInvoiceExpanded';
 import TaxInvoiceModal from '@/features/profile/components/billing/TaxInvoiceModal';

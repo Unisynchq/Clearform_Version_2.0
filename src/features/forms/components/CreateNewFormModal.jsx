@@ -8,7 +8,7 @@ import {
   closeCreateNewFormModal,
   startBuilderRouteTransition,
 } from '@/store/slices/uiSlice';
-import { addForm, selectNavWorkspaces } from '@/store/slices/formsSlice';
+import { createFormThunk, selectNavWorkspaces } from '@/store/slices/formsSlice';
 import { completeOnboarding, selectIsOnboardingActive } from '@/store/slices/onboardingSlice';
 import { NO_WORKSPACE_ID } from '../constants/workspaces';
 import { FORM_COLOR_OPTIONS, getFormColorTheme } from '../constants/formColorThemes';
@@ -159,25 +159,27 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
   const handleCreate = () => {
     const title = name.trim() || 'Untitled';
     const theme = getFormColorTheme(colorId);
+    const tempId = `temp_${Date.now()}`;
     const newForm = {
-      id: Date.now(),
+      id: tempId,
       title,
       status: 'draft',
       responses: 0,
       timeAgo: 'just now',
       workspace: workspaceId,
+      workspaceId: workspaceId === 'none' ? undefined : workspaceId,
       gradientFrom: theme.gradientFrom,
       gradientTo: theme.gradientTo,
       overlayColor: theme.overlayColor,
       iconGradient: theme.iconGradient,
     };
 
-    dispatch(addForm(newForm));
+    dispatch(createFormThunk(newForm));
     if (isOnboardingActive) dispatch(completeOnboarding());
 
     onCreateAfterExit({
       formTitle: title,
-      formId: newForm.id,
+      formId: tempId,
       formColor: theme.value,
     });
     resetFormFields();

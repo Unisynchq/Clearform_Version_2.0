@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'motion/react';
 import { RiCloseLine, RiArrowRightSLine } from 'react-icons/ri';
 import { closeCreateWorkspaceModal } from '@/store/slices/uiSlice';
-import { addWorkspace } from '@/store/slices/formsSlice';
+import { createWorkspaceThunk } from '@/store/slices/formsSlice';
 
 const COLOR_OPTIONS = [
   { id: 'blue',   value: '#3b82f6' },
@@ -28,8 +28,7 @@ const CreateWorkspaceModal = () => {
 
   const handleCreate = () => {
     if (!name.trim()) return;
-    const id = `ws-${name.trim().toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
-    dispatch(addWorkspace({ id, label: name.trim(), color }));
+    dispatch(createWorkspaceThunk({ label: name.trim(), color }));
     dispatch(closeCreateWorkspaceModal());
     setName('');
     setColor(COLOR_OPTIONS[0].value);

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onIdTokenChanged } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 
 const AuthContext = createContext({
@@ -12,17 +12,17 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribe = onIdTokenChanged(auth, async (currentUser) => {
       if (currentUser) {
         try {
           const token = await currentUser.getIdToken();
-          localStorage.setItem('accessToken', token);
+          sessionStorage.setItem('clearform:auth-token', token);
         } catch (err) {
           console.error('Error fetching Firebase ID token:', err);
-          localStorage.removeItem('accessToken');
+          sessionStorage.removeItem('clearform:auth-token');
         }
       } else {
-        localStorage.removeItem('accessToken');
+        sessionStorage.removeItem('clearform:auth-token');
       }
       setUser(currentUser);
       setLoading(false);

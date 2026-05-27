@@ -16,6 +16,8 @@ const FORMS_ACTIONS = new Set([
   'forms/renameWorkspace',
   'forms/deleteWorkspace',
   'forms/resetFormsForOnboarding',
+  'forms/fetchForms/fulfilled',
+  'forms/fetchWorkspaces/fulfilled',
   'onboarding/completeOnboarding',
 ]);
 

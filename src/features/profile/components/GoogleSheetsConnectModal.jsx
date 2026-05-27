@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { RiArrowRightLine, RiCheckLine, RiCloseLine } from 'react-icons/ri';
 import ProfileModal from '@/components/profile/ProfileModal';
 import sheetsIcon from '@/assets/Icons/sheets.svg';
-import clearformLogoIcon from '@/assets/clearform-high-resolution-logo-transparent (1).png';
+import clearformLogoIcon from '@/assets/clearform-high-resolution-logo-transparent.png';
 import GoogleSheetsConnectingView from '@/features/profile/components/GoogleSheetsConnectingView';
 import GoogleSheetsConnectionFailedView from '@/features/profile/components/GoogleSheetsConnectionFailedView';
 import { createGoogleSheetsOAuthError } from '@/features/profile/utils/googleSheetsConnection';

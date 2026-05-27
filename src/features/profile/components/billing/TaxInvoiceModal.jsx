@@ -1,6 +1,6 @@
 import { RiDownloadLine } from 'react-icons/ri';
 import ProfileModal from '@/components/profile/ProfileModal';
-import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent (1).png';
+import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.png';
 import { downloadTaxInvoicePdf } from '@/features/profile/utils/downloadTaxInvoice';
 import { formatInr } from '@/features/profile/utils/profileBillingCheckout';
 
