@@ -42,8 +42,10 @@ const AppRoutes = () => {
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="templates" element={<TemplatesPage />} />
         <Route path="help" element={<HelpSupportPage />} />
-        <Route path="form-builder/:formId" element={<FormBuilderPage />} />
       </Route>
+
+      {/* Form Builder — full page, no sidebar */}
+      <Route path="/dashboard/form-builder/:formId" element={<ProtectedRoute><FormBuilderPage /></ProtectedRoute>} />
     </Routes>
   );
 };
