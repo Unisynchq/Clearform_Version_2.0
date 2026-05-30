@@ -7,7 +7,7 @@ import ResponseQualityFeedback from '@/features/forms/components/ResponseQuality
 import { evaluateResponseQuality } from '@/features/forms/utils/responseQualityScoring';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { updateForm } from '@/store/slices/formsSlice';
+import { updateForm, addForm } from '@/store/slices/formsSlice';
 import { selectIsOnboardingActive } from '@/store/slices/onboardingSlice';
 import { useToast } from '@/hooks/useToast';
 import { formsService } from '@/api';
@@ -4948,9 +4948,41 @@ const FormBuilderPage = () => {
     }
   };
 
-  const handleUnsavedSave = () => {
+  const handleUnsavedSave = async () => {
     if (unsavedChangesPrompt === 'leave') {
-      flushBuilderDraft();
+      const snapshot = buildCurrentPublishSnapshot();
+
+      if (!activeFormId && snapshot) {
+        // New form (opened from template at /form-builder/new) — must create on backend before leaving
+        if (isApiConfigured()) {
+          try {
+            const newForm = await formsService.createForm({
+              title: snapshot.formTitle || 'Untitled Form',
+            });
+            dispatch(addForm(newForm));
+            writeBuilderDraft(newForm.id, snapshot);
+            formsService.saveBuilderSnapshot(newForm.id, snapshot).catch(() => {});
+          } catch {
+            // Backend unreachable — persist locally with a generated ID so dashboard can show it
+            const draftId = `draft_${Date.now()}`;
+            writeBuilderDraft(draftId, snapshot);
+            dispatch(addForm({
+              id: draftId,
+              title: snapshot.formTitle || 'Untitled Form',
+              status: 'draft',
+              responses: 0,
+              timeAgo: 'just now',
+            }));
+          }
+        }
+      } else if (activeFormId && snapshot) {
+        // Existing form — flush local draft + fire backend save
+        flushBuilderDraft();
+        if (isApiConfigured()) {
+          formsService.saveBuilderSnapshot(activeFormId, snapshot).catch(() => {});
+        }
+      }
+
       builderBaselineRef.current = serializeBuilderState();
       formTouchedRef.current = false;
       setIsFormDirty(false);
