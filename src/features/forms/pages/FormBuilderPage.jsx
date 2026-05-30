@@ -10,6 +10,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { updateForm } from '@/store/slices/formsSlice';
 import { selectIsOnboardingActive } from '@/store/slices/onboardingSlice';
 import { useToast } from '@/hooks/useToast';
+import { formsService } from '@/api';
+import { isApiConfigured } from '@/config/env';
 import { readBuilderDraft, writeBuilderDraft, clearBuilderDraft } from '@/features/forms/utils/builderDraftStorage';
 import { readPublishedForm, writePublishedForm } from '@/features/forms/utils/publishedFormStorage';
 import { buildPublishSnapshot, buildLogicMeta } from '@/features/forms/utils/buildPublishSnapshot';
@@ -164,6 +166,13 @@ const builderSnapshotTime = (snapshot) =>
 
 const newestBuilderSnapshot = (...snapshots) =>
   snapshots.filter(isUsableBuilderSnapshot).sort((a, b) => builderSnapshotTime(b) - builderSnapshotTime(a))[0] ?? null;
+
+const normalizeBuilderSnapshotResponse = (data) => {
+  if (isUsableBuilderSnapshot(data)) return data;
+  if (isUsableBuilderSnapshot(data?.snapshot)) return data.snapshot;
+  if (isUsableBuilderSnapshot(data?.builderSnapshot)) return data.builderSnapshot;
+  return null;
+};
 
 /** Migrate legacy per-screen rules into per-connection keys. */
 const migrateLogicIfRulesToEdges = (byScreen = {}) => {
@@ -3438,32 +3447,50 @@ const FormBuilderPage = () => {
   }, [location.state?.startInPreview, screens.length, location.key]);
 
   useEffect(() => {
+    let cancelled = false;
     const formId = activeFormId;
-    const savedSnapshot =
-      isUsableBuilderSnapshot(persistedForm?.builderSnapshot)
-        ? persistedForm.builderSnapshot
-        : null;
-    const draftSnapshot = formId ? readBuilderDraft(formId) : null;
-    const publishedSnapshot = formId ? readPublishedForm(formId) : null;
-    const fallbackSnapshot = savedSnapshot ? null : newestBuilderSnapshot(draftSnapshot, publishedSnapshot);
-    const templateId =
-      savedSnapshot?.templateId ??
-      fallbackSnapshot?.templateId ??
-      location.state?.templateId ??
-      persistedForm?.templateId;
-    const hydrationSource = savedSnapshot
-      ? 'snapshot'
-      : fallbackSnapshot
-        ? 'fallback-snapshot'
-        : persistedForm
-          ? 'form'
-          : 'pending';
-    const hydrationSessionKey = `${location.key}|${formId ?? 'new'}|${templateId ?? ''}|${hydrationSource}`;
 
-    if (builderHydrationSessionRef.current === hydrationSessionKey) return;
-    builderHydrationSessionRef.current = hydrationSessionKey;
+    (async () => {
+      const savedSnapshot =
+        isUsableBuilderSnapshot(persistedForm?.builderSnapshot)
+          ? persistedForm.builderSnapshot
+          : null;
+      const publishedSnapshot = formId ? readPublishedForm(formId) : null;
+      let draftSnapshot = formId ? readBuilderDraft(formId) : null;
 
-    if (formId && savedSnapshot) {
+      if (formId && isApiConfigured() && !savedSnapshot) {
+        try {
+          const apiData = await formsService.getBuilderSnapshot(formId);
+          const apiSnapshot = normalizeBuilderSnapshotResponse(apiData);
+          if (apiSnapshot) {
+            draftSnapshot = newestBuilderSnapshot(apiSnapshot, draftSnapshot);
+          }
+        } catch {
+          // Keep local draft when API is unavailable.
+        }
+      }
+
+      if (cancelled) return;
+
+      const fallbackSnapshot = savedSnapshot ? null : newestBuilderSnapshot(draftSnapshot, publishedSnapshot);
+      const templateId =
+        savedSnapshot?.templateId ??
+        fallbackSnapshot?.templateId ??
+        location.state?.templateId ??
+        persistedForm?.templateId;
+      const hydrationSource = savedSnapshot
+        ? 'snapshot'
+        : fallbackSnapshot
+          ? 'fallback-snapshot'
+          : persistedForm
+            ? 'form'
+            : 'pending';
+      const hydrationSessionKey = `${location.key}|${formId ?? 'new'}|${templateId ?? ''}|${hydrationSource}`;
+
+      if (builderHydrationSessionRef.current === hydrationSessionKey) return;
+      builderHydrationSessionRef.current = hydrationSessionKey;
+
+      if (formId && savedSnapshot) {
       builderDraftHydratedRef.current = true;
       applyBuiltFormState(
         {
@@ -3581,6 +3608,11 @@ const FormBuilderPage = () => {
       setLoadedFormTitle(persistedForm?.title ?? location.state?.formTitle);
     }
     setBuilderHydrated(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     activeFormId,
     location.state?.templateId,
@@ -3815,6 +3847,9 @@ const FormBuilderPage = () => {
         settings: buildBuilderSettingsSnapshot(),
       });
       writeBuilderDraft(activeFormId, snapshot);
+      if (isApiConfigured()) {
+        formsService.saveBuilderSnapshot(activeFormId, snapshot).catch(() => {});
+      }
       dispatch(
         updateForm({
           id: activeFormId,
@@ -4745,7 +4780,7 @@ const FormBuilderPage = () => {
     );
   }, [buildCurrentPublishSnapshot, activeFormId, dispatch]);
 
-  const handlePublishForm = useCallback(() => {
+  const handlePublishForm = useCallback(async () => {
     const blockers = getPublishBlockers(screens);
     if (blockers.length) {
       showToast({ type: 'info', message: blockers[0] });
@@ -4763,6 +4798,21 @@ const FormBuilderPage = () => {
       setPublishModalOpen(false);
       return;
     }
+
+    if (isApiConfigured()) {
+      try {
+        await formsService.saveBuilderSnapshot(activeFormId, snapshot);
+        await formsService.publishForm(activeFormId, snapshot);
+      } catch (err) {
+        showToast({
+          type: 'error',
+          message: err?.message ?? 'Could not publish to the server. Try again.',
+        });
+        setPublishModalOpen(false);
+        return;
+      }
+    }
+
     writeBuilderDraft(activeFormId, snapshot);
     writePublishedForm(activeFormId, snapshot);
     dispatch(

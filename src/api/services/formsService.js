@@ -16,9 +16,10 @@ export async function saveBuilderSnapshot(formId, snapshot) {
   });
 }
 
-export async function publishForm(formId) {
+export async function publishForm(formId, snapshot) {
   return apiClient(API_ENDPOINTS.forms.publish(formId), {
     method: 'POST',
+    ...(snapshot !== undefined ? { body: snapshot } : {}),
   });
 }
 

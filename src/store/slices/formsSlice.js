@@ -1,5 +1,6 @@
 import { createSlice, createSelector, createAsyncThunk } from '@reduxjs/toolkit';
 import { readFormsUi } from '@/features/forms/utils/formsUiStorage';
+import { readPersistedForms } from '@/features/forms/utils/userFormsStorage';
 import { migrateBuilderDraft } from '@/features/forms/utils/builderDraftStorage';
 import * as formsService from '@/api/services/formsService';
 import * as workspacesService from '@/api/services/workspacesService';
@@ -270,6 +271,11 @@ const formsSlice = createSlice({
         state.isLoading = false;
       })
       .addCase(fetchFormsThunk.rejected, (state) => {
+        const localForms = readPersistedForms();
+        if (localForms.length > 0) {
+          state.forms = localForms;
+          applyWorkspaceCounts(state);
+        }
         state.isLoading = false;
       })
       .addCase(fetchWorkspacesThunk.fulfilled, (state, action) => {

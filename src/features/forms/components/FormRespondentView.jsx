@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { responsesService } from '@/api';
+import { isApiConfigured } from '@/config/env';
 import { createFormLogicRunner } from '@/features/forms/utils/formLogicRunner';
 import { isScreenVisibleInPreview } from '@/features/forms/utils/logicEngine';
 import RespondentScreenFields, {
@@ -18,7 +20,7 @@ const emptySnap = () => ({
 /**
  * Minimal live form runner — uses the same logic engine as builder preview.
  */
-export default function FormRespondentView({ draft, formTitle }) {
+export default function FormRespondentView({ draft, formTitle, formId }) {
   const screens = draft?.screens ?? [];
   const logicConnections = draft?.logicConnections ?? [];
   const logicIfRulesByEdge = draft?.logicIfRulesByEdge ?? {};
@@ -28,6 +30,8 @@ export default function FormRespondentView({ draft, formTitle }) {
   const [visitStack, setVisitStack] = useState([]);
   const [snapsByScreenId, setSnapsByScreenId] = useState({});
   const [fieldError, setFieldError] = useState('');
+  const submittedRef = useRef(false);
+  const startedAtRef = useRef(Date.now());
 
   const runnerRef = useRef(null);
   useEffect(() => {
@@ -39,6 +43,21 @@ export default function FormRespondentView({ draft, formTitle }) {
   }, [screens, logicConnections, logicIfRulesByEdge]);
 
   const activeScreen = screens.find((s) => s.id === activeScreenId) ?? null;
+
+  useEffect(() => {
+    if (activeScreen?.type !== 'end' || submittedRef.current || !formId) return;
+    submittedRef.current = true;
+
+    const answers = runnerRef.current?.answersByScreenId ?? {};
+    const payload = {
+      answers,
+      startedAt: new Date(startedAtRef.current).toISOString(),
+    };
+
+    if (isApiConfigured()) {
+      responsesService.submitResponse(formId, payload).catch(() => {});
+    }
+  }, [activeScreen, formId]);
 
   useEffect(() => {
     setFieldError('');

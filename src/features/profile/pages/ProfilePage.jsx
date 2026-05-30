@@ -16,6 +16,7 @@ import PhotoUploadErrorZone, {
   PhotoAvatarError,
 } from '@/features/profile/components/PhotoUploadErrorZone';
 import { logout, loginSuccess } from '@/store/slices/authSlice';
+import { signOutFirebase } from '@/features/auth/utils/firebaseAuth';
 import { upsertUserAccount } from '@/features/auth/utils/userAccountsStorage';
 import {
   readProfileSettings,
@@ -381,7 +382,12 @@ const ProfilePage = () => {
     showToast({ type: 'success', message: 'Profile saved.', duration: 2200 });
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    try {
+      await signOutFirebase();
+    } catch {
+      // Clear local session even if Firebase sign-out fails.
+    }
     dispatch(logout());
     navigate('/signin');
   };

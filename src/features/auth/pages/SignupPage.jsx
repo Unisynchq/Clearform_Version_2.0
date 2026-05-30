@@ -7,9 +7,11 @@ import { RiGlobalLine, RiArrowDownSLine, RiAppleFill, RiEyeLine, RiEyeOffLine } 
 import { setField, setSubmitting, loginSuccess } from '@/store/slices/authSlice';
 import { resolveSignupNavigation } from '@/features/onboarding/utils/authOnboarding';
 import {
-  persistAccountPassword,
-  upsertUserAccount,
-} from '@/features/auth/utils/userAccountsStorage';
+  mapFirebaseAuthError,
+  profileFromFirebaseUser,
+  signInWithGoogle,
+  signUpWithEmail,
+} from '@/features/auth/utils/firebaseAuth';
 import AuthFieldError from '@/features/auth/components/AuthFieldError';
 import {
   hasValidationErrors,
@@ -30,14 +32,16 @@ const MicrosoftIcon = memo(() => (
   </svg>
 ));
 
-const SocialButton = memo(({ children, label }) => (
+const SocialButton = memo(({ children, label, onClick, disabled }) => (
   <motion.button
     type="button"
     aria-label={label}
+    onClick={onClick}
+    disabled={disabled}
     whileHover={{ scale: 1.03 }}
     whileTap={{ scale: 0.96 }}
     transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
-    className="flex items-center justify-center w-[58px] h-[40px] bg-white border border-[rgba(81,76,84,0.15)] rounded-[10px] hover:bg-[#f4f4f4] cursor-pointer"
+    className="flex items-center justify-center w-[58px] h-[40px] bg-white border border-[rgba(81,76,84,0.15)] rounded-[10px] hover:bg-[#f4f4f4] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
   >
     {children}
   </motion.button>
@@ -186,43 +190,55 @@ const SignupPage = () => {
     setErrors((prev) => (prev[name] ? { ...prev, [name]: null } : prev));
   }, [dispatch]);
 
-  const handleSubmit = useCallback((e) => {
+  const completeAuth = useCallback((user) => {
+    const profile = profileFromFirebaseUser(user);
+    const path = resolveSignupNavigation(dispatch);
+    dispatch(loginSuccess(profile));
+    showToast({
+      type: 'success',
+      message: profile.firstName
+        ? `Welcome, ${profile.firstName}! Your account is ready.`
+        : 'Account created successfully',
+      duration: 3000,
+    });
+    navigate(path, { replace: true });
+  }, [dispatch, navigate, showToast]);
+
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     const nextErrors = validateSignupForm({ firstName, lastName, email, password });
     setErrors(nextErrors);
     if (hasValidationErrors(nextErrors)) return;
 
+    const trimmedFirst = firstName.trim();
+    const trimmedEmail = email.trim();
+    const trimmedLast = lastName.trim();
+    const displayName = [trimmedFirst, trimmedLast].filter(Boolean).join(' ');
+
     dispatch(setSubmitting(true));
-    setTimeout(() => {
+    try {
+      const user = await signUpWithEmail(trimmedEmail, password, displayName);
+      completeAuth(user);
+    } catch (err) {
+      const message = mapFirebaseAuthError(err);
+      const field = err?.code === 'auth/email-already-in-use' ? 'email' : 'password';
+      setErrors({ [field]: message });
+    } finally {
       dispatch(setSubmitting(false));
-      const trimmedFirst = firstName.trim();
-      const trimmedEmail = email.trim();
-      const trimmedLast = lastName.trim();
-      // Start onboarding before auth so GuestOnly routes to /onboarding, not /dashboard
-      const path = resolveSignupNavigation(dispatch);
-      dispatch(
-        loginSuccess({
-          email: trimmedEmail,
-          firstName: trimmedFirst,
-          lastName: trimmedLast,
-        })
-      );
-      upsertUserAccount({
-        email: trimmedEmail,
-        firstName: trimmedFirst,
-        lastName: trimmedLast,
-      });
-      persistAccountPassword(trimmedEmail, password);
-      showToast({
-        type: 'success',
-        message: trimmedFirst
-          ? `Welcome, ${trimmedFirst}! Your account is ready.`
-          : 'Account created successfully',
-        duration: 3000,
-      });
-      navigate(path, { replace: true });
-    }, 1000);
-  }, [dispatch, navigate, email, firstName, lastName, password, showToast]);
+    }
+  }, [dispatch, email, firstName, lastName, password, completeAuth]);
+
+  const handleGoogleSignIn = useCallback(async () => {
+    dispatch(setSubmitting(true));
+    try {
+      const user = await signInWithGoogle();
+      completeAuth(user);
+    } catch (err) {
+      showToast({ type: 'error', message: mapFirebaseAuthError(err), duration: 4000 });
+    } finally {
+      dispatch(setSubmitting(false));
+    }
+  }, [dispatch, completeAuth, showToast]);
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white">
@@ -287,7 +303,9 @@ const SignupPage = () => {
 
             {/* Social login */}
             <div className="flex items-center justify-center gap-3 py-0.5">
-              <SocialButton label="Continue with Google"><FcGoogle size={22} /></SocialButton>
+              <SocialButton label="Continue with Google" onClick={handleGoogleSignIn} disabled={isSubmitting}>
+                <FcGoogle size={22} />
+              </SocialButton>
               <SocialButton label="Continue with Microsoft"><MicrosoftIcon /></SocialButton>
               <SocialButton label="Continue with Apple">
                 <RiAppleFill size={22} className="text-[#0f0f0e]" />

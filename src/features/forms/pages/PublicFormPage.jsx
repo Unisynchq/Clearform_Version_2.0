@@ -1,34 +1,97 @@
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { formsService } from '@/api';
+import { isApiConfigured } from '@/config/env';
 import { readPublishedForm } from '@/features/forms/utils/publishedFormStorage';
 import { readBuilderDraft } from '@/features/forms/utils/builderDraftStorage';
 import { readUserForms } from '@/features/forms/utils/userFormsStorage';
+import {
+  isPublishedFormLive,
+  normalizePublishedFormResponse,
+} from '@/features/forms/utils/publishedFormApi';
 import FormRespondentView from '@/features/forms/components/FormRespondentView';
+
+function loadPublishedFormFromStorage(formId) {
+  const forms = readUserForms();
+  const meta = forms.find((f) => String(f.id) === formId);
+  if (!meta) {
+    return { draft: null, blocked: 'not_found' };
+  }
+  if (meta.status !== 'live') {
+    return { draft: null, blocked: 'not_live' };
+  }
+  const published = readPublishedForm(formId) ?? readBuilderDraft(formId);
+  if (!published?.screens?.length) {
+    return { draft: null, blocked: 'no_draft' };
+  }
+  return { draft: published, blocked: null };
+}
 
 /**
  * Public respondent route — loads published snapshot and runs logicEngine navigation.
  */
 export default function PublicFormPage() {
   const { formId } = useParams();
+  const [state, setState] = useState({ loading: true, draft: null, blocked: null });
 
-  const { draft, blocked } = useMemo(() => {
-    if (!formId) {
-      return { draft: null, blocked: 'invalid' };
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      if (!formId) {
+        if (!cancelled) setState({ loading: false, draft: null, blocked: 'invalid' });
+        return;
+      }
+
+      if (isApiConfigured()) {
+        try {
+          const data = await formsService.getPublishedForm(formId);
+          if (cancelled) return;
+
+          if (!isPublishedFormLive(data)) {
+            setState({ loading: false, draft: null, blocked: 'not_live' });
+            return;
+          }
+
+          const draft = normalizePublishedFormResponse(data);
+          if (draft?.screens?.length) {
+            setState({ loading: false, draft, blocked: null });
+            return;
+          }
+
+          setState({ loading: false, draft: null, blocked: 'no_draft' });
+          return;
+        } catch (err) {
+          if (err?.status === 404) {
+            if (!cancelled) setState({ loading: false, draft: null, blocked: 'not_found' });
+            return;
+          }
+          // Fall back to localStorage when backend is unavailable.
+        }
+      }
+
+      if (!cancelled) {
+        setState({ loading: false, ...loadPublishedFormFromStorage(formId) });
+      }
     }
-    const forms = readUserForms();
-    const meta = forms.find((f) => String(f.id) === formId);
-    if (!meta) {
-      return { draft: null, blocked: 'not_found' };
-    }
-    if (meta.status !== 'live') {
-      return { draft: null, blocked: 'not_live' };
-    }
-    const published = readPublishedForm(formId) ?? readBuilderDraft(formId);
-    if (!published?.screens?.length) {
-      return { draft: null, blocked: 'no_draft' };
-    }
-    return { draft: published, blocked: null };
+
+    setState({ loading: true, draft: null, blocked: null });
+    load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [formId]);
+
+  const { loading, draft, blocked } = state;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f4f3ef] flex flex-col items-center justify-center gap-3 p-8">
+        <p className="text-[14px] text-[#71717a]">Loading form…</p>
+      </div>
+    );
+  }
 
   if (blocked === 'invalid' || blocked === 'not_found') {
     return (
@@ -69,7 +132,7 @@ export default function PublicFormPage() {
       </header>
       <main className="flex-1 flex items-start justify-center py-10">
         <div className="w-full max-w-xl rounded-xl border border-[#e4e4e7] bg-white shadow-sm">
-          <FormRespondentView draft={draft} formTitle={draft.formTitle} />
+          <FormRespondentView draft={draft} formTitle={draft.formTitle} formId={formId} />
         </div>
       </main>
     </div>
