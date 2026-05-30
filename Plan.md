@@ -53,7 +53,7 @@
 
 | Artifact | Purpose |
 |----------|---------|
-| `src/api/client.js` | HTTP wrapper + auth header |
+| `src/api/client.js` | fetch wrapper + Bearer from sessionStorage |
 | `src/api/endpoints.js` | REST path map |
 | `src/api/services/formsService.js` | Forms draft/publish facade |
 | `src/api/services/analyticsService.js` | Analytics facade |
@@ -62,15 +62,25 @@
 | `.env.example` | Env template |
 | `BACKEND_HANDOFF.md` | Backend team spec |
 
----
+## Phase 8 — Backend connected + Firebase auth (completed, 28 May 2026)
 
-## Wiring backend (future — not started in UI)
+- NestJS at `localhost:3000/api/v1` (dev) / `https://api.clearform.in/api/v1` (prod)
+- `VITE_USE_MOCK_API=false`; Redux thunks + `formsService` for live data
+- Firebase ID Token → `clearform:auth-token` in sessionStorage
+- Routes: profile, analytics, templates, help
+- Fixes: `formsSlice` blank screen, Vite iCloud `node_modules 2/` ignore
 
-1. Bootstrap `formsSlice` from `formsService.listForms()`
-2. Replace draft read/write in `FormBuilderPage` with API
-3. Replace `writePublishedForm` on publish
-4. Point `runAiLogicGeneration` to `logicService.generateFormLogic`
-5. Analytics panels consume `analyticsService.*`
+## Phase 9 — Production deploy (in progress)
+
+| Step | Owner | Status |
+|------|--------|--------|
+| Cloudflare DNS (`api`, `app`) | Manual Part A | Pending until runbook executed |
+| Vercel domain `app.clearform.in` | Manual Part A | Pending |
+| Firebase authorized domains | Manual Part A | Pending |
+| Vercel + VPS env vars | Manual Part A | Documented in `clearform-backend/docs/PRODUCTION.md` |
+| Code/docs sync (Part B) | Repo | Done |
+
+See **`../clearform-backend/docs/PRODUCTION.md`** for full runbook.
 
 ---
 

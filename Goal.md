@@ -27,10 +27,12 @@ Users can create forms (content, design, logic, settings), preview, and publish 
 
 - Custom dropdowns (Radix `Select`), not native `<select>`
 
-### 6. Backend readiness
+### 6. Backend integration (achieved)
 
-- API client, endpoint map, service facades with localStorage fallback
+- Live API via `src/api/client.js` + service facades
+- Firebase auth (ID token in sessionStorage)
 - Documented contract in `BACKEND_HANDOFF.md`
+- Production deploy: https://app.clearform.in → https://api.clearform.in/api/v1
 
 ---
 
@@ -41,26 +43,27 @@ Users can create forms (content, design, logic, settings), preview, and publish 
 | Publish | `status: 'live'` + snapshot → full `FormPublishView` |
 | Logic persist | Connections/rules survive reload |
 | Dashboard motion | ~400ms load + staggered content |
-| Search | Filters real Redux forms; recent searches saved |
+| Search | Filters real Redux/API forms; recent searches saved |
 | Analytics | Loading + fade between states |
 | Build | `npm run build` + `npm run test:smoke` pass |
-| Backend handoff | `BACKEND_HANDOFF.md` + `src/api/*` |
+| Auth + API | Firebase login + Bearer token on API calls |
+| Production | Vercel app + VPS API per `docs/PRODUCTION.md` |
 
 ---
 
 ## Assignment / submission goals
 
-- Demonstrable end-to-end flow: dashboard → builder → publish → (optional) public form
-- Written handoff for backend and reviewers (`ASSIGNMENT_REPORT.md`)
-- Honest scope: prototype with local data, API-ready structure
+- Demonstrable end-to-end flow: dashboard → builder → publish → public form
+- Written handoff for reviewers (`ASSIGNMENT_REPORT.md`)
+- Co-maintained with `clearform-backend` (same UniSync workspace)
 
 ---
 
 ## Out of scope (current phase)
 
-- Production auth, billing, file CDN
-- Real analytics aggregates from server
 - Logic edge draw animations
+- Full Composio integrations (backend Phase 2)
+- Custom Firebase auth domain branding (Part C)
 
 ---
 

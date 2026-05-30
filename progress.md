@@ -1,8 +1,10 @@
 # Progress — Clearform v2
 
-**Last updated:** 28 May 2026  
-**Build:** `bun run build` (use Bun, not npm)  
+**Last updated:** 30 May 2026  
+**Build:** `npm run build` (CRITICAL: use NPM strictly, NOT Bun)  
 **Smoke:** `npm run test:smoke` — pass (prior runs)
+
+**Production runbook:** [`../clearform-backend/docs/PRODUCTION.md`](../clearform-backend/docs/PRODUCTION.md)
 
 ---
 
@@ -24,6 +26,9 @@
 | Frontend routes (profile/analytics/templates/help) | Done |
 | Vite watcher fix (iCloud node_modules 2) | Done |
 | Backend connected (NestJS, Supabase, local Redis) | Done |
+| Production docs + env templates (Part B) | Done |
+| Production infra (Part A — DNS/Vercel/Firebase/VPS) | Manual — see PRODUCTION.md |
+| Post-launch hardening (Part C) | Backlog in PRODUCTION.md |
 
 ---
 
@@ -57,18 +62,24 @@
 ### Backend-ready
 
 - [x] `src/api/client.js`, `endpoints.js`, services
-- [x] `.env.example`
+- [x] `.env.example` (local + prod URL comments)
 - [x] `BACKEND_HANDOFF.md`
 - [x] `ASSIGNMENT_REPORT.md`
 
 ### Phase 8 — Backend connected + routing fixes (28 May 2026)
 
-- [x] Fixed blank screen: added missing `syncWorkspaceCounts` + `countNavForms` in `formsSlice.js`
-- [x] Fixed Vite freezing: `vite.config.js` — `server.watch.ignored` excludes all `node_modules*` paths (iCloud creates `node_modules 2/` duplicate)
-- [x] Added missing routes in `AppRoutes.jsx`: `/dashboard/profile`, `/dashboard/analytics`, `/dashboard/templates`, `/dashboard/help`
-- [x] Backend NestJS running at `localhost:3000/api/v1` — all 18 endpoints live
-- [x] `VITE_API_BASE_URL=http://localhost:3000/api/v1` confirmed in `.env.local`
-- [x] `VITE_USE_MOCK_API=false` — real API calls active
+- [x] Fixed blank screen: `syncWorkspaceCounts` + `countNavForms` in `formsSlice.js`
+- [x] Vite `server.watch.ignored` for `node_modules*`
+- [x] Routes: `/dashboard/profile`, `/analytics`, `/templates`, `/help`
+- [x] NestJS `localhost:3000/api/v1`; `VITE_USE_MOCK_API=false`
+
+### Phase 9 — Production readiness (30 May 2026)
+
+- [x] Planning docs synced with backend (`Goal.md`, `Plan.md`, `Research.md`, `context.md`)
+- [x] `README.md` links to `clearform-backend/docs/PRODUCTION.md`
+- [x] Prod URLs: `app.clearform.in` / `api.clearform.in`
+- [ ] Part A manual: Cloudflare DNS, Vercel domain, Firebase authorized domains, VPS `.env`
+- [ ] Part C: Cloudflare cache, Razorpay live, schema columns — see PRODUCTION.md
 
 ---
 
@@ -85,6 +96,7 @@
 | 7 | Analytics tabs | Skeleton then fade to content |
 | 8 | Configure short text validation | Custom dropdown, not OS default |
 | 9 | Design → Text Color | Dark swatch before blue |
+| 10 | Prod sign-in (after Part A) | Login on `app.clearform.in`, API calls without CORS errors |
 
 ---
 
@@ -92,19 +104,19 @@
 
 | Command | Status |
 |---------|--------|
-| `npm run build` | Pass |
-| `npm run test:smoke` | Pass |
-| `npm run test:published` | Run before submission if needed |
+| `npm run build` | Run before deploy |
+| `npm run test:smoke` | Pass (prior) |
+| `npm run test:published` | Optional before submission |
 | `npm run test:configure-live-update` | Optional |
 
 ---
 
-## Deferred / backend-dependent
+## Deferred / Part C
 
-- [ ] Live API for forms, responses, analytics
-- [ ] Real auth (JWT/session)
-- [ ] File upload to storage
-- [ ] Production deploy + env config
+- [ ] Cloudflare cache rules for public render
+- [ ] Razorpay live keys + webhook URL
+- [ ] Prisma `snapshot` / `dropOffFieldId` columns on live Supabase
+- [ ] Firebase custom auth domain (`auth.clearform.in`)
 - [ ] Logic edge draw animations (out of scope)
 
 ---
@@ -113,24 +125,22 @@
 
 See **`ASSIGNMENT_REPORT.md`**.
 
-**Summary:** Good to go for frontend assignment / demo. Not production-ready until backend Phase 1 in `BACKEND_HANDOFF.md` is complete.
+**Summary:** Frontend + backend integration complete for pilot. Production traffic requires Part A in `PRODUCTION.md`.
 
 ---
 
 ## Copy-paste handoff
 
 ```
-Workspace: Final work 2
-Frontend prototype complete. Build + smoke pass.
-Backend: set VITE_API_BASE_URL, see BACKEND_HANDOFF.md
-Key: FormBuilderPage, AllFormsPage, SearchPalette, builderMotion,
-dashboardMotion, buildPublishSnapshot, src/api/*
-Docs: context.md, Goal.md, Plan.md, Research.md, progress.md,
-ASSIGNMENT_REPORT.md, BACKEND_HANDOFF.md
+Workspace: UniSync/Clearform_Version_2.0
+Prod: app.clearform.in → api.clearform.in/api/v1
+Dev: localhost:5173 → localhost:3000/api/v1
+Runbook: clearform-backend/docs/PRODUCTION.md
+Key: FormBuilderPage, formsSlice, src/api/client.js, buildPublishSnapshot
 ```
 
 ---
 
 ## Blockers
 
-None for frontend demo. **Backend** required for production data sync.
+None for local/demo. **Part A** (DNS, secrets, domains) required before public production cutover.

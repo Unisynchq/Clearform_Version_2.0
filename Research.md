@@ -88,9 +88,20 @@
 
 ---
 
+## 10. Auth + API client (May 2026)
+
+**Decision:** Firebase ID tokens on the client; backend verifies via Firebase Admin.
+
+- Client: `AuthContext.jsx` → `sessionStorage['clearform:auth-token']`
+- HTTP: `src/api/client.js` uses **fetch** (not axios); attaches `Authorization: Bearer`
+- Production API: `https://api.clearform.in/api/v1`
+
+---
+
 ## Open questions for backend/product
 
 1. Snapshot conflict resolution (multi-tab edit)
-2. Public URL format (`/f/:id` vs subdomain)
+2. Public URL format (`/f/:id` vs subdomain) — prod app at `app.clearform.in`
 3. Upload presigned URL flow
 4. Analytics aggregation windows vs “All time” filter
+5. Cloudflare cache rules for public render endpoint (Part C)

@@ -1,3 +1,11 @@
+# Clearform v2 (React + Vite)
+
+**Production:** https://app.clearform.in · **API:** https://api.clearform.in/api/v1
+
+Planning docs: `context.md`, `progress.md`, `Plan.md`. Deploy runbook: [`../clearform-backend/docs/PRODUCTION.md`](../clearform-backend/docs/PRODUCTION.md).
+
+---
+
 # React + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
