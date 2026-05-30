@@ -129,7 +129,7 @@ const CheckoutOrderSummary = ({
 
       {!isCard ? (
         <p className="text-[11px] leading-[17.6px] text-[#888580]">
-          Cancel anytime. Your data stays accessible on the pilot program.
+          Cancel anytime. Your data stays accessible on the free plan.
         </p>
       ) : null}
 

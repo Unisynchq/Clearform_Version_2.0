@@ -341,9 +341,7 @@ const BillingChoosePlanModal = ({
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h2 className="text-[17px] font-bold text-[#1a1a18]">Choose your plan</h2>
-                <p className="mt-0.5 text-[13px] text-[#888580]">
-                  Pilot pricing. Cancel anytime.
-                </p>
+                <p className="mt-0.5 text-[13px] text-[#888580]">Start free. Cancel anytime.</p>
               </div>
               <BillingToggle interval={interval} onChange={setInterval} />
             </div>

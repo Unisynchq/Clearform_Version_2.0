@@ -1,22 +1,23 @@
 import { useMemo, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import {
   RiArrowDownSLine,
   RiArrowRightLine,
   RiArrowUpSLine,
   RiLayoutGridLine,
 } from 'react-icons/ri';
-import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.png';
+import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent (1).png';
 import BillingChoosePlanModal from '@/features/profile/components/BillingChoosePlanModal';
 import BillingInvoiceExpanded from '@/features/profile/components/billing/BillingInvoiceExpanded';
 import TaxInvoiceModal from '@/features/profile/components/billing/TaxInvoiceModal';
-import { getUsageHint, getUsageStatus } from '@/features/profile/utils/profileBillingDefaults';
-import { getWorkspaceUsageMetrics } from '@/features/profile/utils/workspaceUsageMetrics';
+import {
+  DEFAULT_BILLING_USAGE,
+  getUsageHint,
+  getUsageStatus,
+} from '@/features/profile/utils/profileBillingDefaults';
 import { buildTaxInvoice } from '@/features/profile/utils/profileBillingInvoice';
 import { FREE_PLAN, getActivePlanDisplay } from '@/features/profile/utils/profileBillingPlans';
 import { readBillingSubscription } from '@/features/profile/utils/profileBillingStorage';
-import { dispatchSyncSystemAlerts } from '@/utils/syncSystemAlertsToStore';
-import { store } from '@/store/store';
 
 const ALERT_COLOR = '#e8473f';
 
@@ -69,12 +70,10 @@ const UsageMeter = ({
 };
 
 const ProfileBillingPanel = () => {
-  const dispatch = useDispatch();
   const email = useSelector((s) => s.auth.email);
   const firstName = useSelector((s) => s.auth.firstName);
   const lastName = useSelector((s) => s.auth.lastName);
   const forms = useSelector((s) => s.forms.forms);
-  const responsesByFormId = useSelector((s) => s.forms.responsesByFormId);
 
   const [choosePlanOpen, setChoosePlanOpen] = useState(false);
   const [billingVersion, setBillingVersion] = useState(0);
@@ -93,11 +92,10 @@ const ProfileBillingPanel = () => {
   const plan = paidPlan ?? FREE_PLAN;
   const isPaid = Boolean(subscription?.planId);
 
-  const usageMetrics = useMemo(
-    () => getWorkspaceUsageMetrics({ forms, email, responsesByFormId }),
-    [forms, email, responsesByFormId, billingVersion],
-  );
-  const { formsUsed, responsesUsed, teamUsed } = usageMetrics;
+  const formsUsed = subscription?.usage?.formsUsed ?? forms.length;
+  const responsesUsed =
+    subscription?.usage?.responsesThisMonth ?? DEFAULT_BILLING_USAGE.responsesThisMonth;
+  const teamUsed = subscription?.usage?.teamUsed ?? 1;
 
   const invoice = useMemo(() => {
     if (!subscription) return null;
@@ -113,7 +111,6 @@ const ProfileBillingPanel = () => {
   const handleBillingUpdated = () => {
     setBillingVersion((v) => v + 1);
     setInvoiceExpanded(true);
-    dispatchSyncSystemAlerts(dispatch, store.getState());
   };
 
   return (
