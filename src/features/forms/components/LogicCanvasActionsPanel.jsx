@@ -1,8 +1,8 @@
 import { RiAddLine, RiLayoutGridLine } from 'react-icons/ri';
 import HooksIcon from '@/features/forms/components/icons/HooksIcon';
-import sheetsIcon from '@/assets/icons/sheets.svg';
-import googleDriveIcon from '@/assets/icons/google-drive.svg';
-import slackIcon from '@/assets/icons/slack.svg';
+import sheetsIcon from '@/assets/Icons/sheets.svg';
+import googleDriveIcon from '@/assets/Icons/google-drive.svg';
+import slackIcon from '@/assets/Icons/slack.svg';
 
 const PANEL_CLASS =
   'w-[224px] rounded-[12px] border border-[rgba(81,76,84,0.15)] bg-white shadow-[0_4px_18px_rgba(0,0,0,0.06)]';

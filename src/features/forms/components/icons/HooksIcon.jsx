@@ -1,7 +1,7 @@
-import hooksSvg from '@/assets/icons/hooks.svg?raw';
+import hooksSvg from '@/assets/Icons/hooks.svg?raw';
 
 /**
- * Webhooks panel icon — renders src/assets/icons/hooks.svg at runtime via ?raw
+ * Webhooks panel icon — renders src/assets/Icons/hooks.svg at runtime via ?raw
  * so SVG file replacements are picked up without stale bundled asset URLs.
  */
 const HooksIcon = ({ className = 'inline-flex size-6 shrink-0 items-center justify-center' }) => (
