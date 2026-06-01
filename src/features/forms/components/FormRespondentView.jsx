@@ -9,6 +9,8 @@ import { evaluateResponseQuality } from '@/features/forms/utils/responseQualityS
 import { apiClient } from '@/api/client';
 import { API_ENDPOINTS } from '@/api/endpoints';
 import { isApiConfigured } from '@/config/env';
+import { submitFormResponse } from '@/api/services/responsesService';
+import { buildResponseFromPreview } from '@/features/forms/utils/formResponseBuilder';
 
 const emptySnap = () => ({
   previewPicks: [],
@@ -108,7 +110,15 @@ export default function FormRespondentView({ draft, formTitle, formId }) {
 
     runnerRef.current?.recordScreenAnswers(activeScreenId, snap);
     const nextId = runnerRef.current?.getNextScreenId(activeScreenId);
-    if (nextId == null) return;
+    if (nextId == null) {
+      const response = buildResponseFromPreview({
+        formId,
+        screens,
+        snapsByScreenId: { ...snapsByScreenId, [activeScreenId]: snap },
+      });
+      submitFormResponse(formId, response).catch(() => {});
+      return;
+    }
     setVisitStack((s) => [...s, activeScreenId]);
     setActiveScreenId(nextId);
     setFieldError('');
