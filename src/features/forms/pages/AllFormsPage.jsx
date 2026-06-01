@@ -133,9 +133,11 @@ const AllFormsPage = () => {
     activeFilter !== 'all' || activeWorkspace !== 'all' || searchQuery !== '';
 
   /* New workspace = a workspace is selected but has no forms at all */
-  const selectedWorkspaceForms = allForms.filter(
-    (f) => activeWorkspace === 'all' || f.workspace === activeWorkspace
-  );
+  const selectedWorkspaceForms = allForms.filter((f) => {
+    if (activeWorkspace === 'all') return true;
+    const fw = f.workspace == null || f.workspace === '' ? '' : String(f.workspace);
+    return fw === String(activeWorkspace);
+  });
   const isNewWorkspace = activeWorkspace !== 'all' && selectedWorkspaceForms.length === 0;
 
   const hydrationReady = useDashboardHydration();

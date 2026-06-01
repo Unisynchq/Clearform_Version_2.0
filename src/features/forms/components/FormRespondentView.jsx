@@ -4,6 +4,11 @@ import { isScreenVisibleInPreview } from '@/features/forms/utils/logicEngine';
 import RespondentScreenFields, {
   isRespondentScreenComplete,
 } from '@/features/forms/components/respondent/RespondentScreenFields';
+import ResponseQualityFeedback from '@/features/forms/components/ResponseQualityFeedback';
+import { evaluateResponseQuality } from '@/features/forms/utils/responseQualityScoring';
+import { apiClient } from '@/api/client';
+import { API_ENDPOINTS } from '@/api/endpoints';
+import { isApiConfigured } from '@/config/env';
 
 const emptySnap = () => ({
   previewPicks: [],
@@ -18,7 +23,7 @@ const emptySnap = () => ({
 /**
  * Minimal live form runner — uses the same logic engine as builder preview.
  */
-export default function FormRespondentView({ draft, formTitle }) {
+export default function FormRespondentView({ draft, formTitle, formId }) {
   const screens = draft?.screens ?? [];
   const logicConnections = draft?.logicConnections ?? [];
   const logicIfRulesByEdge = draft?.logicIfRulesByEdge ?? {};
@@ -39,6 +44,42 @@ export default function FormRespondentView({ draft, formTitle }) {
   }, [screens, logicConnections, logicIfRulesByEdge]);
 
   const activeScreen = screens.find((s) => s.id === activeScreenId) ?? null;
+  const [qualityResult, setQualityResult] = useState(null);
+  const qualityTimerRef = useRef(null);
+
+  useEffect(() => {
+    setQualityResult(null);
+  }, [activeScreenId]);
+
+  const evaluateQuality = (text, config, label) => {
+    if (qualityTimerRef.current) clearTimeout(qualityTimerRef.current);
+    if (!text?.trim()) { setQualityResult(null); return; }
+
+    const isLong = label === 'Long text';
+    const qualityConfig = isLong
+      ? config.longTextResponseQualityOptions
+      : config.shortTextResponseQualityOptions;
+    const enabled = isLong
+      ? config.longTextResponseQualityEnabled
+      : config.shortTextResponseQualityEnabled;
+    if (!enabled) return;
+
+    qualityTimerRef.current = setTimeout(async () => {
+      if (isApiConfigured() && formId) {
+        try {
+          const result = await apiClient(API_ENDPOINTS.responseQuality.evaluate(formId), {
+            method: 'POST',
+            body: { screenId: activeScreenId, fieldId: isLong ? 'long-text' : 'short-text', text, options: qualityConfig ?? {} },
+          });
+          setQualityResult(result);
+        } catch {
+          setQualityResult(evaluateResponseQuality(text, qualityConfig ?? {}));
+        }
+      } else {
+        setQualityResult(evaluateResponseQuality(text, qualityConfig ?? {}));
+      }
+    }, 800);
+  };
 
   useEffect(() => {
     setFieldError('');
@@ -176,8 +217,15 @@ export default function FormRespondentView({ draft, formTitle }) {
         label={label}
         config={config}
         snap={snap}
-        updateSnap={updateSnap}
+        updateSnap={(patch) => {
+          updateSnap(patch);
+          if ('longTextDraft' in patch) evaluateQuality(patch.longTextDraft, config, 'Long text');
+          if ('shortTextDraft' in patch) evaluateQuality(patch.shortTextDraft, config, 'Short text');
+        }}
       />
+      {qualityResult && (label === 'Long text' || label === 'Short text') ? (
+        <ResponseQualityFeedback evaluation={qualityResult} />
+      ) : null}
       {fieldError ? (
         <p className="text-[13px] text-red-600" role="alert">
           {fieldError}

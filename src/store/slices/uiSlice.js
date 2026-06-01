@@ -25,6 +25,11 @@ const initialState = {
     formTitle: '',
     responses: 0,
   },
+  assignFormWorkspaceModal: {
+    open: false,
+    formId: null,
+    formTitle: '',
+  },
   pauseModal: {
     open: false,
     formId: null,
@@ -116,6 +121,14 @@ const uiSlice = createSlice({
     },
     closeArchiveModal(state) {
       state.archiveModal = { open: false, formId: null, formTitle: '', responses: 0 };
+    },
+    openAssignFormWorkspaceModal(state, action) {
+      const { formId, formTitle } = action.payload;
+      state.assignFormWorkspaceModal = { open: true, formId, formTitle };
+      state.contextMenu = { open: false, formId: null, x: 0, y: 0 };
+    },
+    closeAssignFormWorkspaceModal(state) {
+      state.assignFormWorkspaceModal = { open: false, formId: null, formTitle: '' };
     },
     openPauseModal(state, action) {
       const { formId, formTitle } = action.payload;
@@ -265,6 +278,8 @@ export const {
   finishBuilderRouteTransition,
   openArchiveModal,
   closeArchiveModal,
+  openAssignFormWorkspaceModal,
+  closeAssignFormWorkspaceModal,
   openPauseModal,
   closePauseModal,
   openShareModal,

@@ -7,6 +7,7 @@ export const selectIsGlobalOverlayActive = (state) => {
     ui.deleteModal.open ||
     ui.duplicateModal.open ||
     ui.archiveModal.open ||
+    ui.assignFormWorkspaceModal.open ||
     ui.pauseModal.open ||
     ui.formOverlay.open ||
     ui.shareModal.open ||

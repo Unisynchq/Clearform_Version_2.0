@@ -6,6 +6,7 @@ import {
   writeOnboardingSession,
   clearOnboardingSession,
 } from '@/features/onboarding/utils/onboardingStorage';
+import { markOnboardingCompleteOnServer } from '@/api/services/authMeService';
 
 const session = readOnboardingSession();
 
@@ -52,6 +53,7 @@ const onboardingSlice = createSlice({
       state.step = 1;
       state.selectedTemplateId = null;
       clearOnboardingSession();
+      markOnboardingCompleteOnServer().catch(() => {});
     },
     /** Enter onboarding UI (signup route) without resetting step/template */
     enterOnboardingFlow(state) {

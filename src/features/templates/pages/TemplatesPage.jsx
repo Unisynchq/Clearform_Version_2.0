@@ -21,8 +21,8 @@ import {
   suggestTemplateSearchTerms,
 } from '../utils/templateFilters';
 import { useToast } from '@/hooks/useToast';
+import { createFormFromTemplateAndOpenBuilder } from '@/features/forms/utils/createFormFromTemplateFlow';
 import OnboardingTemplatePreviewModal from '@/features/onboarding/components/OnboardingTemplatePreviewModal';
-import { navigateToFormBuilder } from '@/features/forms/utils/navigateToFormBuilder';
 
 const PLAN_LIMIT = 10;
 const CREATE_LATENCY_MS = 1600;
@@ -94,6 +94,7 @@ const TemplatesPage = () => {
   });
 
   const formsCount = useSelector((s) => s.forms.forms.length);
+  const activeWorkspace = useSelector((s) => s.forms.activeWorkspace);
   const [showPartialSkeleton, setShowPartialSkeleton] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
@@ -198,19 +199,22 @@ const TemplatesPage = () => {
     showToast({ type: 'info', message: 'Upgrade flow coming soon', duration: 2500 });
   };
 
-  const handleUseTemplate = (template) => {
+  const handleUseTemplate = async (template) => {
     if (loadingTemplateId) return;
     setLoadingTemplateId(template.id);
-    loadingTimerRef.current = setTimeout(() => {
-      setLoadingTemplateId(null);
-      loadingTimerRef.current = null;
-      navigateToFormBuilder(
-        navigate,
+    try {
+      await createFormFromTemplateAndOpenBuilder({
+        template,
+        activeWorkspace,
         dispatch,
-        { templateId: template.id, templateTitle: template.title },
-        { minDelayMs: 0 },
-      );
-    }, CREATE_LATENCY_MS);
+        navigate,
+        showToast,
+      });
+    } catch {
+      showToast({ type: 'error', message: 'Could not create form. Please try again.' });
+    } finally {
+      setLoadingTemplateId(null);
+    }
   };
 
   const previewOpen = previewTemplate !== null;

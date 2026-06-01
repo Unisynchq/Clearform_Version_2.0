@@ -383,7 +383,10 @@ function AiInsightsLoading() {
 /*  AI Summary + NPS banner — Figma 2241:18307                                */
 /* -------------------------------------------------------------------------- */
 
-function AiSummaryBanner() {
+function AiSummaryBanner({ insight, npsScore }) {
+  const summaryText = insight ?? null;
+  const displayNps = npsScore ?? 78;
+
   return (
     <div
       className="rounded-[18px] border border-[rgba(0,0,0,0.11)] flex items-center justify-between gap-6 pl-[23px] pr-[23px] py-[19px]"
@@ -393,13 +396,17 @@ function AiSummaryBanner() {
         <p className="text-[14px] font-medium uppercase tracking-[0.42px] text-[#99968e] leading-[15.75px]">
           AI SUMMARY
         </p>
-        <p className="text-[14px] leading-[22.95px] text-[#58564f]">
-          Users love the{' '}
-          <span className="font-semibold text-[#15140e]">fast setup and clean interface</span>.
-          However, <span className="font-semibold text-[#15140e]">pricing clarity</span> is the top
-          detractor — cited in 71% of negative responses. Fixing Q2&apos;s blank field could recover{' '}
-          <span className="font-semibold text-[#15140e]">5–9 pts of completion rate</span>.
-        </p>
+        {summaryText ? (
+          <p className="text-[14px] leading-[22.95px] text-[#58564f]">{summaryText}</p>
+        ) : (
+          <p className="text-[14px] leading-[22.95px] text-[#58564f]">
+            Users love the{' '}
+            <span className="font-semibold text-[#15140e]">fast setup and clean interface</span>.
+            However, <span className="font-semibold text-[#15140e]">pricing clarity</span> is the top
+            detractor — cited in 71% of negative responses. Fixing Q2&apos;s blank field could recover{' '}
+            <span className="font-semibold text-[#15140e]">5–9 pts of completion rate</span>.
+          </p>
+        )}
       </div>
 
       <div className="shrink-0 flex flex-col items-end gap-[2px]">
@@ -407,7 +414,7 @@ function AiSummaryBanner() {
           NPS Score
         </p>
         <p className="text-[56px] font-semibold leading-[56px] tracking-[-1.68px] text-[#15140e] text-right">
-          78
+          {displayNps}
         </p>
         <div className="flex items-center justify-end gap-[3px] pt-[1px]">
           <RiArrowUpSFill size={11} className="text-[#1a6133] shrink-0" />
@@ -644,6 +651,7 @@ function AnalyticsAiInsightsPanel({
   onClearDateFilter,
   onShareForm,
   loadKey = 0,
+  apiInsights,
 }) {
   const [searchParams] = useSearchParams();
   const patternFailUrl = searchParams.get('aiPatternFail') === '1';
@@ -697,11 +705,21 @@ function AnalyticsAiInsightsPanel({
       setLoading(false);
       return undefined;
     }
+    // When API has finished processing, skip the simulated delay
+    if (apiInsights?.status === 'ready') {
+      setLoading(false);
+      return undefined;
+    }
+    // When API is still computing, stay in loading until it resolves
+    if (apiInsights?.status === 'processing') {
+      setLoading(true);
+      return undefined;
+    }
 
     setLoading(true);
     const timeoutId = window.setTimeout(() => setLoading(false), LOAD_MS);
     return () => window.clearTimeout(timeoutId);
-  }, [hasEnoughResponses, form?.id, showNoDataPeriod, rangeLabel, loadKey]);
+  }, [hasEnoughResponses, form?.id, showNoDataPeriod, rangeLabel, loadKey, apiInsights?.status]);
 
   if (showNoDataPeriod) {
     return (
@@ -781,7 +799,7 @@ function AnalyticsAiInsightsPanel({
         ) : null}
       </AnimatePresence>
 
-      <AiSummaryBanner />
+      <AiSummaryBanner insight={apiInsights?.insight} npsScore={apiInsights?.npsScore} />
       <PriorityFocusCard />
       <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-2">
         {patternsColumn}

@@ -190,8 +190,19 @@ const statsRowVariant = {
   },
 };
 
-function formatStatsDisplay(form) {
+function formatStatsDisplay(form, apiStats) {
   const s = deriveFormStats(form);
+  // Override with real API values when the backend returns them
+  if (apiStats && !apiStats.source) {
+    s.submitted = apiStats.responses ?? s.submitted;
+    s.toTarget = Math.max(0, (form?.responseLimit ?? Math.max(500, s.submitted * 2 || 500)) - s.submitted);
+    const rate = apiStats.completionRate ?? null;
+    if (rate !== null) {
+      s.conversion = rate.toFixed(1);
+      s.conversionPct = Math.round(rate);
+    }
+    if (apiStats.avgTime && apiStats.avgTime !== '—') s.avgTimeLabel = apiStats.avgTime;
+  }
   const industry = 35;
   const diff = s.conversionPct - industry;
   const diffLabel = diff >= 0 ? `+${diff}` : `${diff}`;
@@ -214,9 +225,9 @@ function formatStatsDisplay(form) {
   };
 }
 
-/** @param {{ form?: { id?: number, responses?: number, responseLimit?: number } }} props */
-export function AnalyticsStatsRow({ form }) {
-  const d = formatStatsDisplay(form);
+/** @param {{ form?: object, apiStats?: object }} props */
+export function AnalyticsStatsRow({ form, apiStats }) {
+  const d = formatStatsDisplay(form, apiStats);
 
   return (
     <motion.section
@@ -489,7 +500,38 @@ export function AnalyticsFunnelCard({ form }) {
   );
 }
 
-export function AnalyticsDailyResponsesCard() {
+function buildBarsFromSeries(series, seg) {
+  if (!Array.isArray(series) || series.length === 0) return null;
+  const toLabel = (dateStr) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+  const toTier = (val, max) => {
+    const ratio = max > 0 ? val / max : 0;
+    if (ratio < 0.2) return 'bad';
+    if (ratio < 0.5) return 'warn';
+    return 'ok';
+  };
+  if (seg === 'responses') {
+    const vals = series.map((r) => r.count);
+    const max = Math.max(...vals, 1);
+    return series.map((r) => ({ label: toLabel(r.date), value: r.count, tier: toTier(r.count, max) }));
+  }
+  if (seg === 'completion') {
+    return series.map((r) => {
+      const val = r.count > 0 ? Math.round((r.completions / r.count) * 100) : 0;
+      return { label: toLabel(r.date), value: val, tier: val < 40 ? 'bad' : val < 65 ? 'warn' : 'ok' };
+    });
+  }
+  if (seg === 'time') {
+    const vals = series.map((r) => (r.avgDuration ? Math.round(r.avgDuration / 1000) : 0));
+    const max = Math.max(...vals, 1);
+    return series.map((r, i) => ({ label: toLabel(r.date), value: vals[i], tier: toTier(vals[i], max) }));
+  }
+  return null;
+}
+
+export function AnalyticsDailyResponsesCard({ apiStats }) {
   const [seg, setSeg] = useState('responses');
   const tabs = [
     { id: 'responses', label: 'Responses / day' },
@@ -497,12 +539,14 @@ export function AnalyticsDailyResponsesCard() {
     { id: 'time', label: 'Time per question' },
   ];
 
+  const apiBars = useMemo(() => buildBarsFromSeries(apiStats?.dailySeries, seg), [apiStats?.dailySeries, seg]);
+
   const panel = useMemo(() => {
     switch (seg) {
       case 'completion':
         return {
           chartMax: CHART_MAX_COMPLETION,
-          bars: COMPLETION_BARS,
+          bars: apiBars ?? COMPLETION_BARS,
           yTicks: ['100', '75', '50', '25', '0'],
           kpiWhole: '13.5',
           kpiFraction: '%',
@@ -526,7 +570,7 @@ export function AnalyticsDailyResponsesCard() {
       case 'time':
         return {
           chartMax: CHART_MAX_TIME,
-          bars: TIME_BARS,
+          bars: apiBars ?? TIME_BARS,
           yTicks: ['30', '24', '18', '12', '6'],
           kpiWhole: '8.4',
           kpiFraction: 's',
@@ -550,7 +594,7 @@ export function AnalyticsDailyResponsesCard() {
       default:
         return {
           chartMax: CHART_MAX,
-          bars: DAILY_BARS,
+          bars: apiBars ?? DAILY_BARS,
           yTicks: ['20', '15', '10', '5', '0'],
           kpiWhole: '8.3',
           kpiFraction: '/day',

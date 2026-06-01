@@ -1,5 +1,7 @@
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { getPublishedForm } from '@/api/services/formsService';
+import { isApiConfigured } from '@/config/env';
 import { readPublishedForm } from '@/features/forms/utils/publishedFormStorage';
 import { readBuilderDraft } from '@/features/forms/utils/builderDraftStorage';
 import { readUserForms } from '@/features/forms/utils/userFormsStorage';
@@ -9,27 +11,64 @@ import FormRespondentView from '@/features/forms/components/FormRespondentView';
  * Public respondent route — loads published snapshot and runs logicEngine navigation.
  */
 export default function PublicFormPage() {
-  const { formId: formIdParam } = useParams();
-  const formId = formIdParam != null ? Number(formIdParam) : null;
+  const { formId } = useParams();
+  const [draft, setDraft] = useState(null);
+  const [blocked, setBlocked] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const { draft, blocked } = useMemo(() => {
-    if (formId == null || Number.isNaN(formId)) {
-      return { draft: null, blocked: 'invalid' };
+  useEffect(() => {
+    if (!formId) {
+      setBlocked('invalid');
+      setLoading(false);
+      return;
     }
-    const forms = readUserForms();
-    const meta = forms.find((f) => Number(f.id) === formId);
-    if (!meta) {
-      return { draft: null, blocked: 'not_found' };
+
+    if (isApiConfigured()) {
+      getPublishedForm(formId)
+        .then((data) => {
+          if (data?.screens?.length) {
+            setDraft(data);
+            setBlocked(null);
+          } else {
+            setBlocked('no_draft');
+          }
+        })
+        .catch(() => setBlocked('not_found'))
+        .finally(() => setLoading(false));
+    } else {
+      // localStorage fallback for local-only mode (numeric IDs)
+      const numId = Number(formId);
+      if (Number.isNaN(numId)) {
+        setBlocked('invalid');
+        setLoading(false);
+        return;
+      }
+      const forms = readUserForms();
+      const meta = forms.find((f) => Number(f.id) === numId);
+      if (!meta) {
+        setBlocked('not_found');
+      } else if (meta.status !== 'live') {
+        setBlocked('not_live');
+      } else {
+        const published = readPublishedForm(numId) ?? readBuilderDraft(numId);
+        if (!published?.screens?.length) {
+          setBlocked('no_draft');
+        } else {
+          setDraft(published);
+          setBlocked(null);
+        }
+      }
+      setLoading(false);
     }
-    if (meta.status !== 'live') {
-      return { draft: null, blocked: 'not_live' };
-    }
-    const published = readPublishedForm(formId) ?? readBuilderDraft(formId);
-    if (!published?.screens?.length) {
-      return { draft: null, blocked: 'no_draft' };
-    }
-    return { draft: published, blocked: null };
   }, [formId]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f4f3ef] flex flex-col items-center justify-center">
+        <p className="text-[14px] text-[#71717a]">Loading…</p>
+      </div>
+    );
+  }
 
   if (blocked === 'invalid' || blocked === 'not_found') {
     return (
@@ -70,7 +109,7 @@ export default function PublicFormPage() {
       </header>
       <main className="flex-1 flex items-start justify-center py-10">
         <div className="w-full max-w-xl rounded-xl border border-[#e4e4e7] bg-white shadow-sm">
-          <FormRespondentView draft={draft} formTitle={draft.formTitle} />
+          <FormRespondentView draft={draft} formTitle={draft.formTitle} formId={formId} />
         </div>
       </main>
     </div>

@@ -27,10 +27,13 @@ export function getFormBuilderPath(formId) {
 
 /**
  * @param {string|undefined} routeParam — from useParams().formId
- * @returns {number|null}
+ * @returns {string|number|null} — numeric legacy ids or API UUID/CUID strings
  */
 export function parseFormBuilderRouteId(routeParam) {
   if (!routeParam || routeParam === FORM_BUILDER_NEW_SEGMENT) return null;
-  const n = Number(routeParam);
-  return Number.isFinite(n) ? n : null;
+  if (/^\d+$/.test(routeParam)) {
+    const n = Number(routeParam);
+    return Number.isFinite(n) ? n : routeParam;
+  }
+  return routeParam;
 }

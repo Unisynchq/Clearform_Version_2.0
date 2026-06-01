@@ -4,6 +4,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { RiCloseLine, RiArrowRightSLine } from 'react-icons/ri';
 import { closeCreateWorkspaceModal } from '@/store/slices/uiSlice';
 import { addWorkspace } from '@/store/slices/formsSlice';
+import { createWorkspace } from '@/api/services/workspacesService';
+import { isApiConfigured } from '@/config/env';
+import { useToast } from '@/hooks/useToast';
 
 const COLOR_OPTIONS = [
   { id: 'blue',   value: '#3b82f6' },
@@ -15,10 +18,12 @@ const COLOR_OPTIONS = [
 
 const CreateWorkspaceModal = () => {
   const dispatch = useDispatch();
+  const { showToast } = useToast();
   const open = useSelector((s) => s.ui.createWorkspaceModal.open);
 
   const [name, setName]   = useState('');
   const [color, setColor] = useState(COLOR_OPTIONS[0].value);
+  const [creating, setCreating] = useState(false);
 
   const handleClose = () => {
     dispatch(closeCreateWorkspaceModal());
@@ -26,13 +31,29 @@ const CreateWorkspaceModal = () => {
     setColor(COLOR_OPTIONS[0].value);
   };
 
-  const handleCreate = () => {
-    if (!name.trim()) return;
-    const id = `ws-${name.trim().toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
-    dispatch(addWorkspace({ id, label: name.trim(), color }));
-    dispatch(closeCreateWorkspaceModal());
-    setName('');
-    setColor(COLOR_OPTIONS[0].value);
+  const handleCreate = async () => {
+    if (!name.trim() || creating) return;
+    setCreating(true);
+    try {
+      const workspace = await createWorkspace({
+        label: name.trim(),
+        color,
+      });
+      dispatch(addWorkspace({
+        id: workspace.id,
+        label: workspace.label,
+        color: workspace.color ?? color,
+      }));
+      dispatch(closeCreateWorkspaceModal());
+      setName('');
+      setColor(COLOR_OPTIONS[0].value);
+    } catch {
+      if (isApiConfigured()) {
+        showToast({ type: 'error', message: 'Could not create workspace. Please try again.' });
+      }
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
@@ -131,7 +152,7 @@ const CreateWorkspaceModal = () => {
                 </button>
                 <button
                   onClick={handleCreate}
-                  disabled={!name.trim()}
+                  disabled={!name.trim() || creating}
                   className="flex items-center gap-1.5 bg-[#1a1a1c] text-white text-[13px] font-medium px-[15px] py-[8px] rounded-[8px] hover:bg-[#2c2c2e] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 >
                   Create workspace

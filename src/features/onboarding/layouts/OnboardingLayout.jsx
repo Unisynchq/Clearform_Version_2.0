@@ -11,6 +11,7 @@ import {
   selectIsOnboardingActive,
   resumeOnboardingIfNeeded,
   enterOnboardingFlow,
+  startOnboarding,
 } from '@/store/slices/onboardingSlice';
 
 const OnboardingLayout = () => {
@@ -50,9 +51,9 @@ const OnboardingLayout = () => {
       return;
     }
     if (!isActive && !completed) {
-      navigate('/signin', { replace: true });
+      dispatch(startOnboarding());
     }
-  }, [completed, isActive, navigate, onOnboardingRoute]);
+  }, [completed, isActive, navigate, onOnboardingRoute, dispatch]);
 
   if (completed) return null;
   if (!isActive) return null;

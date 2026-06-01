@@ -5,6 +5,7 @@ import FormContextMenu from '@/features/forms/components/FormContextMenu';
 import DeleteFormModal from '@/features/forms/components/DeleteFormModal';
 import DuplicateFormModal from '@/features/forms/components/DuplicateFormModal';
 import ArchiveFormModal from '@/features/forms/components/ArchiveFormModal';
+import AssignFormWorkspaceModal from '@/features/forms/components/AssignFormWorkspaceModal';
 import PauseFormModal from '@/features/forms/components/PauseFormModal';
 import FormOverlayModal from '@/features/forms/components/FormOverlayModal';
 import CreateWorkspaceModal from '@/features/forms/components/CreateWorkspaceModal';
@@ -27,6 +28,7 @@ const GlobalOverlayHost = () => {
       <DeleteFormModal />
       <DuplicateFormModal />
       <ArchiveFormModal />
+      <AssignFormWorkspaceModal />
       <PauseFormModal />
       <FormOverlayModal />
       <CreateWorkspaceModal />

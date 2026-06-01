@@ -1,5 +1,9 @@
 import { createSlice, createSelector } from '@reduxjs/toolkit';
 import { readPersistedForms, clearUserForms } from '@/features/forms/utils/userFormsStorage';
+import { listForms, patchForm } from '@/api/services/formsService';
+import { isApiConfigured } from '@/config/env';
+import { NO_WORKSPACE_ID } from '@/features/forms/constants/workspaces';
+import { listWorkspaces } from '@/api/services/workspacesService';
 import {
   readAllFormResponses,
   clearFormResponses,
@@ -150,6 +154,13 @@ const formsSlice = createSlice({
     clearAdvancedFilters(state) {
       state.advancedFilters = { status: [], responses: [] };
     },
+    setForms(state, action) {
+      state.forms = action.payload;
+      applyWorkspaceCounts(state);
+    },
+    setWorkspaces(state, action) {
+      state.workspaces = syncWorkspaceCounts(action.payload, state.forms);
+    },
     resetFormsForOnboarding(state) {
       state.forms = [];
       state.workspaces = [];
@@ -167,6 +178,8 @@ const formsSlice = createSlice({
 });
 
 export const {
+  setForms,
+  setWorkspaces,
   setActiveFilter,
   setActiveWorkspace,
   setSearchQuery,
@@ -189,6 +202,41 @@ export const {
   clearAdvancedFilters,
   resetFormsForOnboarding,
 } = formsSlice.actions;
+
+/** Assign a form to a workspace (or remove from all workspaces). */
+export const assignFormToWorkspace = ({ formId, workspaceId }) => async (dispatch) => {
+  const normalized =
+    workspaceId && workspaceId !== NO_WORKSPACE_ID ? String(workspaceId) : '';
+  if (isApiConfigured()) {
+    await patchForm(formId, { workspaceId: normalized || null });
+  }
+  dispatch(
+    updateForm({
+      id: formId,
+      changes: { workspace: normalized },
+    }),
+  );
+};
+
+/** Load forms from the API (falls back to localStorage when API not configured). */
+export const loadFormsFromApi = () => async (dispatch) => {
+  try {
+    const forms = await listForms();
+    if (Array.isArray(forms)) dispatch(setForms(forms));
+  } catch {
+    // silently keep the localStorage bootstrap already in state
+  }
+};
+
+/** Load workspaces from the API (falls back to localStorage when API not configured). */
+export const loadWorkspacesFromApi = () => async (dispatch) => {
+  try {
+    const workspaces = await listWorkspaces();
+    if (Array.isArray(workspaces)) dispatch(setWorkspaces(workspaces));
+  } catch {
+    // keep localStorage bootstrap already in state
+  }
+};
 
 // Memoized with createSelector so the result is only recomputed when one of
 // its inputs actually changes. Previously this returned a fresh array on every
@@ -238,8 +286,9 @@ export const selectFilteredForms = createSelector(
       const matchesFilter = activeFilter === 'archived'
         ? form.status === 'archived'
         : (activeFilter === 'all' || form.status === activeFilter) && form.status !== 'archived';
+      const formWorkspace = form.workspace == null || form.workspace === '' ? '' : String(form.workspace);
       const matchesWorkspace =
-        activeWorkspace === 'all' || form.workspace === activeWorkspace;
+        activeWorkspace === 'all' || formWorkspace === String(activeWorkspace);
       const matchesSearch =
         !searchQuery ||
         form.title.toLowerCase().includes(searchQuery.toLowerCase());

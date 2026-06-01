@@ -64,6 +64,9 @@ export async function apiClient(path, {
   }
 
   if (!res.ok) {
+    if (res.status === 401) {
+      window.dispatchEvent(new Event('clearform:auth-expired'));
+    }
     throw new ApiError(data?.message ?? res.statusText ?? 'Request failed', {
       status: res.status,
       body: data,

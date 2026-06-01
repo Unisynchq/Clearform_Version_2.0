@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { fetchPerformanceAnalytics, generateAiInsights } from '@/api/services/analyticsService';
 import { motion, AnimatePresence } from 'motion/react';
 import { useHydrationFrame } from '@/hooks/useHydrationFrame';
 import { useAnalyticsPageState } from '@/hooks/useAnalyticsPageState';
@@ -56,6 +57,31 @@ const AnalyticsPage = () => {
   const [formMenuOpen, setFormMenuOpen] = useState(false);
   const [rangeLabel, setRangeLabel] = useState('All time');
   const [exportOpen, setExportOpen] = useState(false);
+  const [perfApiStats, setPerfApiStats] = useState(null);
+  const [aiApiInsights, setAiApiInsights] = useState(null);
+
+  const rangeLabelToParam = useCallback((label) => {
+    if (label === 'Last 7 days') return '7d';
+    if (label === 'Last 30 days') return '30d';
+    if (label === 'Last 90 days') return '90d';
+    return 'all';
+  }, []);
+
+  useEffect(() => {
+    if (!selectedFormId || activeTab !== 'performance') return;
+    setPerfApiStats(null);
+    fetchPerformanceAnalytics(selectedFormId, { range: rangeLabelToParam(rangeLabel) })
+      .then((data) => { if (data && !data.source) setPerfApiStats(data); })
+      .catch(() => {});
+  }, [selectedFormId, activeTab, rangeLabel, rangeLabelToParam]);
+
+  useEffect(() => {
+    if (!selectedFormId || activeTab !== 'ai') return;
+    setAiApiInsights(null);
+    generateAiInsights(selectedFormId, { range: rangeLabelToParam(rangeLabel) })
+      .then((data) => { if (data && !data.source) setAiApiInsights(data); })
+      .catch(() => {});
+  }, [selectedFormId, activeTab, rangeLabel, aiInsightsVisit, rangeLabelToParam]);
   const [exportFormatDefault, setExportFormatDefault] = useState('PDF');
   const [viewLoading, setViewLoading] = useState(true);
   const viewLoadingTimerRef = useRef(null);
@@ -156,10 +182,10 @@ const AnalyticsPage = () => {
         }
         return (
           <div className="flex flex-col gap-5 max-w-[1400px] mx-auto">
-            <AnalyticsStatsRow form={selectedForm} />
+            <AnalyticsStatsRow form={selectedForm} apiStats={perfApiStats} />
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
               <AnalyticsFunnelCard form={selectedForm} />
-              <AnalyticsDailyResponsesCard />
+              <AnalyticsDailyResponsesCard apiStats={perfApiStats} />
             </div>
             <AnalyticsDropoffRiverCard form={selectedForm} />
           </div>
@@ -183,7 +209,8 @@ const AnalyticsPage = () => {
             loadKey={aiInsightsVisit}
             form={selectedForm}
             rangeLabel={rangeLabel}
-            insightsNoDataInRange={false}
+            apiInsights={aiApiInsights}
+            insightsNoDataInRange={aiApiInsights?.status === 'insufficient_data'}
             onClearDateFilter={() => setRangeLabel('All time')}
             onShareForm={handleShareSurvey}
           />

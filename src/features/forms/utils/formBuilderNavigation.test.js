@@ -19,4 +19,10 @@ describe('formBuilderNavigation', () => {
     expect(parseFormBuilderRouteId(FORM_BUILDER_NEW_SEGMENT)).toBeNull();
     expect(parseFormBuilderRouteId(undefined)).toBeNull();
   });
+
+  it('parses API uuid form ids from the URL', () => {
+    const uuid = '66a7e543-c083-4d2a-bcd7-31b5e4742755';
+    expect(parseFormBuilderRouteId(uuid)).toBe(uuid);
+    expect(getFormBuilderPath(uuid)).toBe(`/dashboard/form-builder/${uuid}`);
+  });
 });
