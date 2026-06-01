@@ -16,6 +16,9 @@ import {
   setOnboardingStep,
 } from '@/store/slices/onboardingSlice';
 import { addForm } from '@/store/slices/formsSlice';
+import { createForm } from '@/api/services/formsService';
+import { isApiConfigured } from '@/config/env';
+import { useToast } from '@/hooks/useToast';
 import OnboardingTopbar from '../components/OnboardingTopbar';
 import OnboardingTemplatePreviewModal from '../components/OnboardingTemplatePreviewModal';
 import { buildFormFromTemplate as buildBuilderScreensFromTemplate } from '@/features/templates/utils/buildFormFromTemplate';
@@ -25,6 +28,7 @@ import { navigateToFormBuilder } from '@/features/forms/utils/navigateToFormBuil
 const OnboardingChooseTemplatePage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const { templates, status } = useTemplates();
   const step = useSelector(selectOnboardingStep);
   const selectedTemplateId = useSelector((s) => s.onboarding.selectedTemplateId);
@@ -58,7 +62,7 @@ const OnboardingChooseTemplatePage = () => {
     dispatch(setOnboardingStep(1));
   };
 
-  const goToBuilder = (template) => {
+  const goToBuilder = async (template) => {
     if (!template) return;
 
     const built = buildBuilderScreensFromTemplate(template.id);
@@ -66,12 +70,29 @@ const OnboardingChooseTemplatePage = () => {
       ...template,
       title: built?.formTitle ?? template.title,
     });
+    let formId = newForm.id;
+
+    if (isApiConfigured()) {
+      try {
+        const created = await createForm({
+          title: newForm.title,
+          workspaceId: undefined,
+          gradientFrom: newForm.gradientFrom,
+          gradientTo: newForm.gradientTo,
+          overlayColor: newForm.overlayColor,
+          iconGradient: newForm.iconGradient,
+        });
+        formId = created.id;
+      } catch {
+        showToast({ type: 'error', message: 'Could not create form. Please try again.' });
+        return;
+      }
+    }
 
     setPreviewTemplate(null);
-    dispatch(addForm(newForm));
+    dispatch(addForm({ ...newForm, id: formId }));
     dispatch(setOnboardingStep(3));
 
-    // Finish onboarding only after the user saves in the form builder.
     navigateToFormBuilder(
       navigate,
       dispatch,
@@ -79,7 +100,7 @@ const OnboardingChooseTemplatePage = () => {
         templateId: template.id,
         templateTitle: template.title,
         formTitle: built?.formTitle ?? template.title,
-        formId: newForm.id,
+        formId,
         fromOnboarding: true,
       },
       { replace: true },
@@ -91,8 +112,28 @@ const OnboardingChooseTemplatePage = () => {
     if (template) openPreview(template);
   };
 
-  const handleCustomForm = () => {
-    const newForm = buildBlankOnboardingForm();
+  const handleCustomForm = async () => {
+    const blankForm = buildBlankOnboardingForm();
+    let formId = blankForm.id;
+
+    if (isApiConfigured()) {
+      try {
+        const created = await createForm({
+          title: blankForm.title,
+          workspaceId: undefined,
+          gradientFrom: blankForm.gradientFrom,
+          gradientTo: blankForm.gradientTo,
+          overlayColor: blankForm.overlayColor,
+          iconGradient: blankForm.iconGradient,
+        });
+        formId = created.id;
+      } catch {
+        showToast({ type: 'error', message: 'Could not create form. Please try again.' });
+        return;
+      }
+    }
+
+    const newForm = { ...blankForm, id: formId };
     dispatch(addForm(newForm));
     dispatch(setOnboardingStep(3));
     navigateToFormBuilder(

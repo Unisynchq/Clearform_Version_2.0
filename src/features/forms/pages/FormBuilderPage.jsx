@@ -7,11 +7,18 @@ import ResponseQualityFeedback from '@/features/forms/components/ResponseQuality
 import { evaluateResponseQuality } from '@/features/forms/utils/responseQualityScoring';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { updateForm } from '@/store/slices/formsSlice';
+import { updateForm, loadFormsFromApi, addForm } from '@/store/slices/formsSlice';
 import { selectIsOnboardingActive } from '@/store/slices/onboardingSlice';
 import { useToast } from '@/hooks/useToast';
-import { readBuilderDraft, writeBuilderDraft, clearBuilderDraft } from '@/features/forms/utils/builderDraftStorage';
-import { readPublishedForm, writePublishedForm } from '@/features/forms/utils/publishedFormStorage';
+import { readBuilderDraft, clearBuilderDraft } from '@/features/forms/utils/builderDraftStorage';
+import { readPublishedForm } from '@/features/forms/utils/publishedFormStorage';
+import {
+  getBuilderSnapshot,
+  saveBuilderSnapshot,
+  publishForm as publishFormToApi,
+  patchForm,
+} from '@/api/services/formsService';
+import { resolveApiWorkspaceId } from '@/features/forms/utils/createFormFromTemplateFlow';
 import { buildPublishSnapshot, buildLogicMeta } from '@/features/forms/utils/buildPublishSnapshot';
 import { canPublishForm, getPublishBlockers } from '@/features/forms/utils/formPublishReadiness';
 import { buildFormFromTemplate } from '@/features/templates/utils/buildFormFromTemplate';
@@ -85,6 +92,8 @@ import {
 import FormBuilderSettingsPanel from '@/features/forms/components/FormBuilderSettingsPanel';
 import FormBuilderStepBar from '@/features/forms/formBuilder/FormBuilderStepBar';
 import { useFormBuilderRoute } from '@/features/forms/formBuilder/useFormBuilderRoute';
+import { getFormBuilderPath } from '@/features/forms/utils/formBuilderNavigation';
+import { createFormAndSaveSnapshot } from '@/features/forms/utils/ensureBuilderFormPersisted';
 import { finishBuilderRouteTransition } from '@/store/slices/uiSlice';
 import FormBuilderLoadingFallback from '@/features/forms/pages/FormBuilderLoadingFallback';
 import * as builderScreenMaps from '@/features/forms/formBuilder/builderScreenMaps';
@@ -1343,6 +1352,10 @@ const FormBuilderPage = () => {
   const builderBaselineRef = useRef(null);
   const builderBaselineSessionRef = useRef(null);
   const [builderHydrated, setBuilderHydrated] = useState(false);
+  const [builderSaveStatus, setBuilderSaveStatus] = useState('idle');
+  const lastSaveToastAtRef = useRef(0);
+  const ensureFormPersistedRef = useRef(async () => null);
+  const ensureFormInFlightRef = useRef(false);
   const formTouchedRef = useRef(false);
   const markFormTouched = () => {
     formTouchedRef.current = true;
@@ -2791,23 +2804,31 @@ const FormBuilderPage = () => {
     [showToast]
   );
 
-  const handleAiLogicRetry = useCallback(() => {
+  const handleAiLogicRetry = useCallback(async () => {
     patchAiLogicGen({ status: AI_LOGIC_GEN_STATUS.generating, errorMessage: '' });
     showToast({ type: 'info', message: 'Retrying AI logic generation…' });
+    let formId = activeFormId;
+    if (isApiConfigured() && !formId) {
+      formId = await ensureFormPersistedRef.current();
+    }
     const fetchAiLogic =
-      isApiConfigured() && activeFormId
-        ? () => logicService.generateFormLogic(activeFormId, aiLogicGenerationContext)
+      isApiConfigured() && formId
+        ? () => logicService.generateFormLogic(formId, aiLogicGenerationContext)
         : undefined;
     runAiLogicGeneration(aiLogicGenerationContext, patchAiLogicGen, applyAiLogicToBuilder, {
       fetchAiLogic,
     });
   }, [patchAiLogicGen, aiLogicGenerationContext, applyAiLogicToBuilder, showToast, activeFormId]);
-  const handleGenerateAiLogic = useCallback(() => {
+  const handleGenerateAiLogic = useCallback(async () => {
     patchAiLogicGen({ status: AI_LOGIC_GEN_STATUS.generating, errorMessage: '' });
     showToast({ type: 'info', message: 'Generating AI logic from your form…' });
+    let formId = activeFormId;
+    if (isApiConfigured() && !formId) {
+      formId = await ensureFormPersistedRef.current();
+    }
     const fetchAiLogic =
-      isApiConfigured() && activeFormId
-        ? () => logicService.generateFormLogic(activeFormId, aiLogicGenerationContext)
+      isApiConfigured() && formId
+        ? () => logicService.generateFormLogic(formId, aiLogicGenerationContext)
         : undefined;
     runAiLogicGeneration(aiLogicGenerationContext, patchAiLogicGen, applyAiLogicToBuilder, {
       fetchAiLogic,
@@ -3151,7 +3172,10 @@ const FormBuilderPage = () => {
     }
     const dirty = serializeBuilderState() !== builderBaselineRef.current;
     setIsFormDirty(dirty);
-    if (dirty) formTouchedRef.current = true;
+    if (dirty) {
+      formTouchedRef.current = true;
+      setBuilderSaveStatus((prev) => (prev === 'saved' ? 'idle' : prev));
+    }
   });
 
   const hasPendingBuilderEdits =
@@ -3450,6 +3474,27 @@ const FormBuilderPage = () => {
     autoPreviewAppliedRef.current = true;
     setIsPreview(true);
   }, [location.state?.startInPreview, screens.length, location.key]);
+
+  useEffect(() => {
+    if (!activeFormId || !isApiConfigured()) return undefined;
+    if (isUsableBuilderSnapshot(persistedForm?.builderSnapshot)) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getBuilderSnapshot(activeFormId);
+        const apiSnap = res?.snapshot ?? res;
+        if (cancelled || !isUsableBuilderSnapshot(apiSnap)) return;
+        dispatch(updateForm({ id: activeFormId, changes: { builderSnapshot: apiSnap } }));
+      } catch {
+        /* keep local fallbacks */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeFormId, persistedForm?.builderSnapshot, dispatch]);
 
   useEffect(() => {
     const formId = activeFormId;
@@ -3798,8 +3843,11 @@ const FormBuilderPage = () => {
   ]);
 
   useEffect(() => {
-    if (!builderHydrated || !activeFormId || screens.length === 0) return undefined;
+    if (!builderHydrated || !activeFormId || screens.length === 0 || !isFormDirty) {
+      return undefined;
+    }
     const timer = setTimeout(() => {
+      if (isApiConfigured()) setBuilderSaveStatus('saving');
       const snapshot = buildPublishSnapshot({
         formId: activeFormId,
         templateId: location.state?.templateId ?? lastHydratedTemplateIdRef.current,
@@ -3828,7 +3876,26 @@ const FormBuilderPage = () => {
         theme: buildBuilderThemeSnapshot(),
         settings: buildBuilderSettingsSnapshot(),
       });
-      writeBuilderDraft(activeFormId, snapshot);
+      saveBuilderSnapshot(activeFormId, snapshot)
+        .then(() => {
+          builderBaselineRef.current = serializeBuilderState();
+          formTouchedRef.current = false;
+          setIsFormDirty(false);
+          setBuilderSaveStatus('saved');
+          const now = Date.now();
+          if (now - lastSaveToastAtRef.current > 8000) {
+            lastSaveToastAtRef.current = now;
+            showToast({ type: 'success', message: 'Draft saved', duration: 2500 });
+          }
+        })
+        .catch((err) => {
+          if (err?.status === 429) {
+            setBuilderSaveStatus('error');
+            return;
+          }
+          setBuilderSaveStatus('error');
+          showToast({ type: 'error', message: 'Auto-save failed', duration: 3000 });
+        });
       dispatch(
         updateForm({
           id: activeFormId,
@@ -3840,12 +3907,13 @@ const FormBuilderPage = () => {
           },
         })
       );
-    }, 1000);
+    }, 2500);
     return () => clearTimeout(timer);
   }, [
     builderHydrated,
     activeFormId,
     screens,
+    isFormDirty,
     loadedFormTitle,
     persistedForm?.title,
     introTitle,
@@ -4590,6 +4658,13 @@ const FormBuilderPage = () => {
     setLogicCanvasPan({ x: mx - wx * newZoom, y: my - wy * newZoom });
   }, []);
 
+  useEffect(() => {
+    const vp = logicViewportRef.current;
+    if (!vp) return undefined;
+    vp.addEventListener('wheel', handleLogicCanvasWheel, { passive: false });
+    return () => vp.removeEventListener('wheel', handleLogicCanvasWheel);
+  }, [handleLogicCanvasWheel, activeTab, contentScreens.length]);
+
   const nudgeLogicZoom = useCallback((factor) => {
     const vp = logicViewportRef.current;
     if (!vp) return;
@@ -4744,8 +4819,8 @@ const FormBuilderPage = () => {
 
   const flushBuilderDraft = useCallback(() => {
     const snapshot = buildCurrentPublishSnapshot();
-    if (!snapshot) return;
-    writeBuilderDraft(activeFormId, snapshot);
+    if (!snapshot || !activeFormId) return;
+    saveBuilderSnapshot(activeFormId, snapshot);
     dispatch(
       updateForm({
         id: activeFormId,
@@ -4759,14 +4834,87 @@ const FormBuilderPage = () => {
     );
   }, [buildCurrentPublishSnapshot, activeFormId, dispatch]);
 
-  const handlePublishForm = useCallback(() => {
+  const ensureFormPersisted = useCallback(async () => {
+    if (activeFormId || !isApiConfigured() || screens.length === 0) {
+      return activeFormId ?? null;
+    }
+    if (ensureFormInFlightRef.current) {
+      return ensureFormPersistedRef.current();
+    }
+    ensureFormInFlightRef.current = true;
+    try {
+      const snapshot = buildCurrentPublishSnapshot();
+      const title =
+        snapshot?.formTitle ??
+        loadedFormTitle ??
+        location.state?.formTitle ??
+        location.state?.templateTitle ??
+        'Untitled Form';
+      const workspaceId = resolveApiWorkspaceId(location.state?.workspaceId);
+      const created = await createFormAndSaveSnapshot({
+        title,
+        templateId: location.state?.templateId ?? lastHydratedTemplateIdRef.current,
+        snapshot,
+        workspaceId,
+      });
+      dispatch(
+        addForm({
+          id: created.id,
+          title: created.title,
+          status: 'draft',
+          responses: 0,
+          timeAgo: 'just now',
+          templateId: location.state?.templateId ?? lastHydratedTemplateIdRef.current,
+          workspace: workspaceId ?? '',
+          gradientFrom: created.gradientFrom,
+          gradientTo: created.gradientTo,
+          overlayColor: created.overlayColor,
+          iconGradient: created.iconGradient,
+        }),
+      );
+      navigate(getFormBuilderPath(created.id), {
+        state: { ...location.state, formId: created.id, formTitle: created.title },
+        replace: true,
+      });
+      setBuilderSaveStatus('saved');
+      showToast({ type: 'success', message: 'Draft saved', duration: 2500 });
+      return created.id;
+    } catch {
+      showToast({ type: 'error', message: 'Could not save form draft. Please try again.' });
+      return null;
+    } finally {
+      ensureFormInFlightRef.current = false;
+    }
+  }, [
+    activeFormId,
+    screens.length,
+    buildCurrentPublishSnapshot,
+    loadedFormTitle,
+    location.state,
+    dispatch,
+    navigate,
+    showToast,
+  ]);
+
+  ensureFormPersistedRef.current = ensureFormPersisted;
+
+  useEffect(() => {
+    if (!builderHydrated || activeFormId || !isApiConfigured() || screens.length === 0) return;
+    void ensureFormPersisted();
+  }, [builderHydrated, activeFormId, screens.length, ensureFormPersisted]);
+
+  const handlePublishForm = useCallback(async () => {
     const blockers = getPublishBlockers(screens);
     if (blockers.length) {
       showToast({ type: 'info', message: blockers[0] });
       setPublishModalOpen(false);
       return;
     }
-    if (!activeFormId) {
+    let formId = activeFormId;
+    if (!formId && isApiConfigured()) {
+      formId = await ensureFormPersisted();
+    }
+    if (!formId) {
       showToast({ type: 'error', message: 'Save your form before publishing.' });
       setPublishModalOpen(false);
       return;
@@ -4777,25 +4925,38 @@ const FormBuilderPage = () => {
       setPublishModalOpen(false);
       return;
     }
-    writeBuilderDraft(activeFormId, snapshot);
-    writePublishedForm(activeFormId, snapshot);
-    dispatch(
-      updateForm({
-        id: activeFormId,
-        changes: {
-          status: 'live',
-          title: snapshot.formTitle,
-          templateId: snapshot.templateId,
-          builderSnapshot: snapshot,
-          timeAgo: 'just now',
-        },
-      })
-    );
-    builderBaselineRef.current = serializeBuilderState();
-    formTouchedRef.current = false;
-    setIsFormDirty(false);
-    setPublishModalOpen(false);
-    setIsPublishView(true);
+    try {
+      const workspaceId = resolveApiWorkspaceId(location.state?.workspaceId);
+      if (workspaceId && !persistedForm?.workspace) {
+        await patchForm(formId, { workspaceId });
+      }
+      await saveBuilderSnapshot(formId, snapshot);
+      const published = await publishFormToApi(formId, snapshot);
+      dispatch(
+        updateForm({
+          id: formId,
+          changes: {
+            status: published?.status ?? 'live',
+            title: published?.title ?? snapshot.formTitle,
+            templateId: snapshot.templateId,
+            builderSnapshot: snapshot,
+            timeAgo: published?.timeAgo ?? 'just now',
+            ...(workspaceId ? { workspace: workspaceId } : {}),
+          },
+        })
+      );
+      await dispatch(loadFormsFromApi());
+      builderBaselineRef.current = serializeBuilderState();
+      formTouchedRef.current = false;
+      setIsFormDirty(false);
+      setPublishModalOpen(false);
+      setIsPublishView(true);
+      showToast({ type: 'success', message: 'Form published', duration: 3000 });
+    } catch (err) {
+      const message = err?.message ?? 'Publish failed. Check your connection and try again.';
+      showToast({ type: 'error', message, duration: 4000 });
+      setPublishModalOpen(false);
+    }
   }, [
     screens,
     activeFormId,
@@ -4803,6 +4964,9 @@ const FormBuilderPage = () => {
     dispatch,
     showToast,
     serializeBuilderState,
+    ensureFormPersisted,
+    persistedForm?.workspace,
+    location.state?.workspaceId,
   ]);
 
   const handlePublishClick = useCallback(() => {
@@ -5891,8 +6055,15 @@ const FormBuilderPage = () => {
         )}
 
         <div
-          className={`flex items-center gap-2 shrink-0${showOnboardingStepper ? '' : ' ml-auto'}`}
+          className={`flex items-center gap-3 shrink-0${showOnboardingStepper ? '' : ' ml-auto'}`}
         >
+          {isApiConfigured() && activeFormId && builderSaveStatus !== 'idle' ? (
+            <span className="text-[11px] font-medium text-[#6b6b68] whitespace-nowrap" aria-live="polite">
+              {builderSaveStatus === 'saving' && 'Saving…'}
+              {builderSaveStatus === 'saved' && 'All changes saved'}
+              {builderSaveStatus === 'error' && 'Save delayed — still editing'}
+            </span>
+          ) : null}
           <button
             type="button"
             onClick={handleHeaderBack}
@@ -6500,7 +6671,6 @@ const FormBuilderPage = () => {
                     ref={logicViewportRef}
                     className={`${LOGIC_CANVAS_VIEWPORT_CLASS} touch-none select-none flex-1 min-h-0`}
                     style={LOGIC_CANVAS_DOT_GRID_STYLE}
-                    onWheel={handleLogicCanvasWheel}
                   >
                   <LogicCanvasActionsPanel
                     onAddIntegration={openLogicCanvasIntegrations}

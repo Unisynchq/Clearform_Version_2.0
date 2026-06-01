@@ -2,6 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom';
 import { useSelector } from 'react-redux';
 import { AnimatePresence, motion } from 'motion/react';
+import { fetchFormResponses } from '@/api/services/analyticsService';
+import { isApiConfigured } from '@/config/env';
 import {
   RiSearchLine,
   RiTimeLine,
@@ -75,6 +77,16 @@ function renderCellContent(cell, ci) {
 
 function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
   const storedResponses = useSelector((state) => selectFormResponses(state, form?.id));
+  const [apiResponses, setApiResponses] = useState(null);
+
+  useEffect(() => {
+    if (!isApiConfigured() || !form?.id) return;
+    fetchFormResponses(form.id, {})
+      .then((data) => { if (data?.items) setApiResponses(data.items); })
+      .catch(() => {});
+  }, [form?.id]);
+
+  const responses = apiResponses ?? storedResponses ?? [];
 
   const [search, setSearch] = useState('');
   const [localRangeOpen, setLocalRangeOpen] = useState(false);
@@ -102,7 +114,7 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
   }, [draft]);
 
   const responsesInRange = useMemo(
-    () => filterResponsesByRange(storedResponses, localRange, lastCustomRange),
+    () => filterResponsesByRange(responses, localRange, lastCustomRange),
     [storedResponses, localRange, lastCustomRange],
   );
 

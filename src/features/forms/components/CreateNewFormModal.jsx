@@ -13,6 +13,9 @@ import { completeOnboarding, selectIsOnboardingActive } from '@/store/slices/onb
 import { NO_WORKSPACE_ID } from '../constants/workspaces';
 import { FORM_COLOR_OPTIONS, getFormColorTheme } from '../constants/formColorThemes';
 import { navigateToFormBuilder } from '../utils/navigateToFormBuilder';
+import { createForm } from '@/api/services/formsService';
+import { isApiConfigured } from '@/config/env';
+import { useToast } from '@/hooks/useToast';
 import {
   createFormModalTransition,
   logModalLifecycle,
@@ -139,16 +142,22 @@ function WorkspaceDropdown({ workspaceId, onChange, workspaces }) {
 const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
   const dispatch = useDispatch();
   const workspaces = useSelector(selectNavWorkspaces);
+  const activeWorkspace = useSelector((s) => s.forms.activeWorkspace);
   const isOnboardingActive = useSelector(selectIsOnboardingActive);
+  const { showToast } = useToast();
+
+  const defaultWorkspaceId =
+    activeWorkspace && activeWorkspace !== 'all' ? activeWorkspace : NO_WORKSPACE_ID;
 
   const [name, setName] = useState('');
   const [colorId, setColorId] = useState(FORM_COLOR_OPTIONS[0].id);
-  const [workspaceId, setWorkspaceId] = useState(NO_WORKSPACE_ID);
+  const [workspaceId, setWorkspaceId] = useState(defaultWorkspaceId);
+  const [creating, setCreating] = useState(false);
 
   const resetFormFields = () => {
     setName('');
     setColorId(FORM_COLOR_OPTIONS[0].id);
-    setWorkspaceId(NO_WORKSPACE_ID);
+    setWorkspaceId(defaultWorkspaceId);
   };
 
   const handleClose = () => {
@@ -156,11 +165,37 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
     onClose();
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
+    if (creating) return;
     const title = name.trim() || 'Untitled';
     const theme = getFormColorTheme(colorId);
-    const newForm = {
-      id: Date.now(),
+    const effectiveWorkspaceId = workspaceId !== NO_WORKSPACE_ID ? workspaceId : undefined;
+
+    let formId;
+    setCreating(true);
+
+    if (isApiConfigured()) {
+      try {
+        const created = await createForm({
+          title,
+          workspaceId: effectiveWorkspaceId,
+          gradientFrom: theme.gradientFrom,
+          gradientTo: theme.gradientTo,
+          overlayColor: theme.overlayColor,
+          iconGradient: theme.iconGradient,
+        });
+        formId = created.id;
+      } catch {
+        showToast({ type: 'error', message: 'Could not create form. Please try again.' });
+        setCreating(false);
+        return;
+      }
+    } else {
+      formId = Date.now();
+    }
+
+    dispatch(addForm({
+      id: formId,
       title,
       status: 'draft',
       responses: 0,
@@ -170,17 +205,16 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
       gradientTo: theme.gradientTo,
       overlayColor: theme.overlayColor,
       iconGradient: theme.iconGradient,
-    };
-
-    dispatch(addForm(newForm));
+    }));
     if (isOnboardingActive) dispatch(completeOnboarding());
 
     onCreateAfterExit({
       formTitle: title,
-      formId: newForm.id,
+      formId,
       formColor: theme.value,
     });
     resetFormFields();
+    setCreating(false);
     onClose();
   };
 

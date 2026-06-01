@@ -20,7 +20,8 @@ export const countNavForms = (forms, { workspaceId } = {}) =>
   forms.filter((f) => {
     if (f.status === 'archived') return false;
     if (workspaceId != null && workspaceId !== 'all') {
-      return f.workspace === workspaceId;
+      const fw = f.workspace == null || f.workspace === '' ? '' : String(f.workspace);
+      return fw === String(workspaceId);
     }
     return true;
   }).length;

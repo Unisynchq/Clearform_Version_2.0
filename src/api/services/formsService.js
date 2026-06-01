@@ -17,6 +17,37 @@ export async function listForms() {
   return readPersistedForms();
 }
 
+export async function createForm({ title, workspaceId, gradientFrom, gradientTo, overlayColor, iconGradient }) {
+  if (isApiConfigured()) {
+    return apiClient(API_ENDPOINTS.forms.list, {
+      method: 'POST',
+      body: { title, workspaceId, gradientFrom, gradientTo, overlayColor, iconGradient },
+    });
+  }
+  return {
+    id: Date.now(),
+    title,
+    status: 'draft',
+    workspace: workspaceId ?? null,
+    responses: 0,
+    timeAgo: 'just now',
+    gradientFrom,
+    gradientTo,
+    overlayColor,
+    iconGradient,
+  };
+}
+
+export async function patchForm(formId, body) {
+  if (isApiConfigured()) {
+    return apiClient(`${API_ENDPOINTS.forms.list}/${formId}`, {
+      method: 'PATCH',
+      body,
+    });
+  }
+  return null;
+}
+
 export async function getBuilderSnapshot(formId) {
   if (isApiConfigured()) {
     return apiClient(API_ENDPOINTS.forms.builderSnapshot(formId));

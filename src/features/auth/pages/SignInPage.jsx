@@ -4,17 +4,16 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { FcGoogle } from 'react-icons/fc';
 import { RiGlobalLine, RiArrowDownSLine, RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
-import { setField, setSubmitting, loginSuccess } from '@/store/slices/authSlice';
-import { resolveSignInNavigation } from '@/features/onboarding/utils/authOnboarding';
+import { setField, setSubmitting, setError, loginSuccess } from '@/store/slices/authSlice';
 import {
-  getUserAccountByEmail,
-  persistAccountPassword,
-  upsertUserAccount,
-} from '@/features/auth/utils/userAccountsStorage';
+  applyBackendOnboardingState,
+  resolveAuthNavigationAfterSync,
+} from '@/features/onboarding/utils/authOnboarding';
 import {
-  hasStoredAccountPassword,
-  verifyCurrentPassword,
-} from '@/features/profile/utils/profileValidation';
+  signInWithEmail,
+  signInWithGoogle,
+  startMicrosoftSignInRedirect,
+} from '@/features/auth/services/firebaseAuthService';
 import AuthFieldError from '@/features/auth/components/AuthFieldError';
 import {
   hasValidationErrors,
@@ -35,10 +34,11 @@ const MicrosoftIcon = memo(() => (
   </svg>
 ));
 
-const SocialButton = memo(({ children, label }) => (
+const SocialButton = memo(({ children, label, onClick }) => (
   <motion.button
     type="button"
     aria-label={label}
+    onClick={onClick}
     whileHover={{ scale: 1.03 }}
     whileTap={{ scale: 0.96 }}
     transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
@@ -159,43 +159,71 @@ const SignInPage = () => {
     setErrors((prev) => (prev[name] ? { ...prev, [name]: null } : prev));
   }, [dispatch]);
 
-  const handleSubmit = useCallback((e) => {
+  const handleFederatedSignIn = useCallback(
+    async (signInFn, providerLabel) => {
+      dispatch(setSubmitting(true));
+      try {
+        const user = await signInFn();
+        applyBackendOnboardingState(dispatch, user.onboardingCompleted);
+        const path = resolveAuthNavigationAfterSync(dispatch, {
+          onboardingCompleted: user.onboardingCompleted,
+          returnTo: location.state?.from,
+        });
+        dispatch(loginSuccess({
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+        }));
+        showToast({ type: 'success', message: `Signed in with ${providerLabel}`, duration: 3000 });
+        navigate(path, { replace: true });
+      } catch (err) {
+        dispatch(setError(err.message));
+      } finally {
+        dispatch(setSubmitting(false));
+      }
+    },
+    [dispatch, navigate, location.state, showToast],
+  );
+
+  const handleGoogleSignIn = useCallback(
+    () => handleFederatedSignIn(signInWithGoogle, 'Google'),
+    [handleFederatedSignIn],
+  );
+
+  const handleMicrosoftSignIn = useCallback(async () => {
+    dispatch(setSubmitting(true));
+    dispatch(setError(null));
+    try {
+      await startMicrosoftSignInRedirect(location.state?.from);
+    } catch (err) {
+      dispatch(setError(err.message));
+      dispatch(setSubmitting(false));
+    }
+  }, [dispatch, location.state]);
+
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     const nextErrors = validateSignInForm({ email, password });
     setErrors(nextErrors);
     if (hasValidationErrors(nextErrors)) return;
 
-    const trimmedEmail = email.trim();
-    const account = getUserAccountByEmail(trimmedEmail);
-    if (
-      hasStoredAccountPassword(trimmedEmail) &&
-      !verifyCurrentPassword(trimmedEmail, password)
-    ) {
-      setErrors({ password: 'Incorrect password' });
-      return;
-    }
-
     dispatch(setSubmitting(true));
-    setTimeout(() => {
-      dispatch(setSubmitting(false));
-      if (!hasStoredAccountPassword(trimmedEmail) && password) {
-        if (!account) {
-          upsertUserAccount({ email: trimmedEmail, firstName: '', lastName: '', password });
-        }
-        persistAccountPassword(trimmedEmail, password);
-      }
-      dispatch(
-        loginSuccess({
-          email: trimmedEmail,
-          firstName: account?.firstName ?? '',
-          lastName: account?.lastName ?? '',
-        })
-      );
-      showToast({ type: 'success', message: 'Signed in successfully', duration: 3000 });
-      navigate(resolveSignInNavigation(dispatch, { returnTo: location.state?.from }), {
-        replace: true,
+    try {
+      const user = await signInWithEmail(email.trim(), password);
+      applyBackendOnboardingState(dispatch, user.onboardingCompleted);
+      const path = resolveAuthNavigationAfterSync(dispatch, {
+        onboardingCompleted: user.onboardingCompleted,
+        returnTo: location.state?.from,
       });
-    }, 1000);
+      dispatch(loginSuccess({ email: user.email, firstName: user.firstName, lastName: user.lastName }));
+      showToast({ type: 'success', message: 'Signed in successfully', duration: 3000 });
+      navigate(path, { replace: true });
+    } catch (err) {
+      dispatch(setError(err.message));
+      setErrors({ password: err.message });
+    } finally {
+      dispatch(setSubmitting(false));
+    }
   }, [dispatch, navigate, location.state, email, password, showToast]);
 
   return (
@@ -233,8 +261,8 @@ const SignInPage = () => {
 
             {/* Social login */}
             <div className="flex items-center justify-center gap-3 py-0.5">
-              <SocialButton label="Continue with Google"><FcGoogle size={22} /></SocialButton>
-              <SocialButton label="Continue with Microsoft"><MicrosoftIcon /></SocialButton>
+              <SocialButton label="Continue with Google" onClick={handleGoogleSignIn}><FcGoogle size={22} /></SocialButton>
+              <SocialButton label="Continue with Microsoft" onClick={handleMicrosoftSignIn}><MicrosoftIcon /></SocialButton>
             </div>
 
             {/* CTA */}

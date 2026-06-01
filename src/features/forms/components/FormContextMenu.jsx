@@ -13,8 +13,18 @@ import {
   RiPlayLine,
   RiArchiveLine,
   RiDeleteBinLine,
+  RiFolderTransferLine,
 } from 'react-icons/ri';
-import { closeContextMenu, openDeleteModal, openDuplicateModal, openArchiveModal, openPauseModal, openShareModal, openCompareMode } from '@/store/slices/uiSlice';
+import {
+  closeContextMenu,
+  openDeleteModal,
+  openDuplicateModal,
+  openArchiveModal,
+  openPauseModal,
+  openShareModal,
+  openCompareMode,
+  openAssignFormWorkspaceModal,
+} from '@/store/slices/uiSlice';
 import { clearFormPause } from '@/store/slices/formsSlice';
 import { isFormPaused } from '../utils/formPause';
 import { getFormBuilderState } from '../utils/formBuilderNavigation';
@@ -26,6 +36,7 @@ const MENU_ITEMS = [
   { id: 'share', icon: RiShareLine, label: 'Share' },
   { id: 'duplicate', icon: RiFileCopyLine, label: 'Duplicate' },
   { id: 'compare', icon: RiBarChartLine, label: 'Compare' },
+  { id: 'workspace', icon: RiFolderTransferLine, label: 'Move to workspace' },
   { id: 'export', icon: RiDownloadLine, label: 'Export responses' },
   { id: 'pause', icon: RiPauseLine, label: 'Pause form' },
   { id: 'archive', icon: RiArchiveLine, label: 'Archive' },
@@ -67,6 +78,8 @@ const FormContextMenu = () => {
       dispatch(openShareModal({ formId, formTitle: form?.title ?? '' }));
     } else if (itemId === 'compare') {
       dispatch(openCompareMode({ formId }));
+    } else if (itemId === 'workspace') {
+      dispatch(openAssignFormWorkspaceModal({ formId, formTitle: form?.title ?? '' }));
     } else if (itemId === 'view') {
       if (formId != null) {
         navigate(`/dashboard/analytics?form=${formId}&tab=responses`);
@@ -92,7 +105,7 @@ const FormContextMenu = () => {
 
   /* Clamp to viewport */
   const safeX = Math.min(x, window.innerWidth - 220);
-  const safeY = Math.min(y, window.innerHeight - 328);
+  const safeY = Math.min(y, window.innerHeight - 360);
 
   return (
     <AnimatePresence>

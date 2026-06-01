@@ -16,6 +16,7 @@ import PhotoUploadErrorZone, {
   PhotoAvatarError,
 } from '@/features/profile/components/PhotoUploadErrorZone';
 import { logout, loginSuccess } from '@/store/slices/authSlice';
+import { signOutUser } from '@/features/auth/services/firebaseAuthService';
 import { upsertUserAccount } from '@/features/auth/utils/userAccountsStorage';
 import {
   readProfileSettings,
@@ -401,6 +402,7 @@ const ProfilePage = () => {
 
   const handleSignOut = () => {
     dispatch(logout());
+    signOutUser();
     navigate('/signin');
   };
 

@@ -21,6 +21,7 @@ export const API_ENDPOINTS = {
   },
   responses: {
     list: (formId) => `/forms/${formId}/responses`,
+    create: (formId) => `/forms/${formId}/responses`,
     byId: (formId, responseId) => `/forms/${formId}/responses/${responseId}`,
     export: (formId) => `/forms/${formId}/responses/export`,
   },
