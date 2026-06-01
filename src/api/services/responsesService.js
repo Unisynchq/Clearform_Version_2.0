@@ -7,7 +7,7 @@ export async function submitFormResponse(formId, response) {
   if (isApiConfigured()) {
     return apiClient(API_ENDPOINTS.responses.create(formId), {
       method: 'POST',
-      body: response,
+      body: { formId, data: response },
     });
   }
   appendFormResponse(response);
