@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { ApiError } from '@/api/client';
 import { getPublishedForm } from '@/api/services/formsService';
 import { isApiConfigured } from '@/config/env';
 import { readPublishedForm } from '@/features/forms/utils/publishedFormStorage';
@@ -33,7 +34,15 @@ export default function PublicFormPage() {
             setBlocked('no_draft');
           }
         })
-        .catch(() => setBlocked('not_found'))
+        .catch((err) => {
+          if (err instanceof ApiError && err.status === 404) {
+            setBlocked('not_found');
+          } else if (err instanceof ApiError && err.status === 401) {
+            setBlocked('unavailable');
+          } else {
+            setBlocked(err instanceof ApiError && err.status ? 'unavailable' : 'not_found');
+          }
+        })
         .finally(() => setLoading(false));
     } else {
       // localStorage fallback for local-only mode (numeric IDs)
@@ -89,11 +98,17 @@ export default function PublicFormPage() {
     );
   }
 
-  if (blocked === 'no_draft') {
+  if (blocked === 'no_draft' || blocked === 'unavailable') {
     return (
       <div className="min-h-screen bg-[#f4f3ef] flex flex-col items-center justify-center gap-3 p-8">
-        <p className="text-[16px] font-medium text-[#18181b]">Form content is unavailable</p>
-        <p className="text-[13px] text-[#71717a]">Republish from the builder to refresh the live snapshot.</p>
+        <p className="text-[16px] font-medium text-[#18181b]">
+          {blocked === 'unavailable' ? 'Unable to load this form' : 'Form content is unavailable'}
+        </p>
+        <p className="text-[13px] text-[#71717a]">
+          {blocked === 'unavailable'
+            ? 'Please try again in a moment. If this keeps happening, contact the form owner.'
+            : 'Republish from the builder to refresh the live snapshot.'}
+        </p>
       </div>
     );
   }
