@@ -174,6 +174,15 @@ const AnalyticsPage = () => {
   const renderMainContent = () => {
     if (effectiveLoading) return renderLoadingSkeleton();
 
+    if (!selectedForm) {
+      return (
+        <div className="flex min-h-[240px] flex-col items-center justify-center gap-2 text-center text-[14px] text-[#6b6b68]">
+          <p className="font-medium text-[#1a1a18]">No form selected</p>
+          <p>Create a form or pick one from the header menu.</p>
+        </div>
+      );
+    }
+
     switch (activeTab) {
       case 'performance':
         if (!effectiveHasResponseData) {

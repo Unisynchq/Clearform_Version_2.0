@@ -133,12 +133,6 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
     };
   }, [form?.id]);
 
-  const responses = useMemo(() => {
-    const raw = isApiConfigured() ? (apiResponses ?? []) : (storedResponses ?? []);
-    if (!isApiConfigured() || !draft?.screens?.length) return raw;
-    return raw.map((item) => mapApiResponseForDisplay(item, draft));
-  }, [apiResponses, storedResponses, draft]);
-
   const [search, setSearch] = useState('');
   const [localRangeOpen, setLocalRangeOpen] = useState(false);
   const [customPickerOpen, setCustomPickerOpen] = useState(false);
@@ -155,6 +149,12 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
     }
     return fromForm ?? fetchedSnapshot ?? null;
   }, [form?.id, form?.builderSnapshot, form?.publishedSnapshot, fetchedSnapshot]);
+
+  const responses = useMemo(() => {
+    const raw = isApiConfigured() ? (apiResponses ?? []) : (storedResponses ?? []);
+    if (!isApiConfigured() || !draft?.screens?.length) return raw;
+    return raw.map((item) => mapApiResponseForDisplay(item, draft));
+  }, [apiResponses, storedResponses, draft]);
 
   const HEADERS = useMemo(() => {
     const built = buildResponseTableHeaders(draft, RiListCheck2);

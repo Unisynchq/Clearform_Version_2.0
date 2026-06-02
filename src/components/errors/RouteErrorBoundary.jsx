@@ -14,6 +14,9 @@ export default class RouteErrorBoundary extends Component {
   }
 
   componentDidCatch(error, errorInfo) {
+    if (import.meta.env.DEV) {
+      console.error('[RouteErrorBoundary]', error, errorInfo);
+    }
     if (typeof this.props.onError === 'function') {
       this.props.onError(error, errorInfo);
     }
