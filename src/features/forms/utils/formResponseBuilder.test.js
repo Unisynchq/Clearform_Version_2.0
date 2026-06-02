@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildResponseFromPreview,
+  extractRespondentLabel,
   responseToTableRow,
   filterResponsesByRange,
 } from './formResponseBuilder';
@@ -22,6 +23,14 @@ describe('formResponseBuilder', () => {
     },
     { id: 4, type: 'end', label: 'End' },
   ];
+
+  it('extractRespondentLabel falls back to short text when no contact screen', () => {
+    expect(
+      extractRespondentLabel(screens, {
+        3: { shortTextDraft: 'Rahul Pandey' },
+      }),
+    ).toBe('Rahul Pandey');
+  });
 
   it('buildResponseFromPreview captures contact and answers', () => {
     const response = buildResponseFromPreview({

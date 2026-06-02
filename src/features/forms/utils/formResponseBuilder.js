@@ -29,6 +29,11 @@ function field(snap, key) {
   return String(snap?.previewFields?.[key] ?? '').trim();
 }
 
+function snapForScreen(snapsByScreenId, screenId) {
+  if (!snapsByScreenId) return undefined;
+  return snapsByScreenId[screenId] ?? snapsByScreenId[String(screenId)];
+}
+
 /** Human-readable cell value for a content screen from preview snap state. */
 export function formatScreenAnswerValue(screen, snap) {
   if (!screen || screen.type !== 'content') return '—';
@@ -110,7 +115,7 @@ export function formatScreenAnswerValue(screen, snap) {
 export function extractContactFromScreens(screens, snapsByScreenId) {
   for (const screen of screens) {
     if (screen.type !== 'content' || screen.label !== 'Contact') continue;
-    const snap = snapsByScreenId?.[screen.id];
+    const snap = snapForScreen(snapsByScreenId, screen.id);
     if (!snap) continue;
     const email = field(snap, 'c.em');
     if (email) return email;
@@ -118,6 +123,19 @@ export function extractContactFromScreens(screens, snapsByScreenId) {
     if (phone) return phone;
     const name = [field(snap, 'c.fn'), field(snap, 'c.ln')].filter(Boolean).join(' ');
     if (name) return name;
+  }
+  return '—';
+}
+
+/** Name/email/phone column — Contact screen first, else first short/long text answer. */
+export function extractRespondentLabel(screens, snapsByScreenId) {
+  const contact = extractContactFromScreens(screens, snapsByScreenId);
+  if (contact !== '—') return contact;
+  for (const screen of screens ?? []) {
+    if (screen.type !== 'content') continue;
+    if (screen.label !== 'Short text' && screen.label !== 'Long text') continue;
+    const v = formatScreenAnswerValue(screen, snapForScreen(snapsByScreenId, screen.id));
+    if (v && v !== '—') return v;
   }
   return '—';
 }
@@ -131,10 +149,10 @@ export function buildResponseFromPreview({ formId, screens, snapsByScreenId }) {
   const answers = contentScreens.map((screen, i) => ({
     screenId: screen.id,
     label: getScreenPreviewText(screen, {}) || screen.label || `Question ${i + 1}`,
-    value: formatScreenAnswerValue(screen, snapsByScreenId?.[screen.id]),
+    value: formatScreenAnswerValue(screen, snapForScreen(snapsByScreenId, screen.id)),
   }));
 
-  const contact = extractContactFromScreens(contentScreens, snapsByScreenId);
+  const contact = extractRespondentLabel(screens, snapsByScreenId);
 
   return {
     id: `resp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
@@ -166,6 +184,44 @@ export function buildResponseTableHeaders(draft, ListIcon) {
   }));
 
   return [...FIXED, ...questionHeaders];
+}
+
+function answersLookLikeRawJson(answers) {
+  return (answers ?? []).some(
+    (a) =>
+      typeof a?.value === 'string' &&
+      a.value.startsWith('{') &&
+      a.value.includes('shortTextDraft'),
+  );
+}
+
+/**
+ * Normalize a GET /analytics/.../responses item using the published/builder snapshot.
+ * @param {object} item — API list row
+ * @param {{ screens?: object[] } | null} draft — form snapshot
+ */
+export function mapApiResponseForDisplay(item, draft) {
+  if (!item) return item;
+  const screens = draft?.screens ?? [];
+  const byScreen = item.answersByScreenId;
+
+  if (byScreen && screens.length > 0) {
+    const rebuilt = buildResponseFromPreview({
+      formId: item.formId,
+      screens,
+      snapsByScreenId: byScreen,
+    });
+    return {
+      ...item,
+      contact: item.contact && item.contact !== '—' ? item.contact : rebuilt.contact,
+      status: item.status ?? rebuilt.status,
+      answers: rebuilt.answers,
+    };
+  }
+
+  if (!answersLookLikeRawJson(item.answers)) return item;
+
+  return item;
 }
 
 /** @param {import('./formResponsesStorage').FormResponseRecord} response */

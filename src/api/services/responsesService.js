@@ -15,6 +15,9 @@ function toSubmissionBody(response, snapsByScreenId) {
     }
     return {
       submittedAt,
+      completed: response?.status === 'completed',
+      contact: response?.contact,
+      answers: response?.answers,
       answersByScreenId,
       metadata: {
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useSelector } from 'react-redux';
 import { AnimatePresence, motion } from 'motion/react';
 import { fetchFormResponses } from '@/api/services/analyticsService';
+import { getBuilderSnapshot } from '@/api/services/formsService';
 import { isApiConfigured } from '@/config/env';
 import {
   RiSearchLine,
@@ -19,6 +20,7 @@ import {
   buildResponseTableHeaders,
   responseToTableRow,
   filterResponsesByRange,
+  mapApiResponseForDisplay,
 } from '@/features/forms/utils/formResponseBuilder';
 import CustomRangeDatePicker, { formatCustomRangeLabel } from './CustomRangeDatePicker';
 import AnalyticsResponseDetailDrawer from './AnalyticsResponseDetailDrawer';
@@ -79,6 +81,31 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
   const storedResponses = useSelector((state) => selectFormResponses(state, form?.id));
   const [apiResponses, setApiResponses] = useState(null);
   const [apiTotal, setApiTotal] = useState(null);
+  const [fetchedSnapshot, setFetchedSnapshot] = useState(null);
+
+  useEffect(() => {
+    if (!isApiConfigured() || !form?.id) {
+      setFetchedSnapshot(null);
+      return;
+    }
+    const fromForm = form?.publishedSnapshot ?? form?.builderSnapshot;
+    if (fromForm?.screens?.length) {
+      setFetchedSnapshot(null);
+      return;
+    }
+    let cancelled = false;
+    getBuilderSnapshot(form.id)
+      .then((data) => {
+        const snap = data?.snapshot ?? data;
+        if (!cancelled && snap?.screens?.length) setFetchedSnapshot(snap);
+      })
+      .catch(() => {
+        if (!cancelled) setFetchedSnapshot(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [form?.id, form?.builderSnapshot, form?.publishedSnapshot]);
 
   useEffect(() => {
     if (!isApiConfigured() || !form?.id) {
@@ -106,9 +133,11 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
     };
   }, [form?.id]);
 
-  const responses = isApiConfigured()
-    ? (apiResponses ?? [])
-    : (storedResponses ?? []);
+  const responses = useMemo(() => {
+    const raw = isApiConfigured() ? (apiResponses ?? []) : (storedResponses ?? []);
+    if (!isApiConfigured() || !draft?.screens?.length) return raw;
+    return raw.map((item) => mapApiResponseForDisplay(item, draft));
+  }, [apiResponses, storedResponses, draft]);
 
   const [search, setSearch] = useState('');
   const [localRangeOpen, setLocalRangeOpen] = useState(false);
@@ -116,10 +145,16 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
   const [localRange, setLocalRange] = useState(rangeLabel ?? 'All time');
   const [lastCustomRange, setLastCustomRange] = useState({ start: null, end: null });
 
-  const draft = useMemo(
-    () => (form?.id != null ? readBuilderDraft(form.id) : null),
-    [form?.id],
-  );
+  const draft = useMemo(() => {
+    const fromForm = form?.publishedSnapshot ?? form?.builderSnapshot;
+    if (fromForm?.screens?.length) return fromForm;
+    if (fetchedSnapshot?.screens?.length) return fetchedSnapshot;
+    if (form?.id != null) {
+      const local = readBuilderDraft(form.id);
+      if (local?.screens?.length) return local;
+    }
+    return fromForm ?? fetchedSnapshot ?? null;
+  }, [form?.id, form?.builderSnapshot, form?.publishedSnapshot, fetchedSnapshot]);
 
   const HEADERS = useMemo(() => {
     const built = buildResponseTableHeaders(draft, RiListCheck2);
