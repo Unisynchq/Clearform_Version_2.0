@@ -1,6 +1,7 @@
 import { apiClient } from '@/api/client';
 import { API_ENDPOINTS } from '@/api/endpoints';
 import { isApiConfigured } from '@/config/env';
+import { mergeIntegrations } from '@/features/profile/utils/profileIntegrationDefaults';
 
 /** Frontend integration keys → backend Composio provider slugs */
 export const INTEGRATION_PROVIDER_SLUGS = {
@@ -15,13 +16,13 @@ export function mapConnectionsToUiState(connections) {
       .filter((row) => row.active !== false)
       .map((row) => row.provider),
   );
-  return {
+  return mergeIntegrations({
     googleSheets: { connected: activeByProvider.has('google_sheets') },
     googleDrive: { connected: activeByProvider.has('google_drive') },
     slack: { connected: activeByProvider.has('slack') },
     webhook: { connected: false },
     notion: { connected: false },
-  };
+  });
 }
 
 export async function listWorkspaceIntegrations(workspaceId) {
