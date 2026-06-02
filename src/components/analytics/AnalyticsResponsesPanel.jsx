@@ -78,15 +78,37 @@ function renderCellContent(cell, ci) {
 function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
   const storedResponses = useSelector((state) => selectFormResponses(state, form?.id));
   const [apiResponses, setApiResponses] = useState(null);
+  const [apiTotal, setApiTotal] = useState(null);
 
   useEffect(() => {
-    if (!isApiConfigured() || !form?.id) return;
+    if (!isApiConfigured() || !form?.id) {
+      setApiResponses(null);
+      setApiTotal(null);
+      return;
+    }
+    let cancelled = false;
     fetchFormResponses(form.id, {})
-      .then((data) => { if (data?.items) setApiResponses(data.items); })
-      .catch(() => {});
+      .then((data) => {
+        if (cancelled) return;
+        if (Array.isArray(data?.items)) {
+          setApiResponses(data.items);
+          setApiTotal(typeof data.total === 'number' ? data.total : data.items.length);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setApiResponses([]);
+          setApiTotal(0);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [form?.id]);
 
-  const responses = apiResponses ?? storedResponses ?? [];
+  const responses = isApiConfigured()
+    ? (apiResponses ?? [])
+    : (storedResponses ?? []);
 
   const [search, setSearch] = useState('');
   const [localRangeOpen, setLocalRangeOpen] = useState(false);
@@ -115,7 +137,7 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
 
   const responsesInRange = useMemo(
     () => filterResponsesByRange(responses, localRange, lastCustomRange),
-    [storedResponses, localRange, lastCustomRange],
+    [responses, localRange, lastCustomRange],
   );
 
   const FORM_ROWS = useMemo(
@@ -123,7 +145,8 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
     [responsesInRange],
   );
 
-  const totalResponses = storedResponses.length;
+  const totalResponses =
+    isApiConfigured() && apiTotal != null ? apiTotal : responses.length;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedRowIndex, setSelectedRowIndex] = useState(0);
   const [columnOrder, setColumnOrder] = useState(() => HEADERS.map((_, i) => i));

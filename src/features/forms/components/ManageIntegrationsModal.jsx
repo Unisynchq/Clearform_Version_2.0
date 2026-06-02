@@ -5,6 +5,13 @@ import ProfileModal from '@/components/profile/ProfileModal';
 import sheetsIcon from '@/assets/Icons/sheets.svg';
 import driveIcon from '@/assets/Icons/google-drive.svg';
 import slackIcon from '@/assets/Icons/slack.svg';
+import { isApiConfigured } from '@/config/env';
+import {
+  connectIntegration,
+  listFormIntegrations,
+  mapConnectionsToUiState,
+  redirectToOAuth,
+} from '@/api/services/integrationsService';
 import {
   readIntegrationSettings,
   writeIntegrationSettings,
@@ -13,6 +20,7 @@ import {
   cloneIntegrations,
   mergeIntegrations,
 } from '@/features/profile/utils/profileIntegrationDefaults';
+import { useToast } from '@/hooks/useToast';
 
 const AssetIcon = ({ src, className = 'size-4' }) => (
   <img src={src} alt="" className={`object-contain ${className}`} aria-hidden />
@@ -52,7 +60,7 @@ const INTEGRATION_CARDS = [
   },
 ];
 
-function IntegrationCard({ card, connected, onToggle }) {
+function IntegrationCard({ card, connected, onToggle, busy }) {
   const titleLines = Array.isArray(card.title) ? card.title : [card.title];
 
   return (
@@ -88,8 +96,9 @@ function IntegrationCard({ card, connected, onToggle }) {
       {connected ? (
         <button
           type="button"
+          disabled={busy}
           onClick={() => onToggle(false)}
-          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-[6px] border border-[#86efac] bg-[#dcfce7] px-3 text-[11.5px] font-medium text-[#16a34a] transition-colors hover:bg-[#bbf7d0]"
+          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-[6px] border border-[#86efac] bg-[#dcfce7] px-3 text-[11.5px] font-medium text-[#16a34a] transition-colors hover:bg-[#bbf7d0] disabled:opacity-60"
         >
           <RiCheckLine size={10} aria-hidden />
           Connected
@@ -97,8 +106,9 @@ function IntegrationCard({ card, connected, onToggle }) {
       ) : (
         <button
           type="button"
+          disabled={busy || card.key === 'notion'}
           onClick={() => onToggle(true)}
-          className="h-7 shrink-0 rounded-[6px] border border-[#e5e4e0] bg-white px-[13px] text-[11.5px] font-medium text-[#0a0a0a] transition-colors hover:bg-[#f7f7f6]"
+          className="h-7 shrink-0 rounded-[6px] border border-[#e5e4e0] bg-white px-[13px] text-[11.5px] font-medium text-[#0a0a0a] transition-colors hover:bg-[#f7f7f6] disabled:opacity-50"
         >
           Connect
         </button>
@@ -107,35 +117,85 @@ function IntegrationCard({ card, connected, onToggle }) {
   );
 }
 
-export default function ManageIntegrationsModal({ open, onClose }) {
+export default function ManageIntegrationsModal({ open, onClose, formId, workspaceId }) {
   const email = useSelector((state) => state.auth.email);
+  const { showToast } = useToast();
   const [integrations, setIntegrations] = useState(() => mergeIntegrations(null));
+  const [connectingKey, setConnectingKey] = useState(null);
+
+  const useApi = isApiConfigured() && Boolean(formId || workspaceId);
+
+  const refreshFromApi = useCallback(async () => {
+    if (!useApi) return;
+    try {
+      const rows = formId
+        ? await listFormIntegrations(formId)
+        : [];
+      setIntegrations(mapConnectionsToUiState(rows));
+    } catch {
+      /* keep prior state */
+    }
+  }, [formId, useApi]);
 
   useEffect(() => {
-    if (open) {
-      setIntegrations(mergeIntegrations(readIntegrationSettings(email)));
+    if (!open) return;
+    if (useApi) {
+      refreshFromApi();
+      return;
     }
-  }, [open, email]);
+    setIntegrations(mergeIntegrations(readIntegrationSettings(email)));
+  }, [open, email, useApi, refreshFromApi]);
 
-  const persist = useCallback(
+  const persistLocal = useCallback(
     (next) => {
       setIntegrations(next);
       if (email) {
         writeIntegrationSettings(email, cloneIntegrations(next));
       }
     },
-    [email]
+    [email],
   );
 
-  const handleToggle = (key, connected) => {
-    persist({
+  const handleToggle = async (key, connected) => {
+    if (key === 'notion') {
+      showToast({ type: 'info', message: 'Notion is not available yet.', duration: 2200 });
+      return;
+    }
+
+    if (!connected) {
+      persistLocal({
+        ...integrations,
+        [key]: { connected: false },
+      });
+      return;
+    }
+
+    if (useApi && workspaceId) {
+      setConnectingKey(key);
+      try {
+        const { redirectUrl } = await connectIntegration(workspaceId, key);
+        redirectToOAuth(redirectUrl);
+      } catch (err) {
+        showToast({
+          type: 'error',
+          message: err?.message || 'Could not start connection.',
+          duration: 3200,
+        });
+      } finally {
+        setConnectingKey(null);
+      }
+      return;
+    }
+
+    persistLocal({
       ...integrations,
-      [key]: { connected },
+      [key]: { connected: true },
     });
+    showToast({ type: 'success', message: 'Connected (demo mode).', duration: 2200 });
   };
 
   const handleDone = () => {
-    if (email) {
+    if (!useApi && email) {
       writeIntegrationSettings(email, cloneIntegrations(integrations));
     }
     onClose();
@@ -168,6 +228,7 @@ export default function ManageIntegrationsModal({ open, onClose }) {
             card={card}
             connected={integrations[card.key]?.connected ?? false}
             onToggle={(connected) => handleToggle(card.key, connected)}
+            busy={connectingKey === card.key}
           />
         ))}
       </div>

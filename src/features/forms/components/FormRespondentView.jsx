@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { motion } from 'motion/react';
 import { createFormLogicRunner } from '@/features/forms/utils/formLogicRunner';
 import { isScreenVisibleInPreview } from '@/features/forms/utils/logicEngine';
 import RespondentScreenFields, {
@@ -11,6 +12,7 @@ import { API_ENDPOINTS } from '@/api/endpoints';
 import { isApiConfigured } from '@/config/env';
 import { submitFormResponse } from '@/api/services/responsesService';
 import { buildResponseFromPreview } from '@/features/forms/utils/formResponseBuilder';
+import { PreviewPoweredBy } from '@/features/forms/formBuilder/BuilderContentCard';
 
 const emptySnap = () => ({
   previewPicks: [],
@@ -110,14 +112,18 @@ export default function FormRespondentView({ draft, formTitle, formId }) {
 
     runnerRef.current?.recordScreenAnswers(activeScreenId, snap);
     const nextId = runnerRef.current?.getNextScreenId(activeScreenId);
-    if (nextId == null) {
+    const nextScreen = nextId != null ? screens.find((s) => s.id === nextId) : null;
+    const isFormComplete = nextId == null || nextScreen?.type === 'end';
+
+    if (isFormComplete) {
+      const mergedSnaps = { ...snapsByScreenId, [activeScreenId]: snap };
       const response = buildResponseFromPreview({
         formId,
         screens,
-        snapsByScreenId: { ...snapsByScreenId, [activeScreenId]: snap },
+        snapsByScreenId: mergedSnaps,
       });
-      submitFormResponse(formId, response).catch(() => {});
-      return;
+      submitFormResponse(formId, response, mergedSnaps).catch(() => {});
+      if (nextId == null) return;
     }
     setVisitStack((s) => [...s, activeScreenId]);
     setActiveScreenId(nextId);
@@ -163,13 +169,16 @@ export default function FormRespondentView({ draft, formTitle, formId }) {
         {draft?.intro?.description ? (
           <p className="text-[15px] text-[#52525b]">{draft.intro.description}</p>
         ) : null}
-        <button
+        <motion.button
           type="button"
           onClick={recordAndAdvance}
+          whileTap={{ scale: 0.97 }}
+          transition={{ duration: 0.12 }}
           className="rounded-lg bg-[#18181b] px-4 py-3 text-[14px] font-medium text-white hover:bg-[#27272a] cursor-pointer"
         >
           {draft?.intro?.buttonText || 'Start'}
-        </button>
+        </motion.button>
+        <PreviewPoweredBy />
       </div>
     );
   }
@@ -183,6 +192,7 @@ export default function FormRespondentView({ draft, formTitle, formId }) {
         {draft?.end?.description ? (
           <p className="text-[15px] text-[#52525b]">{draft.end.description}</p>
         ) : null}
+        <PreviewPoweredBy />
       </div>
     );
   }
@@ -259,6 +269,7 @@ export default function FormRespondentView({ draft, formTitle, formId }) {
           Continue
         </button>
       </div>
+      <PreviewPoweredBy />
     </div>
   );
 }

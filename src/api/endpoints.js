@@ -18,6 +18,7 @@ export const API_ENDPOINTS = {
     archive: (id) => `/forms/${id}/archive`,
     builderSnapshot: (id) => `/forms/${id}/builder-snapshot`,
     published: (id) => `/forms/${id}/published`,
+    shareLinks: (id) => `/forms/${id}/share-links`,
   },
   responses: {
     list: (formId) => `/forms/${formId}/responses`,
@@ -48,5 +49,18 @@ export const API_ENDPOINTS = {
   },
   notifications: {
     list: '/notifications',
+  },
+  integrations: {
+    workspaceList: (workspaceId) => `/workspaces/${workspaceId}/integrations`,
+    workspaceConnect: (workspaceId, provider) =>
+      `/workspaces/${workspaceId}/integrations/${provider}/connect`,
+    formList: (formId) => `/forms/${formId}/integrations`,
+  },
+  webhooks: {
+    list: (formId) => `/forms/${formId}/webhooks`,
+    create: (formId) => `/forms/${formId}/webhooks`,
+    update: (formId, webhookId) => `/forms/${formId}/webhooks/${webhookId}`,
+    delete: (formId, webhookId) => `/forms/${formId}/webhooks/${webhookId}`,
+    test: (formId, webhookId) => `/forms/${formId}/webhooks/${webhookId}/test`,
   },
 };

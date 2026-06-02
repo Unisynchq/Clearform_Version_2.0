@@ -881,6 +881,7 @@ function ShareViaCard({
 const FormPublishView = ({
   formTitle = 'Untitled Form',
   formId = null,
+  publicUrl: publicUrlProp = null,
   showOnboardingStepper = true,
   fromOnboarding = false,
   publishFailed = false,
@@ -904,13 +905,16 @@ const FormPublishView = ({
   const formSlug = useMemo(() => slugify(formTitle), [formTitle]);
   const formPathId = formId != null ? String(formId) : formSlug;
   const formUrl =
-    typeof window !== 'undefined'
+    publicUrlProp ??
+    (typeof window !== 'undefined'
       ? `${window.location.origin}/f/${formPathId}`
-      : `https://clearform.io/f/${formPathId}`;
+      : `https://clearform.io/f/${formPathId}`);
   const shortUrl =
-    typeof window !== 'undefined'
-      ? `${window.location.host}/f/${formPathId}`
-      : `clearform.io/f/${formPathId}`;
+    publicUrlProp && typeof window !== 'undefined'
+      ? `${new URL(publicUrlProp).host}${new URL(publicUrlProp).pathname}`
+      : typeof window !== 'undefined'
+        ? `${window.location.host}/f/${formPathId}`
+        : `clearform.io/f/${formPathId}`;
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(formUrl)}`;
   const fullMessage = useMemo(() => buildFullShareMessage(formTitle, formUrl), [formTitle, formUrl]);
 
@@ -990,6 +994,11 @@ const FormPublishView = ({
     link.click();
   }, [formSlug, qrImageUrl]);
 
+  const handleViewResponses = useCallback(() => {
+    if (formId == null) return;
+    navigate(`/dashboard/analytics?form=${encodeURIComponent(String(formId))}&tab=responses`);
+  }, [formId, navigate]);
+
   const handleHome = useCallback(() => {
     if (fromOnboarding) {
       dispatch(completeOnboarding());
@@ -1062,7 +1071,7 @@ const FormPublishView = ({
                     <SuccessBanner
                       formTitle={formTitle}
                       shortUrl={shortUrl}
-                      onViewResponses={() => window.open(formUrl, '_blank', 'noopener,noreferrer')}
+                      onViewResponses={handleViewResponses}
                       onShare={() => {
                         setActiveSharePanel('copyShare');
                         document.getElementById('share-via-section')?.scrollIntoView({ behavior: 'smooth' });

@@ -134,7 +134,7 @@ const formsSlice = createSlice({
         state.responsesByFormId[key] = [];
       }
       state.responsesByFormId[key].unshift(response);
-      const form = state.forms.find((f) => f.id === response.formId);
+      const form = state.forms.find((f) => String(f.id) === String(response.formId));
       if (form) {
         form.responses = (form.responses ?? 0) + 1;
         form.timeAgo = 'just now';

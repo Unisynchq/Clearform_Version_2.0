@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
   RiArrowLeftLine,
@@ -102,6 +102,11 @@ export default function FormBuilderSettingsPanel({
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const forms = useSelector((s) => s.forms.forms);
+  const workspaces = useSelector((s) => s.forms.workspaces);
+  const activeForm = forms.find((f) => String(f.id) === String(activeFormId));
+  const integrationWorkspaceId =
+    activeForm?.workspace || workspaces[0]?.id || null;
   const [manageIntegrationsOpen, setManageIntegrationsOpen] = useState(false);
   const [discardModalOpen, setDiscardModalOpen] = useState(false);
 
@@ -276,6 +281,8 @@ export default function FormBuilderSettingsPanel({
       <ManageIntegrationsModal
         open={manageIntegrationsOpen}
         onClose={() => setManageIntegrationsOpen(false)}
+        formId={activeFormId}
+        workspaceId={integrationWorkspaceId}
       />
 
       <ConfirmActionModal

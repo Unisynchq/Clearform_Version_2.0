@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -18,6 +18,16 @@ import {
   RiEyeOffLine,
 } from 'react-icons/ri';
 import { closeShareModal } from '@/store/slices/uiSlice';
+import { buildFallbackPublicUrl, fetchShareLinks } from '@/api/services/shareService';
+import { isApiConfigured } from '@/config/env';
+import {
+  buildWebhookTriggers,
+  createFormWebhook,
+  listFormWebhooks,
+  testFormWebhook,
+  updateFormWebhook,
+} from '@/api/services/webhooksService';
+import { useToast } from '@/hooks/useToast';
 
 /* ────────────────────────────────────────
    Helpers
@@ -171,7 +181,44 @@ const SHARE_CHANNELS = [
 ───────────────────────────────────────── */
 const ShareFormModal = () => {
   const dispatch = useDispatch();
-  const { open, formTitle } = useSelector((s) => s.ui.shareModal);
+  const { showToast } = useToast();
+  const { open, formTitle, formId } = useSelector((s) => s.ui.shareModal);
+
+  const [shareLinks, setShareLinks] = useState(null);
+
+  useEffect(() => {
+    if (!open || !formId) {
+      setShareLinks(null);
+      return;
+    }
+    let cancelled = false;
+    fetchShareLinks(formId)
+      .then((data) => {
+        if (!cancelled) setShareLinks(data);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setShareLinks({
+            publicUrl: buildFallbackPublicUrl(formId),
+            shortDisplay: `${window.location.host}/f/${formId}`,
+            slug: 'form',
+            status: 'draft',
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, formId]);
+
+  const fullUrl =
+    shareLinks?.publicUrl ??
+    (formId ? buildFallbackPublicUrl(formId) : '');
+  const formUrl =
+    shareLinks?.shortDisplay ??
+    (formId && typeof window !== 'undefined'
+      ? `${window.location.host}/f/${formId}`
+      : '');
 
   /* ── Copy link ── */
   const [copied, setCopied] = useState(false);
@@ -201,12 +248,30 @@ const ShareFormModal = () => {
   const [triggerCreated,  setTriggerCreated]  = useState(true);
   const [triggerClosed,   setTriggerClosed]   = useState(true);
   const [triggerUpdated,  setTriggerUpdated]  = useState(false);
+  const [webhookId,       setWebhookId]       = useState(null);
+  const [webhookTesting,  setWebhookTesting]  = useState(false);
 
-  const slug    = formTitle
-    ? formTitle.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-    : 'form';
-  const formUrl = `form.clearform.io/${slug}`;
-  const fullUrl = `https://${formUrl}`;
+  useEffect(() => {
+    if (!open || !formId || !isApiConfigured()) return;
+    let cancelled = false;
+    listFormWebhooks(formId)
+      .then((rows) => {
+        if (cancelled) return;
+        const hook = rows[0];
+        if (!hook) return;
+        setWebhookId(hook.id);
+        setSavedWebhookUrl(hook.url ?? '');
+        setPendingUrl(hook.url ?? '');
+        const triggers = hook.triggers ?? [];
+        setTriggerCreated(triggers.length === 0 || triggers.includes('response.created'));
+        setTriggerClosed(triggers.includes('form.closed'));
+        setTriggerUpdated(triggers.includes('response.updated'));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [open, formId]);
 
   /* ── Handlers: copy ── */
   const handleCopyLink = () => {
@@ -261,9 +326,75 @@ const ShareFormModal = () => {
     setPendingUrl(savedWebhookUrl);
     setWebhookOpen(true);
   };
-  const handleSaveWebhook = () => {
-    setSavedWebhookUrl(pendingUrl);
-    setWebhookOpen(false);
+  const handleSaveWebhook = async () => {
+    const url = pendingUrl.trim();
+    if (!url) {
+      showToast({ type: 'error', message: 'Enter a webhook URL.', duration: 2400 });
+      return null;
+    }
+    const body = {
+      url,
+      triggers: buildWebhookTriggers({
+        created: triggerCreated,
+        closed: triggerClosed,
+        updated: triggerUpdated,
+      }),
+      active: true,
+    };
+    try {
+      let savedId = webhookId;
+      if (isApiConfigured() && formId) {
+        const saved = webhookId
+          ? await updateFormWebhook(formId, webhookId, body)
+          : await createFormWebhook(formId, body);
+        savedId = saved?.id ?? webhookId;
+        setWebhookId(savedId);
+      }
+      setSavedWebhookUrl(url);
+      setWebhookOpen(false);
+      showToast({ type: 'success', message: 'Webhook saved.', duration: 2200 });
+      return savedId;
+    } catch (err) {
+      showToast({
+        type: 'error',
+        message: err?.message || 'Could not save webhook.',
+        duration: 3000,
+      });
+      return null;
+    }
+  };
+
+  const handleTestWebhook = async () => {
+    if (!savedWebhookUrl && !pendingUrl.trim()) {
+      showToast({ type: 'info', message: 'Save a webhook URL first.', duration: 2200 });
+      return;
+    }
+    if (!isApiConfigured() || !formId) {
+      showToast({ type: 'info', message: 'Webhook test requires API configuration.', duration: 2400 });
+      return;
+    }
+    let id = webhookId;
+    if (!id) {
+      id = await handleSaveWebhook();
+      if (!id) return;
+    }
+    setWebhookTesting(true);
+    try {
+      const result = await testFormWebhook(formId, id);
+      showToast({
+        type: result?.success === false ? 'error' : 'success',
+        message: result?.message || 'Test payload sent.',
+        duration: 2800,
+      });
+    } catch (err) {
+      showToast({
+        type: 'error',
+        message: err?.message || 'Webhook test failed.',
+        duration: 3000,
+      });
+    } finally {
+      setWebhookTesting(false);
+    }
   };
   const handleCancelWebhook = () => {
     setPendingUrl(savedWebhookUrl);
@@ -637,15 +768,27 @@ const ShareFormModal = () => {
                           </div>
                         </div>
 
-                        {/* Save / Cancel */}
+                        {/* Save / Test / Cancel */}
                         <div className="flex gap-[7px] pt-[3px]">
                           <button
+                            type="button"
                             onClick={handleSaveWebhook}
                             className="flex-1 bg-[#0d0f12] text-white text-[12px] font-semibold py-[9px] rounded-[8px] hover:bg-[#262829] transition-colors cursor-pointer"
                           >
                             Save webhook
                           </button>
+                          {isApiConfigured() && formId ? (
+                            <button
+                              type="button"
+                              onClick={handleTestWebhook}
+                              disabled={webhookTesting}
+                              className="bg-white border border-[#e5e7eb] text-[#0d0f12] text-[12px] font-medium px-[12px] py-[9px] rounded-[8px] hover:bg-[#f9fafb] transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+                            >
+                              {webhookTesting ? 'Testing…' : 'Test'}
+                            </button>
+                          ) : null}
                           <button
+                            type="button"
                             onClick={handleCancelWebhook}
                             className="bg-white border border-[#e5e7eb] text-[#6b7280] text-[12px] font-medium px-[15px] py-[9px] rounded-[8px] hover:bg-[#f9fafb] transition-colors cursor-pointer shrink-0"
                           >

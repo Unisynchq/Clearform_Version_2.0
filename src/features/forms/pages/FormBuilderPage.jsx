@@ -1250,6 +1250,7 @@ const FormBuilderPage = () => {
   const [deviceView, setDeviceView] = useState('desktop');
   const [isPreview, setIsPreview] = useState(false);
   const [isPublishView, setIsPublishView] = useState(false);
+  const [publishedPublicUrl, setPublishedPublicUrl] = useState(null);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('content');
   const [screens, setScreens] = useState([]);
@@ -4932,6 +4933,7 @@ const FormBuilderPage = () => {
       }
       await saveBuilderSnapshot(formId, snapshot);
       const published = await publishFormToApi(formId, snapshot);
+      setPublishedPublicUrl(published?.publicUrl ?? null);
       dispatch(
         updateForm({
           id: formId,
@@ -5381,6 +5383,7 @@ const FormBuilderPage = () => {
       <FormPublishView
         formTitle={publishFormTitle}
         formId={activeFormId}
+        publicUrl={publishedPublicUrl}
         showOnboardingStepper={showOnboardingStepper}
         fromOnboarding={fromOnboarding}
         onRetryPublish={handlePublishForm}
@@ -6660,6 +6663,17 @@ const FormBuilderPage = () => {
                 </div>
               ) : (
                 <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+                  {!logicModeManual ? (
+                    <>
+                      {aiLogicGenerationFailed ? (
+                        <AiLogicGenerationFailedBanner message={aiLogicGen.errorMessage} />
+                      ) : null}
+                      <AiLogicIdleBanner
+                        onGenerate={handleGenerateAiLogic}
+                        disabled={aiLogicGenerating}
+                      />
+                    </>
+                  ) : null}
                   {!logicModeManual && aiLogicReady ? (
                     <div className="shrink-0 border-b border-[#e5e5e2] bg-[#f0fdf4] px-5 py-2">
                       <p className="text-[12px] font-medium text-[#166534]">

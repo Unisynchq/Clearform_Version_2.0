@@ -23,6 +23,7 @@ import {
 import { DEFAULT_LIFECYCLE_MODE, mergeAlertSettings } from '@/utils/formAlertDefaults';
 import { dispatchSyncFormAlerts } from '@/utils/syncFormAlertsToStore';
 import { clearNotificationsForForm } from '@/store/slices/notificationsSlice';
+import { buildFallbackPublicUrl, fetchShareLinks } from '@/api/services/shareService';
 
 const LIFECYCLE_OPTIONS = [
   { value: 'No limit', label: 'No limit' },
@@ -133,6 +134,7 @@ function AnalyticsSettingsPanel({ form }) {
   const [pauseModalOpen, setPauseModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [shareLinks, setShareLinks] = useState(null);
   const abortRef = useRef(null);
 
   const formPaused = isFormPaused(form);
@@ -167,6 +169,38 @@ function AnalyticsSettingsPanel({ form }) {
   }, [form?.id, form?.title, form?.responseLimit, form?.lifecycleMode, form?.capturePartialSubmissions, form?.alertSettings]);
 
   useEffect(() => {
+    if (!form?.id) {
+      setShareLinks(null);
+      return;
+    }
+    let cancelled = false;
+    fetchShareLinks(form.id)
+      .then((data) => {
+        if (!cancelled) setShareLinks(data);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setShareLinks({
+            publicUrl: buildFallbackPublicUrl(form.id),
+            shortDisplay: `${window.location.host}/f/${form.id}`,
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [form?.id]);
+
+  const fullUrl =
+    shareLinks?.publicUrl ??
+    (form?.id ? buildFallbackPublicUrl(form.id) : '');
+  const formUrl =
+    shareLinks?.shortDisplay ??
+    (form?.id && typeof window !== 'undefined'
+      ? `${window.location.host}/f/${form.id}`
+      : '');
+
+  useEffect(() => {
     dispatch(setConfirmModalOpen(pauseModalOpen || deleteModalOpen));
     return () => dispatch(setConfirmModalOpen(false));
   }, [pauseModalOpen, deleteModalOpen, dispatch]);
@@ -195,21 +229,6 @@ function AnalyticsSettingsPanel({ form }) {
     dispatchSyncFormAlerts(dispatch, nextForm);
     persistAlertSettings(next);
   };
-
-  const slug = useMemo(() => {
-    const source = form?.title ?? name;
-    return (
-      source
-        .toLowerCase()
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9-]/g, '')
-        .replace(/^-|-$/g, '')
-        .slice(0, 40) || 'your-form'
-    );
-  }, [form?.title, name]);
-
-  const formUrl = `form.clearform.io/${slug}`;
-  const fullUrl = `https://${formUrl}`;
 
   const copyLink = () => {
     navigator.clipboard?.writeText(fullUrl);

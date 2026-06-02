@@ -2,7 +2,7 @@ import { RiSparklingLine } from 'react-icons/ri';
 
 /**
  * Figma: Clearform-Changes — AI-Driven Logic sticky banner (node 1992:42915).
- * Shown when AI mode is active and logic has not been generated yet.
+ * Sticky header on the Logic tab in AI-Driven mode (Generate / re-generate).
  */
 const AiLogicIdleBanner = ({
   onGenerate,

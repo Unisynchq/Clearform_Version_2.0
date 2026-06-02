@@ -17,6 +17,7 @@ import { selectNavWorkspaces } from '@/store/slices/formsSlice';
 import { openFormOverlay, openCreateNewFormModal } from '@/store/slices/uiSlice';
 import { readRecentSearches, saveRecentSearch } from '@/utils/searchRecentStorage';
 import { useToast } from '@/hooks/useToast';
+import { buildFallbackPublicUrl, fetchShareLinks } from '@/api/services/shareService';
 
 const WORKSPACE_COLORS = ['#2e7d52', '#1d6fd8', '#b45309', '#6b6966', '#7c3aed', '#c2410c'];
 
@@ -79,14 +80,6 @@ const RowItem = ({
 );
 
 const Divider = () => <div className="h-px bg-[#e5e3dc] mx-4" />;
-
-function formPublicSlug(title) {
-  return (title || 'form')
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '') || 'form';
-}
 
 function statusBadge(form) {
   if (form.status === 'live') {
@@ -155,7 +148,10 @@ const FilledState = ({
   onCreateNewForm,
 }) => {
   const primary = matchingForms[0];
-  const slug = formPublicSlug(primary?.title);
+  const linkDisplay =
+    primary?.id && typeof window !== 'undefined'
+      ? `${window.location.host}/f/${primary.id}`
+      : '—';
 
   return (
     <div>
@@ -204,7 +200,7 @@ const FilledState = ({
             <RowItem
               icon={RiLink}
               title="Copy form link"
-              subtitle={`form.clearform.io/${slug}`}
+              subtitle={linkDisplay}
               kbd="⌘C"
               onClick={() => onCopyLink(primary)}
             />
@@ -344,7 +340,13 @@ const SearchDropdown = ({ open, query, anchorRef, onClose, onQueryChange, onCrea
 
   const handleCopyLink = useCallback(
     async (form) => {
-      const url = `https://form.clearform.io/${formPublicSlug(form.title)}`;
+      let url = buildFallbackPublicUrl(form.id);
+      try {
+        const links = await fetchShareLinks(form.id);
+        url = links?.publicUrl ?? url;
+      } catch {
+        // keep fallback
+      }
       try {
         await navigator.clipboard.writeText(url);
         showToast({ type: 'success', message: 'Form link copied' });

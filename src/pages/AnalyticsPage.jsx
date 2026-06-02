@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { fetchPerformanceAnalytics, generateAiInsights } from '@/api/services/analyticsService';
+import { isApiConfigured } from '@/config/env';
 import { motion, AnimatePresence } from 'motion/react';
 import { useHydrationFrame } from '@/hooks/useHydrationFrame';
 import { useAnalyticsPageState } from '@/hooks/useAnalyticsPageState';
@@ -68,12 +69,12 @@ const AnalyticsPage = () => {
   }, []);
 
   useEffect(() => {
-    if (!selectedFormId || activeTab !== 'performance') return;
+    if (!selectedFormId) return;
     setPerfApiStats(null);
     fetchPerformanceAnalytics(selectedFormId, { range: rangeLabelToParam(rangeLabel) })
       .then((data) => { if (data && !data.source) setPerfApiStats(data); })
       .catch(() => {});
-  }, [selectedFormId, activeTab, rangeLabel, rangeLabelToParam]);
+  }, [selectedFormId, rangeLabel, rangeLabelToParam]);
 
   useEffect(() => {
     if (!selectedFormId || activeTab !== 'ai') return;
@@ -153,11 +154,14 @@ const AnalyticsPage = () => {
 
   const showDateFilter = activeTab !== 'settings';
 
+  const effectiveHasResponseData =
+    (perfApiStats?.responses ?? 0) > 0 || (selectedForm?.responses ?? 0) > 0;
+
   const mainContentKey = effectiveLoading
     ? `loading-${activeTab}-${selectedFormId ?? 'none'}`
     : `ready-${activeTab}-${selectedFormId ?? 'none'}-${
         activeTab === 'ai' ? aiInsightsVisit : '0'
-      }-${activeTab === 'performance' && !hasResponseData ? 'empty' : 'full'}`;
+      }-${activeTab === 'performance' && !effectiveHasResponseData ? 'empty' : 'full'}`;
 
   const renderLoadingSkeleton = () => {
     if (activeTab === 'performance') return <AnalyticsPerformanceSkeleton />;
@@ -172,7 +176,7 @@ const AnalyticsPage = () => {
 
     switch (activeTab) {
       case 'performance':
-        if (!hasResponseData) {
+        if (!effectiveHasResponseData) {
           return (
             <AnalyticsPerformanceEmpty
               onPreview={goBuilder}
@@ -339,9 +343,11 @@ const AnalyticsPage = () => {
             </div>
           </div>
           <div className="flex items-center justify-end gap-3 shrink-0">
-            <span className="hidden sm:inline-flex items-center rounded-full border border-[#e5e3dc] bg-[#fafaf8] px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.04em] text-[#888580]">
-              Sample data
-            </span>
+            {!isApiConfigured() || !perfApiStats ? (
+              <span className="hidden sm:inline-flex items-center rounded-full border border-[#e5e3dc] bg-[#fafaf8] px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.04em] text-[#888580]">
+                Sample data
+              </span>
+            ) : null}
             {headerActions()}
           </div>
         </header>
