@@ -13,7 +13,17 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+
 export const microsoftProvider = new OAuthProvider('microsoft.com');
-microsoftProvider.setCustomParameters({ prompt: 'select_account' });
+// prompt=login avoids Microsoft FIDO/passkey "Confirm sign in?" hanging on Brave + wallet extensions.
+microsoftProvider.setCustomParameters({ prompt: 'login' });
 microsoftProvider.addScope('email');
 microsoftProvider.addScope('profile');
+
+/** Canonical HTTPS origin for Firebase redirect (must match VITE_FIREBASE_AUTH_DOMAIN). */
+export function getFirebaseAuthOrigin() {
+  const raw = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN;
+  if (!raw || typeof raw !== 'string') return null;
+  const host = raw.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  return host ? `https://${host}` : null;
+}

@@ -10,7 +10,7 @@ import {
   sendPasswordResetEmail,
   onAuthStateChanged,
 } from 'firebase/auth';
-import { auth, googleProvider, microsoftProvider } from '@/config/firebase';
+import { auth, googleProvider, microsoftProvider, getFirebaseAuthOrigin } from '@/config/firebase';
 import { fetchMe } from '@/api/services/authMeService';
 import { isApiConfigured } from '@/config/env';
 
@@ -18,7 +18,22 @@ const TOKEN_KEY = 'clearform:auth-token';
 export const AUTH_RETURN_TO_KEY = 'clearform:auth-return-to';
 export const AUTH_REDIRECT_PENDING_KEY = 'clearform:auth-redirect-pending';
 
+const AUTH_LOG_PREFIX = '[clearform:auth]';
+const REDIRECT_SETTLE_MS = 400;
+
 let redirectResultPromise = null;
+
+function logAuthDebug(step, detail = {}) {
+  if (typeof console !== 'undefined' && console.info) {
+    console.info(AUTH_LOG_PREFIX, step, detail);
+  }
+}
+
+function logAuthWarn(step, detail = {}) {
+  if (typeof console !== 'undefined' && console.warn) {
+    console.warn(AUTH_LOG_PREFIX, step, detail);
+  }
+}
 
 /** Wait until Firebase has resolved the initial auth state (authStateReady is unavailable in this SDK). */
 function waitForFirebaseAuthInit() {
@@ -27,6 +42,12 @@ function waitForFirebaseAuthInit() {
       unsub();
       resolve();
     });
+  });
+}
+
+function delay(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
   });
 }
 
@@ -62,6 +83,7 @@ function mapFirebaseError(error) {
     'auth/weak-password': 'Password must be at least 6 characters.',
     'auth/too-many-requests': 'Too many attempts. Please try again later.',
     'auth/popup-closed-by-user': 'Sign-in was cancelled.',
+    'auth/popup-blocked': 'Popup was blocked. Allow popups for this site or use redirect sign-in.',
     'auth/cancelled-popup-request': 'Sign-in was cancelled.',
     'auth/network-request-failed': 'Network error. Check your connection.',
     'auth/account-exists-with-different-credential':
@@ -71,6 +93,8 @@ function mapFirebaseError(error) {
     'auth/unauthorized-domain':
       'This site is not authorized for sign-in. Add app.clearform.in to Firebase Authorized domains.',
     'auth/operation-not-allowed': 'This sign-in method is not enabled for this app.',
+    'auth/web-storage-unsupported':
+      'Sign-in storage is blocked. Allow cookies for this site (Brave Shields / strict privacy).',
   };
   return map[error.code] ?? error.message ?? 'Authentication failed.';
 }
@@ -79,9 +103,29 @@ function mapFirebaseError(error) {
 export function getMicrosoftRedirectNullErrorMessage() {
   return (
     'Microsoft sign-in did not finish (Firebase returned no redirect session). ' +
-    'Try Chrome or allow third-party cookies for this site (Brave often blocks them). ' +
-    'If it keeps failing, confirm app.clearform.in is in Firebase Authorized domains and Azure redirect URIs match Firebase.'
+    'On Brave: lower Shields for login.microsoftonline.com and login.live.com, disable wallet extensions, or try Chrome incognito. ' +
+    'Confirm app.clearform.in is in Firebase Authorized domains and Azure redirect URIs match Firebase.'
   );
+}
+
+/**
+ * Redirect OAuth must start and finish on the same origin as VITE_FIREBASE_AUTH_DOMAIN.
+ * If the user opened www or localhost while prod authDomain is app.clearform.in, hop first.
+ */
+export function resolveMicrosoftRedirectStartUrl(returnTo) {
+  const authOrigin = getFirebaseAuthOrigin();
+  if (!authOrigin || typeof window === 'undefined') return null;
+
+  const current = window.location.origin;
+  if (current === authOrigin) return null;
+
+  const path = '/signin';
+  const params = new URLSearchParams();
+  params.set('provider', 'microsoft');
+  if (typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//')) {
+    params.set('returnTo', returnTo);
+  }
+  return `${authOrigin}${path}?${params.toString()}`;
 }
 
 /**
@@ -133,6 +177,7 @@ async function buildUserFromFirebaseResult(result) {
 export async function restoreFirebaseSessionFromCurrentUser() {
   const user = auth.currentUser;
   if (!user?.email) return null;
+  logAuthDebug('session-bridge', { uid: user.uid, email: user.email });
   return buildUserFromFirebaseUser(user, { isNewUser: isRecentlyCreatedFirebaseUser(user) });
 }
 
@@ -140,6 +185,13 @@ export async function restoreFirebaseSessionFromCurrentUser() {
  * Microsoft on Mac/Brave: popup handler often stays blank — use full-page redirect.
  */
 export async function startMicrosoftSignInRedirect(returnTo) {
+  const canonicalUrl = resolveMicrosoftRedirectStartUrl(returnTo);
+  if (canonicalUrl) {
+    logAuthDebug('microsoft-redirect-hop', { from: window.location.origin, to: canonicalUrl });
+    window.location.assign(canonicalUrl);
+    return;
+  }
+
   try {
     if (typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//')) {
       sessionStorage.setItem(AUTH_RETURN_TO_KEY, returnTo);
@@ -147,9 +199,26 @@ export async function startMicrosoftSignInRedirect(returnTo) {
       sessionStorage.removeItem(AUTH_RETURN_TO_KEY);
     }
     sessionStorage.setItem(AUTH_REDIRECT_PENDING_KEY, 'microsoft');
+    logAuthDebug('microsoft-redirect-start', { origin: window.location.origin });
     await signInWithRedirect(auth, microsoftProvider);
   } catch (error) {
     sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
+    logAuthWarn('microsoft-redirect-start-failed', { code: error?.code, message: error?.message });
+    throw new Error(mapFirebaseError(error));
+  }
+}
+
+/**
+ * Optional fallback when redirect fails (popup often blank on Brave — user must opt in).
+ */
+export async function startMicrosoftSignInPopup() {
+  try {
+    sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
+    logAuthDebug('microsoft-popup-start', { origin: window.location.origin });
+    const result = await signInWithPopup(auth, microsoftProvider);
+    return await buildUserFromFirebaseResult(result);
+  } catch (error) {
+    logAuthWarn('microsoft-popup-failed', { code: error?.code, message: error?.message });
     throw new Error(mapFirebaseError(error));
   }
 }
@@ -168,6 +237,40 @@ export function readAuthReturnTo() {
   return undefined;
 }
 
+async function consumeRedirectSignInResultInternal() {
+  await waitForFirebaseAuthInit();
+  await delay(REDIRECT_SETTLE_MS);
+
+  let result = null;
+  try {
+    result = await getRedirectResult(auth);
+  } catch (error) {
+    logAuthWarn('getRedirectResult-error', { code: error?.code, message: error?.message });
+    throw new Error(mapFirebaseError(error));
+  }
+
+  if (result?.user) {
+    logAuthDebug('redirect-result-ok', { uid: result.user.uid, provider: result.providerId });
+    sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
+    return buildUserFromFirebaseResult(result);
+  }
+
+  const pending = sessionStorage.getItem(AUTH_REDIRECT_PENDING_KEY);
+  if (pending) {
+    logAuthDebug('redirect-result-null', {
+      pending,
+      hasCurrentUser: Boolean(auth.currentUser?.email),
+    });
+    const bridged = await restoreFirebaseSessionFromCurrentUser();
+    if (bridged) {
+      sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
+      return bridged;
+    }
+  }
+
+  return null;
+}
+
 /**
  * Call once on app load after returning from Microsoft OAuth redirect.
  */
@@ -175,24 +278,10 @@ export async function consumeRedirectSignInResult() {
   if (!redirectResultPromise) {
     redirectResultPromise = (async () => {
       try {
-        await waitForFirebaseAuthInit();
-        const result = await getRedirectResult(auth);
-        if (!result?.user) {
-          const pending = sessionStorage.getItem(AUTH_REDIRECT_PENDING_KEY);
-          if (pending) {
-            const bridged = await restoreFirebaseSessionFromCurrentUser();
-            if (bridged) {
-              sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
-              return bridged;
-            }
-          }
-          return null;
-        }
-        const user = await buildUserFromFirebaseResult(result);
-        sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
-        return user;
+        return await consumeRedirectSignInResultInternal();
       } catch (error) {
         sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
+        if (error instanceof Error) throw error;
         throw new Error(mapFirebaseError(error));
       }
     })();

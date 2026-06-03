@@ -1,6 +1,6 @@
-import { useState, useCallback, memo } from 'react';
+import { useState, useCallback, memo, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { FcGoogle } from 'react-icons/fc';
 import { RiGlobalLine, RiArrowDownSLine, RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
@@ -13,8 +13,10 @@ import {
   signInWithEmail,
   signInWithGoogle,
   startMicrosoftSignInRedirect,
+  startMicrosoftSignInPopup,
 } from '@/features/auth/services/firebaseAuthService';
 import AuthFieldError from '@/features/auth/components/AuthFieldError';
+import AuthBrowserTipBanner from '@/features/auth/components/AuthBrowserTipBanner';
 import {
   hasValidationErrors,
   validateSignInForm,
@@ -149,9 +151,12 @@ const SignInPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
-  const { email, password, isSubmitting } = useSelector((state) => state.auth);
+  const { email, password, isSubmitting, error: authError } = useSelector((state) => state.auth);
   const [errors, setErrors] = useState({});
+  const [showPopupFallback, setShowPopupFallback] = useState(false);
+  const microsoftAutoStartRef = useRef(false);
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
@@ -193,13 +198,57 @@ const SignInPage = () => {
   const handleMicrosoftSignIn = useCallback(async () => {
     dispatch(setSubmitting(true));
     dispatch(setError(null));
+    setShowPopupFallback(false);
     try {
       await startMicrosoftSignInRedirect(location.state?.from);
     } catch (err) {
       dispatch(setError(err.message));
+      setShowPopupFallback(true);
       dispatch(setSubmitting(false));
     }
   }, [dispatch, location.state]);
+
+  const handleMicrosoftPopupFallback = useCallback(async () => {
+    dispatch(setSubmitting(true));
+    dispatch(setError(null));
+    try {
+      const user = await startMicrosoftSignInPopup();
+      applyBackendOnboardingState(dispatch, user.onboardingCompleted);
+      const path = resolveAuthNavigationAfterSync(dispatch, {
+        onboardingCompleted: user.onboardingCompleted,
+        returnTo: location.state?.from,
+      });
+      dispatch(loginSuccess({
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      }));
+      showToast({ type: 'success', message: 'Signed in with Microsoft', duration: 3000 });
+      navigate(path, { replace: true });
+    } catch (err) {
+      dispatch(setError(err.message));
+    } finally {
+      dispatch(setSubmitting(false));
+    }
+  }, [dispatch, navigate, location.state, showToast]);
+
+  useEffect(() => {
+    if (searchParams.get('provider') !== 'microsoft' || microsoftAutoStartRef.current) return;
+    microsoftAutoStartRef.current = true;
+    const returnTo = searchParams.get('returnTo');
+    const next = new URLSearchParams(searchParams);
+    next.delete('provider');
+    next.delete('returnTo');
+    setSearchParams(next, { replace: true });
+    dispatch(setSubmitting(true));
+    startMicrosoftSignInRedirect(
+      typeof returnTo === 'string' && returnTo.startsWith('/') ? returnTo : location.state?.from,
+    ).catch((err) => {
+      dispatch(setError(err.message));
+      setShowPopupFallback(true);
+      dispatch(setSubmitting(false));
+    });
+  }, [searchParams, setSearchParams, location.state, dispatch]);
 
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
@@ -249,6 +298,8 @@ const SignInPage = () => {
             </p>
           </div>
 
+          <AuthBrowserTipBanner />
+
           {/* Form */}
           <form onSubmit={handleSubmit} className="flex flex-col gap-[14px]" noValidate>
             <InputField
@@ -264,6 +315,22 @@ const SignInPage = () => {
               <SocialButton label="Continue with Google" onClick={handleGoogleSignIn}><FcGoogle size={22} /></SocialButton>
               <SocialButton label="Continue with Microsoft" onClick={handleMicrosoftSignIn}><MicrosoftIcon /></SocialButton>
             </div>
+
+            {(showPopupFallback || (authError && /Microsoft sign-in did not finish/i.test(authError))) && (
+              <div className="rounded-[10px] border border-[rgba(81,76,84,0.15)] bg-[#fafafa] px-3 py-2">
+                <p className="text-[12px] leading-[18px] text-[#655d67]">
+                  Redirect sign-in failed. You can try a popup window — it may stay blank in Brave.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleMicrosoftPopupFallback}
+                  disabled={isSubmitting}
+                  className="mt-1.5 text-[12px] font-medium text-[#18181b] underline cursor-pointer disabled:opacity-60"
+                >
+                  Try Microsoft popup sign-in
+                </button>
+              </div>
+            )}
 
             {/* CTA */}
             <div className="flex flex-col gap-3">

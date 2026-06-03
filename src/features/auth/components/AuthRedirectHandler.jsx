@@ -13,6 +13,7 @@ import {
   AUTH_REDIRECT_PENDING_KEY,
   getMicrosoftRedirectNullErrorMessage,
   resetRedirectSignInConsumption,
+  restoreFirebaseSessionFromCurrentUser,
 } from '@/features/auth/services/firebaseAuthService';
 import { useToast } from '@/hooks/useToast';
 
@@ -54,10 +55,17 @@ const AuthRedirectHandler = () => {
     setSyncError(null);
 
     try {
-      const user = await consumeRedirectSignInResult();
+      let user = await consumeRedirectSignInResult();
+
+      if (!user && pending === 'microsoft' && auth.currentUser?.email) {
+        user = await restoreFirebaseSessionFromCurrentUser();
+        if (user) sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
+      }
+
       if (!user) {
         if (pending === 'microsoft') {
           if (!auth.currentUser) {
+            logPendingMicrosoftNoUser();
             return;
           }
           sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
@@ -72,6 +80,7 @@ const AuthRedirectHandler = () => {
         }
         return;
       }
+
       await completeSignIn(user);
     } catch (err) {
       const message =
@@ -112,5 +121,13 @@ const AuthRedirectHandler = () => {
     </div>
   );
 };
+
+function logPendingMicrosoftNoUser() {
+  if (typeof console !== 'undefined' && console.info) {
+    console.info('[clearform:auth]', 'microsoft-redirect-pending-no-user', {
+      hint: 'Waiting for FirebaseSessionBridge or user to complete Microsoft OAuth',
+    });
+  }
+}
 
 export default AuthRedirectHandler;

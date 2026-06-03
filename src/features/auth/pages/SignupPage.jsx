@@ -15,6 +15,7 @@ import {
   startMicrosoftSignInRedirect,
 } from '@/features/auth/services/firebaseAuthService';
 import AuthFieldError from '@/features/auth/components/AuthFieldError';
+import AuthBrowserTipBanner from '@/features/auth/components/AuthBrowserTipBanner';
 import {
   hasValidationErrors,
   validateSignupForm,
@@ -282,6 +283,8 @@ const SignupPage = () => {
               Continue building forms, gathering responses, and automating your workflows.
             </p>
           </div>
+
+          <AuthBrowserTipBanner />
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="flex flex-col gap-[14px]" noValidate>
