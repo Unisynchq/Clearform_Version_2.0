@@ -14,8 +14,43 @@ function defaultHoverIndex(days) {
   return best;
 }
 
-export default function SevenDayTrendChart({ form }) {
-  const days = useMemo(() => buildSevenDayTrend(form), [form?.id, form?.responses]);
+function buildDaysFromApi(sevenDayTrend) {
+  if (!Array.isArray(sevenDayTrend) || sevenDayTrend.length === 0) return null;
+  const maxCount = Math.max(1, ...sevenDayTrend.map((d) => d.count ?? 0));
+  return sevenDayTrend.map((d, index) => {
+    const responses = d.count ?? 0;
+    const height = Math.round((responses / maxCount) * 100) || 4;
+    const isAccent = index >= 4;
+    return {
+      label: d.label ?? '',
+      responses,
+      height,
+      color: isAccent ? '#1a6133' : index === 1 || index === 2 ? '#c5d9cc' : '#efecea',
+      opacity: isAccent ? 0.6 : 1,
+      isAccent,
+    };
+  });
+}
+
+function buildEmptyDaysFromApi() {
+  const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  return labels.map((label, index) => ({
+    label,
+    responses: 0,
+    height: 12,
+    color: index >= 4 ? '#1a6133' : index === 1 || index === 2 ? '#c5d9cc' : '#efecea',
+    opacity: index >= 4 ? 0.6 : 1,
+    isAccent: index >= 4,
+  }));
+}
+
+export default function SevenDayTrendChart({ form, sevenDayTrend, useLiveData = false }) {
+  const days = useMemo(() => {
+    const fromApi = buildDaysFromApi(sevenDayTrend);
+    if (fromApi) return fromApi;
+    if (useLiveData) return buildEmptyDaysFromApi();
+    return buildSevenDayTrend(form);
+  }, [form?.id, form?.responses, sevenDayTrend, useLiveData]);
   const [hovered, setHovered] = useState(() => defaultHoverIndex(days));
 
   useEffect(() => {

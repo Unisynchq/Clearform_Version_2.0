@@ -7,6 +7,8 @@ import {
   signOut,
   updateProfile,
   getAdditionalUserInfo,
+  sendPasswordResetEmail,
+  onAuthStateChanged,
 } from 'firebase/auth';
 import { auth, googleProvider, microsoftProvider } from '@/config/firebase';
 import { fetchMe } from '@/api/services/authMeService';
@@ -17,6 +19,16 @@ export const AUTH_RETURN_TO_KEY = 'clearform:auth-return-to';
 export const AUTH_REDIRECT_PENDING_KEY = 'clearform:auth-redirect-pending';
 
 let redirectResultPromise = null;
+
+/** Wait until Firebase has resolved the initial auth state (authStateReady is unavailable in this SDK). */
+function waitForFirebaseAuthInit() {
+  return new Promise((resolve) => {
+    const unsub = onAuthStateChanged(auth, () => {
+      unsub();
+      resolve();
+    });
+  });
+}
 
 async function storeToken(user) {
   const token = await user.getIdToken();
@@ -54,8 +66,22 @@ function mapFirebaseError(error) {
     'auth/network-request-failed': 'Network error. Check your connection.',
     'auth/account-exists-with-different-credential':
       'An account already exists with this email using a different sign-in method.',
+    'auth/redirect-cancelled-by-user': 'Sign-in was cancelled before it completed.',
+    'auth/redirect-operation-pending': 'Sign-in is still in progress. Wait a moment and try again.',
+    'auth/unauthorized-domain':
+      'This site is not authorized for sign-in. Add app.clearform.in to Firebase Authorized domains.',
+    'auth/operation-not-allowed': 'This sign-in method is not enabled for this app.',
   };
   return map[error.code] ?? error.message ?? 'Authentication failed.';
+}
+
+/** When Microsoft redirect pending but getRedirectResult() is null after auth is ready. */
+export function getMicrosoftRedirectNullErrorMessage() {
+  return (
+    'Microsoft sign-in did not finish (Firebase returned no redirect session). ' +
+    'Try Chrome or allow third-party cookies for this site (Brave often blocks them). ' +
+    'If it keeps failing, confirm app.clearform.in is in Firebase Authorized domains and Azure redirect URIs match Firebase.'
+  );
 }
 
 /**
@@ -82,13 +108,32 @@ export async function syncUserWithBackend() {
   }
 }
 
-async function buildUserFromFirebaseResult(result) {
-  const { user } = result;
+async function buildUserFromFirebaseUser(user, { isNewUser } = {}) {
   await storeToken(user);
   const { firstName, lastName } = parseDisplayName(user.displayName);
-  const isNewUser = resolveIsNewUser(result, user);
   const backend = await syncUserWithBackend();
-  return { email: user.email, firstName, lastName, isNewUser, ...backend };
+  return {
+    email: user.email,
+    firstName,
+    lastName,
+    isNewUser: isNewUser === true,
+    ...backend,
+  };
+}
+
+async function buildUserFromFirebaseResult(result) {
+  const { user } = result;
+  const isNewUser = resolveIsNewUser(result, user);
+  return buildUserFromFirebaseUser(user, { isNewUser });
+}
+
+/**
+ * When getRedirectResult is null but Firebase still has a session (redirect race / Brave).
+ */
+export async function restoreFirebaseSessionFromCurrentUser() {
+  const user = auth.currentUser;
+  if (!user?.email) return null;
+  return buildUserFromFirebaseUser(user, { isNewUser: isRecentlyCreatedFirebaseUser(user) });
 }
 
 /**
@@ -109,6 +154,11 @@ export async function startMicrosoftSignInRedirect(returnTo) {
   }
 }
 
+/** Clears cached redirect consumption so Retry can call getRedirectResult again. */
+export function resetRedirectSignInConsumption() {
+  redirectResultPromise = null;
+}
+
 export function readAuthReturnTo() {
   const returnTo = sessionStorage.getItem(AUTH_RETURN_TO_KEY);
   sessionStorage.removeItem(AUTH_RETURN_TO_KEY);
@@ -125,10 +175,22 @@ export async function consumeRedirectSignInResult() {
   if (!redirectResultPromise) {
     redirectResultPromise = (async () => {
       try {
+        await waitForFirebaseAuthInit();
         const result = await getRedirectResult(auth);
+        if (!result?.user) {
+          const pending = sessionStorage.getItem(AUTH_REDIRECT_PENDING_KEY);
+          if (pending) {
+            const bridged = await restoreFirebaseSessionFromCurrentUser();
+            if (bridged) {
+              sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
+              return bridged;
+            }
+          }
+          return null;
+        }
+        const user = await buildUserFromFirebaseResult(result);
         sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
-        if (!result?.user) return null;
-        return await buildUserFromFirebaseResult(result);
+        return user;
       } catch (error) {
         sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
         throw new Error(mapFirebaseError(error));
@@ -183,4 +245,14 @@ export async function signOutUser() {
   sessionStorage.removeItem(AUTH_RETURN_TO_KEY);
   redirectResultPromise = null;
   await signOut(auth);
+}
+
+export async function requestPasswordResetEmail(email) {
+  const trimmed = (email ?? '').trim();
+  if (!trimmed) throw new Error('Enter your email address first.');
+  try {
+    await sendPasswordResetEmail(auth, trimmed);
+  } catch (error) {
+    throw new Error(mapFirebaseError(error));
+  }
 }

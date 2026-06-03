@@ -8,6 +8,7 @@ import slackIcon from '@/assets/Icons/slack.svg';
 import { isApiConfigured } from '@/config/env';
 import {
   connectIntegration,
+  disconnectIntegration,
   listWorkspaceIntegrations,
   mapConnectionsToUiState,
   redirectToOAuth,
@@ -66,6 +67,19 @@ const ProfileIntegrationsPanel = () => {
     setIntegrations(mergeIntegrations(readIntegrationSettings(email)));
   }, [email, useApi, refreshFromApi]);
 
+  useEffect(() => {
+    if (!useApi) return;
+    const connected = searchParams.get('connected');
+    if (connected) {
+      refreshFromApi();
+      showToast({
+        type: 'success',
+        message: `${connected.replace(/_/g, ' ')} connected successfully.`,
+        duration: 2800,
+      });
+    }
+  }, [searchParams, useApi, refreshFromApi, showToast]);
+
   const persistLocal = useCallback(
     (next) => {
       setIntegrations(next);
@@ -102,16 +116,39 @@ const ProfileIntegrationsPanel = () => {
       }
       return;
     }
+    if (isApiConfigured()) {
+      showToast({
+        type: 'error',
+        message: 'Create a workspace before connecting integrations.',
+        duration: 3200,
+      });
+      return;
+    }
     setConnectedLocal(key, true);
     showToast({ type: 'success', message: `${name} connected (demo).`, duration: 2200 });
   };
 
-  const handleDisconnect = (key, name) => {
+  const handleDisconnect = async (key, name) => {
+    const connectionId = integrations[key]?.connectionId;
+    if (useApi && workspaceId && connectionId) {
+      try {
+        await disconnectIntegration(workspaceId, connectionId);
+        await refreshFromApi();
+        showToast({ type: 'success', message: `${name} disconnected.`, duration: 2200 });
+      } catch (err) {
+        showToast({
+          type: 'error',
+          message: err?.message ?? `Could not disconnect ${name}.`,
+          duration: 2800,
+        });
+      }
+      return;
+    }
     if (useApi) {
       showToast({
         type: 'info',
-        message: `Disconnect ${name} from your Composio dashboard or contact support.`,
-        duration: 2800,
+        message: `${name} is not connected.`,
+        duration: 2200,
       });
       return;
     }

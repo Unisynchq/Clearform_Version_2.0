@@ -114,7 +114,7 @@ const accentButtonStyle = (accent) => ({
 /** Preview viewport chrome heights — Figma Clearform-Changes 2521:8332 */
 const PREVIEW_PAGE_INDICATOR_H = 34;
 const PREVIEW_POWERED_BY_H = 38;
-const PREVIEW_CHROME_H = PREVIEW_PAGE_INDICATOR_H + PREVIEW_POWERED_BY_H;
+export const PREVIEW_CHROME_H = PREVIEW_PAGE_INDICATOR_H + PREVIEW_POWERED_BY_H;
 
 /** Page counter shown above the form card in preview — Figma 2521:8332 */
 export const PreviewPageIndicator = ({ current, total }) => (

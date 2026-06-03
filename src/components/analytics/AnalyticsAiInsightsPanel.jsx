@@ -14,6 +14,11 @@ import {
 import QuickStatsCard from './aiInsights/QuickStatsCard';
 import RecommendedActionsCard from './aiInsights/RecommendedActionsCard';
 import MoreDetailsTrigger from './aiInsights/MoreDetailsTrigger';
+import {
+  mapPatternsFromApi,
+  mapRecommendedActionsFromApi,
+} from './aiInsights/aiInsightsApiMappers';
+import { isApiConfigured } from '@/config/env';
 
 const LOAD_MS = 1800;
 const MIN_RESPONSES_FOR_AI = 10;
@@ -431,7 +436,13 @@ function AiSummaryBanner({ insight, npsScore }) {
 /*  Priority Focus — Figma 2241:18322                                         */
 /* -------------------------------------------------------------------------- */
 
-function PriorityFocusCard() {
+function PriorityFocusCard({ title, body, impactEstimate }) {
+  const focusTitle = title || 'Review recent feedback';
+  const focusBody =
+    body ||
+    'Open the Responses tab to read what respondents are saying and spot recurring themes.';
+  const impact = impactEstimate || 'Growing sample';
+
   return (
     <div className="rounded-[18px] border border-[rgba(152,16,250,0.2)] bg-[#f3f0f5] flex items-start justify-between gap-6 px-[18px] py-[22px]">
       <div className="flex-1 min-w-0">
@@ -439,15 +450,10 @@ function PriorityFocusCard() {
           PRIORITY FOCUS
         </p>
         <p className="mt-[7px] text-[20px] font-semibold leading-[26px] text-black">
-          Invest in Pricing Clarity
+          {focusTitle}
         </p>
-        <p className="mt-[6px] text-[14px] font-normal leading-[21.45px] text-[rgba(0,0,0,0.5)]">
-          This addresses your top user pain point and could improve conversion by 25%, impacting
-          312+ users immediately.
-          <br aria-hidden />
-          It reduces friction in the user journey, making actions faster and more intuitive.
-          <br aria-hidden />
-          This change also strengthens overall user trust and engagement with the platform.
+        <p className="mt-[6px] text-[14px] font-normal leading-[21.45px] text-[rgba(0,0,0,0.5)] whitespace-pre-line">
+          {focusBody}
         </p>
       </div>
 
@@ -457,7 +463,7 @@ function PriorityFocusCard() {
             Estimated Impact
           </p>
           <p className="text-[14px] font-semibold leading-[21px] text-[rgba(0,0,0,0.9)] text-right">
-            Very High
+            {impact}
           </p>
         </div>
         <div className="flex flex-col items-end gap-[2px]">
@@ -527,8 +533,9 @@ function TopPatternsCompactRow({ pattern: p, isLast }) {
   );
 }
 
-function TopPatternsCard() {
+function TopPatternsCard({ patterns }) {
   const [expanded, setExpanded] = useState(false);
+  const list = patterns ?? TOP_PATTERNS;
 
   return (
     <div className="bg-white border-[1.286px] border-[rgba(0,0,0,0.11)] rounded-[18px] px-[30px] pt-[27px] pb-[27px] overflow-hidden">
@@ -549,7 +556,7 @@ function TopPatternsCard() {
           </p>
           {expanded ? (
             <p className="mt-1 text-[13px] font-normal leading-normal text-[#9b9b95]">
-              AI-prioritised based on impact & effort · {TOP_PATTERNS.length} patterns total
+              AI-prioritised based on impact & effort · {list.length} patterns total
             </p>
           ) : null}
         </div>
@@ -567,11 +574,11 @@ function TopPatternsCard() {
             className="overflow-hidden"
           >
             <div className="flex flex-col gap-[17px] pt-[14px]">
-              {TOP_PATTERNS.map((p, idx) => (
+              {list.map((p, idx) => (
                 <div
                   key={p.label}
                   className={`pb-[17px] ${
-                    idx < TOP_PATTERNS.length - 1 ? 'border-b border-[rgba(0,0,0,0.07)]' : ''
+                    idx < list.length - 1 ? 'border-b border-[rgba(0,0,0,0.07)]' : ''
                   }`}
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-[18px]">
@@ -627,11 +634,11 @@ function TopPatternsCard() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
           >
-            {TOP_PATTERNS.map((p, idx) => (
+            {list.map((p, idx) => (
               <TopPatternsCompactRow
                 key={p.label}
                 pattern={p}
-                isLast={idx === TOP_PATTERNS.length - 1}
+                isLast={idx === list.length - 1}
               />
             ))}
           </motion.div>
@@ -721,6 +728,22 @@ function AnalyticsAiInsightsPanel({
     return () => window.clearTimeout(timeoutId);
   }, [hasEnoughResponses, form?.id, showNoDataPeriod, rangeLabel, loadKey, apiInsights?.status]);
 
+  const apiLive = isApiConfigured() && apiInsights?.status === 'ready';
+
+  const mappedPatterns = useMemo(() => {
+    if (apiLive) {
+      return mapPatternsFromApi(apiInsights.patterns);
+    }
+    return null;
+  }, [apiInsights, apiLive]);
+
+  const mappedActions = useMemo(() => {
+    if (apiLive) {
+      return mapRecommendedActionsFromApi(apiInsights.recommendedActions);
+    }
+    return null;
+  }, [apiInsights, apiLive]);
+
   if (showNoDataPeriod) {
     return (
       <div className="mx-auto w-full max-w-[480px]">
@@ -740,6 +763,13 @@ function AnalyticsAiInsightsPanel({
     );
   }
 
+  const patternsForCard =
+    apiLive && mappedPatterns?.length
+      ? mappedPatterns
+      : apiLive
+        ? []
+        : TOP_PATTERNS;
+
   const patternsColumn =
     patternsLoadError ? (
       <TopPatternsErrorCard
@@ -750,8 +780,10 @@ function AnalyticsAiInsightsPanel({
       />
     ) : responseCount < MIN_RESPONSES_PATTERNS ? (
       <TopPatternsNotEnoughCard responseCount={responseCount} />
+    ) : patternsForCard.length > 0 ? (
+      <TopPatternsCard patterns={patternsForCard} />
     ) : (
-      <TopPatternsCard />
+      <TopPatternsNotEnoughCard responseCount={responseCount} />
     );
 
   return (
@@ -799,13 +831,28 @@ function AnalyticsAiInsightsPanel({
         ) : null}
       </AnimatePresence>
 
-      <AiSummaryBanner insight={apiInsights?.insight} npsScore={apiInsights?.npsScore} />
-      <PriorityFocusCard />
+      <AiSummaryBanner
+        insight={apiInsights?.summaryText ?? apiInsights?.insight}
+        npsScore={apiInsights?.npsScore}
+      />
+      <PriorityFocusCard
+        title={apiInsights?.priorityTitle}
+        body={apiInsights?.priorityBody}
+        impactEstimate={apiInsights?.impactEstimate}
+      />
       <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-2">
         {patternsColumn}
-        <QuickStatsCard form={form} />
+        <QuickStatsCard
+          form={form}
+          quickStats={apiInsights?.quickStats}
+          useLiveData={apiLive}
+        />
       </div>
-      <RecommendedActionsCard />
+      <RecommendedActionsCard
+        compactActions={mappedActions?.compact}
+        expandedActions={mappedActions?.expanded}
+        useLiveData={apiLive}
+      />
           </motion.div>
         )}
       </AnimatePresence>

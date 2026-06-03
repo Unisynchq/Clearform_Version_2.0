@@ -1,14 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { closeIntegrationsPanel } from '@/store/slices/uiSlice';
 import HooksIcon from '@/features/forms/components/icons/HooksIcon';
 import sheetsIcon from '@/assets/Icons/sheets.svg';
+import { isApiConfigured } from '@/config/env';
+import {
+  listFormIntegrations,
+  mapConnectionsToUiState,
+} from '@/api/services/integrationsService';
+import { mergeIntegrations } from '@/features/profile/utils/profileIntegrationDefaults';
 import {
   readIntegrationSettings,
 } from '@/features/profile/utils/profileSettingsStorage';
-import { mergeIntegrations } from '@/features/profile/utils/profileIntegrationDefaults';
 import IntegrationAppRow from '@/features/profile/components/IntegrationAppRow';
 
 const panelEase = [0.25, 0.1, 0.25, 1];
@@ -20,19 +25,46 @@ const AssetIcon = ({ src, className = 'size-4' }) => (
 const IntegrationsPanel = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const isOpen = useSelector((state) => state.ui.integrationsPanel.open);
+  const activeFormId = useSelector((state) => state.ui.formOverlay.formId);
   const email = useSelector((state) => state.auth.email);
   const [integrations, setIntegrations] = useState(() => mergeIntegrations(null));
 
-  useEffect(() => {
-    if (isOpen) {
-      setIntegrations(mergeIntegrations(readIntegrationSettings(email)));
+  const useApi = isApiConfigured() && Boolean(activeFormId);
+
+  const refreshFromApi = useCallback(async () => {
+    if (!useApi || !activeFormId) return;
+    try {
+      const rows = await listFormIntegrations(activeFormId);
+      setIntegrations(mapConnectionsToUiState(rows));
+    } catch {
+      /* keep prior */
     }
-  }, [isOpen, email]);
+  }, [useApi, activeFormId]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (useApi) {
+      refreshFromApi();
+      return;
+    }
+    setIntegrations(mergeIntegrations(readIntegrationSettings(email)));
+  }, [isOpen, email, useApi, refreshFromApi]);
+
+  useEffect(() => {
+    if (!isOpen || !useApi) return;
+    if (searchParams.get('connected')) {
+      refreshFromApi();
+    }
+  }, [isOpen, searchParams, useApi, refreshFromApi]);
 
   const handleManageAll = () => {
     dispatch(closeIntegrationsPanel());
-    navigate('/dashboard/profile?tab=integrations');
+    const tab = 'integrations';
+    const connected = searchParams.get('connected');
+    const qs = connected ? `?tab=${tab}&connected=${encodeURIComponent(connected)}` : `?tab=${tab}`;
+    navigate(`/dashboard/profile${qs}`);
   };
 
   return (
@@ -63,7 +95,7 @@ const IntegrationsPanel = () => {
                 Integrations
               </h2>
               <p className="mt-0.5 text-[12px] leading-[17px] text-[#9e9e9a]">
-                Apps linked to your account
+                {activeFormId ? 'Connections for this form' : 'Apps linked to your account'}
               </p>
             </div>
 
@@ -76,7 +108,7 @@ const IntegrationsPanel = () => {
                 iconClassName="border-[#fdba74] bg-[#fff7ed]"
                 title="Webhook"
                 description="Push responses to an endpoint"
-                connected={integrations.webhook.connected}
+                connected={integrations.webhook?.connected}
                 onConnect={handleManageAll}
                 onConfigure={handleManageAll}
                 onDisconnect={handleManageAll}
@@ -87,7 +119,7 @@ const IntegrationsPanel = () => {
                 iconClassName="border-[#bbf7d0] bg-[#f7f7f6]"
                 title="Google Sheets"
                 description="Auto-sync responses to a spreadsheet"
-                connected={integrations.googleSheets.connected}
+                connected={integrations.googleSheets?.connected}
                 onConnect={handleManageAll}
                 onConfigure={handleManageAll}
                 onDisconnect={handleManageAll}

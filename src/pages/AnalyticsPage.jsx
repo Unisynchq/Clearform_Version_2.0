@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { fetchPerformanceAnalytics, generateAiInsights } from '@/api/services/analyticsService';
+import {
+  fetchCompareAnalytics,
+  fetchPerformanceAnalytics,
+  generateAiInsights,
+} from '@/api/services/analyticsService';
 import { isApiConfigured } from '@/config/env';
 import { motion, AnimatePresence } from 'motion/react';
 import { useHydrationFrame } from '@/hooks/useHydrationFrame';
@@ -59,6 +63,7 @@ const AnalyticsPage = () => {
   const [rangeLabel, setRangeLabel] = useState('All time');
   const [exportOpen, setExportOpen] = useState(false);
   const [perfApiStats, setPerfApiStats] = useState(null);
+  const [compareApiData, setCompareApiData] = useState(null);
   const [aiApiInsights, setAiApiInsights] = useState(null);
 
   const rangeLabelToParam = useCallback((label) => {
@@ -75,6 +80,16 @@ const AnalyticsPage = () => {
       .then((data) => { if (data && !data.source) setPerfApiStats(data); })
       .catch(() => {});
   }, [selectedFormId, rangeLabel, rangeLabelToParam]);
+
+  useEffect(() => {
+    if (!selectedFormId || activeTab !== 'compare') return;
+    setCompareApiData(null);
+    fetchCompareAnalytics(selectedFormId, { range: rangeLabelToParam(rangeLabel) })
+      .then((data) => {
+        if (data && !data.source) setCompareApiData(data);
+      })
+      .catch(() => {});
+  }, [selectedFormId, activeTab, rangeLabel, rangeLabelToParam]);
 
   useEffect(() => {
     if (!selectedFormId || activeTab !== 'ai') return;
@@ -197,10 +212,16 @@ const AnalyticsPage = () => {
           <div className="flex flex-col gap-5 max-w-[1400px] mx-auto">
             <AnalyticsStatsRow form={selectedForm} apiStats={perfApiStats} />
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
-              <AnalyticsFunnelCard form={selectedForm} />
+              <AnalyticsFunnelCard form={selectedForm} apiStats={perfApiStats} />
               <AnalyticsDailyResponsesCard apiStats={perfApiStats} />
             </div>
-            <AnalyticsDropoffRiverCard form={selectedForm} />
+            {(perfApiStats?.responses ?? selectedForm?.responses ?? 0) >= 3 ? (
+              <AnalyticsDropoffRiverCard form={selectedForm} />
+            ) : (
+              <p className="text-[13px] text-[#888580] px-1">
+                Per-question drop-off appears after you have at least 3 responses.
+              </p>
+            )}
           </div>
         );
       case 'responses':
@@ -212,7 +233,14 @@ const AnalyticsPage = () => {
           />
         );
       case 'compare':
-        return <AnalyticsComparePanel currentForm={selectedForm} rangeLabel={rangeLabel} />;
+        return (
+          <AnalyticsComparePanel
+            currentForm={selectedForm}
+            rangeLabel={rangeLabel}
+            compareApiData={compareApiData}
+            responseCount={perfApiStats?.responses ?? selectedForm?.responses ?? 0}
+          />
+        );
       case 'settings':
         return <AnalyticsSettingsPanel form={selectedForm} />;
       case 'ai':
@@ -352,7 +380,7 @@ const AnalyticsPage = () => {
             </div>
           </div>
           <div className="flex items-center justify-end gap-3 shrink-0">
-            {!isApiConfigured() || !perfApiStats ? (
+            {!isApiConfigured() ? (
               <span className="hidden sm:inline-flex items-center rounded-full border border-[#e5e3dc] bg-[#fafaf8] px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.04em] text-[#888580]">
                 Sample data
               </span>

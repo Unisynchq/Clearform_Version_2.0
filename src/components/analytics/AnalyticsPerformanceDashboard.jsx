@@ -14,7 +14,8 @@ import {
   getRiverQuestionCountRaw,
   hasRiverEnoughData,
 } from './dropoffRiverData';
-import { deriveFormStats } from './analyticsStats';
+import { deriveFormStats, deriveFormStatsFromApi } from './analyticsStats';
+import { isApiConfigured } from '@/config/env';
 
 const CHART_MAX = 20;
 const CHART_MAX_COMPLETION = 100;
@@ -191,17 +192,12 @@ const statsRowVariant = {
 };
 
 function formatStatsDisplay(form, apiStats) {
-  const s = deriveFormStats(form);
-  // Override with real API values when the backend returns them
-  if (apiStats && !apiStats.source) {
-    s.submitted = apiStats.responses ?? s.submitted;
-    s.toTarget = Math.max(0, (form?.responseLimit ?? Math.max(500, s.submitted * 2 || 500)) - s.submitted);
-    const rate = apiStats.completionRate ?? null;
-    if (rate !== null) {
-      s.conversion = rate.toFixed(1);
-      s.conversionPct = Math.round(rate);
-    }
-    if (apiStats.avgTime && apiStats.avgTime !== '—') s.avgTimeLabel = apiStats.avgTime;
+  const s =
+    isApiConfigured() || (apiStats && !apiStats.source)
+      ? deriveFormStatsFromApi(form, apiStats)
+      : deriveFormStats(form);
+  if (apiStats && !apiStats.source && apiStats.avgTime && apiStats.avgTime !== '—') {
+    s.avgTimeLabel = apiStats.avgTime;
   }
   const industry = 35;
   const diff = s.conversionPct - industry;
@@ -292,9 +288,12 @@ export function AnalyticsStatsRow({ form, apiStats }) {
   );
 }
 
-export function AnalyticsFunnelCard({ form }) {
-  const stats = deriveFormStats(form);
-  const animKey = form?.id ?? 'empty';
+export function AnalyticsFunnelCard({ form, apiStats }) {
+  const stats =
+    isApiConfigured() || (apiStats && !apiStats.source)
+      ? deriveFormStatsFromApi(form, apiStats)
+      : deriveFormStats(form);
+  const animKey = `${form?.id ?? 'empty'}-${apiStats?.responses ?? 'demo'}`;
 
   return (
     <div className="bg-white rounded-[10px] px-4 sm:px-8 py-6 flex flex-col items-center border border-[#eceae4]/80 min-h-[420px]">
@@ -541,6 +540,14 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
 
   const apiBars = useMemo(() => buildBarsFromSeries(apiStats?.dailySeries, seg), [apiStats?.dailySeries, seg]);
 
+  const useApiBars = Boolean(apiBars?.length);
+
+  const avgFromSeries = useMemo(() => {
+    if (!apiBars?.length) return null;
+    const sum = apiBars.reduce((acc, b) => acc + b.value, 0);
+    return (sum / apiBars.length).toFixed(1);
+  }, [apiBars]);
+
   const panel = useMemo(() => {
     switch (seg) {
       case 'completion':
@@ -548,16 +555,20 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
           chartMax: CHART_MAX_COMPLETION,
           bars: apiBars ?? COMPLETION_BARS,
           yTicks: ['100', '75', '50', '25', '0'],
-          kpiWhole: '13.5',
+          kpiWhole: useApiBars ? avgFromSeries : '13.5',
           kpiFraction: '%',
           kpiSub: 'Avg. completion rate',
-          trend: {
+          trend: useApiBars
+            ? null
+            : {
             icon: 'down',
             wrapCls: 'bg-[#fff8ee]',
             textCls: 'text-[#a16207]',
             text: 'Below trend · last 30 days',
           },
-          insight: {
+          insight: useApiBars
+            ? null
+            : {
             border: 'border-[#ffe8c8]',
             bg: 'bg-[#fffbf5]',
             textCls: 'text-[#a16207]',
@@ -572,16 +583,20 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
           chartMax: CHART_MAX_TIME,
           bars: apiBars ?? TIME_BARS,
           yTicks: ['30', '24', '18', '12', '6'],
-          kpiWhole: '8.4',
+          kpiWhole: useApiBars ? avgFromSeries : '8.4',
           kpiFraction: 's',
           kpiSub: 'Avg. time per question',
-          trend: {
+          trend: useApiBars
+            ? null
+            : {
             icon: 'up',
             wrapCls: 'bg-[#eafaf1]',
             textCls: 'text-[rgba(26,158,78,0.85)]',
             text: 'Getting faster · last 30 days',
           },
-          insight: {
+          insight: useApiBars
+            ? null
+            : {
             border: 'border-[#ffd6d6]',
             bg: 'bg-[#fff5f5]',
             textCls: 'text-[rgba(192,57,43,0.65)]',
@@ -596,16 +611,20 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
           chartMax: CHART_MAX,
           bars: apiBars ?? DAILY_BARS,
           yTicks: ['20', '15', '10', '5', '0'],
-          kpiWhole: '8.3',
+          kpiWhole: useApiBars ? avgFromSeries : '8.3',
           kpiFraction: '/day',
           kpiSub: 'Avg. responses per day',
-          trend: {
+          trend: useApiBars
+            ? null
+            : {
             icon: 'up',
             wrapCls: 'bg-[#eafaf1]',
             textCls: 'text-[rgba(26,158,78,0.85)]',
             text: 'Trending up · last 30 days',
           },
-          insight: {
+          insight: useApiBars
+            ? null
+            : {
             border: 'border-[#ffd6d6]',
             bg: 'bg-[#fff5f5]',
             textCls: 'text-[rgba(192,57,43,0.65)]',
@@ -616,7 +635,7 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
           guideLabel: 'typical: 8',
         };
     }
-  }, [seg]);
+  }, [seg, apiBars, useApiBars, avgFromSeries]);
 
   return (
     <div className="bg-white rounded-[20px] border border-[#ebebeb] overflow-hidden flex flex-col min-h-[420px]">
@@ -657,28 +676,32 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
                 </span>
               </div>
               <p className="text-[12px] text-[#7c7c7c]">{panel.kpiSub}</p>
-              <div
-                className={`inline-flex items-center gap-2 rounded-[20px] px-[10px] py-[5px] w-fit ${panel.trend.wrapCls}`}
-              >
-                {panel.trend.icon === 'up' ? (
-                  <RiArrowUpLine className={panel.trend.textCls} size={14} />
-                ) : (
-                  <RiArrowDownLine className={panel.trend.textCls} size={14} />
-                )}
-                <span className={`text-[12px] font-semibold ${panel.trend.textCls}`}>
-                  {panel.trend.text}
-                </span>
-              </div>
+              {panel.trend ? (
+                <div
+                  className={`inline-flex items-center gap-2 rounded-[20px] px-[10px] py-[5px] w-fit ${panel.trend.wrapCls}`}
+                >
+                  {panel.trend.icon === 'up' ? (
+                    <RiArrowUpLine className={panel.trend.textCls} size={14} />
+                  ) : (
+                    <RiArrowDownLine className={panel.trend.textCls} size={14} />
+                  )}
+                  <span className={`text-[12px] font-semibold ${panel.trend.textCls}`}>
+                    {panel.trend.text}
+                  </span>
+                </div>
+              ) : null}
             </div>
 
-            <div
-              className={`rounded-[10px] px-[15px] py-[9px] flex items-start gap-2 border ${panel.insight.border} ${panel.insight.bg}`}
-            >
-              <RiErrorWarningLine className={`${panel.insight.textCls} shrink-0 mt-0.5`} size={14} />
-              <p className={`text-[13px] font-bold leading-snug ${panel.insight.textCls}`}>
-                {panel.insight.body}
-              </p>
-            </div>
+            {panel.insight ? (
+              <div
+                className={`rounded-[10px] px-[15px] py-[9px] flex items-start gap-2 border ${panel.insight.border} ${panel.insight.bg}`}
+              >
+                <RiErrorWarningLine className={`${panel.insight.textCls} shrink-0 mt-0.5`} size={14} />
+                <p className={`text-[13px] font-bold leading-snug ${panel.insight.textCls}`}>
+                  {panel.insight.body}
+                </p>
+              </div>
+            ) : null}
 
             <div className="flex flex-col gap-2 flex-1 min-h-[200px]">
               <div className="flex items-center justify-between gap-2 flex-wrap">

@@ -1,3 +1,7 @@
+import { deleteForm as deleteFormApi } from '@/api/services/formsService';
+import { isApiConfigured } from '@/config/env';
+import { clearFormLocalCaches } from '@/features/forms/utils/clearFormLocalCaches';
+
 const DEFAULT_MS = 1500;
 
 function delay(ms, signal) {
@@ -30,9 +34,15 @@ export async function pauseFormRequest({ signal, forceFail } = {}) {
   }
 }
 
-export async function deleteFormRequest({ signal, forceFail } = {}) {
-  await delay(DEFAULT_MS + Math.random() * 600, signal);
+export async function deleteFormRequest({ formId, signal, forceFail } = {}) {
   if (forceFail ?? shouldFailFormAction()) {
     throw new Error('Failed to delete form');
   }
+  if (isApiConfigured()) {
+    if (!formId) throw new Error('Form id is required');
+    await deleteFormApi(formId);
+    clearFormLocalCaches(formId);
+    return;
+  }
+  await delay(DEFAULT_MS + Math.random() * 600, signal);
 }

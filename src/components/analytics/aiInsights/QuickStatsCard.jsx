@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import MoreDetailsTrigger from './MoreDetailsTrigger';
 import SevenDayTrendChart from './SevenDayTrendChart';
 import { quickStatsSentimentVariant } from './quickStatsData';
+import { mapQuickStatsSentimentFromApi } from './aiInsightsApiMappers';
 
 function QuickStatsSentimentBlock({ sentiment }) {
   if (sentiment.mode === 'segments') {
@@ -73,9 +74,20 @@ function QuickStatsSentimentBlock({ sentiment }) {
   );
 }
 
-export default function QuickStatsCard({ form }) {
-  const sentiment = useMemo(() => quickStatsSentimentVariant(form), [form]);
+export default function QuickStatsCard({ form, quickStats: quickStatsApi, useLiveData = false }) {
+  const sentiment = useMemo(() => {
+    const fromApi = mapQuickStatsSentimentFromApi(quickStatsApi);
+    if (fromApi) return fromApi;
+    if (useLiveData) {
+      return { mode: 'segments', positive: 0, neutral: 0, negative: 0 };
+    }
+    return quickStatsSentimentVariant(form);
+  }, [form, quickStatsApi, useLiveData]);
+  const topIssuePercent = quickStatsApi?.topIssuePercent;
+  const topIssueCategory = quickStatsApi?.topIssueCategory;
   const isSegments = sentiment.mode === 'segments';
+  const showTopIssuePercent = topIssuePercent != null;
+  const showTopIssueCategory = topIssueCategory != null;
 
   return (
     <div className="flex flex-col gap-[20.574px] overflow-hidden rounded-[18px] border-[1.286px] border-[rgba(0,0,0,0.11)] bg-white px-[30px] py-[27px]">
@@ -102,18 +114,26 @@ export default function QuickStatsCard({ form }) {
         </p>
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex flex-col">
-            <p className="text-[20px] font-semibold leading-[34.719px] text-[#15140e]">Performance</p>
+            <p className="text-[20px] font-semibold leading-[34.719px] text-[#15140e]">
+              {showTopIssueCategory ? topIssueCategory : useLiveData ? '—' : 'Performance'}
+            </p>
             <p className="text-[14.788px] font-normal leading-[22.181px] text-[#99968e]">
               of all feedback mentions
             </p>
           </div>
-          <p className="shrink-0 text-[40px] font-medium leading-[41.148px] text-[#15140e]">42%</p>
+          <p className="shrink-0 text-[40px] font-medium leading-[41.148px] text-[#15140e]">
+            {showTopIssuePercent ? `${topIssuePercent}%` : useLiveData ? '—' : '42%'}
+          </p>
         </div>
       </div>
 
       <div className="h-[0.63px] w-full bg-[rgba(0,0,0,0.07)]" aria-hidden />
 
-      <SevenDayTrendChart form={form} />
+      <SevenDayTrendChart
+        form={form}
+        sevenDayTrend={quickStatsApi?.sevenDayTrend}
+        useLiveData={useLiveData}
+      />
     </div>
   );
 }

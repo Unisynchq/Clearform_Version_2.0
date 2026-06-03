@@ -1,24 +1,41 @@
+import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { FiTrash2, FiAlertTriangle } from 'react-icons/fi';
 import { closeDeleteModal } from '@/store/slices/uiSlice';
-import { deleteForm } from '@/store/slices/formsSlice';
+import { deleteForm, loadFormsFromApi } from '@/store/slices/formsSlice';
+import { deleteFormRequest } from '@/components/analytics/analyticsFormActions';
 import { useToast } from '@/hooks/useToast';
 
 const DeleteFormModal = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const [deleting, setDeleting] = useState(false);
   const { open, formId, formTitle, redirectAfterDelete } = useSelector((s) => s.ui.deleteModal);
   const form = useSelector((s) => s.forms.forms.find((f) => f.id === formId));
 
-  const handleDelete = () => {
-    if (formId) dispatch(deleteForm(formId));
-    dispatch(closeDeleteModal());
-    if (redirectAfterDelete) {
-      showToast({ type: 'success', message: 'Form deleted' });
-      navigate('/dashboard');
+  const handleDelete = async () => {
+    if (!formId || deleting) return;
+    setDeleting(true);
+    try {
+      await deleteFormRequest({ formId });
+      dispatch(deleteForm(formId));
+      await dispatch(loadFormsFromApi());
+      dispatch(closeDeleteModal());
+      if (redirectAfterDelete) {
+        showToast({ type: 'success', message: 'Form moved to trash' });
+        navigate('/dashboard');
+      }
+    } catch (err) {
+      showToast({
+        type: 'error',
+        message: err?.message ?? 'Failed to delete form. Try again.',
+        duration: 4500,
+      });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -66,7 +83,8 @@ const DeleteFormModal = () => {
             <div className="flex items-center gap-3">
               <button
                 onClick={handleDelete}
-                className="flex-1 flex items-center justify-center gap-2 bg-[#e5483a] text-white text-[14px] font-semibold py-[11px] rounded-[10px] hover:bg-[#c93d30] transition-colors cursor-pointer"
+                disabled={deleting}
+                className="flex-1 flex items-center justify-center gap-2 bg-[#e5483a] text-white text-[14px] font-semibold py-[11px] rounded-[10px] hover:bg-[#c93d30] transition-colors cursor-pointer disabled:opacity-60"
               >
                 <FiTrash2 size={15} strokeWidth={2.2} />
                 Move to Trash

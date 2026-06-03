@@ -16,6 +16,8 @@ import PhotoUploadErrorZone, {
   PhotoAvatarError,
 } from '@/features/profile/components/PhotoUploadErrorZone';
 import { logout, loginSuccess } from '@/store/slices/authSlice';
+import { deleteAccount as deleteAccountOnServer } from '@/api/services/authMeService';
+import { isApiConfigured } from '@/config/env';
 import { signOutUser } from '@/features/auth/services/firebaseAuthService';
 import { upsertUserAccount } from '@/features/auth/utils/userAccountsStorage';
 import {
@@ -406,13 +408,32 @@ const ProfilePage = () => {
     navigate('/signin');
   };
 
-  const handleDeleteAccount = () => {
+  const handleDeleteAccount = async () => {
     setDeleteOpen(false);
-    showToast({
-      type: 'info',
-      message: 'Account deletion is not available in this demo.',
-      duration: 2800,
-    });
+    if (!isApiConfigured()) {
+      showToast({
+        type: 'info',
+        message: 'Account deletion requires a connected API.',
+        duration: 2800,
+      });
+      return;
+    }
+    try {
+      await deleteAccountOnServer();
+      dispatch(logout());
+      signOutUser();
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('clearform:auth-token');
+      }
+      showToast({ type: 'success', message: 'Your account has been deleted.', duration: 2800 });
+      navigate('/signin');
+    } catch (err) {
+      showToast({
+        type: 'error',
+        message: err?.message ?? 'Could not delete your account. Please try again.',
+        duration: 3200,
+      });
+    }
   };
 
   return (

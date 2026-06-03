@@ -8,8 +8,10 @@ import slackIcon from '@/assets/Icons/slack.svg';
 import { isApiConfigured } from '@/config/env';
 import {
   connectIntegration,
+  disconnectIntegration,
   listFormIntegrations,
   mapConnectionsToUiState,
+  patchIntegration,
   redirectToOAuth,
 } from '@/api/services/integrationsService';
 import {
@@ -122,6 +124,8 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
   const { showToast } = useToast();
   const [integrations, setIntegrations] = useState(() => mergeIntegrations(null));
   const [connectingKey, setConnectingKey] = useState(null);
+  const [spreadsheetId, setSpreadsheetId] = useState('');
+  const [slackChannel, setSlackChannel] = useState('');
 
   const useApi = isApiConfigured() && Boolean(formId || workspaceId);
 
@@ -131,7 +135,10 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
       const rows = formId
         ? await listFormIntegrations(formId)
         : [];
-      setIntegrations(mapConnectionsToUiState(rows));
+      const mapped = mapConnectionsToUiState(rows);
+      setIntegrations(mapped);
+      setSpreadsheetId(mapped.googleSheets?.metadata?.spreadsheetId ?? '');
+      setSlackChannel(mapped.slack?.metadata?.slackChannel ?? mapped.slack?.metadata?.channel ?? '');
     } catch {
       /* keep prior state */
     }
@@ -163,6 +170,21 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
     }
 
     if (!connected) {
+      const connectionId = integrations[key]?.connectionId;
+      if (useApi && workspaceId && connectionId) {
+        try {
+          await disconnectIntegration(workspaceId, connectionId);
+          await refreshFromApi();
+          showToast({ type: 'success', message: 'Disconnected.', duration: 2200 });
+        } catch (err) {
+          showToast({
+            type: 'error',
+            message: err?.message ?? 'Could not disconnect.',
+            duration: 2800,
+          });
+        }
+        return;
+      }
       persistLocal({
         ...integrations,
         [key]: { connected: false },
@@ -187,6 +209,15 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
       return;
     }
 
+    if (isApiConfigured()) {
+      showToast({
+        type: 'error',
+        message: 'Workspace required to connect integrations.',
+        duration: 3200,
+      });
+      return;
+    }
+
     persistLocal({
       ...integrations,
       [key]: { connected: true },
@@ -194,8 +225,30 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
     showToast({ type: 'success', message: 'Connected (demo mode).', duration: 2200 });
   };
 
-  const handleDone = () => {
-    if (!useApi && email) {
+  const handleDone = async () => {
+    if (useApi && workspaceId) {
+      const sheetsId = integrations.googleSheets?.connectionId;
+      const slackId = integrations.slack?.connectionId;
+      try {
+        if (sheetsId && spreadsheetId.trim()) {
+          await patchIntegration(workspaceId, sheetsId, {
+            metadata: { spreadsheetId: spreadsheetId.trim() },
+          });
+        }
+        if (slackId && slackChannel.trim()) {
+          await patchIntegration(workspaceId, slackId, {
+            metadata: { slackChannel: slackChannel.trim() },
+          });
+        }
+      } catch (err) {
+        showToast({
+          type: 'error',
+          message: err?.message ?? 'Could not save integration settings.',
+          duration: 2800,
+        });
+        return;
+      }
+    } else if (!useApi && email) {
       writeIntegrationSettings(email, cloneIntegrations(integrations));
     }
     onClose();
@@ -220,6 +273,35 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
           immediately.
         </p>
       </div>
+
+      {useApi && (integrations.googleSheets?.connected || integrations.slack?.connected) ? (
+        <div className="space-y-2 px-6 pt-2">
+          {integrations.googleSheets?.connected ? (
+            <label className="block text-[12px] text-[#6b6965]">
+              Google Sheets spreadsheet ID
+              <input
+                type="text"
+                value={spreadsheetId}
+                onChange={(e) => setSpreadsheetId(e.target.value)}
+                placeholder="Spreadsheet ID from URL"
+                className="mt-1 w-full rounded-[8px] border border-[#e5e4e0] px-3 py-2 text-[13px] text-[#0a0a0a]"
+              />
+            </label>
+          ) : null}
+          {integrations.slack?.connected ? (
+            <label className="block text-[12px] text-[#6b6965]">
+              Slack channel
+              <input
+                type="text"
+                value={slackChannel}
+                onChange={(e) => setSlackChannel(e.target.value)}
+                placeholder="#channel-name"
+                className="mt-1 w-full rounded-[8px] border border-[#e5e4e0] px-3 py-2 text-[13px] text-[#0a0a0a]"
+              />
+            </label>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-2.5 px-6 pb-2 pt-4">
         {INTEGRATION_CARDS.map((card) => (

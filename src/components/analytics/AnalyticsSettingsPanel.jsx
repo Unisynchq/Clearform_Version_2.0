@@ -14,7 +14,7 @@ import Select from '../ui/Select';
 import { useToast } from '../../hooks/useToast';
 import { DeleteFormModal, PauseFormModal } from './AnalyticsFormActionModals';
 import { deleteFormRequest, pauseFormRequest } from './analyticsFormActions';
-import { updateForm, deleteForm, setFormPause } from '@/store/slices/formsSlice';
+import { updateForm, deleteForm, setFormPause, loadFormsFromApi } from '@/store/slices/formsSlice';
 import { setConfirmModalOpen } from '@/store/slices/uiSlice';
 import {
   buildIndefinitePausePayload,
@@ -289,9 +289,10 @@ function AnalyticsSettingsPanel({ form }) {
     setActionLoading(true);
 
     try {
-      await deleteFormRequest({ signal: controller.signal });
+      await deleteFormRequest({ formId: form.id, signal: controller.signal });
       dispatch(clearNotificationsForForm(form.id));
       dispatch(deleteForm(form.id));
+      await dispatch(loadFormsFromApi());
       setDeleteModalOpen(false);
       showToast({
         type: 'success',

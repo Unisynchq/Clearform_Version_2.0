@@ -38,7 +38,7 @@ function RecommendedActionCompactCell({ action }) {
   );
 }
 
-function RecommendedActionsExpanded() {
+function RecommendedActionsExpanded({ actions = RECOMMENDED_ACTIONS_EXPANDED }) {
   return (
     <div className="rounded-[16px] border border-[#e8e8e3] bg-white p-px shadow-[0px_24px_80px_rgba(0,0,0,0.18),0px_8px_24px_rgba(0,0,0,0.08)]">
       <div className="border-b border-[#efefeb]">
@@ -61,11 +61,11 @@ function RecommendedActionsExpanded() {
           ))}
         </div>
       </div>
-      {RECOMMENDED_ACTIONS_EXPANDED.map((a, idx) => (
+      {actions.map((a, idx) => (
         <div
           key={a.index}
           className={`@container grid grid-cols-1 gap-4 border-b border-[#efefeb] px-5 py-5 @md:grid-cols-[28px_1fr_minmax(120px,140px)] @md:gap-x-4 @md:px-7 ${
-            idx === RECOMMENDED_ACTIONS_EXPANDED.length - 1 ? 'border-b-0' : ''
+            idx === actions.length - 1 ? 'border-b-0' : ''
           }`}
         >
           <div className="hidden text-[11px] font-semibold tracking-[0.44px] text-[#9b9b95] @md:block">
@@ -140,8 +140,22 @@ function RecommendedActionsExpanded() {
   );
 }
 
-export default function RecommendedActionsCard() {
+export default function RecommendedActionsCard({
+  compactActions,
+  expandedActions,
+  useLiveData = false,
+}) {
   const [expanded, setExpanded] = useState(false);
+  const compact = useLiveData
+    ? (compactActions ?? [])
+    : compactActions?.length
+      ? compactActions
+      : RECOMMENDED_ACTIONS_COMPACT;
+  const expandedList = useLiveData
+    ? (expandedActions ?? [])
+    : expandedActions?.length
+      ? expandedActions
+      : RECOMMENDED_ACTIONS_EXPANDED;
 
   if (expanded) {
     return (
@@ -152,13 +166,13 @@ export default function RecommendedActionsCard() {
               Recommended Actions
             </p>
             <p className="mt-1 text-[13px] font-normal leading-normal text-[#9b9b95]">
-              AI-prioritised based on impact & effort · {RECOMMENDED_ACTIONS_EXPANDED.length} actions
+              AI-prioritised based on impact & effort · {expandedList.length} actions
               total
             </p>
           </div>
           <MoreDetailsTrigger open={expanded} onClick={() => setExpanded(false)} />
         </div>
-        <RecommendedActionsExpanded />
+        <RecommendedActionsExpanded actions={expandedList} />
       </div>
     );
   }
@@ -171,7 +185,7 @@ export default function RecommendedActionsCard() {
       </div>
       <div className="overflow-hidden rounded-[12.859px] bg-[rgba(0,0,0,0.07)] p-px">
         <div className="grid grid-cols-1 gap-px md:grid-cols-3">
-          {RECOMMENDED_ACTIONS_COMPACT.map((action) => (
+          {compact.map((action) => (
             <RecommendedActionCompactCell key={action.index} action={action} />
           ))}
         </div>

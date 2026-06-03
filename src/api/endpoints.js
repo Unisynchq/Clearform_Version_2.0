@@ -54,6 +54,8 @@ export const API_ENDPOINTS = {
     workspaceList: (workspaceId) => `/workspaces/${workspaceId}/integrations`,
     workspaceConnect: (workspaceId, provider) =>
       `/workspaces/${workspaceId}/integrations/${provider}/connect`,
+    workspaceById: (workspaceId, integrationId) =>
+      `/workspaces/${workspaceId}/integrations/${integrationId}`,
     formList: (formId) => `/forms/${formId}/integrations`,
   },
   webhooks: {

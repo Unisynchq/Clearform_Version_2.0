@@ -136,6 +136,27 @@ export function CompareNothingYetEmpty({ onCreateForm, className = '' }) {
   );
 }
 
+/** Shown when the form has fewer than two responses — honest empty instead of demo compare data. */
+export function CompareInsufficientResponsesEmpty({ responseCount = 0, className = '' }) {
+  return (
+    <section
+      className={`flex min-h-[220px] w-full flex-col items-center justify-center rounded-[12px] border border-[#e8e8e5] bg-white px-6 py-14 text-center ${className}`}
+      aria-labelledby="compare-insufficient-heading"
+    >
+      <div className="mb-4 flex size-[52px] items-center justify-center rounded-[13px] border border-[#e4e1d9] bg-[#f2f0eb] text-[#38342e]">
+        <ActivityPulseGlyph className="size-[22px]" />
+      </div>
+      <h2 id="compare-insufficient-heading" className="text-[14px] font-semibold text-[#1a1814]">
+        Not enough responses to compare
+      </h2>
+      <p className="mt-2 max-w-[300px] text-[12.5px] leading-[21.25px] text-[#a09c96]">
+        Period-over-period comparison needs at least two responses. You have{' '}
+        {responseCount} so far — share your form to collect more.
+      </p>
+    </section>
+  );
+}
+
 /** Compact empty compare slot in the picker row. */
 export function CompareSlotEmptyCard({ slotLabel, onAddForm, isFocused = false }) {
   return (

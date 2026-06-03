@@ -117,6 +117,31 @@ function suggestedMetricSwitch(currentId) {
   return { id: 'completion', label: METRIC_HEADLINE.completion };
 }
 
+function buildChartDataFromDailySeries(dailySeries, trendMetric) {
+  if (!Array.isArray(dailySeries) || dailySeries.length === 0) return null;
+  const labels = dailySeries.map((row) => {
+    const d = new Date(`${row.date}T00:00:00`);
+    return formatMonthDay(d);
+  });
+  const values = dailySeries.map((row) => {
+    if (trendMetric === 'responses') return row.count ?? 0;
+    if (trendMetric === 'completion') {
+      return row.count > 0 ? Math.round((row.completions / row.count) * 100) : 0;
+    }
+    return row.avgDuration ? Math.round(row.avgDuration / 1000) : 0;
+  });
+  const last = values[values.length - 1];
+  const suffix = trendMetric === 'completion' ? '%' : trendMetric === 'responses' ? ' /day' : 's';
+  return {
+    chartData: labels.map((name, i) => ({
+      name,
+      seriesA: values[i],
+      seriesB: null,
+    })),
+    endLabelA: `${last}${suffix}`,
+  };
+}
+
 export default function TrendComparisonChart({
   seriesATitle,
   seriesBTitle,
@@ -127,8 +152,13 @@ export default function TrendComparisonChart({
   workspaceHasCompareTarget = true,
   metricHasNoTrendData = false,
   rangeLabel = 'Last 30 days',
+  compareDailySeries = null,
 }) {
   const [, startMetricTransition] = useTransition();
+  const apiTrend = useMemo(
+    () => buildChartDataFromDailySeries(compareDailySeries, trendMetric),
+    [compareDailySeries, trendMetric],
+  );
   const trendData = TREND_SERIES_BY_METRIC[trendMetric];
   const yTickSuffix = METRIC_Y_TICK_SUFFIX[trendMetric] ?? '';
   const tooltipSuffix = METRIC_TOOLTIP_SUFFIX[trendMetric] ?? '';
@@ -148,18 +178,22 @@ export default function TrendComparisonChart({
     : TREND_METRIC_TABS;
 
   const xLabels = useMemo(
-    () => buildXLabelsForRange(rangeLabel, trendData.a.length),
-    [rangeLabel, trendData.a.length],
+    () =>
+      apiTrend?.chartData
+        ? apiTrend.chartData.map((d) => d.name)
+        : buildXLabelsForRange(rangeLabel, trendData.a.length),
+    [apiTrend, rangeLabel, trendData.a.length],
   );
 
   const chartData = useMemo(
     () =>
+      apiTrend?.chartData ??
       xLabels.map((name, i) => ({
         name,
         seriesA: trendData.a[i],
         seriesB: trendData.b[i],
       })),
-    [xLabels, trendData],
+    [apiTrend, xLabels, trendData],
   );
 
   const ariaSummary = seriesBTitle

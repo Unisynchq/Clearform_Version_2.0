@@ -8,6 +8,7 @@ import CreateNewFormModal from '@/features/forms/components/CreateNewFormModal';
 import NotificationCenter from '@/features/forms/components/NotificationCenter';
 import BuilderRouteTransitionOverlay from '@/components/layout/BuilderRouteTransitionOverlay';
 import AuthRedirectHandler from '@/features/auth/components/AuthRedirectHandler';
+import FirebaseSessionBridge from '@/features/auth/components/FirebaseSessionBridge';
 import { loadFormsFromApi, loadWorkspacesFromApi } from '@/store/slices/formsSlice';
 
 const App = () => {
@@ -24,6 +25,7 @@ const App = () => {
   return (
     <BrowserRouter>
       <AuthRedirectHandler />
+      <FirebaseSessionBridge />
       <AppRoutes />
       <ToastContainer />
       <GlobalOverlayHost />

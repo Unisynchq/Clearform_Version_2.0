@@ -34,11 +34,14 @@ const initialActiveWorkspace =
     ? 'all'
     : savedUi.activeWorkspace;
 
-const bootstrapResponses = readAllFormResponses();
-const bootstrapForms = readPersistedForms().map((form) => ({
-  ...form,
-  responses: (bootstrapResponses[String(form.id)] ?? []).length,
-}));
+const apiMode = isApiConfigured();
+const bootstrapResponses = apiMode ? {} : readAllFormResponses();
+const bootstrapForms = apiMode
+  ? []
+  : readPersistedForms().map((form) => ({
+      ...form,
+      responses: (bootstrapResponses[String(form.id)] ?? []).length,
+    }));
 
 const initialState = {
   forms: bootstrapForms,

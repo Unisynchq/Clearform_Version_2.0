@@ -10,16 +10,43 @@ export const INTEGRATION_PROVIDER_SLUGS = {
   slack: 'slack',
 };
 
+const PROVIDER_TO_KEY = {
+  google_sheets: 'googleSheets',
+  google_drive: 'googleDrive',
+  slack: 'slack',
+};
+
 export function mapConnectionsToUiState(connections) {
+  const rows = connections ?? [];
   const activeByProvider = new Set(
-    (connections ?? [])
-      .filter((row) => row.active !== false)
-      .map((row) => row.provider),
+    rows.filter((row) => row.active !== false).map((row) => row.provider),
   );
+  const connectionIdByKey = {};
+  for (const row of rows) {
+    const key = PROVIDER_TO_KEY[row.provider];
+    if (key && row.id) connectionIdByKey[key] = row.id;
+  }
+  const metaByKey = {};
+  for (const row of rows) {
+    const key = PROVIDER_TO_KEY[row.provider];
+    if (key) metaByKey[key] = row.metadata ?? {};
+  }
   return mergeIntegrations({
-    googleSheets: { connected: activeByProvider.has('google_sheets') },
-    googleDrive: { connected: activeByProvider.has('google_drive') },
-    slack: { connected: activeByProvider.has('slack') },
+    googleSheets: {
+      connected: activeByProvider.has('google_sheets'),
+      connectionId: connectionIdByKey.googleSheets ?? null,
+      metadata: metaByKey.googleSheets ?? {},
+    },
+    googleDrive: {
+      connected: activeByProvider.has('google_drive'),
+      connectionId: connectionIdByKey.googleDrive ?? null,
+      metadata: metaByKey.googleDrive ?? {},
+    },
+    slack: {
+      connected: activeByProvider.has('slack'),
+      connectionId: connectionIdByKey.slack ?? null,
+      metadata: metaByKey.slack ?? {},
+    },
     webhook: { connected: false },
     notion: { connected: false },
   });
@@ -48,4 +75,19 @@ export function redirectToOAuth(redirectUrl) {
   if (redirectUrl && typeof window !== 'undefined') {
     window.location.href = redirectUrl;
   }
+}
+
+export async function disconnectIntegration(workspaceId, integrationId) {
+  if (!isApiConfigured() || !workspaceId || !integrationId) return;
+  return apiClient(API_ENDPOINTS.integrations.workspaceById(workspaceId, integrationId), {
+    method: 'DELETE',
+  });
+}
+
+export async function patchIntegration(workspaceId, integrationId, body) {
+  if (!isApiConfigured() || !workspaceId || !integrationId) return null;
+  return apiClient(API_ENDPOINTS.integrations.workspaceById(workspaceId, integrationId), {
+    method: 'PATCH',
+    body,
+  });
 }

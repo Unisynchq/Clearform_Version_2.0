@@ -17,7 +17,11 @@ import {
 } from '@/store/slices/uiSlice';
 import CompareFormPickerModal from '@/components/ui/CompareFormPickerModal';
 import TrendComparisonChart from './TrendComparisonChart';
-import { CompareNothingYetEmpty } from './compare/CompareAnalyticsEmptyStates';
+import {
+  CompareInsufficientResponsesEmpty,
+  CompareNothingYetEmpty,
+} from './compare/CompareAnalyticsEmptyStates';
+import { isApiConfigured } from '@/config/env';
 
 const METRIC_ROWS = [
   {
@@ -113,7 +117,24 @@ function statusMeta(form) {
   return { word: 'Live', dotClass: 'bg-[#75ba45]' };
 }
 
-function AnalyticsComparePanel({ currentForm, rangeLabel = 'All time' }) {
+function buildRowsFromCompareApi(compareApiData) {
+  if (!compareApiData?.metrics?.length) return null;
+  return compareApiData.metrics.map((m) => ({
+    metric: m.label ?? m.id,
+    a: m.unit === '%' ? `${m.value}%` : String(m.value ?? '—'),
+    b: '—',
+    c: '—',
+    change: compareApiData.insight ?? '—',
+    changeTone: 'neutral',
+  }));
+}
+
+function AnalyticsComparePanel({
+  currentForm,
+  rangeLabel = 'All time',
+  compareApiData = null,
+  responseCount: responseCountProp,
+}) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const forms = useSelector((s) => s.forms.forms);
@@ -166,7 +187,7 @@ function AnalyticsComparePanel({ currentForm, rangeLabel = 'All time' }) {
 
   const titleA = currentForm?.title ?? 'Current form';
   const { word: statusWord, dotClass: statusDotClass } = statusMeta(currentForm);
-  const responsesN = currentForm?.responses ?? 0;
+  const responsesN = responseCountProp ?? currentForm?.responses ?? 0;
   const responseStr = `${formatResponseCount(responsesN)} ${responsesN === 1 ? 'response' : 'responses'}`;
 
   const otherCompareForms = useMemo(() => {
@@ -191,6 +212,23 @@ function AnalyticsComparePanel({ currentForm, rangeLabel = 'All time' }) {
   }, [dispatch, currentForm]);
 
   const seriesBTitle = otherCompareForms[0]?.title ?? null;
+  const useApiCompare = isApiConfigured() && compareApiData && !compareApiData.source;
+  const apiRows = buildRowsFromCompareApi(compareApiData);
+  const metricRowsForTable = isApiConfigured() ? (apiRows ?? []) : (apiRows ?? METRIC_ROWS);
+  const showSingleFormLowData =
+    compareApiData &&
+    !compareApiData.source &&
+    responsesN < 2 &&
+    otherCompareForms.length === 0;
+
+  if (showSingleFormLowData) {
+    return (
+      <CompareInsufficientResponsesEmpty
+        responseCount={responsesN}
+        className="mx-auto max-w-[1400px] border border-[#e8e8e5] shadow-sm"
+      />
+    );
+  }
 
   return (
     <>
@@ -492,8 +530,9 @@ function AnalyticsComparePanel({ currentForm, rangeLabel = 'All time' }) {
               selectedMetrics={selectedMetrics}
               onOpenComparePicker={workspaceHasCompareTarget ? openPicker : undefined}
               workspaceHasCompareTarget={workspaceHasCompareTarget}
-              metricHasNoTrendData={false}
+              metricHasNoTrendData={useApiCompare && !(compareApiData?.series?.length)}
               rangeLabel={rangeLabel}
+              compareDailySeries={useApiCompare ? compareApiData.series : null}
             />
           </motion.div>
         ) : (
@@ -524,7 +563,7 @@ function AnalyticsComparePanel({ currentForm, rangeLabel = 'All time' }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {METRIC_ROWS.map((row) => (
+                  {metricRowsForTable.map((row) => (
                     <tr key={row.metric} className="border-b border-[#f4f3ef] hover:bg-[#fcfcfb]">
                       <td className="px-4 py-2.5 font-medium text-[#393939]">{row.metric}</td>
                       <td

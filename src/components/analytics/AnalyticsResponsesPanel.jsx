@@ -114,7 +114,15 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
       return;
     }
     let cancelled = false;
-    fetchFormResponses(form.id, {})
+    const rangeParam =
+      rangeLabel === 'Last 7 days'
+        ? '7d'
+        : rangeLabel === 'Last 30 days'
+          ? '30d'
+          : rangeLabel === 'Last 90 days'
+            ? '90d'
+            : 'all';
+    fetchFormResponses(form.id, { range: rangeParam })
       .then((data) => {
         if (cancelled) return;
         if (Array.isArray(data?.items)) {
@@ -131,7 +139,7 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
     return () => {
       cancelled = true;
     };
-  }, [form?.id]);
+  }, [form?.id, rangeLabel]);
 
   const [search, setSearch] = useState('');
   const [localRangeOpen, setLocalRangeOpen] = useState(false);

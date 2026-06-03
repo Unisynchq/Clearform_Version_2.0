@@ -1,15 +1,23 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { ApiError } from '@/api/client';
 import { getPublishedForm } from '@/api/services/formsService';
 import { isApiConfigured } from '@/config/env';
 import { readPublishedForm } from '@/features/forms/utils/publishedFormStorage';
-import { readBuilderDraft } from '@/features/forms/utils/builderDraftStorage';
 import { readUserForms } from '@/features/forms/utils/userFormsStorage';
 import FormRespondentView from '@/features/forms/components/FormRespondentView';
 
+function BlockedView({ title, detail }) {
+  return (
+    <div className="min-h-screen bg-[#f4f3ef] flex flex-col items-center justify-center gap-3 p-8">
+      <p className="text-[16px] font-medium text-[#18181b]">{title}</p>
+      {detail ? <p className="text-[13px] text-[#71717a] text-center max-w-md">{detail}</p> : null}
+    </div>
+  );
+}
+
 /**
- * Public respondent route — loads published snapshot and runs logicEngine navigation.
+ * Public respondent route — loads published snapshot only (no builder draft fallback).
  */
 export default function PublicFormPage() {
   const { formId } = useParams();
@@ -44,31 +52,31 @@ export default function PublicFormPage() {
           }
         })
         .finally(() => setLoading(false));
-    } else {
-      // localStorage fallback for local-only mode (numeric IDs)
-      const numId = Number(formId);
-      if (Number.isNaN(numId)) {
-        setBlocked('invalid');
-        setLoading(false);
-        return;
-      }
-      const forms = readUserForms();
-      const meta = forms.find((f) => Number(f.id) === numId);
-      if (!meta) {
-        setBlocked('not_found');
-      } else if (meta.status !== 'live') {
-        setBlocked('not_live');
-      } else {
-        const published = readPublishedForm(numId) ?? readBuilderDraft(numId);
-        if (!published?.screens?.length) {
-          setBlocked('no_draft');
-        } else {
-          setDraft(published);
-          setBlocked(null);
-        }
-      }
-      setLoading(false);
+      return;
     }
+
+    const numId = Number(formId);
+    if (Number.isNaN(numId)) {
+      setBlocked('invalid');
+      setLoading(false);
+      return;
+    }
+    const forms = readUserForms();
+    const meta = forms.find((f) => Number(f.id) === numId);
+    if (!meta) {
+      setBlocked('not_found');
+    } else if (meta.status !== 'live') {
+      setBlocked('not_live');
+    } else {
+      const published = readPublishedForm(numId);
+      if (!published?.screens?.length) {
+        setBlocked('no_draft');
+      } else {
+        setDraft(published);
+        setBlocked(null);
+      }
+    }
+    setLoading(false);
   }, [formId]);
 
   if (loading) {
@@ -80,53 +88,34 @@ export default function PublicFormPage() {
   }
 
   if (blocked === 'invalid' || blocked === 'not_found') {
-    return (
-      <div className="min-h-screen bg-[#f4f3ef] flex flex-col items-center justify-center gap-3 p-8">
-        <p className="text-[16px] font-medium text-[#18181b]">Form not found</p>
-        <Link to="/" className="text-[14px] text-[#7c3aed] hover:underline">
-          Go home
-        </Link>
-      </div>
-    );
+    return <BlockedView title="Form not found" />;
   }
 
   if (blocked === 'not_live') {
-    return (
-      <div className="min-h-screen bg-[#f4f3ef] flex flex-col items-center justify-center gap-3 p-8">
-        <p className="text-[16px] font-medium text-[#18181b]">This form is not published yet</p>
-      </div>
-    );
+    return <BlockedView title="This form is not published yet" />;
   }
 
   if (blocked === 'no_draft' || blocked === 'unavailable') {
     return (
-      <div className="min-h-screen bg-[#f4f3ef] flex flex-col items-center justify-center gap-3 p-8">
-        <p className="text-[16px] font-medium text-[#18181b]">
-          {blocked === 'unavailable' ? 'Unable to load this form' : 'Form content is unavailable'}
-        </p>
-        <p className="text-[13px] text-[#71717a]">
-          {blocked === 'unavailable'
+      <BlockedView
+        title={blocked === 'unavailable' ? 'Unable to load this form' : 'Form content is unavailable'}
+        detail={
+          blocked === 'unavailable'
             ? 'Please try again in a moment. If this keeps happening, contact the form owner.'
-            : 'Republish from the builder to refresh the live snapshot.'}
-        </p>
-      </div>
+            : 'Republish from the builder to refresh the live snapshot.'
+        }
+      />
     );
   }
 
+  const canvasBg = draft?.theme?.background ?? '#f5f4f0';
+
   return (
     <div
-      className="min-h-screen bg-[#f4f3ef] flex flex-col"
-      style={{ fontFamily: "'DM Sans', sans-serif" }}
+      className="min-h-screen flex flex-col items-center py-10 px-4"
+      style={{ backgroundColor: canvasBg, fontFamily: "'DM Sans', sans-serif" }}
     >
-      <header className="shrink-0 border-b border-[#e4e4e7] bg-white px-6 py-4">
-        <p className="text-[13px] text-[#71717a]">Clearform</p>
-        <h1 className="text-[18px] font-semibold text-[#18181b]">{draft.formTitle || 'Form'}</h1>
-      </header>
-      <main className="flex-1 flex items-start justify-center py-10">
-        <div className="w-full max-w-xl rounded-xl border border-[#e4e4e7] bg-white shadow-sm">
-          <FormRespondentView draft={draft} formTitle={draft.formTitle} formId={formId} />
-        </div>
-      </main>
+      <FormRespondentView draft={draft} formTitle={draft.formTitle} formId={formId} />
     </div>
   );
 }

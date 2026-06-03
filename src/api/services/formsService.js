@@ -3,6 +3,11 @@ import { API_ENDPOINTS } from '@/api/endpoints';
 import { isApiConfigured } from '@/config/env';
 import { readBuilderDraft, writeBuilderDraft } from '@/features/forms/utils/builderDraftStorage';
 import { readPublishedForm, writePublishedForm } from '@/features/forms/utils/publishedFormStorage';
+import {
+  clearPublishedFormSessionCache,
+  readPublishedFormSessionCache,
+  writePublishedFormSessionCache,
+} from '@/features/forms/utils/publishedFormSessionCache';
 import { readPersistedForms } from '@/features/forms/utils/userFormsStorage';
 
 /**
@@ -48,6 +53,14 @@ export async function patchForm(formId, body) {
   return null;
 }
 
+/** Soft-delete (trash) or hard-delete when already in trash — see backend forms.service.remove */
+export async function deleteForm(formId) {
+  if (isApiConfigured()) {
+    return apiClient(API_ENDPOINTS.forms.byId(formId), { method: 'DELETE' });
+  }
+  return null;
+}
+
 export async function getBuilderSnapshot(formId) {
   if (isApiConfigured()) {
     return apiClient(API_ENDPOINTS.forms.builderSnapshot(formId));
@@ -67,19 +80,36 @@ export async function saveBuilderSnapshot(formId, snapshot) {
 }
 
 export async function publishForm(formId, snapshot) {
+  clearPublishedFormSessionCache(formId);
   if (isApiConfigured()) {
-    return apiClient(API_ENDPOINTS.forms.publish(formId), {
+    const result = await apiClient(API_ENDPOINTS.forms.publish(formId), {
       method: 'POST',
       body: snapshot,
     });
+    writePublishedFormSessionCache(formId, snapshot);
+    return result;
   }
   writePublishedForm(formId, snapshot);
+  writePublishedFormSessionCache(formId, snapshot);
   return { formId, status: 'live', publishedAt: Date.now() };
 }
 
 export async function getPublishedForm(formId) {
   if (isApiConfigured()) {
-    return apiClient(API_ENDPOINTS.forms.published(formId));
+    const cached = readPublishedFormSessionCache(formId);
+    const fetchPublished = () =>
+      apiClient(API_ENDPOINTS.forms.published(formId)).then((data) => {
+        if (data?.screens?.length) {
+          writePublishedFormSessionCache(formId, data);
+        }
+        return data;
+      });
+
+    if (cached?.snapshot) {
+      fetchPublished().catch(() => {});
+      return cached.snapshot;
+    }
+    return fetchPublished();
   }
   return readPublishedForm(formId);
 }

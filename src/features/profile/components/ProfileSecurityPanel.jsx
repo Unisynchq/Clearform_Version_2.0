@@ -33,7 +33,10 @@ import {
   verifyCurrentPassword,
 } from '@/features/profile/utils/profileValidation';
 import { persistAccountPassword } from '@/features/auth/utils/userAccountsStorage';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { auth } from '@/config/firebase';
 import { useToast } from '@/hooks/useToast';
+import { useSelector } from 'react-redux';
 
 const inputClass =
   'w-full rounded-[6px] border border-[#e8e8e6] bg-white px-[13px] py-[10px] text-[13.5px] text-[#1a1a18] outline-none transition-colors placeholder:text-[#9e9e9a] focus:border-[#1a1a18]';
@@ -268,12 +271,30 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
     setCurrentPassword('');
   };
 
-  const handleForgotPassword = () => {
-    showToast({
-      type: 'info',
-      message: 'Password reset via email is not available in this demo.',
-      duration: 4000,
-    });
+  const handleForgotPassword = async () => {
+    const targetEmail = (profileEmail || email || '').trim();
+    if (!targetEmail) {
+      showToast({
+        type: 'error',
+        message: 'Add an email address to your profile before resetting your password.',
+        duration: 4000,
+      });
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, targetEmail);
+      showToast({
+        type: 'success',
+        message: `Password reset email sent to ${targetEmail}.`,
+        duration: 4000,
+      });
+    } catch (err) {
+      showToast({
+        type: 'error',
+        message: err?.message ?? 'Could not send password reset email.',
+        duration: 4000,
+      });
+    }
   };
 
   const pushSessionRevokedNotification = (allOthers) => {

@@ -6,10 +6,13 @@ import {
   applyBackendOnboardingState,
   resolveAuthNavigationAfterSync,
 } from '@/features/onboarding/utils/authOnboarding';
+import { auth } from '@/config/firebase';
 import {
   consumeRedirectSignInResult,
   readAuthReturnTo,
   AUTH_REDIRECT_PENDING_KEY,
+  getMicrosoftRedirectNullErrorMessage,
+  resetRedirectSignInConsumption,
 } from '@/features/auth/services/firebaseAuthService';
 import { useToast } from '@/hooks/useToast';
 
@@ -53,7 +56,14 @@ const AuthRedirectHandler = () => {
     try {
       const user = await consumeRedirectSignInResult();
       if (!user) {
-        if (pending) {
+        if (pending === 'microsoft') {
+          if (!auth.currentUser) {
+            return;
+          }
+          sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
+          dispatch(setError(getMicrosoftRedirectNullErrorMessage()));
+        } else if (pending) {
+          sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
           dispatch(
             setError(
               'Sign-in could not be completed. Close this tab and try again from the sign-in page.',
@@ -92,6 +102,7 @@ const AuthRedirectHandler = () => {
         onClick={() => {
           setSyncError(null);
           dispatch(setError(null));
+          resetRedirectSignInConsumption();
           runRedirectFlow();
         }}
         className="mt-2 text-[12px] font-medium text-[#18181b] underline cursor-pointer"
