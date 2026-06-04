@@ -15,6 +15,13 @@ import RenameWorkspaceModal from '@/features/forms/components/RenameWorkspaceMod
 import DeleteWorkspaceModal from '@/features/forms/components/DeleteWorkspaceModal';
 import CompareModeDock from '@/features/forms/components/CompareModeDock';
 
+/** One broken modal must not block sign-in or the rest of the dashboard. */
+function SafeOverlay({ children }) {
+  return (
+    <RouteErrorBoundary fallback={() => null}>{children}</RouteErrorBoundary>
+  );
+}
+
 /**
  * Dashboard overlays portaled to document.body so they stay sharp while
  * MainLayout applies global push-back to the canvas behind them.
@@ -22,22 +29,52 @@ import CompareModeDock from '@/features/forms/components/CompareModeDock';
 const GlobalOverlayHost = () => {
   if (typeof document === 'undefined') return null;
 
+  const overlays = (
+    <>
+      <SafeOverlay>
+        <FormContextMenu />
+      </SafeOverlay>
+      <SafeOverlay>
+        <DeleteFormModal />
+      </SafeOverlay>
+      <SafeOverlay>
+        <DuplicateFormModal />
+      </SafeOverlay>
+      <SafeOverlay>
+        <ArchiveFormModal />
+      </SafeOverlay>
+      <SafeOverlay>
+        <AssignFormWorkspaceModal />
+      </SafeOverlay>
+      <SafeOverlay>
+        <PauseFormModal />
+      </SafeOverlay>
+      <SafeOverlay>
+        <FormOverlayModal />
+      </SafeOverlay>
+      <SafeOverlay>
+        <CreateWorkspaceModal />
+      </SafeOverlay>
+      <SafeOverlay>
+        <ShareFormModal />
+      </SafeOverlay>
+      <SafeOverlay>
+        <WorkspaceContextMenu />
+      </SafeOverlay>
+      <SafeOverlay>
+        <RenameWorkspaceModal />
+      </SafeOverlay>
+      <SafeOverlay>
+        <DeleteWorkspaceModal />
+      </SafeOverlay>
+      <SafeOverlay>
+        <CompareModeDock />
+      </SafeOverlay>
+    </>
+  );
+
   return createPortal(
-    <RouteErrorBoundary fallback={OverlayErrorFallback}>
-      <FormContextMenu />
-      <DeleteFormModal />
-      <DuplicateFormModal />
-      <ArchiveFormModal />
-      <AssignFormWorkspaceModal />
-      <PauseFormModal />
-      <FormOverlayModal />
-      <CreateWorkspaceModal />
-      <ShareFormModal />
-      <WorkspaceContextMenu />
-      <RenameWorkspaceModal />
-      <DeleteWorkspaceModal />
-      <CompareModeDock />
-    </RouteErrorBoundary>,
+    <RouteErrorBoundary fallback={OverlayErrorFallback}>{overlays}</RouteErrorBoundary>,
     document.body,
   );
 };

@@ -214,8 +214,8 @@ const ShareFormModal = () => {
   const dispatch = useDispatch();
   const { showToast } = useToast();
   const { open, formTitle, formId } = useSelector((s) => s.ui.shareModal);
-  const forms = useSelector((s) => s.forms.forms);
-  const workspaces = useSelector((s) => s.forms.workspaces);
+  const forms = useSelector((s) => s.forms.forms ?? []);
+  const workspaces = useSelector((s) => s.forms.workspaces ?? []);
   const activeForm = forms.find((f) => String(f.id) === String(formId));
   const workspaceId =
     activeForm?.workspace ||

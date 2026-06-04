@@ -32,7 +32,11 @@ const FormOverlayModal = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { open, formId } = useSelector((s) => s.ui.formOverlay);
-  const form = useSelector((s) => s.forms.forms.find((f) => f.id === formId));
+  const form = useSelector((s) => {
+    const list = s.forms?.forms;
+    if (!Array.isArray(list)) return undefined;
+    return list.find((f) => f.id === formId);
+  });
   const [isLoading, setIsLoading]             = useState(false);
   const [activeTab, setActiveTab]             = useState('overview');
   const [responseLimit, setResponseLimit]     = useState('500');

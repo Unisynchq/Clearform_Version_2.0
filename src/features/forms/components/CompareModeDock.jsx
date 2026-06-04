@@ -54,7 +54,7 @@ const CompareModeDock = () => {
   const navigate   = useNavigate();
   const chipsRef   = useRef(null);
   const { active, selectedFormIds } = useSelector((s) => s.ui.compareMode);
-  const allForms   = useSelector((s) => s.forms.forms);
+  const allForms = useSelector((s) => s.forms.forms ?? []);
 
   const selectedForms = selectedFormIds
     .map((id) => allForms.find((f) => f.id === id))

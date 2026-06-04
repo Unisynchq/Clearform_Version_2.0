@@ -3,7 +3,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import AppRoutes from '@/routes/AppRoutes';
 import ToastContainer from '@/components/feedback/ToastContainer';
-import GlobalOverlayHost from '@/app/GlobalOverlayHost';
+import DashboardOverlays from '@/app/DashboardOverlays';
 import CreateNewFormModal from '@/features/forms/components/CreateNewFormModal';
 import NotificationCenter from '@/features/forms/components/NotificationCenter';
 import BuilderRouteTransitionOverlay from '@/components/layout/BuilderRouteTransitionOverlay';
@@ -28,7 +28,7 @@ const App = () => {
       <FirebaseSessionBridge />
       <AppRoutes />
       <ToastContainer />
-      <GlobalOverlayHost />
+      <DashboardOverlays />
       <CreateNewFormModal />
       <NotificationCenter />
       <BuilderRouteTransitionOverlay />
