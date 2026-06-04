@@ -1233,6 +1233,7 @@ const FormBuilderPage = () => {
   const dispatch = useDispatch();
   const { showToast } = useToast();
   const { activeFormId } = useFormBuilderRoute();
+  const formAccentColor = location.state?.formColor ?? '#3b7bf6';
   const fromOnboarding = location.state?.fromOnboarding === true;
   const showOnboardingStepper = useSelector(selectIsOnboardingActive);
   const persistedForm = useSelector((state) =>
@@ -5110,8 +5111,6 @@ const FormBuilderPage = () => {
     }
     setUnsavedChangesPrompt(null);
   };
-
-  const formAccentColor = location.state?.formColor ?? '#3b7bf6';
 
   const closeAllRightPanelsRef = useRef(closeAllRightPanels);
   closeAllRightPanelsRef.current = closeAllRightPanels;
