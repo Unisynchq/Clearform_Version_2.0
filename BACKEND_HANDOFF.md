@@ -7,6 +7,81 @@ This document is for the **backend team**: what exists today, what the UI expect
 
 ---
 
+## Frontend implementation log (for backend + frontend context)
+
+Use this section to see what shipped on `main` without re-reading git history. Backend work is still required where noted below; these entries are **frontend-only** unless stated otherwise.
+
+### 2026-06-04 11:38 — Published form matches builder Preview (frontend)
+
+| Field | Value |
+|-------|--------|
+| **Date / time** | 2026-06-04 11:38 (local) |
+| **Git branch** | `main` |
+| **Commit** | `25b56eb` — *Align published form with builder preview using shared ContentCard renderer.* |
+| **Repo** | https://github.com/Unisynchq/Clearform_Version_2.0 |
+| **Backend changes** | **None** — no API routes, DTOs, or server code modified |
+
+#### Problem (before)
+
+- Builder **Preview** used `BuilderContentCard.jsx` (full design, motion, page indicator, step nav).
+- Public **`/f/:formId`** used `FormRespondentView` + `RespondentScreenFields` (plain inputs, different layout, missing block types).
+- Publish snapshot omitted some preview fields (`accentColor`, intro logo, intro essential block, merged logic-else branches).
+
+#### What we fixed (frontend)
+
+Published respondents now use the **same renderer path as preview**:
+
+- `FormRespondentView` → `BuilderContentCard` (`isPreviewMode`) + `previewCanvasConfigsFromScreen.js`
+- Same chrome: `PreviewPageIndicator`, `PreviewCardStepNav`, `PreviewPoweredBy`
+- Same screen transitions: `motion` / `AnimatePresence`
+- No extra Clearform header on `/f/:formId` (matches preview canvas)
+- Richer publish snapshot from `FormBuilderPage` (see files below)
+
+#### Files changed (this release only)
+
+| File | What changed |
+|------|----------------|
+| `src/features/forms/components/FormRespondentView.jsx` | Rebuilt public runner: `ContentCard`, preview chrome, intro/end parity, logic runner, response submit unchanged |
+| `src/features/forms/pages/PublicFormPage.jsx` | Loads published snapshot only; delegates all UI to `FormRespondentView` (no duplicate wrapper/header) |
+| `src/features/forms/utils/respondentThemeStyles.js` | `resolveThemeFromSnapshot()` — typography id, card opacity, gradients, accent from `snapshot.theme` |
+| `src/features/forms/pages/FormBuilderPage.jsx` | Snapshot adds `theme.accentColor`, `theme.fullCanvas`, `intro.logo`, `intro.essential`; merges `logicElseByScreen` into `logicIfRulesByEdge` on publish |
+| `src/features/forms/utils/publishedFormLogic.test.js` | Tests for theme/intro round-trip and `previewCanvasConfigsFromScreen` |
+
+**Not modified:** `src/api/endpoints.js`, backend services contract, Firebase, analytics API facades (beyond existing client usage).
+
+#### Snapshot fields backend must preserve (new / important)
+
+When implementing `POST /forms/:id/publish` and `GET /forms/:id/published`, round-trip these without renaming or dropping:
+
+```json
+{
+  "intro": {
+    "title", "description", "buttonText", "textSize", "alignment",
+    "logo": "data:image/... or null",
+    "essential": "CTA | Heading | ... | null"
+  },
+  "theme": {
+    "layoutStyle", "fullCanvas", "background", "cardColor", "cardImage",
+    "cardOpacity", "textColor", "accentColor", "typography"
+  },
+  "logicIfRulesByEdge": { "...": { "rules": [], "elseScreenId": number | null } }
+}
+```
+
+#### Backend action still required
+
+- Store and return the **full** snapshot JSON on publish/published (see **B.4** and **Snapshot schema**).
+- Forms published **before** this commit should be **republished once** from the builder so new `intro` / `theme` fields exist in the live snapshot.
+- Response quality on live forms still uses `POST /forms/:id/response-quality/evaluate` when `VITE_API_BASE_URL` is set (unchanged).
+
+#### How to verify
+
+1. Builder → Preview → note theme, blocks, logic.
+2. Publish → open `/f/:formId` in incognito.
+3. Confirm visual parity (card, indicator, Back/Continue, Powered by, animations).
+
+---
+
 ## READ THIS FIRST — Product review and backend obligations
 
 This block was added after hands-on QA of the Clearform v2 frontend on `main`. The UI is largely complete but still runs on **localStorage** and **demo data** in several places. Your APIs are what turn this into a real product. Do not skip this section.
@@ -312,9 +387,9 @@ What the form owner sees in **Preview** inside the builder (styled card, theme, 
 
 **What the frontend does today**
 
-- Preview: rich `BuilderContentCard.jsx` inside the builder canvas with theme, page indicator, powered-by, response quality UI.
-- Published: `PublicFormPage.jsx` loads `readPublishedForm(formId)` then `FormRespondentView.jsx` with minimal layout and `RespondentScreenFields.jsx` — different components, no response quality, different visual design.
-- Logic data is in the snapshot; runner is shared, so branching can work **if** the snapshot is identical.
+- **Preview** and **published** (`/f/:formId`) both use `BuilderContentCard.jsx` via `FormRespondentView.jsx` with `previewCanvasConfigsFromScreen.js` (shipped **2026-06-04**, commit `25b56eb`).
+- `PublicFormPage.jsx` loads published snapshot only (`getPublishedForm` / `readPublishedForm`) — no builder-draft fallback.
+- Logic runs in the browser (`formLogicRunner.js` / `logicEngine.js`); branching works when snapshot includes `logicConnections`, `logicIfRulesByEdge` (with `elseScreenId`), and per-screen `config`.
 
 **What backend must build**
 
@@ -324,7 +399,7 @@ What the form owner sees in **Preview** inside the builder (styled card, theme, 
 
 **How frontend will connect**
 
-Frontend will refactor toward one respondent renderer for preview and public, reading `snapshot.theme`, `screens`, `logicConnections`, `logicIfRulesByEdge`, and per-screen `config` (including response quality flags).
+Frontend already uses one respondent renderer for preview and public. Backend must return the complete snapshot (including `theme.accentColor`, `intro.logo`, `intro.essential`) on `GET /forms/:id/published`.
 
 **Done when**
 
