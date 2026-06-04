@@ -108,14 +108,5 @@ export default function PublicFormPage() {
     );
   }
 
-  const canvasBg = draft?.theme?.background ?? '#f5f4f0';
-
-  return (
-    <div
-      className="min-h-screen flex flex-col items-center py-10 px-4"
-      style={{ backgroundColor: canvasBg, fontFamily: "'DM Sans', sans-serif" }}
-    >
-      <FormRespondentView draft={draft} formTitle={draft.formTitle} formId={formId} />
-    </div>
-  );
+  return <FormRespondentView draft={draft} formId={formId} />;
 }

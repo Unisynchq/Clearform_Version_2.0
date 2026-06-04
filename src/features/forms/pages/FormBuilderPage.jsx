@@ -3061,11 +3061,13 @@ const FormBuilderPage = () => {
     () => ({
       activeThemeId,
       layoutStyle: designLayoutStyle,
+      fullCanvas: designLayoutStyle === 'fullCanvas',
       background: designBackground,
       cardColor: designCardColor,
       cardImage: designCardImage,
       cardOpacity: designCardOpacity,
       textColor: designTextColor,
+      accentColor: designTextColor || formAccentColor,
       typography: designTypography,
     }),
     [
@@ -3076,6 +3078,7 @@ const FormBuilderPage = () => {
       designCardImage,
       designCardOpacity,
       designTextColor,
+      formAccentColor,
       designTypography,
     ]
   );
@@ -3404,6 +3407,14 @@ const FormBuilderPage = () => {
     setIntroButtonText(built.intro.buttonText);
     setWelcomeTextSize(built.intro.textSize ?? 'M');
     setWelcomeAlignment(built.intro.alignment ?? 'left');
+    if (built.intro?.logo) {
+      setLogoImage(built.intro.logo);
+      setDraftLogo(built.intro.logo);
+    } else {
+      setLogoImage(null);
+      setDraftLogo(null);
+    }
+    setIntroEssential(built.intro?.essential ?? null);
     setDraftTitle(built.intro.title);
     setDraftDescription(built.intro.description);
     setDraftButtonText(built.intro.buttonText);
@@ -3440,7 +3451,6 @@ const FormBuilderPage = () => {
       if (built.settings.responseLimitCount != null) setSettingsResponseLimitCount(String(built.settings.responseLimitCount));
       if (Object.prototype.hasOwnProperty.call(built.settings, 'webhook')) setSettingsWebhook(Boolean(built.settings.webhook));
     }
-    setIntroEssential(null);
     setActiveScreenId(built.screens[0]?.id ?? null);
     closeAllRightPanels();
     setShowConfigPanel(true);
@@ -4779,6 +4789,8 @@ const FormBuilderPage = () => {
         buttonText: introButtonText,
         textSize: welcomeTextSize,
         alignment: welcomeAlignment,
+        logo: logoImage,
+        essential: introEssential,
       },
       end: {
         title: endScreenTitle,
@@ -4786,7 +4798,7 @@ const FormBuilderPage = () => {
         buttonText: endScreenButtonText,
       },
       logicConnections,
-      logicIfRulesByEdge,
+      logicIfRulesByEdge: mergeLegacyElseIntoEdges(logicIfRulesByEdge, logicElseByScreen),
       logicMeta: buildLogicMeta({
         logicModeManual,
         logicCardOffsets,
@@ -4804,11 +4816,14 @@ const FormBuilderPage = () => {
     introButtonText,
     welcomeTextSize,
     welcomeAlignment,
+    logoImage,
+    introEssential,
     endScreenTitle,
     endScreenDescription,
     endScreenButtonText,
     logicConnections,
     logicIfRulesByEdge,
+    logicElseByScreen,
     logicModeManual,
     logicCardOffsets,
     aiLogicGen.status,

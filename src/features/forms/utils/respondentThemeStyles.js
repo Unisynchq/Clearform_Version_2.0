@@ -1,38 +1,69 @@
+import { TYPOGRAPHY_FONTS, hexToRgba } from '@/features/forms/formBuilder/builderConfiguratorConstants';
+
+const DEFAULTS = {
+  pageBg: '#f5f4f0',
+  fullCanvas: false,
+  cardColor: '#f7f6f4',
+  cardImage: null,
+  textColor: '#18181b',
+  accentColor: '#18181b',
+  typography: TYPOGRAPHY_FONTS.default,
+};
+
+function resolvePageBackground(background) {
+  if (!background) return DEFAULTS.pageBg;
+  if (typeof background === 'string') return background;
+  if (background?.type === 'color' && background?.value) return background.value;
+  if (background?.type === 'gradient' && Array.isArray(background?.stops)?.[0]) {
+    return background.stops[0];
+  }
+  return DEFAULTS.pageBg;
+}
+
+function resolveTypography(theme) {
+  if (!theme?.typography) return DEFAULTS.typography;
+  if (typeof theme.typography === 'string') {
+    return TYPOGRAPHY_FONTS[theme.typography] ?? TYPOGRAPHY_FONTS.default;
+  }
+  if (theme.typography?.fontFamily) {
+    return `'${theme.typography.fontFamily}', sans-serif`;
+  }
+  return DEFAULTS.typography;
+}
+
 /**
- * Map builder snapshot.theme to respondent shell styles (preview parity).
+ * Map published snapshot.theme to the same tokens builder preview uses (resolveBuilderTheme).
  */
-export function getRespondentThemeStyles(theme) {
+export function resolveThemeFromSnapshot(theme) {
   if (!theme || typeof theme !== 'object') {
-    return {
-      pageBg: '#f5f4f0',
-      fullCanvas: false,
-      cardColor: '#f7f6f4',
-      cardImage: null,
-      textColor: '#18181b',
-      accentColor: '#18181b',
-      typography: "'DM Sans', sans-serif",
-    };
+    return { ...DEFAULTS, canvasBackground: DEFAULTS.pageBg };
   }
 
-  const bg = theme.background;
-  let pageBg = '#f5f4f0';
-  if (typeof bg === 'string') pageBg = bg;
-  else if (bg?.type === 'color' && bg?.value) pageBg = bg.value;
-  else if (bg?.type === 'gradient' && Array.isArray(bg?.stops)?.[0]) {
-    pageBg = bg.stops[0];
-  }
+  const pageBg = resolvePageBackground(theme.background);
+  const fullCanvas = Boolean(theme.fullCanvas ?? theme.layoutStyle === 'fullCanvas');
+  const cardImage = theme.cardImage ?? null;
+  const cardColorRaw = theme.cardColor ?? '#f9f9fa';
+  const cardOpacity = typeof theme.cardOpacity === 'number' ? theme.cardOpacity : 74;
+  const cardColor = cardImage ? cardColorRaw : hexToRgba(cardColorRaw, cardOpacity);
+  const textColor = theme.textColor ?? DEFAULTS.textColor;
+  const accentColor = theme.accentColor ?? textColor ?? DEFAULTS.accentColor;
+  const typography = resolveTypography(theme);
 
   return {
     pageBg,
-    fullCanvas: Boolean(theme.fullCanvas ?? theme.layoutStyle === 'full'),
-    cardColor: theme.cardColor ?? '#f7f6f4',
-    cardImage: theme.cardImage ?? null,
-    textColor: theme.textColor ?? '#18181b',
-    accentColor: theme.accentColor ?? theme.textColor ?? '#18181b',
-    typography: theme.typography?.fontFamily
-      ? `'${theme.typography.fontFamily}', sans-serif`
-      : "'DM Sans', sans-serif",
+    canvasBackground: pageBg,
+    fullCanvas,
+    cardColor,
+    cardImage,
+    textColor,
+    accentColor,
+    typography,
   };
+}
+
+/** @deprecated use resolveThemeFromSnapshot */
+export function getRespondentThemeStyles(theme) {
+  return resolveThemeFromSnapshot(theme);
 }
 
 export function respondentCardStyle({ fullCanvas, cardColor, cardImage }) {
