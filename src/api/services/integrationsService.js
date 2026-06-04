@@ -99,6 +99,21 @@ export async function patchIntegration(workspaceId, integrationId, body) {
   });
 }
 
+/** PATCH metadata via form scope when workspace id is unavailable in UI state. */
+export async function patchFormIntegration(formId, integrationId, body) {
+  if (!isApiConfigured() || !formId || !integrationId) {
+    throw new Error('Patch requires form and integration id');
+  }
+  try {
+    return await apiClient(API_ENDPOINTS.integrations.formList(formId), {
+      method: 'PATCH',
+      body: { integrationId, ...body },
+    });
+  } catch (error) {
+    throw mapIntegrationError(error);
+  }
+}
+
 /** Backfill existing form responses into the connected Google Sheet. */
 export async function syncHistoricalToSheets(workspaceId, integrationId, formId) {
   if (!isApiConfigured() || !workspaceId || !integrationId || !formId) {

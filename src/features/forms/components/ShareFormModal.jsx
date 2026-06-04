@@ -35,10 +35,13 @@ import {
   connectIntegration,
   listFormIntegrations,
   mapConnectionsToUiState,
+  patchFormIntegration,
   patchIntegration,
   redirectToOAuth,
   syncHistoricalToSheets,
 } from '@/api/services/integrationsService';
+import { apiClient } from '@/api/client';
+import { API_ENDPOINTS } from '@/api/endpoints';
 
 /* ────────────────────────────────────────
    Helpers
@@ -216,6 +219,7 @@ const ShareFormModal = () => {
   const activeForm = forms.find((f) => String(f.id) === String(formId));
   const workspaceId =
     activeForm?.workspace ||
+    resolvedWorkspaceId ||
     workspaces.find((w) => w.id === readLastWorkspaceId())?.id ||
     workspaces[0]?.id ||
     null;
@@ -231,6 +235,8 @@ const ShareFormModal = () => {
   const [connectingKey, setConnectingKey] = useState(null);
   const [savingIntegration, setSavingIntegration] = useState(false);
   const [syncingSheets, setSyncingSheets] = useState(false);
+  const [sheetsSaved, setSheetsSaved] = useState(false);
+  const [resolvedWorkspaceId, setResolvedWorkspaceId] = useState(null);
   const [embedCopied, setEmbedCopied] = useState(false);
   const [copied, setCopied] = useState(false);
   const [responseLimit, setResponseLimit] = useState(true);
@@ -314,10 +320,27 @@ const ShareFormModal = () => {
   useEffect(() => {
     if (!open) {
       setActiveChannel(null);
+      setSheetsSaved(false);
+      setResolvedWorkspaceId(null);
       return;
     }
     refreshIntegrations();
   }, [open, refreshIntegrations]);
+
+  useEffect(() => {
+    if (!open || !formId || !isApiConfigured() || activeForm?.workspace) return;
+    let cancelled = false;
+    apiClient(API_ENDPOINTS.forms.byId(formId))
+      .then((form) => {
+        if (!cancelled && form?.workspace) {
+          setResolvedWorkspaceId(String(form.workspace));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [open, formId, activeForm?.workspace]);
 
   const ensureToken = async () => {
     const token = await getFreshAuthToken();
@@ -357,20 +380,59 @@ const ShareFormModal = () => {
     }
   };
 
+  const saveIntegrationMetadata = async (connectionId, metadata) => {
+    const body = { metadata };
+    if (workspaceId) {
+      return patchIntegration(workspaceId, connectionId, body);
+    }
+    if (formId) {
+      return patchFormIntegration(formId, connectionId, body);
+    }
+    throw new Error('Workspace not found — reload the dashboard and try again.');
+  };
+
   const handleSaveSheetsConfig = async () => {
     const connectionId = integrations.googleSheets?.connectionId;
-    if (!workspaceId || !connectionId) return;
+    const id = spreadsheetId.trim();
+    if (!id) {
+      showToast({
+        type: 'error',
+        message: 'Paste your Google Spreadsheet ID first.',
+        duration: 2800,
+      });
+      return;
+    }
+    if (!connectionId) {
+      showToast({
+        type: 'error',
+        message: 'Connect Google Sheets first (button above), then save.',
+        duration: 3200,
+      });
+      return;
+    }
+    if (!workspaceId && !formId) {
+      showToast({
+        type: 'error',
+        message: 'Workspace not found — reload the dashboard and try again.',
+        duration: 3200,
+      });
+      return;
+    }
     if (!(await ensureToken())) return;
     setSavingIntegration(true);
+    setSheetsSaved(false);
     try {
-      await patchIntegration(workspaceId, connectionId, {
-        metadata: {
-          spreadsheetId: spreadsheetId.trim(),
-          sheetRange: sheetRange.trim() || 'Sheet1!A1',
-        },
+      await saveIntegrationMetadata(connectionId, {
+        spreadsheetId: id,
+        sheetRange: sheetRange.trim() || 'Sheet1!A1',
       });
       await refreshIntegrations();
-      showToast({ type: 'success', message: 'Google Sheets settings saved.', duration: 2400 });
+      setSheetsSaved(true);
+      showToast({
+        type: 'success',
+        message: 'Saved. New responses will sync to this sheet. Use “Sync existing” for past responses.',
+        duration: 4200,
+      });
     } catch (err) {
       showToast({
         type: 'error',
@@ -384,12 +446,27 @@ const ShareFormModal = () => {
 
   const handleSaveSlackConfig = async () => {
     const connectionId = integrations.slack?.connectionId;
-    if (!workspaceId || !connectionId) return;
+    if (!connectionId) {
+      showToast({
+        type: 'error',
+        message: 'Connect Slack first, then save your channel.',
+        duration: 2800,
+      });
+      return;
+    }
+    if (!workspaceId && !formId) {
+      showToast({
+        type: 'error',
+        message: 'Workspace not found — reload the dashboard and try again.',
+        duration: 3200,
+      });
+      return;
+    }
     if (!(await ensureToken())) return;
     setSavingIntegration(true);
     try {
-      await patchIntegration(workspaceId, connectionId, {
-        metadata: { slackChannel: slackChannel.trim() || '#general' },
+      await saveIntegrationMetadata(connectionId, {
+        slackChannel: slackChannel.trim() || '#general',
       });
       await refreshIntegrations();
       showToast({ type: 'success', message: 'Slack channel saved.', duration: 2400 });
@@ -672,7 +749,7 @@ const ShareFormModal = () => {
                         <p className="text-[12px] text-[#6b6965]">
                           Connect Google Sheets, paste your spreadsheet ID, then new responses sync automatically.
                         </p>
-                        {!integrations.googleSheets?.connected ? (
+                        {!integrations.googleSheets?.connectionId ? (
                           <button
                             type="button"
                             disabled={connectingKey === 'googleSheets'}
@@ -687,7 +764,10 @@ const ShareFormModal = () => {
                             <PanelInput>
                               <input
                                 value={spreadsheetId}
-                                onChange={(e) => setSpreadsheetId(e.target.value)}
+                                onChange={(e) => {
+                                  setSpreadsheetId(e.target.value);
+                                  setSheetsSaved(false);
+                                }}
                                 placeholder="From Google Sheets URL"
                                 className="flex-1 text-[13px] outline-none bg-transparent"
                               />
@@ -701,14 +781,19 @@ const ShareFormModal = () => {
                                 className="flex-1 text-[13px] outline-none bg-transparent"
                               />
                             </PanelInput>
+                            {sheetsSaved && (
+                              <p className="text-[12px] text-[#4caf7d] font-medium">
+                                Spreadsheet linked — new responses will sync automatically.
+                              </p>
+                            )}
                             <div className="flex gap-2">
                               <button
                                 type="button"
                                 disabled={savingIntegration}
                                 onClick={handleSaveSheetsConfig}
-                                className="flex-1 h-9 rounded-[8px] bg-[#1a1917] text-white text-[12px] font-medium"
+                                className="flex-1 h-9 rounded-[8px] bg-[#1a1917] text-white text-[12px] font-medium disabled:opacity-60"
                               >
-                                Save
+                                {savingIntegration ? 'Saving…' : sheetsSaved ? 'Saved' : 'Save'}
                               </button>
                               <button
                                 type="button"
@@ -729,7 +814,7 @@ const ShareFormModal = () => {
                         <p className="text-[12px] text-[#6b6965]">
                           New responses post to your Slack channel when the form is submitted.
                         </p>
-                        {!integrations.slack?.connected ? (
+                        {!integrations.slack?.connectionId ? (
                           <button
                             type="button"
                             disabled={connectingKey === 'slack'}

@@ -1,8 +1,8 @@
 export const DEFAULT_INTEGRATIONS = {
   webhook: { connected: false },
-  googleSheets: { connected: true },
+  googleSheets: { connected: false },
   googleDrive: { connected: false },
-  slack: { connected: true },
+  slack: { connected: false },
   notion: { connected: false },
 };
 
