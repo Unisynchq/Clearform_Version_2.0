@@ -35,8 +35,7 @@ import {
   connectIntegration,
   listFormIntegrations,
   mapConnectionsToUiState,
-  patchFormIntegration,
-  patchIntegration,
+  saveIntegrationMetadata,
   redirectToOAuth,
   syncHistoricalToSheets,
 } from '@/api/services/integrationsService';
@@ -217,6 +216,8 @@ const ShareFormModal = () => {
   const forms = useSelector((s) => s.forms.forms ?? []);
   const workspaces = useSelector((s) => s.forms.workspaces ?? []);
   const activeForm = forms.find((f) => String(f.id) === String(formId));
+  const [resolvedWorkspaceId, setResolvedWorkspaceId] = useState(null);
+
   const workspaceId =
     activeForm?.workspace ||
     resolvedWorkspaceId ||
@@ -236,7 +237,6 @@ const ShareFormModal = () => {
   const [savingIntegration, setSavingIntegration] = useState(false);
   const [syncingSheets, setSyncingSheets] = useState(false);
   const [sheetsSaved, setSheetsSaved] = useState(false);
-  const [resolvedWorkspaceId, setResolvedWorkspaceId] = useState(null);
   const [embedCopied, setEmbedCopied] = useState(false);
   const [copied, setCopied] = useState(false);
   const [responseLimit, setResponseLimit] = useState(true);
@@ -380,17 +380,6 @@ const ShareFormModal = () => {
     }
   };
 
-  const saveIntegrationMetadata = async (connectionId, metadata) => {
-    const body = { metadata };
-    if (workspaceId) {
-      return patchIntegration(workspaceId, connectionId, body);
-    }
-    if (formId) {
-      return patchFormIntegration(formId, connectionId, body);
-    }
-    throw new Error('Workspace not found — reload the dashboard and try again.');
-  };
-
   const handleSaveSheetsConfig = async () => {
     const connectionId = integrations.googleSheets?.connectionId;
     const id = spreadsheetId.trim();
@@ -422,7 +411,7 @@ const ShareFormModal = () => {
     setSavingIntegration(true);
     setSheetsSaved(false);
     try {
-      await saveIntegrationMetadata(connectionId, {
+      await saveIntegrationMetadata(workspaceId, formId, connectionId, {
         spreadsheetId: id,
         sheetRange: sheetRange.trim() || 'Sheet1!A1',
       });
@@ -465,7 +454,7 @@ const ShareFormModal = () => {
     if (!(await ensureToken())) return;
     setSavingIntegration(true);
     try {
-      await saveIntegrationMetadata(connectionId, {
+      await saveIntegrationMetadata(workspaceId, formId, connectionId, {
         slackChannel: slackChannel.trim() || '#general',
       });
       await refreshIntegrations();

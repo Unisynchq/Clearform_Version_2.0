@@ -99,6 +99,23 @@ export async function patchIntegration(workspaceId, integrationId, body) {
   });
 }
 
+/** Save integration metadata via workspace or form-scoped PATCH. */
+export async function saveIntegrationMetadata(
+  workspaceId,
+  formId,
+  integrationId,
+  metadata,
+) {
+  const body = { metadata };
+  if (workspaceId) {
+    return patchIntegration(workspaceId, integrationId, body);
+  }
+  if (formId) {
+    return patchFormIntegration(formId, integrationId, body);
+  }
+  throw new Error('Workspace not found — reload the dashboard and try again.');
+}
+
 /** PATCH metadata via form scope when workspace id is unavailable in UI state. */
 export async function patchFormIntegration(formId, integrationId, body) {
   if (!isApiConfigured() || !formId || !integrationId) {
