@@ -12,7 +12,14 @@ import {
 } from 'firebase/auth';
 import { auth, googleProvider, microsoftProvider, getFirebaseAuthOrigin } from '@/config/firebase';
 import { fetchMe } from '@/api/services/authMeService';
+import { ApiError } from '@/api/client';
 import { isApiConfigured } from '@/config/env';
+import { runSingleFlightSync } from '@/features/auth/utils/authBootstrapCoordinator';
+import {
+  clearAuthClientContext,
+  writeOnboardingHint,
+} from '@/features/auth/utils/authClientContext';
+import { resetAuthBootstrapCoordinator } from '@/features/auth/utils/authBootstrapCoordinator';
 
 const TOKEN_KEY = 'clearform:auth-token';
 export const AUTH_RETURN_TO_KEY = 'clearform:auth-return-to';
@@ -22,6 +29,30 @@ const AUTH_LOG_PREFIX = '[clearform:auth]';
 const REDIRECT_SETTLE_MS = 400;
 
 let redirectResultPromise = null;
+let backendSyncPromise = null;
+
+function isBraveBrowser() {
+  if (typeof navigator === 'undefined') return false;
+  return /brave/i.test(navigator.userAgent ?? '');
+}
+
+function delay(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function fetchMeWithRetry() {
+  try {
+    return await fetchMe();
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      await delay(300);
+      return fetchMe();
+    }
+    throw error;
+  }
+}
 
 function logAuthDebug(step, detail = {}) {
   if (typeof console !== 'undefined' && console.info) {
@@ -42,12 +73,6 @@ function waitForFirebaseAuthInit() {
       unsub();
       resolve();
     });
-  });
-}
-
-function delay(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
   });
 }
 
@@ -135,21 +160,35 @@ export async function syncUserWithBackend() {
   if (!isApiConfigured()) {
     return { onboardingCompleted: false, user: null };
   }
-  try {
-    const data = await fetchMe();
-    if (!data?.user) {
-      throw new Error('Could not sync your account with the server. Please try again.');
+
+  const run = async () => {
+    try {
+      const data = await fetchMeWithRetry();
+      if (!data?.user) {
+        throw new Error('Could not sync your account with the server. Please try again.');
+      }
+      const onboardingCompleted = data.user.onboardingCompleted === true;
+      writeOnboardingHint(onboardingCompleted);
+      return {
+        onboardingCompleted,
+        user: data.user,
+      };
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('sync your account')) {
+        throw error;
+      }
+      throw new Error(
+        'Could not sync your account with the server. Check your connection and try again.',
+      );
     }
-    return {
-      onboardingCompleted: data.user.onboardingCompleted === true,
-      user: data.user,
-    };
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('sync your account')) {
-      throw error;
-    }
-    throw new Error('Could not sync your account with the server. Check your connection and try again.');
+  };
+
+  if (!backendSyncPromise) {
+    backendSyncPromise = runSingleFlightSync(run).finally(() => {
+      backendSyncPromise = null;
+    });
   }
+  return backendSyncPromise;
 }
 
 async function buildUserFromFirebaseUser(user, { isNewUser } = {}) {
@@ -314,11 +353,22 @@ export async function signUpWithEmail(email, password, firstName, lastName) {
   }
 }
 
-export async function signInWithGoogle() {
+export async function signInWithGoogle(returnTo) {
   try {
+    if (isBraveBrowser()) {
+      if (typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//')) {
+        sessionStorage.setItem(AUTH_RETURN_TO_KEY, returnTo);
+      }
+      sessionStorage.setItem(AUTH_REDIRECT_PENDING_KEY, 'google');
+      await signInWithRedirect(auth, googleProvider);
+      return;
+    }
     const result = await signInWithPopup(auth, googleProvider);
     return await buildUserFromFirebaseResult(result);
   } catch (error) {
+    if (error?.code === 'auth/popup-closed-by-user') {
+      throw new Error(mapFirebaseError(error));
+    }
     throw new Error(mapFirebaseError(error));
   }
 }
@@ -333,6 +383,9 @@ export async function signOutUser() {
   sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
   sessionStorage.removeItem(AUTH_RETURN_TO_KEY);
   redirectResultPromise = null;
+  backendSyncPromise = null;
+  clearAuthClientContext();
+  resetAuthBootstrapCoordinator();
   await signOut(auth);
 }
 

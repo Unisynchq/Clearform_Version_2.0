@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { loadWorkspacesFromApi } from '@/store/slices/formsSlice';
+import { readLastWorkspaceId } from '@/features/auth/utils/authClientContext';
 import { useNavigate } from 'react-router-dom';
 import {
   RiArrowLeftLine,
@@ -15,6 +17,7 @@ import ConfirmActionModal from '@/components/ui/ConfirmActionModal';
 import ManageIntegrationsModal from '@/features/forms/components/ManageIntegrationsModal';
 import { clearBuilderDraft } from '@/features/forms/utils/builderDraftStorage';
 import { useToast } from '@/hooks/useToast';
+import { isApiConfigured } from '@/config/env';
 import { openDeleteModal } from '@/store/slices/uiSlice';
 
 const SECTION_LABEL =
@@ -106,8 +109,17 @@ export default function FormBuilderSettingsPanel({
   const workspaces = useSelector((s) => s.forms.workspaces);
   const activeForm = forms.find((f) => String(f.id) === String(activeFormId));
   const integrationWorkspaceId =
-    activeForm?.workspace || workspaces[0]?.id || null;
+    activeForm?.workspace ||
+    workspaces.find((w) => w.id === readLastWorkspaceId())?.id ||
+    workspaces[0]?.id ||
+    null;
   const [manageIntegrationsOpen, setManageIntegrationsOpen] = useState(false);
+
+  useEffect(() => {
+    if (isApiConfigured() && workspaces.length === 0) {
+      dispatch(loadWorkspacesFromApi());
+    }
+  }, [dispatch, workspaces.length]);
   const [discardModalOpen, setDiscardModalOpen] = useState(false);
 
   const handleDeleteClick = () => {

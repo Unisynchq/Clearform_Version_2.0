@@ -5041,15 +5041,7 @@ const FormBuilderPage = () => {
   }, [closeAllRightPanels]);
 
   const performLeaveBuilder = useCallback(() => {
-    if (fromOnboarding) {
-      navigate('/onboarding');
-      return;
-    }
-    if (window.history.length > 1) {
-      navigate(-1);
-      return;
-    }
-    navigate('/dashboard');
+    navigate(fromOnboarding ? '/onboarding' : '/dashboard', { replace: true });
   }, [fromOnboarding, navigate]);
 
   const discardAndLeaveBuilder = useCallback(() => {

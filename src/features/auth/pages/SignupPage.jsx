@@ -197,6 +197,7 @@ const SignupPage = () => {
       dispatch(setSubmitting(true));
       try {
         const user = await signInFn();
+        if (!user) return;
         applyBackendOnboardingState(dispatch, user.onboardingCompleted);
         const path = resolveAuthNavigationAfterSync(dispatch, {
           onboardingCompleted: user.onboardingCompleted,

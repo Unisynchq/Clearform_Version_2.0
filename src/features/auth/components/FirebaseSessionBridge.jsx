@@ -12,6 +12,7 @@ import {
   readAuthReturnTo,
   AUTH_REDIRECT_PENDING_KEY,
 } from '@/features/auth/services/firebaseAuthService';
+import { shouldSessionBridgeNavigate } from '@/features/auth/utils/authBootstrapCoordinator';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '@/hooks/useToast';
 
@@ -32,15 +33,23 @@ const FirebaseSessionBridge = () => {
       if (!firebaseUser?.email || isAuthenticated || syncingRef.current) return;
 
       const pending = sessionStorage.getItem(AUTH_REDIRECT_PENDING_KEY);
-      if (pending && pending !== 'microsoft') return;
+      if (
+        !shouldSessionBridgeNavigate({
+          pendingMicrosoft: pending === 'microsoft' || pending === 'google',
+          pathname: location.pathname,
+        })
+      ) {
+        return;
+      }
 
       syncingRef.current = true;
       try {
         const user = await restoreFirebaseSessionFromCurrentUser();
         if (!user?.email) return;
 
-        const returnTo = pending === 'microsoft' ? readAuthReturnTo() : undefined;
-        if (pending === 'microsoft') {
+        const oauthPending = pending === 'microsoft' || pending === 'google';
+        const returnTo = oauthPending ? readAuthReturnTo() : undefined;
+        if (oauthPending) {
           sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
         }
 
@@ -58,8 +67,8 @@ const FirebaseSessionBridge = () => {
         );
 
         const guestPaths = ['/', '/signin', '/signup'];
-        if (pending === 'microsoft' || guestPaths.includes(location.pathname)) {
-          if (pending === 'microsoft') {
+        if (oauthPending || guestPaths.includes(location.pathname)) {
+          if (oauthPending) {
             showToast({
               type: 'success',
               message: 'Signed in successfully',

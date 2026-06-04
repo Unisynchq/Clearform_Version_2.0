@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
 import HooksIcon from '@/features/forms/components/icons/HooksIcon';
 import sheetsIcon from '@/assets/Icons/sheets.svg';
@@ -23,6 +23,12 @@ import {
   mergeIntegrations,
 } from '@/features/profile/utils/profileIntegrationDefaults';
 import { useToast } from '@/hooks/useToast';
+import { getFreshAuthToken } from '@/features/auth/utils/authTokenRefresh';
+import {
+  readLastWorkspaceId,
+  writeLastWorkspaceId,
+} from '@/features/auth/utils/authClientContext';
+import { loadWorkspacesFromApi } from '@/store/slices/formsSlice';
 import IntegrationAppRow from '@/features/profile/components/IntegrationAppRow';
 import GoogleSheetsConnectModal from '@/features/profile/components/GoogleSheetsConnectModal';
 
@@ -31,11 +37,15 @@ const AssetIcon = ({ src, className = 'size-4' }) => (
 );
 
 const ProfileIntegrationsPanel = () => {
+  const dispatch = useDispatch();
   const { showToast } = useToast();
   const [searchParams] = useSearchParams();
   const email = useSelector((s) => s.auth.email);
   const workspaces = useSelector((s) => s.forms.workspaces);
-  const workspaceId = workspaces[0]?.id ?? null;
+  const workspaceId =
+    workspaces.find((w) => w.id === readLastWorkspaceId())?.id ??
+    workspaces[0]?.id ??
+    null;
   const simulateSheetsFailure = searchParams.get('sheets_fail') === '1';
   const useApi = isApiConfigured() && Boolean(workspaceId);
   const [integrations, setIntegrations] = useState(() =>
@@ -58,6 +68,16 @@ const ProfileIntegrationsPanel = () => {
       /* keep local fallback */
     }
   }, [useApi, workspaceId]);
+
+  useEffect(() => {
+    if (isApiConfigured() && workspaces.length === 0) {
+      dispatch(loadWorkspacesFromApi());
+    }
+  }, [dispatch, workspaces.length]);
+
+  useEffect(() => {
+    if (workspaceId) writeLastWorkspaceId(workspaceId);
+  }, [workspaceId]);
 
   useEffect(() => {
     if (useApi) {
@@ -105,6 +125,16 @@ const ProfileIntegrationsPanel = () => {
   const handleConnectProvider = async (key, name) => {
     if (useApi && workspaceId) {
       try {
+        const token = await getFreshAuthToken();
+        if (!token) {
+          showToast({
+            type: 'error',
+            message: 'Session expired — sign in again.',
+            duration: 3200,
+          });
+          return;
+        }
+        writeLastWorkspaceId(workspaceId);
         const { redirectUrl } = await connectIntegration(workspaceId, key);
         redirectToOAuth(redirectUrl);
       } catch (err) {

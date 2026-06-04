@@ -168,7 +168,8 @@ const SignInPage = () => {
     async (signInFn, providerLabel) => {
       dispatch(setSubmitting(true));
       try {
-        const user = await signInFn();
+        const user = await signInFn(location.state?.from);
+        if (!user) return;
         applyBackendOnboardingState(dispatch, user.onboardingCompleted);
         const path = resolveAuthNavigationAfterSync(dispatch, {
           onboardingCompleted: user.onboardingCompleted,

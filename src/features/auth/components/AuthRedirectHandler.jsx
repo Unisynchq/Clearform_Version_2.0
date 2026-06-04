@@ -16,6 +16,10 @@ import {
   restoreFirebaseSessionFromCurrentUser,
 } from '@/features/auth/services/firebaseAuthService';
 import { useToast } from '@/hooks/useToast';
+import {
+  beginRedirectHandlerNavigation,
+  endRedirectHandlerNavigation,
+} from '@/features/auth/utils/authBootstrapCoordinator';
 
 /**
  * Completes Microsoft (and other) signInWithRedirect flows after the browser returns.
@@ -28,25 +32,30 @@ const AuthRedirectHandler = () => {
   const [syncError, setSyncError] = useState(null);
 
   const completeSignIn = async (user) => {
-    const returnTo = readAuthReturnTo();
-    applyBackendOnboardingState(dispatch, user.onboardingCompleted);
-    const path = resolveAuthNavigationAfterSync(dispatch, {
-      onboardingCompleted: user.onboardingCompleted,
-      returnTo,
-    });
-    dispatch(
-      loginSuccess({
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-      }),
-    );
-    showToast({
-      type: 'success',
-      message: 'Signed in successfully',
-      duration: 3000,
-    });
-    navigate(path, { replace: true });
+    beginRedirectHandlerNavigation();
+    try {
+      const returnTo = readAuthReturnTo();
+      applyBackendOnboardingState(dispatch, user.onboardingCompleted);
+      const path = resolveAuthNavigationAfterSync(dispatch, {
+        onboardingCompleted: user.onboardingCompleted,
+        returnTo,
+      });
+      dispatch(
+        loginSuccess({
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+        }),
+      );
+      showToast({
+        type: 'success',
+        message: 'Signed in successfully',
+        duration: 3000,
+      });
+      navigate(path, { replace: true });
+    } finally {
+      endRedirectHandlerNavigation();
+    }
   };
 
   const runRedirectFlow = async () => {
@@ -57,19 +66,29 @@ const AuthRedirectHandler = () => {
     try {
       let user = await consumeRedirectSignInResult();
 
-      if (!user && pending === 'microsoft' && auth.currentUser?.email) {
+      if (
+        !user &&
+        (pending === 'microsoft' || pending === 'google') &&
+        auth.currentUser?.email
+      ) {
         user = await restoreFirebaseSessionFromCurrentUser();
         if (user) sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
       }
 
       if (!user) {
-        if (pending === 'microsoft') {
+        if (pending === 'microsoft' || pending === 'google') {
           if (!auth.currentUser) {
             logPendingMicrosoftNoUser();
             return;
           }
           sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
-          dispatch(setError(getMicrosoftRedirectNullErrorMessage()));
+          dispatch(
+            setError(
+              pending === 'google'
+                ? 'Google sign-in did not finish. Try again or use email sign-in.'
+                : getMicrosoftRedirectNullErrorMessage(),
+            ),
+          );
         } else if (pending) {
           sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
           dispatch(

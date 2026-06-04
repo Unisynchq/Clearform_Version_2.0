@@ -23,6 +23,7 @@ import {
   mergeIntegrations,
 } from '@/features/profile/utils/profileIntegrationDefaults';
 import { useToast } from '@/hooks/useToast';
+import { getFreshAuthToken } from '@/features/auth/utils/authTokenRefresh';
 
 const AssetIcon = ({ src, className = 'size-4' }) => (
   <img src={src} alt="" className={`object-contain ${className}`} aria-hidden />
@@ -121,6 +122,7 @@ function IntegrationCard({ card, connected, onToggle, busy }) {
 
 export default function ManageIntegrationsModal({ open, onClose, formId, workspaceId }) {
   const email = useSelector((state) => state.auth.email);
+  const authSubmitting = useSelector((state) => state.auth.isSubmitting);
   const { showToast } = useToast();
   const [integrations, setIntegrations] = useState(() => mergeIntegrations(null));
   const [connectingKey, setConnectingKey] = useState(null);
@@ -164,6 +166,7 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
   );
 
   const handleToggle = async (key, connected) => {
+    if (authSubmitting) return;
     if (key === 'notion') {
       showToast({ type: 'info', message: 'Notion is not available yet.', duration: 2200 });
       return;
@@ -195,6 +198,15 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
     if (useApi && workspaceId) {
       setConnectingKey(key);
       try {
+        const token = await getFreshAuthToken();
+        if (!token) {
+          showToast({
+            type: 'error',
+            message: 'Session expired — sign in again.',
+            duration: 3200,
+          });
+          return;
+        }
         const { redirectUrl } = await connectIntegration(workspaceId, key);
         redirectToOAuth(redirectUrl);
       } catch (err) {
@@ -310,7 +322,7 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
             card={card}
             connected={integrations[card.key]?.connected ?? false}
             onToggle={(connected) => handleToggle(card.key, connected)}
-            busy={connectingKey === card.key}
+            busy={connectingKey === card.key || authSubmitting}
           />
         ))}
       </div>

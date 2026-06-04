@@ -63,8 +63,13 @@ const IntegrationsPanel = () => {
     dispatch(closeIntegrationsPanel());
     const tab = 'integrations';
     const connected = searchParams.get('connected');
-    const qs = connected ? `?tab=${tab}&connected=${encodeURIComponent(connected)}` : `?tab=${tab}`;
-    navigate(`/dashboard/profile${qs}`);
+    const params = new URLSearchParams();
+    params.set('tab', tab);
+    if (connected) params.set('connected', connected);
+    if (activeFormId) {
+      params.set('returnTo', `/form-builder/${activeFormId}`);
+    }
+    navigate(`/dashboard/profile?${params.toString()}`);
   };
 
   return (
