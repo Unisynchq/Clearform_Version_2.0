@@ -64,7 +64,12 @@ const AnalyticsPage = () => {
   const [exportOpen, setExportOpen] = useState(false);
   const [perfApiStats, setPerfApiStats] = useState(null);
   const [compareApiData, setCompareApiData] = useState(null);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareError, setCompareError] = useState(null);
   const [aiApiInsights, setAiApiInsights] = useState(null);
+  const [aiInsightsError, setAiInsightsError] = useState(null);
+  const [aiPollTick, setAiPollTick] = useState(0);
+  const aiPollAttemptsRef = useRef(0);
 
   const rangeLabelToParam = useCallback((label) => {
     if (label === 'Last 7 days') return '7d';
@@ -83,21 +88,112 @@ const AnalyticsPage = () => {
 
   useEffect(() => {
     if (!selectedFormId || activeTab !== 'compare') return;
+    let cancelled = false;
     setCompareApiData(null);
+    setCompareError(null);
+    setCompareLoading(true);
     fetchCompareAnalytics(selectedFormId, { range: rangeLabelToParam(rangeLabel) })
       .then((data) => {
+        if (cancelled) return;
         if (data && !data.source) setCompareApiData(data);
       })
-      .catch(() => {});
+      .catch((err) => {
+        if (!cancelled) {
+          setCompareError(err?.message ?? 'Could not load compare analytics.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCompareLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedFormId, activeTab, rangeLabel, rangeLabelToParam]);
 
+  const fetchAiInsightsOnce = useCallback(async () => {
+    if (!selectedFormId) return null;
+    const range = rangeLabelToParam(rangeLabel);
+    const data = await generateAiInsights(selectedFormId, { range });
+    if (data && !data.source) return data;
+    return null;
+  }, [selectedFormId, rangeLabel, rangeLabelToParam]);
+
   useEffect(() => {
-    if (!selectedFormId || activeTab !== 'ai') return;
+    if (!selectedFormId || activeTab !== 'ai') return undefined;
+    let cancelled = false;
+    aiPollAttemptsRef.current = 0;
     setAiApiInsights(null);
-    generateAiInsights(selectedFormId, { range: rangeLabelToParam(rangeLabel) })
-      .then((data) => { if (data && !data.source) setAiApiInsights(data); })
-      .catch(() => {});
-  }, [selectedFormId, activeTab, rangeLabel, aiInsightsVisit, rangeLabelToParam]);
+    setAiInsightsError(null);
+
+    const load = async () => {
+      try {
+        const data = await fetchAiInsightsOnce();
+        if (cancelled) return;
+        if (!data) {
+          setAiInsightsError('No insights data returned.');
+          return;
+        }
+        setAiApiInsights(data);
+        if (data.status === 'error') {
+          setAiInsightsError(data.message ?? 'Insights could not be generated.');
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setAiInsightsError(err?.message ?? 'Could not load AI insights.');
+        }
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedFormId, activeTab, rangeLabel, aiInsightsVisit, aiPollTick, rangeLabelToParam, fetchAiInsightsOnce]);
+
+  useEffect(() => {
+    if (!selectedFormId || activeTab !== 'ai') return undefined;
+    if (aiApiInsights?.status !== 'processing') return undefined;
+
+    const maxAttempts = 25;
+    const intervalMs = 2500;
+    const id = window.setInterval(async () => {
+      aiPollAttemptsRef.current += 1;
+      if (aiPollAttemptsRef.current > maxAttempts) {
+        setAiInsightsError('Insights are taking longer than expected. Try again in a moment.');
+        window.clearInterval(id);
+        return;
+      }
+      try {
+        const data = await fetchAiInsightsOnce();
+        if (!data) return;
+        setAiApiInsights(data);
+        if (data.status === 'ready' || data.status === 'insufficient_data' || data.status === 'error') {
+          window.clearInterval(id);
+          if (data.status === 'error') {
+            setAiInsightsError(data.message ?? 'Insights could not be generated.');
+          }
+        }
+      } catch (err) {
+        setAiInsightsError(err?.message ?? 'Could not load AI insights.');
+        window.clearInterval(id);
+      }
+    }, intervalMs);
+
+    return () => window.clearInterval(id);
+  }, [
+    selectedFormId,
+    activeTab,
+    aiApiInsights?.status,
+    rangeLabel,
+    fetchAiInsightsOnce,
+    aiPollTick,
+  ]);
+
+  const retryAiInsights = useCallback(() => {
+    setAiPollTick((n) => n + 1);
+    setAiInsightsError(null);
+    setAiApiInsights(null);
+  }, []);
   const [exportFormatDefault, setExportFormatDefault] = useState('PDF');
   const [viewLoading, setViewLoading] = useState(true);
   const viewLoadingTimerRef = useRef(null);
@@ -233,6 +329,33 @@ const AnalyticsPage = () => {
           />
         );
       case 'compare':
+        if (compareLoading) {
+          return <AnalyticsPanelSkeleton blocks={3} />;
+        }
+        if (compareError) {
+          return (
+            <div className="mx-auto flex max-w-[480px] flex-col items-center gap-3 rounded-xl border border-[#e8e8e5] bg-white px-6 py-10 text-center shadow-sm">
+              <p className="text-[14px] font-medium text-[#17160e]">Compare data unavailable</p>
+              <p className="text-[13px] text-[#6b6b68]">{compareError}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setCompareError(null);
+                  setCompareLoading(true);
+                  fetchCompareAnalytics(selectedFormId, { range: rangeLabelToParam(rangeLabel) })
+                    .then((data) => {
+                      if (data && !data.source) setCompareApiData(data);
+                    })
+                    .catch((err) => setCompareError(err?.message ?? 'Could not load compare analytics.'))
+                    .finally(() => setCompareLoading(false));
+                }}
+                className="mt-1 h-9 rounded-lg bg-[#17160e] px-4 text-[12px] font-medium text-white hover:bg-[#2c2c2e] cursor-pointer"
+              >
+                Retry
+              </button>
+            </div>
+          );
+        }
         return (
           <AnalyticsComparePanel
             currentForm={selectedForm}
@@ -246,14 +369,16 @@ const AnalyticsPage = () => {
       case 'ai':
         return (
           <AnalyticsAiInsightsPanel
-            key={`ai-insights-${aiInsightsVisit}`}
+            key={`ai-insights-${aiInsightsVisit}-${aiPollTick}`}
             loadKey={aiInsightsVisit}
             form={selectedForm}
             rangeLabel={rangeLabel}
             apiInsights={aiApiInsights}
+            insightsError={aiInsightsError}
             insightsNoDataInRange={aiApiInsights?.status === 'insufficient_data'}
             onClearDateFilter={() => setRangeLabel('All time')}
             onShareForm={handleShareSurvey}
+            onRetryInsights={retryAiInsights}
           />
         );
       default:

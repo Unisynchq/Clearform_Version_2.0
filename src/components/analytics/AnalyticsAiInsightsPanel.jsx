@@ -651,12 +651,32 @@ function TopPatternsCard({ patterns }) {
 /*  Main panel — composes states                                              */
 /* -------------------------------------------------------------------------- */
 
+function AiInsightsFetchError({ message, onRetry }) {
+  return (
+    <div className="mx-auto flex w-full max-w-[480px] flex-col items-center gap-3 rounded-xl border border-[#e8e8e5] bg-white px-6 py-10 text-center shadow-sm">
+      <p className="text-[14px] font-medium text-[#17160e]">AI insights unavailable</p>
+      <p className="text-[13px] text-[#6b6b68]">{message}</p>
+      {onRetry ? (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-1 h-9 rounded-lg bg-[#17160e] px-4 text-[12px] font-medium text-white hover:bg-[#2c2c2e] cursor-pointer"
+        >
+          Retry
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function AnalyticsAiInsightsPanel({
   form,
   rangeLabel,
   insightsNoDataInRange,
+  insightsError = null,
   onClearDateFilter,
   onShareForm,
+  onRetryInsights,
   loadKey = 0,
   apiInsights,
 }) {
@@ -708,25 +728,39 @@ function AnalyticsAiInsightsPanel({
   );
 
   useEffect(() => {
+    if (insightsError) {
+      setLoading(false);
+      return undefined;
+    }
     if (showNoDataPeriod || !hasEnoughResponses) {
       setLoading(false);
       return undefined;
     }
-    // When API has finished processing, skip the simulated delay
     if (apiInsights?.status === 'ready') {
       setLoading(false);
       return undefined;
     }
-    // When API is still computing, stay in loading until it resolves
     if (apiInsights?.status === 'processing') {
       setLoading(true);
+      return undefined;
+    }
+    if (apiInsights?.status === 'error') {
+      setLoading(false);
       return undefined;
     }
 
     setLoading(true);
     const timeoutId = window.setTimeout(() => setLoading(false), LOAD_MS);
     return () => window.clearTimeout(timeoutId);
-  }, [hasEnoughResponses, form?.id, showNoDataPeriod, rangeLabel, loadKey, apiInsights?.status]);
+  }, [
+    hasEnoughResponses,
+    form?.id,
+    showNoDataPeriod,
+    rangeLabel,
+    loadKey,
+    apiInsights?.status,
+    insightsError,
+  ]);
 
   const apiLive = isApiConfigured() && apiInsights?.status === 'ready';
 
@@ -760,6 +794,15 @@ function AnalyticsAiInsightsPanel({
       <div className="mx-auto w-full max-w-[480px]">
         <AiInsightsEmpty onShareForm={onShareForm ?? (() => {})} />
       </div>
+    );
+  }
+
+  if (insightsError || apiInsights?.status === 'error') {
+    return (
+      <AiInsightsFetchError
+        message={insightsError ?? apiInsights?.message ?? 'Insights could not be generated.'}
+        onRetry={onRetryInsights}
+      />
     );
   }
 
