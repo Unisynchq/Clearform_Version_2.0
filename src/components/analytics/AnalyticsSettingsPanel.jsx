@@ -306,10 +306,13 @@ function AnalyticsSettingsPanel({ form }) {
       navigate('/dashboard');
     } catch (err) {
       if (err?.name === 'AbortError') return;
+      const detail = err?.message?.trim();
       showToast({
         type: 'error',
-        message: 'Failed to delete form. Try again.',
-        duration: 4500,
+        message: detail && detail !== 'Failed to delete form'
+          ? detail
+          : 'Failed to delete form. Try again.',
+        duration: 6000,
         action: { label: 'Retry', onClick: () => runDeleteForm() },
       });
     } finally {

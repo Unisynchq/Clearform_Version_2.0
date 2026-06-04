@@ -28,7 +28,7 @@ export function DeleteFormModal({ open, formName, onCancel, onConfirm, isLoading
       onConfirm={onConfirm}
       isLoading={isLoading}
       title={`Delete "${formName}"?`}
-      warning="All the data will permanently deleted."
+      warning="All data for this form will be permanently deleted."
       confirmLabel="Delete"
       loadingLabel="Deleting…"
       confirmIcon={RiDeleteBinLine}

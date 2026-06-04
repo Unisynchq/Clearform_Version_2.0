@@ -199,6 +199,10 @@ function formatStatsDisplay(form, apiStats) {
   if (apiStats && !apiStats.source && apiStats.avgTime && apiStats.avgTime !== '—') {
     s.avgTimeLabel = apiStats.avgTime;
   }
+  if (apiStats && !apiStats.source && typeof apiStats.completionRate === 'number') {
+    s.conversion = apiStats.completionRate.toFixed(1);
+    s.conversionPct = Math.round(apiStats.completionRate);
+  }
   const industry = 35;
   const diff = s.conversionPct - industry;
   const diffLabel = diff >= 0 ? `+${diff}` : `${diff}`;

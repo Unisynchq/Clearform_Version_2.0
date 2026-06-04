@@ -4,6 +4,7 @@ import {
   extractRespondentLabel,
   responseToTableRow,
   filterResponsesByRange,
+  sortResponsesByNewest,
 } from './formResponseBuilder';
 
 describe('formResponseBuilder', () => {
@@ -58,6 +59,19 @@ describe('formResponseBuilder', () => {
     expect(row[0]).toBe('a@b.co');
     expect(row[2]).toBe('Completed');
     expect(row[3]).toBe('Yes');
+  });
+
+  it('sortResponsesByNewest orders by submittedAt descending', () => {
+    const sorted = sortResponsesByNewest([
+      { submittedAt: '2026-06-01T10:00:00.000Z' },
+      { submittedAt: '2026-06-04T13:17:00.000Z' },
+      { submittedAt: '2026-06-03T04:28:00.000Z' },
+    ]);
+    expect(sorted.map((r) => r.submittedAt)).toEqual([
+      '2026-06-04T13:17:00.000Z',
+      '2026-06-03T04:28:00.000Z',
+      '2026-06-01T10:00:00.000Z',
+    ]);
   });
 
   it('filterResponsesByRange respects last 7 days', () => {

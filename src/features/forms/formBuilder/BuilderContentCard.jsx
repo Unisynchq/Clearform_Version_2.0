@@ -1383,10 +1383,18 @@ const ContentCardInner = ({
   const responseQualityEvaluation = useMemo(() => {
     if (!isPreviewMode) return null;
     if (cardKey === 'qualitative:Long text' && longTextResponseQualityConfig?.enabled) {
-      return evaluateResponseQuality(longTextDraft, longTextResponseQualityConfig);
+      return evaluateResponseQuality(longTextDraft, {
+        ...longTextResponseQualityConfig,
+        fieldKind: 'longText',
+        question: longTextConfig?.longTextQuestion,
+      });
     }
     if (cardKey === 'qualitative:Short text' && shortTextResponseQualityConfig?.enabled) {
-      return evaluateResponseQuality(shortTextDraft, shortTextResponseQualityConfig);
+      return evaluateResponseQuality(shortTextDraft, {
+        ...shortTextResponseQualityConfig,
+        fieldKind: 'shortText',
+        question: shortTextConfig?.shortTextQuestion,
+      });
     }
     return null;
   }, [
@@ -1394,6 +1402,8 @@ const ContentCardInner = ({
     cardKey,
     longTextResponseQualityConfig,
     shortTextResponseQualityConfig,
+    longTextConfig?.longTextQuestion,
+    shortTextConfig?.shortTextQuestion,
     longTextDraft,
     shortTextDraft,
   ]);

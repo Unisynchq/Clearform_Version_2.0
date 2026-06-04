@@ -73,8 +73,9 @@ export function deriveFormStatsFromApi(form, apiStats) {
     return isApiConfigured() ? emptyFormStats(form) : deriveFormStats(form);
   }
   const funnel = apiStats.funnel ?? {};
-  const submitted = funnel.submitted ?? apiStats.responses ?? 0;
-  if (submitted === 0) {
+  const totalResponses = apiStats.responses ?? funnel.submitted ?? 0;
+  const submitted = totalResponses;
+  if (totalResponses === 0) {
     return isApiConfigured()
       ? emptyFormStats(form)
       : {

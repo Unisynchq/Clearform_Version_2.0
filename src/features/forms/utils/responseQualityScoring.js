@@ -51,6 +51,19 @@ function hasVagueLanguage(text, vagueWordsStr) {
   return words.some((w) => new RegExp(`\\b${escapeRegex(w)}\\b`, 'i').test(lower));
 }
 
+function isIdentityStyleQuestion(question) {
+  return /\b(name|email|e-mail|phone|mobile|contact|full name|first name|last name)\b/i.test(
+    String(question ?? ''),
+  );
+}
+
+function looksLikeShortIdentityAnswer(text) {
+  const trimmed = text.trim();
+  if (!trimmed || trimmed.length > 80) return false;
+  const words = wordCount(trimmed);
+  return words >= 1 && words <= 5;
+}
+
 function hasTopicKeywords(text, keywordsStr, threshold) {
   const list = (keywordsStr || '')
     .split(',')
@@ -78,10 +91,15 @@ function evaluateSpecificity(text, opts) {
   return true;
 }
 
-function evaluateRelevance(text, opts) {
+function evaluateRelevance(text, opts, context = {}) {
+  if (context.fieldKind === 'shortText' && isIdentityStyleQuestion(context.question)) {
+    return looksLikeShortIdentityAnswer(text);
+  }
   const keywords = (opts.keywords || '').trim();
   if (!keywords) {
-    return wordCount(text) >= 3;
+    const words = wordCount(text);
+    if (words <= 4) return words >= 1;
+    return words >= 3;
   }
   return hasTopicKeywords(text, keywords, opts.matchThreshold ?? 1);
 }
@@ -118,7 +136,10 @@ export function getActiveCriteria(options = {}) {
 /**
  * @returns {null | { level: 'green'|'amber'|'red', failCount: number, message: string|null, failedIds: string[] }}
  */
-export function evaluateResponseQuality(text, { enabled, options } = {}) {
+export function evaluateResponseQuality(
+  text,
+  { enabled, options, fieldKind, question } = {},
+) {
   if (!enabled || !options) return null;
 
   const active = getActiveCriteria(options);
@@ -127,7 +148,12 @@ export function evaluateResponseQuality(text, { enabled, options } = {}) {
   const trimmed = String(text ?? '').trim();
   if (!trimmed) return null;
 
-  const failedIds = active.filter((id) => !EVALUATORS[id](trimmed, options[id]));
+  const evalContext = { fieldKind, question };
+  const failedIds = active.filter((id) => {
+    const fn = EVALUATORS[id];
+    if (id === 'relevance') return !fn(trimmed, options[id], evalContext);
+    return !fn(trimmed, options[id]);
+  });
   const failCount = failedIds.length;
 
   if (failCount === 0) {

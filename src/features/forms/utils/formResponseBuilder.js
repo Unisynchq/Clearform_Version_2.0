@@ -239,7 +239,7 @@ const MS_DAY = 86_400_000;
 /** Filter responses by analytics date-range label. */
 export function filterResponsesByRange(responses, rangeLabel, customRange = {}) {
   if (!responses?.length) return [];
-  if (!rangeLabel || rangeLabel === 'All time') return responses;
+  if (!rangeLabel || rangeLabel === 'All time') return sortResponsesByNewest(responses);
 
   const now = Date.now();
   let start = 0;
@@ -262,8 +262,24 @@ export function filterResponsesByRange(responses, rangeLabel, customRange = {}) 
     return responses;
   }
 
-  return responses.filter((r) => {
+  const filtered = responses.filter((r) => {
     const t = new Date(r.submittedAt).getTime();
     return Number.isFinite(t) && t >= start && t <= end;
+  });
+  return sortResponsesByNewest(filtered);
+}
+
+/** Newest submissions first (stable for equal timestamps). */
+export function sortResponsesByNewest(responses) {
+  if (!responses?.length) return [];
+  return [...responses].sort((a, b) => {
+    const ta = new Date(a.submittedAt).getTime();
+    const tb = new Date(b.submittedAt).getTime();
+    const aValid = Number.isFinite(ta);
+    const bValid = Number.isFinite(tb);
+    if (!aValid && !bValid) return 0;
+    if (!aValid) return 1;
+    if (!bValid) return -1;
+    return tb - ta;
   });
 }

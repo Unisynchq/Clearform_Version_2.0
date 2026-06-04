@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import { updateForm } from '@/store/slices/formsSlice';
 import { AnimatePresence, motion } from 'motion/react';
 import { fetchFormResponses } from '@/api/services/analyticsService';
 import { getBuilderSnapshot } from '@/api/services/formsService';
@@ -78,6 +79,7 @@ function renderCellContent(cell, ci) {
 }
 
 function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
+  const dispatch = useDispatch();
   const storedResponses = useSelector((state) => selectFormResponses(state, form?.id));
   const [apiResponses, setApiResponses] = useState(null);
   const [apiTotal, setApiTotal] = useState(null);
@@ -127,7 +129,12 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
         if (cancelled) return;
         if (Array.isArray(data?.items)) {
           setApiResponses(data.items);
-          setApiTotal(typeof data.total === 'number' ? data.total : data.items.length);
+          const total =
+            typeof data.total === 'number' ? data.total : data.items.length;
+          setApiTotal(total);
+          if (rangeParam === 'all' && form?.id != null) {
+            dispatch(updateForm({ id: form.id, changes: { responses: total } }));
+          }
         }
       })
       .catch(() => {
