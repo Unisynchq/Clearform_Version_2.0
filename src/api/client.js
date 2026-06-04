@@ -1,4 +1,6 @@
 import { env } from '@/config/env';
+import { auth } from '@/config/firebase';
+import { getFreshAuthToken } from '@/features/auth/utils/authTokenRefresh';
 
 export class ApiError extends Error {
   constructor(message, { status, body, path } = {}) {
@@ -49,10 +51,18 @@ export async function apiClient(path, {
     init.body = JSON.stringify(body);
   }
 
-  const token = typeof window !== 'undefined' ? sessionStorage.getItem('clearform:auth-token') : null;
+  let token =
+    typeof window !== 'undefined' ? sessionStorage.getItem('clearform:auth-token') : null;
+  if (typeof window !== 'undefined' && auth?.currentUser) {
+    try {
+      token = await getFreshAuthToken();
+    } catch {
+      // use cached token
+    }
+  }
   if (token) init.headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(buildUrl(path, query), init);
+  let res = await fetch(buildUrl(path, query), init);
   const text = await res.text();
   let data = null;
   if (text) {
@@ -63,7 +73,42 @@ export async function apiClient(path, {
     }
   }
 
+  if (!res.ok && res.status === 401 && typeof window !== 'undefined') {
+    try {
+      const retryToken = await getFreshAuthToken();
+      if (retryToken) {
+        init.headers.Authorization = `Bearer ${retryToken}`;
+        res = await fetch(buildUrl(path, query), init);
+        const retryText = await res.text();
+        data = null;
+        if (retryText) {
+          try {
+            data = JSON.parse(retryText);
+          } catch {
+            data = retryText;
+          }
+        }
+      }
+    } catch {
+      // fall through to auth-expired
+    }
+  }
+
   if (!res.ok) {
+    // #region agent log
+    fetch('http://127.0.0.1:7805/ingest/48d730b4-a8bc-4ce2-b539-22c959afd330', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '0ba7d1' },
+      body: JSON.stringify({
+        sessionId: '0ba7d1',
+        hypothesisId: 'H2-H3',
+        location: 'api/client.js:apiError',
+        message: 'API request failed',
+        data: { status: res.status, path, method },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     if (res.status === 401) {
       window.dispatchEvent(new Event('clearform:auth-expired'));
     }

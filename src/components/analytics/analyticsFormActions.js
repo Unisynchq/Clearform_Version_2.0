@@ -40,7 +40,15 @@ export async function deleteFormRequest({ formId, signal, forceFail } = {}) {
   }
   if (isApiConfigured()) {
     if (!formId) throw new Error('Form id is required');
-    await deleteFormApi(formId);
+    try {
+      await deleteFormApi(formId);
+    } catch (err) {
+      const msg =
+        err?.body?.message ??
+        err?.message ??
+        'Failed to delete form on the server.';
+      throw new Error(msg);
+    }
     clearFormLocalCaches(formId);
     return;
   }

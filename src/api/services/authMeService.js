@@ -17,11 +17,3 @@ export async function markOnboardingCompleteOnServer() {
     body: {},
   });
 }
-
-/** Permanently deletes the authenticated user and associated data. */
-export async function deleteAccount() {
-  if (!isApiConfigured()) {
-    throw new Error('Account deletion requires API configuration.');
-  }
-  return apiClient(API_ENDPOINTS.auth.me, { method: 'DELETE' });
-}

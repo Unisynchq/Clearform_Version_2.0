@@ -19,6 +19,7 @@ import {
 import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.png';
 import { useToast } from '@/hooks/useToast';
 import { getFormBuilderPath } from '@/features/forms/utils/formBuilderNavigation';
+import { getFreshAuthToken } from '@/features/auth/utils/authTokenRefresh';
 
 const FONT = { fontFamily: "'DM Sans', sans-serif" };
 
@@ -994,8 +995,13 @@ const FormPublishView = ({
     link.click();
   }, [formSlug, qrImageUrl]);
 
-  const handleViewResponses = useCallback(() => {
+  const handleViewResponses = useCallback(async () => {
     if (formId == null) return;
+    try {
+      await getFreshAuthToken();
+    } catch {
+      // navigate anyway; analytics may still load
+    }
     navigate(`/dashboard/analytics?form=${encodeURIComponent(String(formId))}&tab=responses`);
   }, [formId, navigate]);
 
