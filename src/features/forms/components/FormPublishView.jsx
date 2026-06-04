@@ -20,6 +20,13 @@ import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.p
 import { useToast } from '@/hooks/useToast';
 import { getFormBuilderPath } from '@/features/forms/utils/formBuilderNavigation';
 import { getFreshAuthToken } from '@/features/auth/utils/authTokenRefresh';
+import { auth } from '@/config/firebase';
+import {
+  AUTH_RETURN_TO_KEY,
+  restoreFirebaseSessionFromCurrentUser,
+} from '@/features/auth/services/firebaseAuthService';
+import { loginSuccess } from '@/store/slices/authSlice';
+import { isAuthSessionValid, readAuthSession } from '@/features/auth/utils/authStorage';
 
 const FONT = { fontFamily: "'DM Sans', sans-serif" };
 
@@ -891,6 +898,7 @@ const FormPublishView = ({
 }) => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const isAuthenticated = useSelector((s) => s.auth.isAuthenticated);
   const { showToast } = useToast();
   const form = useSelector((s) =>
     formId != null ? s.forms.forms.find((f) => f.id === formId) : null,
@@ -997,13 +1005,51 @@ const FormPublishView = ({
 
   const handleViewResponses = useCallback(async () => {
     if (formId == null) return;
+    const target = `/dashboard/analytics?form=${encodeURIComponent(String(formId))}&tab=responses`;
+
+    let authed = isAuthenticated;
+    if (!authed && isAuthSessionValid()) {
+      const session = readAuthSession();
+      dispatch(
+        loginSuccess({
+          email: session.email,
+          firstName: session.firstName,
+          lastName: session.lastName,
+        }),
+      );
+      authed = true;
+    } else if (!authed && auth?.currentUser?.email) {
+      try {
+        const user = await restoreFirebaseSessionFromCurrentUser();
+        if (user?.email) {
+          dispatch(
+            loginSuccess({
+              email: user.email,
+              firstName: user.firstName,
+              lastName: user.lastName,
+            }),
+          );
+          authed = true;
+        }
+      } catch {
+        // fall through
+      }
+    }
+
+    if (!authed) {
+      sessionStorage.setItem(AUTH_RETURN_TO_KEY, target);
+      navigate('/signin', { state: { from: target } });
+      return;
+    }
+
     try {
       await getFreshAuthToken();
     } catch {
-      // navigate anyway; analytics may still load
+      // API may still work with cached token
     }
-    navigate(`/dashboard/analytics?form=${encodeURIComponent(String(formId))}&tab=responses`);
-  }, [formId, navigate]);
+
+    navigate(target);
+  }, [formId, navigate, dispatch, isAuthenticated]);
 
   const handleHome = useCallback(() => {
     if (fromOnboarding) {

@@ -49,3 +49,22 @@ export function redirectToOAuth(redirectUrl) {
     window.location.href = redirectUrl;
   }
 }
+
+export async function disconnectIntegration(workspaceId, integrationId) {
+  if (!isApiConfigured() || !workspaceId || !integrationId) {
+    throw new Error('Disconnect requires workspace and integration id');
+  }
+  return apiClient(API_ENDPOINTS.integrations.workspaceById(workspaceId, integrationId), {
+    method: 'DELETE',
+  });
+}
+
+export async function patchIntegration(workspaceId, integrationId, body) {
+  if (!isApiConfigured() || !workspaceId || !integrationId) {
+    throw new Error('Patch requires workspace and integration id');
+  }
+  return apiClient(API_ENDPOINTS.integrations.workspaceById(workspaceId, integrationId), {
+    method: 'PATCH',
+    body,
+  });
+}

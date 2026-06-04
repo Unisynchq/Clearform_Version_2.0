@@ -95,20 +95,6 @@ export async function apiClient(path, {
   }
 
   if (!res.ok) {
-    // #region agent log
-    fetch('http://127.0.0.1:7805/ingest/48d730b4-a8bc-4ce2-b539-22c959afd330', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '0ba7d1' },
-      body: JSON.stringify({
-        sessionId: '0ba7d1',
-        hypothesisId: 'H2-H3',
-        location: 'api/client.js:apiError',
-        message: 'API request failed',
-        data: { status: res.status, path, method },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     if (res.status === 401) {
       window.dispatchEvent(new Event('clearform:auth-expired'));
     }
