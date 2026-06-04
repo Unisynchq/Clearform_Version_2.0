@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -28,6 +28,17 @@ import {
   updateFormWebhook,
 } from '@/api/services/webhooksService';
 import { useToast } from '@/hooks/useToast';
+import { getFreshAuthToken } from '@/features/auth/utils/authTokenRefresh';
+import { readLastWorkspaceId } from '@/features/auth/utils/authClientContext';
+import { loadWorkspacesFromApi } from '@/store/slices/formsSlice';
+import {
+  connectIntegration,
+  listFormIntegrations,
+  mapConnectionsToUiState,
+  patchIntegration,
+  redirectToOAuth,
+  syncHistoricalToSheets,
+} from '@/api/services/integrationsService';
 
 /* ────────────────────────────────────────
    Helpers
@@ -92,10 +103,27 @@ const Toggle = ({ checked, onChange }) => (
   </button>
 );
 
-const ShareChannel = ({ label, bg, Icon, iconColor }) => (
-  <button className="flex flex-col items-center gap-[5px] cursor-pointer group">
+function buildEmbedCode(url) {
+  return `<iframe\n  src="${url}"\n  width="100%"\n  height="600"\n  frameborder="0"\n  allow="fullscreen"\n></iframe>`;
+}
+
+function buildShareMessage(formTitle, url) {
+  return `Fill out "${formTitle}" on Clearform:\n${url}`;
+}
+
+const ShareChannel = ({ label, bg, Icon, iconColor, active, onClick, disabled }) => (
+  <button
+    type="button"
+    disabled={disabled}
+    onClick={onClick}
+    className={`flex flex-col items-center gap-[5px] cursor-pointer group disabled:opacity-50 disabled:cursor-not-allowed ${
+      active ? 'opacity-100' : ''
+    }`}
+  >
     <div
-      className="w-[60px] h-[60px] rounded-[8px] flex items-center justify-center group-hover:opacity-75 transition-opacity"
+      className={`w-[60px] h-[60px] rounded-[8px] flex items-center justify-center transition-opacity ${
+        active ? 'ring-2 ring-[#1a1917] ring-offset-1' : 'group-hover:opacity-75'
+      }`}
       style={{ backgroundColor: bg }}
     >
       <Icon size={24} color={iconColor} />
@@ -183,8 +211,57 @@ const ShareFormModal = () => {
   const dispatch = useDispatch();
   const { showToast } = useToast();
   const { open, formTitle, formId } = useSelector((s) => s.ui.shareModal);
+  const forms = useSelector((s) => s.forms.forms);
+  const workspaces = useSelector((s) => s.forms.workspaces);
+  const activeForm = forms.find((f) => String(f.id) === String(formId));
+  const workspaceId =
+    activeForm?.workspace ||
+    workspaces.find((w) => w.id === readLastWorkspaceId())?.id ||
+    workspaces[0]?.id ||
+    null;
 
   const [shareLinks, setShareLinks] = useState(null);
+  const [activeChannel, setActiveChannel] = useState(null);
+  const [integrations, setIntegrations] = useState(() =>
+    mapConnectionsToUiState([]),
+  );
+  const [spreadsheetId, setSpreadsheetId] = useState('');
+  const [sheetRange, setSheetRange] = useState('Sheet1!A1');
+  const [slackChannel, setSlackChannel] = useState('');
+  const [connectingKey, setConnectingKey] = useState(null);
+  const [savingIntegration, setSavingIntegration] = useState(false);
+  const [syncingSheets, setSyncingSheets] = useState(false);
+  const [embedCopied, setEmbedCopied] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [responseLimit, setResponseLimit] = useState(true);
+  const [limitValue, setLimitValue] = useState('500');
+  const [autoClose, setAutoClose] = useState(false);
+  const [pendingDate, setPendingDate] = useState(todayPlus30);
+  const [pendingTime, setPendingTime] = useState('23:59');
+  const [savedDate, setSavedDate] = useState('');
+  const [savedTime, setSavedTime] = useState('');
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pwValue, setPwValue] = useState('');
+  const [pwVisible, setPwVisible] = useState(false);
+  const [hintValue, setHintValue] = useState('');
+  const [savedPw, setSavedPw] = useState('');
+  const [webhookOpen, setWebhookOpen] = useState(false);
+  const [pendingUrl, setPendingUrl] = useState('');
+  const [savedWebhookUrl, setSavedWebhookUrl] = useState('');
+  const [triggerCreated, setTriggerCreated] = useState(true);
+  const [triggerClosed, setTriggerClosed] = useState(true);
+  const [triggerUpdated, setTriggerUpdated] = useState(false);
+  const [webhookId, setWebhookId] = useState(null);
+  const [webhookTesting, setWebhookTesting] = useState(false);
+
+  const fullUrl =
+    shareLinks?.publicUrl ??
+    (formId ? buildFallbackPublicUrl(formId) : '');
+  const formUrl =
+    shareLinks?.shortDisplay ??
+    (formId && typeof window !== 'undefined'
+      ? `${window.location.host}/f/${formId}`
+      : '');
 
   useEffect(() => {
     if (!open || !formId) {
@@ -211,45 +288,156 @@ const ShareFormModal = () => {
     };
   }, [open, formId]);
 
-  const fullUrl =
-    shareLinks?.publicUrl ??
-    (formId ? buildFallbackPublicUrl(formId) : '');
-  const formUrl =
-    shareLinks?.shortDisplay ??
-    (formId && typeof window !== 'undefined'
-      ? `${window.location.host}/f/${formId}`
-      : '');
+  useEffect(() => {
+    if (!open || !isApiConfigured() || workspaces.length > 0) return;
+    dispatch(loadWorkspacesFromApi());
+  }, [open, dispatch, workspaces.length]);
 
-  /* ── Copy link ── */
-  const [copied, setCopied] = useState(false);
+  const refreshIntegrations = useCallback(async () => {
+    if (!isApiConfigured() || !formId) return;
+    try {
+      const rows = await listFormIntegrations(formId);
+      const mapped = mapConnectionsToUiState(rows);
+      setIntegrations(mapped);
+      setSpreadsheetId(mapped.googleSheets?.metadata?.spreadsheetId ?? '');
+      setSheetRange(mapped.googleSheets?.metadata?.sheetRange ?? 'Sheet1!A1');
+      setSlackChannel(
+        mapped.slack?.metadata?.slackChannel ??
+          mapped.slack?.metadata?.channel ??
+          '',
+      );
+    } catch {
+      /* keep prior */
+    }
+  }, [formId]);
 
-  /* ── Response limit ── */
-  const [responseLimit, setResponseLimit] = useState(true);
-  const [limitValue,    setLimitValue]    = useState('500');
+  useEffect(() => {
+    if (!open) {
+      setActiveChannel(null);
+      return;
+    }
+    refreshIntegrations();
+  }, [open, refreshIntegrations]);
 
-  /* ── Auto-close date ── */
-  const [autoClose,   setAutoClose]   = useState(false);
-  const [pendingDate, setPendingDate] = useState(todayPlus30);
-  const [pendingTime, setPendingTime] = useState('23:59');
-  const [savedDate,   setSavedDate]   = useState('');
-  const [savedTime,   setSavedTime]   = useState('');
+  const ensureToken = async () => {
+    const token = await getFreshAuthToken();
+    if (!token) {
+      showToast({
+        type: 'error',
+        message: 'Session expired — sign in again.',
+        duration: 3200,
+      });
+      return false;
+    }
+    return true;
+  };
 
-  /* ── Password protect ── */
-  const [pwOpen,      setPwOpen]      = useState(false);
-  const [pwValue,     setPwValue]     = useState('');
-  const [pwVisible,   setPwVisible]   = useState(false);
-  const [hintValue,   setHintValue]   = useState('');
-  const [savedPw,     setSavedPw]     = useState('');
+  const handleConnectProvider = async (feKey) => {
+    if (!workspaceId) {
+      showToast({
+        type: 'error',
+        message: 'Workspace required. Reload dashboard and try again.',
+        duration: 3200,
+      });
+      return;
+    }
+    if (!(await ensureToken())) return;
+    setConnectingKey(feKey);
+    try {
+      const { redirectUrl } = await connectIntegration(workspaceId, feKey);
+      redirectToOAuth(redirectUrl);
+    } catch (err) {
+      showToast({
+        type: 'error',
+        message: err?.message || 'Could not start connection.',
+        duration: 3200,
+      });
+    } finally {
+      setConnectingKey(null);
+    }
+  };
 
-  /* ── Webhook ── */
-  const [webhookOpen,     setWebhookOpen]     = useState(false);
-  const [pendingUrl,      setPendingUrl]      = useState('');
-  const [savedWebhookUrl, setSavedWebhookUrl] = useState('');
-  const [triggerCreated,  setTriggerCreated]  = useState(true);
-  const [triggerClosed,   setTriggerClosed]   = useState(true);
-  const [triggerUpdated,  setTriggerUpdated]  = useState(false);
-  const [webhookId,       setWebhookId]       = useState(null);
-  const [webhookTesting,  setWebhookTesting]  = useState(false);
+  const handleSaveSheetsConfig = async () => {
+    const connectionId = integrations.googleSheets?.connectionId;
+    if (!workspaceId || !connectionId) return;
+    if (!(await ensureToken())) return;
+    setSavingIntegration(true);
+    try {
+      await patchIntegration(workspaceId, connectionId, {
+        metadata: {
+          spreadsheetId: spreadsheetId.trim(),
+          sheetRange: sheetRange.trim() || 'Sheet1!A1',
+        },
+      });
+      await refreshIntegrations();
+      showToast({ type: 'success', message: 'Google Sheets settings saved.', duration: 2400 });
+    } catch (err) {
+      showToast({
+        type: 'error',
+        message: err?.message || 'Could not save Sheets settings.',
+        duration: 3000,
+      });
+    } finally {
+      setSavingIntegration(false);
+    }
+  };
+
+  const handleSaveSlackConfig = async () => {
+    const connectionId = integrations.slack?.connectionId;
+    if (!workspaceId || !connectionId) return;
+    if (!(await ensureToken())) return;
+    setSavingIntegration(true);
+    try {
+      await patchIntegration(workspaceId, connectionId, {
+        metadata: { slackChannel: slackChannel.trim() || '#general' },
+      });
+      await refreshIntegrations();
+      showToast({ type: 'success', message: 'Slack channel saved.', duration: 2400 });
+    } catch (err) {
+      showToast({
+        type: 'error',
+        message: err?.message || 'Could not save Slack settings.',
+        duration: 3000,
+      });
+    } finally {
+      setSavingIntegration(false);
+    }
+  };
+
+  const handleSyncHistorical = async () => {
+    const connectionId = integrations.googleSheets?.connectionId;
+    if (!workspaceId || !connectionId || !formId) return;
+    if (!(await ensureToken())) return;
+    setSyncingSheets(true);
+    try {
+      const result = await syncHistoricalToSheets(workspaceId, connectionId, formId);
+      showToast({
+        type: 'success',
+        message: `Synced ${result.synced} response(s) to Sheets.`,
+        duration: 3200,
+      });
+    } catch (err) {
+      showToast({
+        type: 'error',
+        message: err?.message || 'Could not sync responses to Sheets.',
+        duration: 3200,
+      });
+    } finally {
+      setSyncingSheets(false);
+    }
+  };
+
+  const handleChannelClick = (channelId) => {
+    setActiveChannel((prev) => (prev === channelId ? null : channelId));
+    if (channelId === 'email' && fullUrl) {
+      const body = encodeURIComponent(buildShareMessage(formTitle, fullUrl));
+      window.location.href = `mailto:?subject=${encodeURIComponent(`Form: ${formTitle}`)}&body=${body}`;
+    }
+    if (channelId === 'other' && fullUrl) {
+      navigator.clipboard?.writeText(buildShareMessage(formTitle, fullUrl));
+      showToast({ type: 'success', message: 'Share message copied.', duration: 2200 });
+    }
+  };
 
   useEffect(() => {
     if (!open || !formId || !isApiConfigured()) return;
@@ -466,8 +654,147 @@ const ShareFormModal = () => {
               <div className="flex flex-col gap-4">
                 <p className="text-[10px] font-semibold text-[#c4c0b8] tracking-[0.9px] uppercase leading-[normal]">Share via</p>
                 <div className="flex items-start justify-between">
-                  {SHARE_CHANNELS.map((ch) => <ShareChannel key={ch.id} {...ch} />)}
+                  {SHARE_CHANNELS.map((ch) => (
+                    <ShareChannel
+                      key={ch.id}
+                      {...ch}
+                      active={activeChannel === ch.id}
+                      disabled={connectingKey != null}
+                      onClick={() => handleChannelClick(ch.id)}
+                    />
+                  ))}
                 </div>
+
+                <ExpandPanel show={Boolean(activeChannel)}>
+                  <div className="rounded-[10px] border border-[#e5e4e0] bg-[#fafaf8] p-4 flex flex-col gap-3">
+                    {activeChannel === 'sheets' && (
+                      <>
+                        <p className="text-[12px] text-[#6b6965]">
+                          Connect Google Sheets, paste your spreadsheet ID, then new responses sync automatically.
+                        </p>
+                        {!integrations.googleSheets?.connected ? (
+                          <button
+                            type="button"
+                            disabled={connectingKey === 'googleSheets'}
+                            onClick={() => handleConnectProvider('googleSheets')}
+                            className="h-9 px-4 rounded-[8px] bg-[#1a1917] text-white text-[12px] font-medium"
+                          >
+                            Connect Google Sheets
+                          </button>
+                        ) : (
+                          <>
+                            <PanelLabel>Spreadsheet ID</PanelLabel>
+                            <PanelInput>
+                              <input
+                                value={spreadsheetId}
+                                onChange={(e) => setSpreadsheetId(e.target.value)}
+                                placeholder="From Google Sheets URL"
+                                className="flex-1 text-[13px] outline-none bg-transparent"
+                              />
+                            </PanelInput>
+                            <PanelLabel>Range (optional)</PanelLabel>
+                            <PanelInput>
+                              <input
+                                value={sheetRange}
+                                onChange={(e) => setSheetRange(e.target.value)}
+                                placeholder="Sheet1!A1"
+                                className="flex-1 text-[13px] outline-none bg-transparent"
+                              />
+                            </PanelInput>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                disabled={savingIntegration}
+                                onClick={handleSaveSheetsConfig}
+                                className="flex-1 h-9 rounded-[8px] bg-[#1a1917] text-white text-[12px] font-medium"
+                              >
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                disabled={syncingSheets || !spreadsheetId.trim()}
+                                onClick={handleSyncHistorical}
+                                className="flex-1 h-9 rounded-[8px] border border-[#e0ddd7] bg-white text-[12px] font-medium"
+                              >
+                                {syncingSheets ? 'Syncing…' : 'Sync existing'}
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </>
+                    )}
+
+                    {activeChannel === 'slack' && (
+                      <>
+                        <p className="text-[12px] text-[#6b6965]">
+                          New responses post to your Slack channel when the form is submitted.
+                        </p>
+                        {!integrations.slack?.connected ? (
+                          <button
+                            type="button"
+                            disabled={connectingKey === 'slack'}
+                            onClick={() => handleConnectProvider('slack')}
+                            className="h-9 px-4 rounded-[8px] bg-[#1a1917] text-white text-[12px] font-medium"
+                          >
+                            Connect Slack
+                          </button>
+                        ) : (
+                          <>
+                            <PanelLabel>Channel</PanelLabel>
+                            <PanelInput>
+                              <input
+                                value={slackChannel}
+                                onChange={(e) => setSlackChannel(e.target.value)}
+                                placeholder="#general"
+                                className="flex-1 text-[13px] outline-none bg-transparent"
+                              />
+                            </PanelInput>
+                            <button
+                              type="button"
+                              disabled={savingIntegration}
+                              onClick={handleSaveSlackConfig}
+                              className="h-9 px-4 rounded-[8px] bg-[#1a1917] text-white text-[12px] font-medium"
+                            >
+                              Save channel
+                            </button>
+                          </>
+                        )}
+                      </>
+                    )}
+
+                    {activeChannel === 'embed' && fullUrl && (
+                      <>
+                        <p className="text-[12px] text-[#6b6965]">Embed this form on your site.</p>
+                        <pre className="text-[11px] bg-white border border-[#e5e4e0] rounded-[8px] p-3 overflow-x-auto whitespace-pre-wrap">
+                          {buildEmbedCode(fullUrl)}
+                        </pre>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard?.writeText(buildEmbedCode(fullUrl));
+                            setEmbedCopied(true);
+                            setTimeout(() => setEmbedCopied(false), 2000);
+                          }}
+                          className="h-9 px-4 rounded-[8px] bg-[#1a1917] text-white text-[12px] font-medium self-start"
+                        >
+                          {embedCopied ? 'Copied!' : 'Copy embed code'}
+                        </button>
+                      </>
+                    )}
+
+                    {activeChannel === 'email' && (
+                      <p className="text-[12px] text-[#6b6965]">
+                        Your email app should open with the form link. If not, use Copy link above.
+                      </p>
+                    )}
+
+                    {activeChannel === 'other' && (
+                      <p className="text-[12px] text-[#6b6965]">
+                        Share message copied — paste into any app.
+                      </p>
+                    )}
+                  </div>
+                </ExpandPanel>
               </div>
 
               {/* Divider */}

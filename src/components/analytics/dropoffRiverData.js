@@ -156,6 +156,9 @@ export function deriveQuestionCount(form) {
  * Supported range when explicit: **5 ≤ N ≤ 22** (see `hasRiverEnoughData`).
  */
 export function getRiverQuestionCount(form) {
+  if (Array.isArray(form?.screenDropoff) && form.screenDropoff.length > 0) {
+    return Math.max(RIVER_Q_MIN, Math.min(RIVER_Q_MAX, form.screenDropoff.length));
+  }
   const raw = getRiverQuestionCountRaw(form);
   if (raw != null) {
     return Math.max(RIVER_Q_MIN, Math.min(RIVER_Q_MAX, raw));
@@ -264,13 +267,33 @@ const SCENARIO_ONE_OVERRIDES = [
   { kind: 'healthy', alert: false, drop: null },
 ];
 
+function buildColumnFromApiStep(step, index) {
+  const base = STEPS[index % STEPS.length];
+  const kind = step.kind ?? 'healthy';
+  return buildColumn(
+    {
+      ...base,
+      kind,
+      alert: Boolean(step.alert),
+      drop: step.drop ?? null,
+      highlight: false,
+    },
+    step.q ?? `Q${index + 1}`,
+  );
+}
+
 /**
  * River columns for the active form: length = question count.
  * N === 5: wide connected segments (src/assets/New folder (2)).
  * N === 10: Figma scenario 1 severity story.
- * Else: first N STEPS geometry + seeded tier mix.
+ * Else: first N STEPS geometry + seeded tier mix, or API `screenDropoff` when present.
  */
 export function buildAdaptiveRiverColumns(form) {
+  const apiSteps = form?.screenDropoff;
+  if (Array.isArray(apiSteps) && apiSteps.length >= RIVER_MIN_QUESTIONS) {
+    return apiSteps.map((step, i) => buildColumnFromApiStep(step, i));
+  }
+
   if (!hasRiverEnoughData(form)) {
     return [];
   }

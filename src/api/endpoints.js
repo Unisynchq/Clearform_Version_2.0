@@ -57,6 +57,8 @@ export const API_ENDPOINTS = {
     workspaceById: (workspaceId, integrationId) =>
       `/workspaces/${workspaceId}/integrations/${integrationId}`,
     formList: (formId) => `/forms/${formId}/integrations`,
+    syncHistorical: (workspaceId, integrationId) =>
+      `/workspaces/${workspaceId}/integrations/${integrationId}/sync-historical`,
   },
   webhooks: {
     list: (formId) => `/forms/${formId}/webhooks`,

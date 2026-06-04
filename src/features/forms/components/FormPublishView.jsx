@@ -1008,18 +1008,10 @@ const FormPublishView = ({
     const target = `/dashboard/analytics?form=${encodeURIComponent(String(formId))}&tab=responses`;
 
     let authed = isAuthenticated;
-    if (!authed && isAuthSessionValid()) {
-      const session = readAuthSession();
-      dispatch(
-        loginSuccess({
-          email: session.email,
-          firstName: session.firstName,
-          lastName: session.lastName,
-        }),
-      );
-      authed = true;
-    } else if (!authed && auth?.currentUser?.email) {
+
+    if (auth?.currentUser?.email) {
       try {
+        await getFreshAuthToken();
         const user = await restoreFirebaseSessionFromCurrentUser();
         if (user?.email) {
           dispatch(
@@ -1032,8 +1024,20 @@ const FormPublishView = ({
           authed = true;
         }
       } catch {
-        // fall through
+        authed = Boolean(auth.currentUser);
       }
+    }
+
+    if (!authed && isAuthSessionValid()) {
+      const session = readAuthSession();
+      dispatch(
+        loginSuccess({
+          email: session.email,
+          firstName: session.firstName,
+          lastName: session.lastName,
+        }),
+      );
+      authed = true;
     }
 
     if (!authed) {
@@ -1045,7 +1049,7 @@ const FormPublishView = ({
     try {
       await getFreshAuthToken();
     } catch {
-      // API may still work with cached token
+      // navigate anyway when Redux says authed; token may still be in sessionStorage
     }
 
     navigate(target);

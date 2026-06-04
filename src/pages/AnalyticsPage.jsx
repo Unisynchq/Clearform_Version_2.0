@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -63,6 +63,7 @@ const AnalyticsPage = () => {
   const [rangeLabel, setRangeLabel] = useState('All time');
   const [exportOpen, setExportOpen] = useState(false);
   const [perfApiStats, setPerfApiStats] = useState(null);
+  const [perfApiError, setPerfApiError] = useState(null);
   const [compareApiData, setCompareApiData] = useState(null);
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareError, setCompareError] = useState(null);
@@ -81,10 +82,27 @@ const AnalyticsPage = () => {
   useEffect(() => {
     if (!selectedFormId) return;
     setPerfApiStats(null);
+    setPerfApiError(null);
     fetchPerformanceAnalytics(selectedFormId, { range: rangeLabelToParam(rangeLabel) })
-      .then((data) => { if (data && !data.source) setPerfApiStats(data); })
-      .catch(() => {});
+      .then((data) => {
+        if (data && !data.source) setPerfApiStats(data);
+      })
+      .catch((err) => {
+        setPerfApiError(err?.message ?? 'Could not load performance analytics.');
+      });
   }, [selectedFormId, rangeLabel, rangeLabelToParam]);
+
+  const performanceForm = useMemo(() => {
+    if (!selectedForm) return null;
+    if (!perfApiStats || perfApiStats.source) return selectedForm;
+    return {
+      ...selectedForm,
+      questionCount:
+        perfApiStats.contentScreenCount ??
+        selectedForm.questionCount,
+      screenDropoff: perfApiStats.screenDropoff,
+    };
+  }, [selectedForm, perfApiStats]);
 
   useEffect(() => {
     if (!selectedFormId || activeTab !== 'compare') return;
@@ -131,11 +149,15 @@ const AnalyticsPage = () => {
         if (cancelled) return;
         if (!data) {
           setAiInsightsError('No insights data returned.');
+          setAiApiInsights({ status: 'error', message: 'No insights data returned.' });
           return;
         }
         setAiApiInsights(data);
         if (data.status === 'error') {
           setAiInsightsError(data.message ?? 'Insights could not be generated.');
+        }
+        if (data.status === 'insufficient_data') {
+          setAiInsightsError(null);
         }
       } catch (err) {
         if (!cancelled) {
@@ -296,6 +318,14 @@ const AnalyticsPage = () => {
 
     switch (activeTab) {
       case 'performance':
+        if (perfApiError) {
+          return (
+            <div className="mx-auto flex max-w-[480px] flex-col items-center gap-3 rounded-xl border border-[#e8e8e5] bg-white px-6 py-10 text-center shadow-sm">
+              <p className="text-[14px] font-medium text-[#17160e]">Performance data unavailable</p>
+              <p className="text-[13px] text-[#6b6b68]">{perfApiError}</p>
+            </div>
+          );
+        }
         if (!effectiveHasResponseData) {
           return (
             <AnalyticsPerformanceEmpty
@@ -306,13 +336,13 @@ const AnalyticsPage = () => {
         }
         return (
           <div className="flex flex-col gap-5 max-w-[1400px] mx-auto">
-            <AnalyticsStatsRow form={selectedForm} apiStats={perfApiStats} />
+            <AnalyticsStatsRow form={performanceForm ?? selectedForm} apiStats={perfApiStats} />
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
-              <AnalyticsFunnelCard form={selectedForm} apiStats={perfApiStats} />
+              <AnalyticsFunnelCard form={performanceForm ?? selectedForm} apiStats={perfApiStats} />
               <AnalyticsDailyResponsesCard apiStats={perfApiStats} />
             </div>
             {(perfApiStats?.responses ?? selectedForm?.responses ?? 0) >= 3 ? (
-              <AnalyticsDropoffRiverCard form={selectedForm} />
+              <AnalyticsDropoffRiverCard form={performanceForm ?? selectedForm} />
             ) : (
               <p className="text-[13px] text-[#888580] px-1">
                 Per-question drop-off appears after you have at least 3 responses.
@@ -332,11 +362,11 @@ const AnalyticsPage = () => {
         if (compareLoading) {
           return <AnalyticsPanelSkeleton blocks={3} />;
         }
-        if (compareError) {
+        if (compareError || (isApiConfigured() && !compareLoading && !compareApiData)) {
           return (
             <div className="mx-auto flex max-w-[480px] flex-col items-center gap-3 rounded-xl border border-[#e8e8e5] bg-white px-6 py-10 text-center shadow-sm">
               <p className="text-[14px] font-medium text-[#17160e]">Compare data unavailable</p>
-              <p className="text-[13px] text-[#6b6b68]">{compareError}</p>
+              <p className="text-[13px] text-[#6b6b68]">{compareError ?? 'No compare metrics returned from the API.'}</p>
               <button
                 type="button"
                 onClick={() => {
@@ -373,6 +403,7 @@ const AnalyticsPage = () => {
             loadKey={aiInsightsVisit}
             form={selectedForm}
             rangeLabel={rangeLabel}
+            responseCount={perfApiStats?.responses ?? selectedForm?.responses ?? 0}
             apiInsights={aiApiInsights}
             insightsError={aiInsightsError}
             insightsNoDataInRange={aiApiInsights?.status === 'insufficient_data'}

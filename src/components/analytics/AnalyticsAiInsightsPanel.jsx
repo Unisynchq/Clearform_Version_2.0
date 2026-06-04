@@ -672,6 +672,7 @@ function AiInsightsFetchError({ message, onRetry }) {
 function AnalyticsAiInsightsPanel({
   form,
   rangeLabel,
+  responseCount: responseCountProp,
   insightsNoDataInRange,
   insightsError = null,
   onClearDateFilter,
@@ -703,7 +704,7 @@ function AnalyticsAiInsightsPanel({
     });
   }
 
-  const responseCount = form?.responses ?? 0;
+  const responseCount = responseCountProp ?? form?.responses ?? 0;
   const hasEnoughResponses = responseCount >= MIN_RESPONSES_FOR_AI;
   const showNoDataPeriod = Boolean(insightsNoDataInRange) || emptyPeriodUrl;
   const showExportToast = exportErrUrl && !dismissals.exportToast;
@@ -748,10 +749,19 @@ function AnalyticsAiInsightsPanel({
       setLoading(false);
       return undefined;
     }
+    if (isApiConfigured() && apiInsights == null && !insightsError) {
+      setLoading(true);
+      return undefined;
+    }
 
-    setLoading(true);
-    const timeoutId = window.setTimeout(() => setLoading(false), LOAD_MS);
-    return () => window.clearTimeout(timeoutId);
+    if (!isApiConfigured()) {
+      setLoading(true);
+      const timeoutId = window.setTimeout(() => setLoading(false), LOAD_MS);
+      return () => window.clearTimeout(timeoutId);
+    }
+
+    setLoading(false);
+    return undefined;
   }, [
     hasEnoughResponses,
     form?.id,
@@ -759,6 +769,7 @@ function AnalyticsAiInsightsPanel({
     rangeLabel,
     loadKey,
     apiInsights?.status,
+    apiInsights,
     insightsError,
   ]);
 

@@ -98,3 +98,18 @@ export async function patchIntegration(workspaceId, integrationId, body) {
     body,
   });
 }
+
+/** Backfill existing form responses into the connected Google Sheet. */
+export async function syncHistoricalToSheets(workspaceId, integrationId, formId) {
+  if (!isApiConfigured() || !workspaceId || !integrationId || !formId) {
+    throw new Error('Sync requires workspace, integration, and form id');
+  }
+  try {
+    return await apiClient(
+      API_ENDPOINTS.integrations.syncHistorical(workspaceId, integrationId),
+      { method: 'POST', body: { formId } },
+    );
+  } catch (error) {
+    throw mapIntegrationError(error);
+  }
+}

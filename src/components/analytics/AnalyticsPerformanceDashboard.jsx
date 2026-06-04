@@ -196,8 +196,12 @@ function formatStatsDisplay(form, apiStats) {
     isApiConfigured() || (apiStats && !apiStats.source)
       ? deriveFormStatsFromApi(form, apiStats)
       : deriveFormStats(form);
-  if (apiStats && !apiStats.source && apiStats.avgTime && apiStats.avgTime !== '—') {
-    s.avgTimeLabel = apiStats.avgTime;
+  if (apiStats && !apiStats.source) {
+    if (apiStats.avgTimePerQuestion && apiStats.avgTimePerQuestion !== '—') {
+      s.avgTimeLabel = apiStats.avgTimePerQuestion;
+    } else if (apiStats.avgTime && apiStats.avgTime !== '—') {
+      s.avgTimeLabel = apiStats.avgTime;
+    }
   }
   if (apiStats && !apiStats.source && typeof apiStats.completionRate === 'number') {
     s.conversion = apiStats.completionRate.toFixed(1);
@@ -527,7 +531,10 @@ function buildBarsFromSeries(series, seg) {
     });
   }
   if (seg === 'time') {
-    const vals = series.map((r) => (r.avgDuration ? Math.round(r.avgDuration / 1000) : 0));
+    const vals = series.map((r) => {
+      if (typeof r.avgTimePerQuestionSec === 'number') return r.avgTimePerQuestionSec;
+      return r.avgDuration ? Math.round(r.avgDuration / 1000) : 0;
+    });
     const max = Math.max(...vals, 1);
     return series.map((r, i) => ({ label: toLabel(r.date), value: vals[i], tier: toTier(vals[i], max) }));
   }
@@ -544,7 +551,9 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
 
   const apiBars = useMemo(() => buildBarsFromSeries(apiStats?.dailySeries, seg), [apiStats?.dailySeries, seg]);
 
-  const useApiBars = Boolean(apiBars?.length);
+  const useApiBars =
+    isApiConfigured() &&
+    Boolean(apiStats && !apiStats.source && (apiBars?.length || apiStats.responses === 0));
 
   const avgFromSeries = useMemo(() => {
     if (!apiBars?.length) return null;
@@ -557,7 +566,7 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
       case 'completion':
         return {
           chartMax: CHART_MAX_COMPLETION,
-          bars: apiBars ?? COMPLETION_BARS,
+          bars: useApiBars ? (apiBars ?? []) : COMPLETION_BARS,
           yTicks: ['100', '75', '50', '25', '0'],
           kpiWhole: useApiBars ? avgFromSeries : '13.5',
           kpiFraction: '%',
@@ -585,7 +594,7 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
       case 'time':
         return {
           chartMax: CHART_MAX_TIME,
-          bars: apiBars ?? TIME_BARS,
+          bars: useApiBars ? (apiBars ?? []) : TIME_BARS,
           yTicks: ['30', '24', '18', '12', '6'],
           kpiWhole: useApiBars ? avgFromSeries : '8.4',
           kpiFraction: 's',
@@ -613,7 +622,7 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
       default:
         return {
           chartMax: CHART_MAX,
-          bars: apiBars ?? DAILY_BARS,
+          bars: useApiBars ? (apiBars ?? []) : DAILY_BARS,
           yTicks: ['20', '15', '10', '5', '0'],
           kpiWhole: useApiBars ? avgFromSeries : '8.3',
           kpiFraction: '/day',
