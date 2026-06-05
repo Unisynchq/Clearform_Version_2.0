@@ -229,10 +229,10 @@ const Sidebar = ({ hideLogo = false, exit }) => {
         onClick={() => setIsCollapsed((v) => !v)}
         aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        className={`absolute -right-3.5 z-50 flex h-7 w-7 items-center justify-center rounded-full border border-[#c9c7c0] bg-white text-[#3f3f46] shadow-[0_1px_4px_rgba(0,0,0,0.14)] transition-colors hover:border-[#a8a6a0] hover:bg-[#f4f3ef] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3b7bf6] focus-visible:ring-offset-2 ${hideLogo ? 'top-[22px]' : 'top-[72px]'}`}
+        className={`absolute -right-3 z-50 flex h-6 w-6 items-center justify-center rounded-full border border-[#c9c7c0] bg-white text-[#3f3f46] shadow-[0_1px_4px_rgba(0,0,0,0.14)] transition-colors hover:border-[#a8a6a0] hover:bg-[#f4f3ef] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3b7bf6] focus-visible:ring-offset-2 ${hideLogo ? 'top-[22px]' : 'top-[72px]'}`}
       >
         <RiArrowLeftSLine
-          size={16}
+          size={14}
           className={`shrink-0 transition-transform duration-200 ${isCollapsed ? 'rotate-180' : ''}`}
         />
       </button>
