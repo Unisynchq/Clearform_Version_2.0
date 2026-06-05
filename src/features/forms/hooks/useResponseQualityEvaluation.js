@@ -36,11 +36,15 @@ function buildEvaluatePayload({
 function normalizeApiEvaluation(result) {
   if (!result?.level) return null;
   const failedIds = Array.isArray(result.failedIds) ? result.failedIds : [];
+  const suggestions = Array.isArray(result.suggestions)
+    ? result.suggestions.filter((s) => typeof s === 'string' && s.trim()).slice(0, 2)
+    : [];
   return {
     level: result.level,
     failCount: failedIds.length,
     message: result.message ?? null,
     failedIds,
+    suggestions,
   };
 }
 
