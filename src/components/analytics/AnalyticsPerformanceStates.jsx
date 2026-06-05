@@ -7,9 +7,14 @@ function SkeletonBar({ className = '', style }) {
   );
 }
 
+/** Skeleton for Performance tab — stats row, funnel + daily charts, drop-off block. */
 export function AnalyticsPerformanceSkeleton() {
   return (
-    <div className="flex flex-col gap-5 max-w-[1400px] mx-auto animate-pulse">
+    <div
+      className="flex flex-col gap-5 max-w-[1400px] mx-auto"
+      aria-busy="true"
+      aria-label="Loading analytics"
+    >
       <section className="bg-white rounded-[10px] px-4 py-4 grid grid-cols-1 md:grid-cols-3 gap-6 border border-[#e8e6e1]/80">
         {[0, 1, 2].map((i) => (
           <div key={i} className={`flex flex-col gap-2 ${i > 0 ? 'md:border-l md:border-[#e8e6e1] md:pl-6' : ''}`}>

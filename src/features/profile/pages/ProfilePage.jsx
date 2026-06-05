@@ -81,8 +81,6 @@ const IMPLEMENTED_TABS = new Set([
   'billing',
 ]);
 
-const LANGUAGES = ['English', 'Spanish', 'French', 'German'];
-
 const TIMEZONES = [
   { value: 'UTC', label: 'UTC+00:00 — Coordinated Universal Time' },
   { value: 'America/New_York', label: 'UTC-05:00 — Eastern Time' },
@@ -206,7 +204,6 @@ const ProfilePage = () => {
   const [displayName, setDisplayName] = useState('');
   const [username, setUsername] = useState('');
   const [profileEmail, setProfileEmail] = useState('');
-  const [language, setLanguage] = useState('English');
   const [timezone, setTimezone] = useState('UTC');
   const [photoUrl, setPhotoUrl] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -229,14 +226,12 @@ const ProfilePage = () => {
       displayName: display,
       username: saved?.username ?? '',
       profileEmail: saved?.email ?? email ?? '',
-      language: saved?.language ?? 'English',
       timezone: saved?.timezone ?? 'UTC',
       photoUrl: saved?.photoUrl ?? null,
     };
     setDisplayName(display);
     setUsername(baseline.username);
     setProfileEmail(baseline.profileEmail);
-    setLanguage(baseline.language);
     setTimezone(baseline.timezone);
     setPhotoUrl(baseline.photoUrl);
     setProfileBaseline(baseline);
@@ -272,11 +267,10 @@ const ProfilePage = () => {
       displayName !== profileBaseline.displayName ||
       username !== profileBaseline.username ||
       profileEmail !== profileBaseline.profileEmail ||
-      language !== profileBaseline.language ||
       timezone !== profileBaseline.timezone ||
       photoUrl !== profileBaseline.photoUrl
     );
-  }, [displayName, username, profileEmail, language, timezone, photoUrl, profileBaseline]);
+  }, [displayName, username, profileEmail, timezone, photoUrl, profileBaseline]);
 
   const canSave = hasChanges && displayName.trim().length > 0;
 
@@ -375,7 +369,7 @@ const ProfilePage = () => {
           displayName: trimmedDisplayName,
           username: trimmedUsername,
           email: trimmedProfileEmail,
-          language,
+          language: 'English',
           timezone,
           photoUrl: photoUrl || null,
           firstName: fn,
@@ -387,7 +381,7 @@ const ProfilePage = () => {
         displayName: trimmedDisplayName,
         username: trimmedUsername,
         email: trimmedProfileEmail,
-        language,
+        language: 'English',
         timezone,
         photoUrl,
       });
@@ -399,7 +393,6 @@ const ProfilePage = () => {
         displayName: trimmedDisplayName,
         username: trimmedUsername,
         profileEmail: trimmedProfileEmail,
-        language,
         timezone,
         photoUrl,
       };
@@ -717,28 +710,6 @@ const ProfilePage = () => {
                         Used for login and notifications
                       </p>
                     )}
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
-                    <FieldLabel>Language</FieldLabel>
-                    <div className="relative">
-                      <select
-                        value={language}
-                        onChange={(e) => setLanguage(e.target.value)}
-                        className={selectClass}
-                      >
-                        {LANGUAGES.map((lang) => (
-                          <option key={lang} value={lang}>
-                            {lang}
-                          </option>
-                        ))}
-                      </select>
-                      <RiArrowDownSLine
-                        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#9e9e9a]"
-                        size={16}
-                        aria-hidden
-                      />
-                    </div>
                   </div>
 
                   <div className="flex flex-col gap-1.5">

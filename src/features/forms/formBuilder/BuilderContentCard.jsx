@@ -1,4 +1,4 @@
-import { Fragment, useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { Fragment, cloneElement, useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   RiAddLine,
@@ -48,6 +48,15 @@ import ResponseQualityScoringCard, {
 import ResponseQualityFeedback from '@/features/forms/components/ResponseQualityFeedback';
 import { useResponseQualityEvaluation } from '@/features/forms/hooks/useResponseQualityEvaluation';
 import {
+  cardBodyPadClass,
+  cardBodyPadXClass,
+  cardFooterToolsPadClass,
+  cardNavPadClass,
+  choiceListRowPad,
+  fieldGrid2Class,
+  questionFontSize,
+} from '@/features/forms/utils/respondentLayout';
+import {
   applySecondsToSelection,
   clampSeconds,
   isTimeWithinBounds,
@@ -60,16 +69,12 @@ import {
   formatMaxSizeLabel,
   parseMaxFileSizeBytes,
 } from '@/features/forms/utils/fileSizeLimits';
+import { getCardShellSurface } from '@/features/forms/utils/respondentThemeStyles';
+import { respondentInputClass, respondentTextareaClass } from '@/features/forms/utils/respondentFieldInput';
 
 
 const CardShell = ({ children, fullCanvas = false, cardColor = '#f7f6f4', cardImage = null, scrollable = false, footer = null }) => {
-  const borderAndRadius = fullCanvas ? '' : 'border border-[rgba(0,0,0,0.07)] rounded-[20px]';
-  const shellStyle = fullCanvas ? {} : {
-    ...(cardImage
-      ? { backgroundImage: `url(${cardImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-      : { backgroundColor: cardColor }),
-    boxShadow: '0px 1px 3px 0px rgba(0,0,0,0.05), 0px 8px 32px 0px rgba(0,0,0,0.07)',
-  };
+  const { borderAndRadius, shellStyle } = getCardShellSurface({ fullCanvas, cardColor, cardImage });
 
   if (footer) {
     return (
@@ -98,6 +103,10 @@ const CardShell = ({ children, fullCanvas = false, cardColor = '#f7f6f4', cardIm
     </div>
   );
 };
+
+function CardBody({ compactLayout, className = '', children }) {
+  return <div className={`${cardBodyPadClass(compactLayout)} ${className}`.trim()}>{children}</div>;
+}
 
 const DEFAULT_ACCENT = '#111111';
 
@@ -150,8 +159,15 @@ export const PreviewPoweredBy = () => (
 );
 
 /** Back / Continue — matches Figma (Clearform-Changes 2521:7135) */
-export const PreviewCardStepNav = ({ prevScreen, nextScreen, onGoPrev, onGoContinue, showBackButton = true }) => (
-  <div className="border-t border-[#cfcecd] flex items-center justify-between shrink-0 px-14 pt-[15px] pb-[18px]">
+export const PreviewCardStepNav = ({
+  prevScreen,
+  nextScreen,
+  onGoPrev,
+  onGoContinue,
+  showBackButton = true,
+  compactLayout = false,
+}) => (
+  <div className={`border-t border-[#cfcecd] flex items-center justify-between shrink-0 gap-2 ${cardNavPadClass(compactLayout)}`}>
     {showBackButton ? (
       <button
         type="button"
@@ -218,7 +234,7 @@ const FormField = ({ label, value }) => (
 );
 
 /** Editable text field for preview/fill mode (replaces static {@link FormField} samples). */
-const PreviewLabeledInput = ({ label, value, onChange, placeholder = '', type = 'text' }) => (
+const PreviewLabeledInput = ({ label, value, onChange, placeholder = '', type = 'text', className = '' }) => (
   <div className="flex flex-col w-full">
     <label className="text-[#888] text-[10.5px] font-medium tracking-[0.42px] uppercase pb-[6px]">{label}</label>
     <input
@@ -226,14 +242,13 @@ const PreviewLabeledInput = ({ label, value, onChange, placeholder = '', type = 
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      autoComplete="off"
-      className="w-full border-b border-[rgba(0,0,0,0.16)] pb-[9px] pt-[8px] text-[14px] text-black font-light bg-transparent outline-none focus:border-[#111] placeholder:text-[#bbb]"
+      className={respondentInputClass(className)}
     />
   </div>
 );
 
-const ContentCardFooter = ({ onDelete, onConfigure, variant = 'default', accentColor = DEFAULT_ACCENT }) => (
-  <div className="border-t border-[rgba(0,0,0,0.1)] flex gap-2 items-center px-14 py-[19px]">
+const ContentCardFooter = ({ onDelete, onConfigure, variant = 'default', accentColor = DEFAULT_ACCENT, compactLayout = false }) => (
+  <div className={`border-t border-[rgba(0,0,0,0.1)] flex gap-2 items-center ${cardFooterToolsPadClass(compactLayout)}`}>
     {variant === 'content' && (
       <button className="flex items-center gap-[5px] px-[14px] py-[8px] rounded-[8px] bg-white/70 border border-[rgba(0,0,0,0.16)] text-[#444] text-[12px] cursor-pointer hover:bg-[rgba(245,245,245,0.9)] transition-colors whitespace-nowrap">
         <RiPencilLine size={12} className="shrink-0" />
@@ -270,7 +285,16 @@ const ContentCardFooter = ({ onDelete, onConfigure, variant = 'default', accentC
   </div>
 );
 
-const FileUploadCard = ({ blockNum, onDelete, onConfigure, configureLabel, config, isPreviewMode = false, accentColor = DEFAULT_ACCENT }) => {
+const FileUploadCard = ({
+  blockNum,
+  onDelete,
+  onConfigure,
+  configureLabel,
+  config,
+  isPreviewMode = false,
+  accentColor = DEFAULT_ACCENT,
+  compactLayout = false,
+}) => {
   const accent = accentColor || DEFAULT_ACCENT;
   const question = config?.question || 'Attach supporting documents';
   const helperText = config?.helperText || 'Attach any files that help us understand your request better.';
@@ -348,7 +372,7 @@ const FileUploadCard = ({ blockNum, onDelete, onConfigure, configureLabel, confi
 
   return (
     <>
-      <div className="flex flex-col px-14 pt-11 pb-5">
+      <CardBody compactLayout={compactLayout}>
         <SectionBadge num={blockNum} label="File upload" />
         <div className="pt-[9px]">
           <CanvasQuestionText
@@ -454,13 +478,14 @@ const FileUploadCard = ({ blockNum, onDelete, onConfigure, configureLabel, confi
             </span>
           </div>
         )}
-      </div>
+      </CardBody>
       {!isPreviewMode && (
         <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure && configureLabel ? () => onConfigure(configureLabel) : undefined}
           variant="field"
           accentColor={accent}
+          compactLayout={compactLayout}
         />
       )}
     </>
@@ -511,6 +536,7 @@ const TimePickerCard = ({
   previewRequiredHint = false,
   onTimeChange,
   accentColor = DEFAULT_ACCENT,
+  compactLayout = false,
 }) => {
   const accent = accentColor || DEFAULT_ACCENT;
   const question = config?.timeQuestion || 'What time works best for you?';
@@ -587,7 +613,7 @@ const TimePickerCard = ({
 
   return (
     <>
-      <div className="flex flex-col px-14 pt-11 pb-5">
+      <CardBody compactLayout={compactLayout}>
         <SectionBadge num={blockNum} label="Time picker" />
         <div className="pt-[9px] flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
           <CanvasQuestionText
@@ -677,13 +703,14 @@ const TimePickerCard = ({
         {rangeError && (
           <p className="text-center text-[11px] text-[#d63030] pb-2 -mt-2">{rangeError}</p>
         )}
-      </div>
+      </CardBody>
       {!isPreviewMode && (
         <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure && configureLabel ? () => onConfigure(configureLabel) : undefined}
           variant="field"
           accentColor={accent}
+          compactLayout={compactLayout}
         />
       )}
     </>
@@ -703,6 +730,7 @@ const MultiImageUploadCard = ({
   isPreviewMode = false,
   previewStepNav = null,
   previewScreenValidatorRef,
+  compactLayout = false,
 }) => {
   const accent = accentColor || DEFAULT_ACCENT;
   const question   = config?.question   || 'Upload photos of the issue';
@@ -815,8 +843,13 @@ const MultiImageUploadCard = ({
   const isAtMax = images.length >= maxImages;
 
   return (
-    <CardShell fullCanvas={fullCanvas} cardColor={cardColor} cardImage={cardImage} footer={isPreviewMode && previewStepNav ? previewStepNav : null}>
-      <div className="flex flex-col px-14 pt-11 pb-4">
+    <CardShell
+      fullCanvas={fullCanvas}
+      cardColor={cardColor}
+      cardImage={cardImage}
+      footer={isPreviewMode && previewStepNav ? cloneElement(previewStepNav, { compactLayout }) : null}
+    >
+        <CardBody compactLayout={compactLayout} className="pb-4">
         <SectionBadge num={blockNum} label="Multi-image upload" />
         <div className="pt-[9px] flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
           <CanvasQuestionText
@@ -873,8 +906,8 @@ const MultiImageUploadCard = ({
         )}
 
         {/* Image grid — 4 per row, scrollable so card never expands */}
-        <div className="mt-[10px] mb-[4px] overflow-y-auto" style={{ maxHeight: '250px' }}>
-          <div className="grid grid-cols-4 gap-[6px]">
+        <div className={`mt-[10px] mb-[4px] overflow-y-auto ${compactLayout ? 'max-h-[45dvh]' : ''}`} style={compactLayout ? undefined : { maxHeight: '250px' }}>
+          <div className={`grid gap-[6px] ${compactLayout ? 'grid-cols-2' : 'grid-cols-4'}`}>
             {images.map((img, index) => (
               <div
                 key={img.id}
@@ -937,13 +970,14 @@ const MultiImageUploadCard = ({
           className="hidden"
           onChange={handleSelect}
         />
-      </div>
+      </CardBody>
       {!isPreviewMode && (
         <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure && configureLabel ? () => onConfigure(configureLabel) : undefined}
           variant="field"
           accentColor={accent}
+          compactLayout={compactLayout}
         />
       )}
     </CardShell>
@@ -1297,9 +1331,13 @@ const ContentCardInner = ({
   previewScreenId,
   responseQualityFormId = null,
   isIntroScreen = false,
+  compactLayout = false,
 }) => {
   const { section, label } = block;
   const cardKey = `${section}:${label}`;
+  const qFont = (variant = 'default') => questionFontSize(compactLayout, variant);
+  const grid2 = fieldGrid2Class(compactLayout);
+  const listRowPad = choiceListRowPad(compactLayout);
   const accent = accentColor || DEFAULT_ACCENT;
   const primaryText = textColor || '#111111';
   const mutedText = mutedTextColor || '#888888';
@@ -1522,7 +1560,7 @@ const ContentCardInner = ({
     content = (
       <>
         <div
-          className={`flex-1 flex flex-col items-center justify-center gap-[9px] px-14 ${textAlignClass}`}
+          className={`flex-1 flex flex-col items-center justify-center gap-[9px] ${cardBodyPadXClass(compactLayout)} ${textAlignClass}`}
           style={{ paddingTop: padding, paddingBottom: padding }}
         >
           <div className="bg-[#111] w-9 h-9 rounded-[10px] flex items-center justify-center shrink-0">
@@ -1556,7 +1594,7 @@ const ContentCardInner = ({
             <button
               type="button"
               onClick={() => onPreviewAdvance?.()}
-              className="flex gap-[7px] items-center justify-center mt-2 cursor-pointer"
+              className={`flex gap-[7px] items-center justify-center mt-2 cursor-pointer ${compactLayout ? 'w-full max-w-full' : ''}`}
               style={{
                 background: btnBg,
                 color: effectiveBtnColor,
@@ -1607,6 +1645,7 @@ const ContentCardInner = ({
             onConfigure={onConfigure ? () => onConfigure(label) : undefined}
             variant="field"
             accentColor={accent}
+            compactLayout={compactLayout}
           />
         )}
       </>
@@ -1628,7 +1667,7 @@ const ContentCardInner = ({
     const answerTextSizeMap = { S: '15px', M: '17px', L: '20px', XL: '24px' };
     content = (
       <>
-        <div className={`relative flex-1 flex flex-col px-14 pt-11 pb-5 gap-3 ${hHidden && !isPreviewMode ? 'opacity-40' : ''} ${hHidden && isPreviewMode ? 'hidden' : ''}`}>
+        <CardBody compactLayout={compactLayout} className={`relative flex-1 gap-3 ${hHidden && !isPreviewMode ? 'opacity-40' : ''} ${hHidden && isPreviewMode ? 'hidden' : ''}`}>
           <HiddenFieldOverlay show={hHidden && !isPreviewMode} />
           <CanvasBadgeText
             value={hc.subHeading ?? ''}
@@ -1662,7 +1701,7 @@ const ContentCardInner = ({
                 value={pf('headingAns')}
                 onChange={(e) => setPf('headingAns', e.target.value)}
                 rows={1}
-                className={`text-[#333] font-light leading-[1.6] bg-transparent border-b border-[#111] outline-none w-full resize-none transition-colors pb-[11px] pt-[10px] ${textAlignClass}`}
+                className={respondentTextareaClass(`resize-none ${textAlignClass}`)}
                 style={{ fontFamily: "'DM Sans', sans-serif", overflow: 'hidden', fontSize: answerTextSizeMap[hSize] }}
                 placeholder="Type your answer here…"
                 onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
@@ -1683,13 +1722,14 @@ const ContentCardInner = ({
               </div>
             )}
           </div>
-        </div>
+        </CardBody>
         {!isPreviewMode && (
           <ContentCardFooter
             onDelete={onDelete}
             onConfigure={onConfigure ? () => onConfigure(label) : undefined}
             variant="field"
             accentColor={accent}
+            compactLayout={compactLayout}
           />
         )}
       </>
@@ -1714,7 +1754,7 @@ const ContentCardInner = ({
     content = (
       <div className={`relative flex-1 flex flex-col ${dcHidden && !isPreviewMode ? 'opacity-40' : ''} ${dcHidden && isPreviewMode ? 'hidden' : ''}`}>
         <HiddenFieldOverlay show={dcHidden && !isPreviewMode} />
-        <div className="flex-1 flex flex-col px-[28px] pt-[32px] pb-[20px] gap-[8px]">
+        <div className={`flex-1 flex flex-col gap-[8px] ${compactLayout ? 'px-5 pt-7 pb-4' : 'px-[28px] pt-[32px] pb-[20px]'}`}>
           {/* Block type label */}
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 w-full">
             <span
@@ -1754,26 +1794,26 @@ const ContentCardInner = ({
           </div>
         </div>
         {/* Input area + gray line just above footer */}
-        <div className={`px-[28px] pt-[4px] pb-[0px] ${dcHidden && isPreviewMode ? 'hidden' : ''}`}>
-          <div className="border-b border-[#111] pb-[11px]">
-            {isPreviewMode ? (
-              <textarea
-                value={pf('descAns')}
-                onChange={(e) => setPf('descAns', dcCharLimit ? e.target.value.slice(0, Number(dcCharLimit) || 5000) : e.target.value)}
-                rows={2}
-                placeholder="Type your answer here…"
-                className={`w-full text-black text-[17px] font-light bg-transparent outline-none border-0 resize-none placeholder:text-[#bbb] ${textAlignClass}`}
-                style={{ fontFamily: "'DM Sans', sans-serif", fontVariationSettings: "'opsz' 14" }}
-              />
-            ) : (
+        <div className={`${compactLayout ? 'px-5' : 'px-[28px]'} pt-[4px] pb-[0px] ${dcHidden && isPreviewMode ? 'hidden' : ''}`}>
+          {isPreviewMode ? (
+            <textarea
+              value={pf('descAns')}
+              onChange={(e) => setPf('descAns', dcCharLimit ? e.target.value.slice(0, Number(dcCharLimit) || 5000) : e.target.value)}
+              rows={2}
+              placeholder="Type your answer here…"
+              className={respondentTextareaClass(`text-[17px] resize-none ${textAlignClass}`)}
+              style={{ fontFamily: "'DM Sans', sans-serif", fontVariationSettings: "'opsz' 14" }}
+            />
+          ) : (
+            <div className="border-b border-[#111] pb-[11px]">
               <p
                 className={`text-black text-[17px] font-light ${textAlignClass}`}
                 style={{ fontFamily: "'DM Sans', sans-serif", fontVariationSettings: "'opsz' 14" }}
               >
                 Type your answer here…
               </p>
-            )}
-          </div>
+            </div>
+          )}
           {dcShowCharCount && (
             <div className="flex justify-end mt-[4px]">
               <span className="text-[#bbb] text-[11px]">
@@ -1790,6 +1830,7 @@ const ContentCardInner = ({
             onConfigure={onConfigure ? () => onConfigure(label) : undefined}
             variant="field"
             accentColor={accent}
+            compactLayout={compactLayout}
           />
         )}
       </div>
@@ -1898,8 +1939,9 @@ const ContentCardInner = ({
     );
 
     content = (
-      <div
-        className={`relative flex flex-col shrink-0 px-14 pt-11 pb-5 ${imgHidden && !isPreviewMode ? 'opacity-40' : ''} ${imgHidden && isPreviewMode ? 'hidden' : ''}`}
+      <CardBody
+        compactLayout={compactLayout}
+        className={`relative shrink-0 ${imgHidden && !isPreviewMode ? 'opacity-40' : ''} ${imgHidden && isPreviewMode ? 'hidden' : ''}`}
       >
         <HiddenFieldOverlay show={imgHidden && !isPreviewMode} />
         <SectionBadge num={blockNum} label="Short text + Image" />
@@ -1911,7 +1953,7 @@ const ContentCardInner = ({
             value={ic.imageQuestion ?? ''}
             onChange={ic.setImageQuestion}
             isPreviewMode={isPreviewMode}
-            fontSize="32px"
+            fontSize={qFont()}
           />
           <PreviewRequiredInline show={previewRequiredHint} />
         </div>
@@ -1921,26 +1963,26 @@ const ContentCardInner = ({
           isPreviewMode={isPreviewMode}
           className="mb-[19.8px] leading-[20.8px]"
         />
-        <div className="border-b border-[rgba(0,0,0,0.16)] pb-[11px] pt-[10px]">
-          {isPreviewMode ? (
-            <textarea
-              value={pf('imgAns')}
-              onChange={(e) => setPf('imgAns', e.target.value.slice(0, 200))}
-              rows={2}
-              placeholder="Type your answer here…"
-              className="w-full text-black text-[15px] font-light bg-transparent outline-none border-0 resize-none placeholder:text-[#aaa]"
-            />
-          ) : (
+        {isPreviewMode ? (
+          <textarea
+            value={pf('imgAns')}
+            onChange={(e) => setPf('imgAns', e.target.value.slice(0, 200))}
+            rows={2}
+            placeholder="Type your answer here…"
+            className={respondentTextareaClass('text-[15px] resize-none')}
+          />
+        ) : (
+          <div className="border-b border-[rgba(0,0,0,0.16)] pb-[11px] pt-[10px]">
             <p className="text-black text-[15px] font-light">{imgAnswerText || 'Type your answer here…'}</p>
-          )}
-        </div>
+          </div>
+        )}
         <div className="flex items-center justify-between pt-[4px] pb-[18px]">
           <span className="text-[11px] text-black font-light">Press Enter ↵ to continue</span>
           <span className="text-[11px] text-black">{isPreviewMode ? `${pf('imgAns').length}` : '0'} / 200</span>
         </div>
         {!isPreviewMode && (
           <>
-            <div className="border-t border-[rgba(0,0,0,0.1)] flex gap-[7px] items-center px-14 pt-[12px]">
+            <div className={`border-t border-[rgba(0,0,0,0.1)] flex gap-[7px] items-center pt-[12px] ${cardBodyPadXClass(compactLayout)}`}>
               <button
                 type="button"
                 onClick={() => imageFileInputRef && imageFileInputRef.current && imageFileInputRef.current.click()}
@@ -1955,10 +1997,11 @@ const ContentCardInner = ({
               onConfigure={onConfigure ? () => onConfigure(label) : undefined}
               variant="field"
               accentColor={accent}
+              compactLayout={compactLayout}
             />
           </>
         )}
-      </div>
+      </CardBody>
     );
   } else if (cardKey === 'buildingBlocks:Video') {
     const vc = videoConfig || {};
@@ -1988,8 +2031,9 @@ const ContentCardInner = ({
     const urlMismatch = hasUrl && !parsedVideo;
     content = (
       <>
-        <div
-          className={`relative flex flex-col shrink-0 px-14 pt-11 pb-5 ${vHidden && !isPreviewMode ? 'opacity-40' : ''} ${vHidden && isPreviewMode ? 'hidden' : ''}`}
+        <CardBody
+          compactLayout={compactLayout}
+          className={`relative shrink-0 ${vHidden && !isPreviewMode ? 'opacity-40' : ''} ${vHidden && isPreviewMode ? 'hidden' : ''}`}
         >
           <HiddenFieldOverlay show={vHidden && !isPreviewMode} />
           <SectionBadge num={blockNum} label="Video with question" />
@@ -2052,7 +2096,7 @@ const ContentCardInner = ({
               onChange={vc.setVideoQuestion}
               isPreviewMode={isPreviewMode}
               required={vRequired}
-              fontSize="32px"
+              fontSize={qFont()}
             />
             <PreviewRequiredInline show={previewRequiredHint} />
           </div>
@@ -2062,28 +2106,29 @@ const ContentCardInner = ({
             isPreviewMode={isPreviewMode}
             className="mb-[15px]"
           />
-          <div className="border border-[rgba(0,0,0,0.1)] rounded-[8px] px-4 py-3 min-h-[80px] mb-3">
-            {isPreviewMode ? (
-              <textarea
-                value={pf('videoAns')}
-                onChange={(e) => setPf('videoAns', e.target.value.slice(0, 500))}
-                placeholder="Type your answer here…"
-                className="w-full min-h-[72px] text-[14px] font-light text-[#111] bg-transparent outline-none border-0 resize-y placeholder:text-[#bbb]"
-              />
-            ) : (
+          {isPreviewMode ? (
+            <textarea
+              value={pf('videoAns')}
+              onChange={(e) => setPf('videoAns', e.target.value.slice(0, 500))}
+              placeholder="Type your answer here…"
+              className={respondentTextareaClass('mb-3')}
+            />
+          ) : (
+            <div className="border border-[rgba(0,0,0,0.1)] rounded-[8px] px-4 py-3 min-h-[80px] mb-3">
               <p className="text-[#bbb] text-[14px] font-light">Type your answer here…</p>
-            )}
-          </div>
+            </div>
+          )}
           <div className="flex justify-between items-center pb-[14px]">
             <span className="text-[11px] text-[#bbb]">Press Enter ↵ to continue</span>
             <span className="text-[11px] text-[#bbb]">{isPreviewMode ? pf('videoAns').length : 0} / 500</span>
           </div>
-        </div>
+        </CardBody>
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure ? () => onConfigure(label) : undefined}
           variant="field"
           accentColor={accent}
+          compactLayout={compactLayout}
         />}
       </>
     );
@@ -2102,7 +2147,7 @@ const ContentCardInner = ({
     const showCompany = cFields.company?.visible !== false;
     content = (
       <>
-        <div className="flex flex-col px-14 pt-11 pb-5">
+        <CardBody compactLayout={compactLayout}>
           <SectionBadge num={blockNum} label="Contact" />
           <div className="pt-[9px] flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <CanvasQuestionText
@@ -2110,7 +2155,7 @@ const ContentCardInner = ({
               onChange={cc.setContactQuestion}
               isPreviewMode={isPreviewMode}
               required={cBlockRequired}
-              fontSize="32px"
+              fontSize={qFont()}
             />
             <PreviewRequiredInline show={previewRequiredHint} />
           </div>
@@ -2121,7 +2166,7 @@ const ContentCardInner = ({
             className="mb-[19px]"
           />
           {(showFirst || showLast) && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className={grid2}>
               {showFirst && (isPreviewMode ? (
                 <PreviewLabeledInput
                   label={cLabel('FIRST NAME', cFields.firstName)}
@@ -2189,12 +2234,13 @@ const ContentCardInner = ({
             </div>
           )}
           <div className="pb-[17px]" />
-        </div>
+        </CardBody>
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure ? () => onConfigure(label) : undefined}
           variant="field"
           accentColor={accent}
+          compactLayout={compactLayout}
         />}
       </>
     );
@@ -2213,7 +2259,7 @@ const ContentCardInner = ({
     const showCountry = aFields.country?.visible !== false;
     content = (
       <>
-        <div className="flex flex-col px-14 pt-11 pb-5">
+        <CardBody compactLayout={compactLayout}>
           <SectionBadge num={blockNum} label="Address" />
           <div className="pt-[9px] flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <CanvasQuestionText
@@ -2221,7 +2267,7 @@ const ContentCardInner = ({
               onChange={ac.setAddressQuestion}
               isPreviewMode={isPreviewMode}
               required={aBlockRequired}
-              fontSize="32px"
+              fontSize={qFont()}
             />
             <PreviewRequiredInline show={previewRequiredHint} />
           </div>
@@ -2245,7 +2291,7 @@ const ContentCardInner = ({
             </div>
           )}
           {(showCity || showState) && (
-            <div className="grid grid-cols-2 gap-4 mt-[9px]">
+            <div className={`${grid2} mt-[9px]`}>
               {showCity && (isPreviewMode ? (
                 <PreviewLabeledInput label={aLabel('CITY', aFields.city)} value={pf('a.ci')} onChange={(v) => setPf('a.ci', v)} />
               ) : (
@@ -2259,7 +2305,7 @@ const ContentCardInner = ({
             </div>
           )}
           {(showPostal || showCountry) && (
-            <div className="grid grid-cols-2 gap-4 mt-[9px] pb-[17px]">
+            <div className={`${grid2} mt-[9px] pb-[17px]`}>
               {showPostal && (isPreviewMode ? (
                 <PreviewLabeledInput label={aLabel('POSTAL CODE', aFields.postal)} value={pf('a.po')} onChange={(v) => setPf('a.po', v)} />
               ) : (
@@ -2273,12 +2319,13 @@ const ContentCardInner = ({
             </div>
           )}
           {!showPostal && !showCountry && <div className="pb-[17px]" />}
-        </div>
+        </CardBody>
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure ? () => onConfigure(label) : undefined}
           variant="field"
           accentColor={accent}
+          compactLayout={compactLayout}
         />}
       </>
     );
@@ -2296,7 +2343,7 @@ const ContentCardInner = ({
     const showTeamSize = wFields.teamSize?.visible !== false;
     content = (
       <>
-        <div className="flex flex-col px-14 pt-11 pb-5">
+        <CardBody compactLayout={compactLayout}>
           <SectionBadge num={blockNum} label="Work Info" />
           <div className="pt-[9px] flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <CanvasQuestionText
@@ -2304,7 +2351,7 @@ const ContentCardInner = ({
               onChange={wc.setWorkQuestion}
               isPreviewMode={isPreviewMode}
               required={wBlockRequired}
-              fontSize="32px"
+              fontSize={qFont()}
             />
             <PreviewRequiredInline show={previewRequiredHint} />
           </div>
@@ -2314,7 +2361,7 @@ const ContentCardInner = ({
             isPreviewMode={isPreviewMode}
           />
           {(showWCompany || showTitle) && (
-            <div className="grid grid-cols-2 gap-4 mt-[19px]">
+            <div className={`${grid2} mt-[19px]`}>
               {showWCompany && (isPreviewMode ? (
                 <PreviewLabeledInput label={wLabel('COMPANY', wFields.company)} value={pf('w.co')} onChange={(v) => setPf('w.co', v)} />
               ) : (
@@ -2328,7 +2375,7 @@ const ContentCardInner = ({
             </div>
           )}
           {(showIndustry || showTeamSize) && (
-            <div className="grid grid-cols-2 gap-4 mt-[9px] pb-[17px]">
+            <div className={`${grid2} mt-[9px] pb-[17px]`}>
               {showIndustry && (isPreviewMode ? (
                 <PreviewLabeledInput label={wLabel('INDUSTRY', wFields.industry)} value={pf('w.ind')} onChange={(v) => setPf('w.ind', v)} />
               ) : (
@@ -2342,12 +2389,13 @@ const ContentCardInner = ({
             </div>
           )}
           {!showIndustry && !showTeamSize && <div className="pb-[17px]" />}
-        </div>
+        </CardBody>
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure ? () => onConfigure(label) : undefined}
           variant="field"
           accentColor={accent}
+          compactLayout={compactLayout}
         />}
       </>
     );
@@ -2368,8 +2416,9 @@ const ContentCardInner = ({
     const stTextAlign = stAlign === 'center' ? 'text-center' : stAlign === 'right' ? 'text-right' : 'text-left';
     content = (
       <>
-        <div
-          className={`relative flex flex-col px-14 pt-11 pb-5 ${stHidden && !isPreviewMode ? 'opacity-40' : ''} ${stHidden && isPreviewMode ? 'hidden' : ''}`}
+        <CardBody
+          compactLayout={compactLayout}
+          className={`relative ${stHidden && !isPreviewMode ? 'opacity-40' : ''} ${stHidden && isPreviewMode ? 'hidden' : ''}`}
         >
           <HiddenFieldOverlay show={stHidden && !isPreviewMode} />
           <div className="flex flex-wrap items-center gap-2">
@@ -2407,26 +2456,31 @@ const ContentCardInner = ({
             </p>
           )}
           <div className="mt-[19px]">
-            {isPreviewMode && shortTextResponseQualityConfig?.enabled ? (
+            {isPreviewMode ? (
               <>
-                <div className="border-b-2 border-[rgba(0,0,0,0.12)] pb-[10px] pt-[8px]">
-                  <input
-                    type={stInputType}
-                    value={shortTextDraft}
-                    onChange={(e) => setShortTextDraft(e.target.value.slice(0, stMaxChars))}
-                    maxLength={stMaxChars}
-                    placeholder={stPlaceholder}
-                    aria-label={stQuestion}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    className={`w-full bg-transparent text-[14px] font-light text-[#111] outline-none border-0 placeholder:text-[#bbb] ${stTextAlign}`}
-                  />
-                </div>
-                <ResponseQualityFeedback
-                  evaluation={responseQualityEvaluation}
-                  charCount={shortTextDraft.length}
-                  maxChars={stMaxChars}
-                  answerLabel="Short answer"
+                <input
+                  type={stInputType}
+                  value={shortTextDraft}
+                  onChange={(e) => setShortTextDraft(e.target.value.slice(0, stMaxChars))}
+                  maxLength={stMaxChars}
+                  placeholder={stPlaceholder}
+                  aria-label={stQuestion}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  className={respondentInputClass(stTextAlign)}
                 />
+                {shortTextResponseQualityConfig?.enabled ? (
+                  <ResponseQualityFeedback
+                    evaluation={responseQualityEvaluation}
+                    charCount={shortTextDraft.length}
+                    maxChars={stMaxChars}
+                    answerLabel="Short answer"
+                  />
+                ) : (
+                  <div className="flex justify-between items-center pt-[11px] pb-[9px]">
+                    <p className="text-[#bbb] text-[11px]">Short answer</p>
+                    <p className="text-[#bbb] text-[11px]">{shortTextDraft.length} / {stMaxChars}</p>
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -2447,12 +2501,13 @@ const ContentCardInner = ({
               </>
             )}
           </div>
-        </div>
+        </CardBody>
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure ? () => onConfigure(label) : undefined}
           variant="field"
           accentColor={accent}
+          compactLayout={compactLayout}
         />}
       </>
     );
@@ -2473,8 +2528,9 @@ const ContentCardInner = ({
     const ltInputMode = { Email: 'email', URL: 'url', Number: 'numeric', Phone: 'tel' }[ltValidation];
     content = (
       <>
-        <div
-          className={`relative flex flex-col px-14 pt-11 pb-5 ${ltHidden && !isPreviewMode ? 'opacity-40' : ''} ${ltHidden && isPreviewMode ? 'hidden' : ''}`}
+        <CardBody
+          compactLayout={compactLayout}
+          className={`relative ${ltHidden && !isPreviewMode ? 'opacity-40' : ''} ${ltHidden && isPreviewMode ? 'hidden' : ''}`}
         >
           <HiddenFieldOverlay show={ltHidden && !isPreviewMode} />
           <div className="flex flex-wrap items-center gap-2">
@@ -2512,67 +2568,60 @@ const ContentCardInner = ({
             </p>
           )}
           <div className="mt-[19px]">
-            {isPreviewMode && longTextResponseQualityConfig?.enabled ? (
+            {isPreviewMode ? (
               <>
-                <div className="border-b-2 border-[rgba(0,0,0,0.12)] pb-[10px] pt-[8px]">
-                  <textarea
-                    value={longTextDraft}
-                    onChange={(e) => setLongTextDraft(e.target.value.slice(0, ltMaxChars))}
-                    maxLength={ltMaxChars}
-                    placeholder={ltPlaceholder}
-                    inputMode={ltInputMode}
-                    aria-label={ltQuestion}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    rows={3}
-                    className={`w-full min-h-[72px] text-[14px] font-light text-[#111] bg-transparent outline-none border-0 resize-none placeholder:text-[#bbb] ${ltTextAlign}`}
-                  />
-                </div>
-                <ResponseQualityFeedback
-                  evaluation={responseQualityEvaluation}
-                  charCount={longTextDraft.length}
-                  maxChars={ltMaxChars}
+                <textarea
+                  value={longTextDraft}
+                  onChange={(e) => setLongTextDraft(e.target.value.slice(0, ltMaxChars))}
+                  maxLength={ltMaxChars}
+                  placeholder={ltPlaceholder}
+                  inputMode={ltInputMode}
+                  aria-label={ltQuestion}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  rows={3}
+                  className={respondentTextareaClass(ltTextAlign)}
                 />
+                {longTextResponseQualityConfig?.enabled ? (
+                  <ResponseQualityFeedback
+                    evaluation={responseQualityEvaluation}
+                    charCount={longTextDraft.length}
+                    maxChars={ltMaxChars}
+                  />
+                ) : (
+                  <div className="flex justify-between items-center pt-[11px] pb-[9px]">
+                    <p className="text-[#bbb] text-[11px]">Long answer</p>
+                    <p className="text-[#bbb] text-[11px]">
+                      {longTextDraft.length}{ltMinChars > 0 ? ` (min ${ltMinChars})` : ''} / {ltMaxChars}
+                    </p>
+                  </div>
+                )}
               </>
             ) : (
               <>
                 <div className="border border-[rgba(0,0,0,0.1)] rounded-[8px] px-4 py-3 min-h-[120px]">
-                  {isPreviewMode ? (
-                    <textarea
-                      value={longTextDraft}
-                      onChange={(e) => setLongTextDraft(e.target.value.slice(0, ltMaxChars))}
-                      maxLength={ltMaxChars}
-                      placeholder={ltPlaceholder}
-                      inputMode={ltInputMode}
-                      aria-label={ltQuestion}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      className={`w-full min-h-[100px] text-[14px] font-light text-[#111] bg-transparent outline-none border-0 resize-y placeholder:text-[#bbb] ${ltTextAlign}`}
-                    />
-                  ) : (
-                    <InlineEditableField
-                      value={ltc.longTextPlaceholder ?? ''}
-                      onChange={ltc.setLongTextPlaceholder}
-                      disabled={isPreviewMode}
-                      className={`w-full text-[14px] font-light text-[#bbb] ${ltTextAlign}`}
-                      placeholder={ltPlaceholder}
-                      aria-label="Answer placeholder"
-                    />
-                  )}
+                  <InlineEditableField
+                    value={ltc.longTextPlaceholder ?? ''}
+                    onChange={ltc.setLongTextPlaceholder}
+                    disabled={isPreviewMode}
+                    className={`w-full text-[14px] font-light text-[#bbb] ${ltTextAlign}`}
+                    placeholder={ltPlaceholder}
+                    aria-label="Answer placeholder"
+                  />
                 </div>
                 <div className="flex justify-between items-center pt-[11px] pb-[9px]">
                   <p className="text-[#bbb] text-[11px]">Long answer</p>
-                  <p className="text-[#bbb] text-[11px]">
-                    {isPreviewMode ? longTextDraft.length : 0}{ltMinChars > 0 && isPreviewMode ? ` (min ${ltMinChars})` : ''} / {ltMaxChars}
-                  </p>
+                  <p className="text-[#bbb] text-[11px]">0 / {ltMaxChars}</p>
                 </div>
               </>
             )}
           </div>
-        </div>
+        </CardBody>
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure ? () => onConfigure(label) : undefined}
           variant="field"
           accentColor={accent}
+          compactLayout={compactLayout}
         />}
       </>
     );
@@ -2585,8 +2634,8 @@ const ContentCardInner = ({
     const sHeight = sc.singleOptionHeight || 'M';
     const sHeightPy = sHeight === 'S' ? 'py-[8px]' : sHeight === 'L' ? 'py-[18px]' : 'py-[13px]';
     const allOpts = singleDisplayOpts;
-    const isList = sLayout === 'List';
-    const is2col = sLayout === '2col';
+    const isList = sLayout === 'List' || compactLayout;
+    const is2col = !compactLayout && sLayout === '2col';
     const onOpenPanel = sc.onOpenPanel;
     const sMulti = sc.singleMultipleSelect ?? false;
     const sRequired = !!sc.singleRequired;
@@ -2595,7 +2644,7 @@ const ContentCardInner = ({
     const sMinChoices = sMulti ? (Number(sc.singleMinChoices) || 1) : (sRequired ? 1 : 0);
     content = (
       <>
-        <div className="flex flex-col px-14 pt-11 pb-5 min-h-0 flex-1">
+        <CardBody compactLayout={compactLayout} className="min-h-0 flex-1">
           <SectionBadge num={blockNum} label="Single choice" />
           <div className="pt-[9px] flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <CanvasQuestionText
@@ -2603,7 +2652,7 @@ const ContentCardInner = ({
               onChange={sc.setSingleQuestion}
               isPreviewMode={isPreviewMode}
               required={sRequired}
-              fontSize="32px"
+              fontSize={qFont()}
             />
             <PreviewRequiredInline show={previewRequiredHint} />
           </div>
@@ -2618,10 +2667,12 @@ const ContentCardInner = ({
             </p>
           )}
           {(!sMulti || !(sMinChoices > 1 || sMaxChoices != null)) && <div className="mb-[19px]" />}
-          <div className={`mb-5 overflow-y-auto max-h-[320px] ${isList ? 'flex flex-col' : is2col ? 'grid grid-cols-2 gap-2' : 'grid grid-cols-3 gap-2'}`}>
+          <div
+            className={`mb-5 overflow-y-auto ${compactLayout ? 'max-h-[50dvh]' : 'max-h-[320px]'} ${isList ? 'flex flex-col' : is2col ? 'grid grid-cols-2 gap-2' : 'grid grid-cols-3 gap-2'}`}
+          >
             {allOpts.map((opt, i) => {
               const isOther = sAllowOther && opt === 'Other';
-              const hint = isPreviewMode && sShowHints && !isOther ? CHOICE_KEYBOARD_HINT(i) : null;
+              const hint = isPreviewMode && sShowHints && !isOther && !compactLayout ? CHOICE_KEYBOARD_HINT(i) : null;
               const isPicked = previewPicks.includes(opt);
               const markBase = sMulti
                 ? 'w-[20px] h-[20px] rounded-[4px] flex items-center justify-center border-2 shrink-0'
@@ -2632,7 +2683,8 @@ const ContentCardInner = ({
                 </div>
               );
               if (isList) {
-                const rowCls = `flex items-center gap-4 px-4 ${sHeightPy} border-x border-b ${i === 0 ? 'border-t rounded-t-[8px]' : ''} ${i === allOpts.length - 1 ? 'rounded-b-[8px]' : ''} ${isOther ? 'border-[rgba(0,0,0,0.06)] bg-[rgba(0,0,0,0.01)]' : 'border-[rgba(0,0,0,0.08)]'} ${isPreviewMode && !isOther ? 'cursor-pointer hover:bg-[rgba(0,0,0,0.02)]' : ''}`;
+                const rowPad = compactLayout ? listRowPad : `px-4 ${sHeightPy}`;
+                const rowCls = `flex items-center gap-3 sm:gap-4 min-w-0 ${rowPad} border-x border-b ${i === 0 ? 'border-t rounded-t-[8px]' : ''} ${i === allOpts.length - 1 ? 'rounded-b-[8px]' : ''} ${isOther ? 'border-[rgba(0,0,0,0.06)] bg-[rgba(0,0,0,0.01)]' : 'border-[rgba(0,0,0,0.08)]'} ${isPreviewMode && !isOther ? 'cursor-pointer hover:bg-[rgba(0,0,0,0.02)]' : ''}`;
                 if (isPreviewMode) {
                   return (
                     <button
@@ -2643,7 +2695,7 @@ const ContentCardInner = ({
                     >
                       {hint && <span className="text-[10px] font-semibold text-[#bbb] w-4 shrink-0">{hint}</span>}
                       {mark}
-                      <span className={`text-[14px] ${isOther ? 'text-[#aaa] italic' : 'text-[#111]'}`}>{opt}</span>
+                      <span className={`text-[14px] min-w-0 break-words ${isOther ? 'text-[#aaa] italic' : 'text-[#111]'}`}>{opt}</span>
                     </button>
                   );
                 }
@@ -2690,9 +2742,9 @@ const ContentCardInner = ({
               );
             })}
           </div>
-        </div>
+        </CardBody>
         {!isPreviewMode && (
-        <div className="border-t border-[rgba(0,0,0,0.1)] flex gap-2 items-center px-14 py-[19px]">
+        <div className={`border-t border-[rgba(0,0,0,0.1)] flex gap-2 items-center ${cardFooterToolsPadClass(compactLayout)}`}>
           {onOpenPanel && (
             <button
               onClick={onOpenPanel}
@@ -2736,11 +2788,11 @@ const ContentCardInner = ({
     const mShowHints = !!mc.multipleShowKeyboardHints;
     const mMaxChoices = mMultipleSelect ? mc.multipleMaxChoices : 1;
     const mMinChoices = mMultipleSelect ? (Number(mc.multipleMinChoices) || 1) : (mRequired ? 1 : 0);
-    const isMList = mLayout === 'List';
-    const isM2col = mLayout === '2col';
+    const isMList = mLayout === 'List' || compactLayout;
+    const isM2col = !compactLayout && mLayout === '2col';
     content = (
       <>
-        <div className="flex flex-col px-14 pt-11 pb-5 min-h-0 flex-1">
+        <CardBody compactLayout={compactLayout} className="min-h-0 flex-1">
           <SectionBadge num={blockNum} label="Multiple choice" />
           <div className="pt-[9px] flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <CanvasQuestionText
@@ -2748,7 +2800,7 @@ const ContentCardInner = ({
               onChange={mc.setMultipleQuestion}
               isPreviewMode={isPreviewMode}
               required={mRequired}
-              fontSize="32px"
+              fontSize={qFont()}
             />
             <PreviewRequiredInline show={previewRequiredHint} />
           </div>
@@ -2763,10 +2815,12 @@ const ContentCardInner = ({
             </p>
           )}
           {(!mMultipleSelect || !(mMinChoices > 1 || mMaxChoices != null)) && <div className="mb-[19px]" />}
-          <div className={`mb-5 overflow-y-auto max-h-[320px] ${isMList ? 'flex flex-col' : isM2col ? 'grid grid-cols-2 gap-2' : 'grid grid-cols-3 gap-2'}`}>
+          <div
+            className={`mb-5 overflow-y-auto ${compactLayout ? 'max-h-[50dvh]' : 'max-h-[320px]'} ${isMList ? 'flex flex-col' : isM2col ? 'grid grid-cols-2 gap-2' : 'grid grid-cols-3 gap-2'}`}
+          >
             {allMOpts.map((opt, i) => {
               const isOther = mAllowOther && opt === 'Other';
-              const mHint = isPreviewMode && mShowHints && !isOther ? CHOICE_KEYBOARD_HINT(i) : null;
+              const mHint = isPreviewMode && mShowHints && !isOther && !compactLayout ? CHOICE_KEYBOARD_HINT(i) : null;
               const isPicked = previewPicks.includes(opt);
               const markBase = mMultipleSelect
                 ? 'flex items-center justify-center shrink-0 border-2 w-[20px] h-[20px] rounded-[4px]'
@@ -2777,13 +2831,14 @@ const ContentCardInner = ({
                 </div>
               );
               if (isMList) {
-                const rowCls = `flex items-center gap-4 px-4 ${mHeightPy} border-x border-b ${i === 0 ? 'border-t rounded-t-[8px]' : ''} ${i === allMOpts.length - 1 ? 'rounded-b-[8px]' : ''} ${isOther ? 'border-[rgba(0,0,0,0.06)] bg-[rgba(0,0,0,0.01)]' : 'border-[rgba(0,0,0,0.08)]'} ${isPreviewMode && !isOther ? 'cursor-pointer hover:bg-[rgba(0,0,0,0.02)]' : ''}`;
+                const rowPad = compactLayout ? listRowPad : `px-4 ${mHeightPy}`;
+                const rowCls = `flex items-center gap-3 sm:gap-4 min-w-0 ${rowPad} border-x border-b ${i === 0 ? 'border-t rounded-t-[8px]' : ''} ${i === allMOpts.length - 1 ? 'rounded-b-[8px]' : ''} ${isOther ? 'border-[rgba(0,0,0,0.06)] bg-[rgba(0,0,0,0.01)]' : 'border-[rgba(0,0,0,0.08)]'} ${isPreviewMode && !isOther ? 'cursor-pointer hover:bg-[rgba(0,0,0,0.02)]' : ''}`;
                 if (isPreviewMode) {
                   return (
                     <button type="button" key={i} onClick={() => !isOther && togglePreviewPick(opt, mMultipleSelect, mMaxChoices)} className={`w-full text-left ${rowCls}`}>
                       {mHint && <span className="text-[10px] font-semibold text-[#bbb] w-4 shrink-0">{mHint}</span>}
                       {mark}
-                      <span className={`text-[14px] ${isOther ? 'text-[#aaa] italic' : 'text-[#111]'}`}>{opt}</span>
+                      <span className={`text-[14px] min-w-0 break-words ${isOther ? 'text-[#aaa] italic' : 'text-[#111]'}`}>{opt}</span>
                     </button>
                   );
                 }
@@ -2825,9 +2880,9 @@ const ContentCardInner = ({
               );
             })}
           </div>
-        </div>
+        </CardBody>
         {!isPreviewMode && (
-        <div className="border-t border-[rgba(0,0,0,0.1)] flex gap-2 items-center px-14 py-[19px]">
+        <div className={`border-t border-[rgba(0,0,0,0.1)] flex gap-2 items-center ${cardFooterToolsPadClass(compactLayout)}`}>
           {mOnOpenPanel && (
             <button
               onClick={mOnOpenPanel}
@@ -2867,11 +2922,17 @@ const ContentCardInner = ({
     const meMinChoices = meAllowMultiple ? (Number(mec.mediaMinChoices) || 1) : (meRequired ? 1 : 0);
     const meLayout = mec.mediaLayout || '2col';
     const meOptHeight = mec.mediaOptionHeight || 'M';
-    const meGridCols = meLayout === 'list' ? 'grid-cols-1' : meLayout === '3col' ? 'grid-cols-3' : 'grid-cols-2';
+    const meGridCols = compactLayout
+      ? 'grid-cols-1'
+      : meLayout === 'list'
+        ? 'grid-cols-1'
+        : meLayout === '3col'
+          ? 'grid-cols-3'
+          : 'grid-cols-2';
     const meImgRatio = meOptHeight === 'S' ? '16/4' : meOptHeight === 'L' ? '16/7' : '16/5';
     content = (
       <>
-        <div className="flex flex-col px-14 pt-6">
+        <CardBody compactLayout={compactLayout}>
           <SectionBadge num={blockNum} label="Media choice" />
           <div className="pt-[6px] flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <CanvasQuestionText
@@ -2879,7 +2940,7 @@ const ContentCardInner = ({
               onChange={mec.setMediaQuestion}
               isPreviewMode={isPreviewMode}
               required={meRequired}
-              fontSize="26px"
+              fontSize={qFont('media')}
             />
             <PreviewRequiredInline show={previewRequiredHint} />
           </div>
@@ -2894,9 +2955,11 @@ const ContentCardInner = ({
             </p>
           )}
           {(!meAllowMultiple || !(meMinChoices > 1 || meMaxChoices != null)) && <div className="mb-[10px]" />}
-        </div>
-        <div className="overflow-y-auto px-14 pb-3" style={{ maxHeight: '290px' }}>
-          <div className={`grid ${meGridCols} gap-2`}>
+          <div
+            className="overflow-y-auto pb-3"
+            style={{ maxHeight: compactLayout ? '45dvh' : '290px' }}
+          >
+            <div className={`grid ${meGridCols} gap-2`}>
             {meOpts.map((opt, i) => {
               const optKey = opt.label || `Option ${i + 1}`;
               const isPicked = previewPicks.includes(optKey);
@@ -2953,13 +3016,15 @@ const ContentCardInner = ({
                 </div>
               );
             })}
+            </div>
           </div>
-        </div>
+        </CardBody>
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure ? () => onConfigure(label) : undefined}
           variant="field"
           accentColor={accent}
+          compactLayout={compactLayout}
         />}
       </>
     );
@@ -2973,6 +3038,7 @@ const ContentCardInner = ({
         config={uploadConfig}
         isPreviewMode={isPreviewMode}
         accentColor={accent}
+        compactLayout={compactLayout}
       />
     );
   } else if (cardKey === 'interactive:Multi-image upload') {
@@ -2990,6 +3056,7 @@ const ContentCardInner = ({
         isPreviewMode={isPreviewMode}
         previewStepNav={previewStepNav}
         previewScreenValidatorRef={previewScreenValidatorRef}
+        compactLayout={compactLayout}
       />
     );
   } else if (cardKey === 'interactive:Captcha') {
@@ -3005,7 +3072,7 @@ const ContentCardInner = ({
     const capLabel = PROVIDER_SHORT[capProvider] || capProvider;
     content = (
       <>
-        <div className={`flex flex-col px-14 pt-11 pb-5 transition-opacity ${capEnabled ? 'opacity-100' : 'opacity-40'}`}>
+        <CardBody compactLayout={compactLayout} className={`transition-opacity ${capEnabled ? 'opacity-100' : 'opacity-40'}`}>
           <SectionBadge num={blockNum} label="Captcha" />
           <div className="pt-[9px] flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <p className="font-medium text-[#111] tracking-[-0.52px] leading-[32.5px] flex-1 min-w-0" style={{ fontSize: '26px' }}>
@@ -3045,11 +3112,12 @@ const ContentCardInner = ({
               <span className="text-[8px] text-black leading-none">{capLabel}</span>
             </div>
           </div>
-        </div>
+        </CardBody>
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure ? () => onConfigure(label) : undefined}
           accentColor={accent}
+          compactLayout={compactLayout}
         />}
       </>
     );
@@ -3117,20 +3185,20 @@ const ContentCardInner = ({
 
     content = (
       <>
-        <div className="flex flex-col px-14 pt-11 pb-5">
+        <CardBody compactLayout={compactLayout}>
           <SectionBadge num={blockNum} label="Rating" />
           <div className="pt-[9px] flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <CanvasQuestionText
               value={rc.ratingQuestion ?? ''}
               onChange={rc.setRatingQuestion}
               isPreviewMode={isPreviewMode}
-              fontSize="26px"
+              fontSize={qFont('media')}
               fontWeight="500"
               className="font-medium"
             />
             <PreviewRequiredInline show={previewRequiredHint} />
           </div>
-          <div className={`flex pt-[19px] pb-[17px] ${rStyle === '1-10' ? '' : 'justify-center'}`}>
+          <div className={`flex pt-[19px] pb-[17px] ${rStyle === '1-10' ? '' : 'justify-center'} ${compactLayout ? 'flex-wrap' : ''}`}>
             <div className={`flex flex-col ${rStyle === '1-10' ? 'w-full' : ''}`}>
               <div className={`flex items-center ${rStyle === '1-10' ? 'gap-[6px]' : 'gap-2'}`}>
                 {Array.from({ length: rMax }, (_, i) => i + 1).map(renderIconBtn)}
@@ -3157,12 +3225,13 @@ const ContentCardInner = ({
               )}
             </div>
           </div>
-        </div>
+        </CardBody>
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure ? () => onConfigure(label) : undefined}
           variant="field"
           accentColor={accent}
+          compactLayout={compactLayout}
         />}
       </>
     );
@@ -3178,6 +3247,7 @@ const ContentCardInner = ({
         previewRequiredHint={previewRequiredHint}
         onTimeChange={setTimeSelection}
         accentColor={accent}
+        compactLayout={compactLayout}
       />
     );
   } else if (cardKey === 'numeric:Date') {
@@ -3189,7 +3259,7 @@ const ContentCardInner = ({
     const weekendIdx = new Set([4, 5, 11, 12, 18, 19, 25, 26]);
     content = (
       <>
-        <div className="flex flex-col px-14 pt-11 pb-5">
+        <CardBody compactLayout={compactLayout}>
           <SectionBadge num={blockNum} label="Date" />
           <div className="pt-[9px] flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <CanvasQuestionText
@@ -3197,7 +3267,7 @@ const ContentCardInner = ({
               onChange={dc.setDateQuestion}
               isPreviewMode={isPreviewMode}
               required={dRequired}
-              fontSize="32px"
+              fontSize={qFont()}
             />
             <PreviewRequiredInline show={previewRequiredHint} />
           </div>
@@ -3222,7 +3292,7 @@ const ContentCardInner = ({
               {days.map((d) => (
                 <span
                   key={d}
-                  className={`text-[13px] py-1 rounded-full ${d === 11 ? 'text-white' : weekendIdx.has(d - 1) ? 'text-[#ccc]' : 'text-[#111] cursor-pointer hover:bg-[rgba(0,0,0,0.05)]'}`}
+                  className={`${compactLayout ? 'text-[12px]' : 'text-[13px]'} py-1 rounded-full ${d === 11 ? 'text-white' : weekendIdx.has(d - 1) ? 'text-[#ccc]' : 'text-[#111] cursor-pointer hover:bg-[rgba(0,0,0,0.05)]'}`}
                   style={d === 11 ? { backgroundColor: accent } : undefined}
                 >
                   {d}
@@ -3230,22 +3300,23 @@ const ContentCardInner = ({
               ))}
             </div>
           </div>
-        </div>
+        </CardBody>
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure ? () => onConfigure(label) : undefined}
           variant="field"
           accentColor={accent}
+          compactLayout={compactLayout}
         />}
       </>
     );
   } else {
     content = (
       <>
-        <div className="flex flex-col px-14 pt-11 pb-5">
+        <CardBody compactLayout={compactLayout}>
           <SectionBadge num={blockNum} label={label} />
           <div className="pt-[9px] flex flex-wrap items-center justify-between gap-x-3 gap-y-1 pb-5">
-            <p className="font-semibold text-[#111] tracking-[-0.52px] leading-[1.3] flex-1 min-w-0" style={{ fontSize: '32px', fontWeight: '600' }}>
+            <p className="font-semibold text-[#111] tracking-[-0.52px] leading-[1.3] flex-1 min-w-0 break-words" style={{ fontSize: qFont(), fontWeight: '600' }}>
               {label}
             </p>
             <PreviewRequiredInline show={previewRequiredHint} />
@@ -3253,12 +3324,13 @@ const ContentCardInner = ({
           <p className="text-[#888] text-[15px] font-light pb-5">
             This is a {label.toLowerCase()} field for collecting respondent data.
           </p>
-        </div>
+        </CardBody>
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure ? () => onConfigure(label) : undefined}
           variant="field"
           accentColor={accent}
+          compactLayout={compactLayout}
         />}
       </>
     );
@@ -3269,7 +3341,8 @@ const ContentCardInner = ({
   const isScrollableCard = isImageCard || isVideoCard;
   const scrollableLabel = isImageCard ? 'IMAGE WITH QUESTION' : 'VIDEO WITH QUESTION';
 
-  const inCardPreviewNav = isPreviewMode && previewStepNav ? previewStepNav : null;
+  const inCardPreviewNav =
+    isPreviewMode && previewStepNav ? cloneElement(previewStepNav, { compactLayout }) : null;
 
   return (
     <motion.div

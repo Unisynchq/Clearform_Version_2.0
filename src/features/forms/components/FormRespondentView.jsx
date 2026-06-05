@@ -9,12 +9,19 @@ import ContentCard, {
 import { createFormLogicRunner } from '@/features/forms/utils/formLogicRunner';
 import { isScreenVisibleInPreview } from '@/features/forms/utils/logicEngine';
 import { previewCanvasConfigsFromScreen } from '@/features/forms/utils/previewCanvasConfigsFromScreen';
-import { resolveThemeFromSnapshot } from '@/features/forms/utils/respondentThemeStyles';
+import { getCardShellSurface, resolveThemeFromSnapshot } from '@/features/forms/utils/respondentThemeStyles';
 import {
   ESSENTIAL_TO_BLOCK,
   WELCOME_TEXT_SIZE_DESKTOP,
+  WELCOME_TEXT_SIZE_MOBILE,
 } from '@/features/forms/formBuilder/builderScreenMaps';
-import { hexToRgba } from '@/features/forms/formBuilder/builderConfiguratorConstants';
+import { useRespondentCompact } from '@/features/forms/hooks/useRespondentCompact';
+import {
+  introInnerPadClass,
+  RESPONDENT_PAGE_SHELL,
+  RESPONDENT_PAGE_SHELL_FULL,
+  RESPONDENT_SCREEN_FRAME,
+} from '@/features/forms/utils/respondentLayout';
 import { submitFormResponse } from '@/api/services/responsesService';
 import { buildResponseFromPreview } from '@/features/forms/utils/formResponseBuilder';
 
@@ -39,6 +46,7 @@ const SCREEN_MOTION = {
  * Live form runner — same ContentCard + preview chrome as builder preview.
  */
 export default function FormRespondentView({ draft, formId }) {
+  const isCompact = useRespondentCompact();
   const screens = draft?.screens ?? [];
   const logicConnections = draft?.logicConnections ?? [];
   const logicIfRulesByEdge = draft?.logicIfRulesByEdge ?? {};
@@ -125,23 +133,14 @@ export default function FormRespondentView({ draft, formId }) {
     introAlign === 'center' ? 'items-center' : introAlign === 'right' ? 'items-end' : 'items-start';
   const welcomeJustifyClass =
     introAlign === 'center' ? 'justify-center' : introAlign === 'right' ? 'justify-end' : 'justify-start';
+  const welcomeSizeMap = isCompact ? WELCOME_TEXT_SIZE_MOBILE : WELCOME_TEXT_SIZE_DESKTOP;
   const welcomeSize =
-    WELCOME_TEXT_SIZE_DESKTOP[draft?.intro?.textSize ?? 'M'] ?? WELCOME_TEXT_SIZE_DESKTOP.M;
+    welcomeSizeMap[draft?.intro?.textSize ?? 'M'] ?? welcomeSizeMap.M;
 
-  const cardShellStyle =
-    theme.fullCanvas
-      ? {}
-      : {
-          ...(theme.cardImage
-            ? {
-                backgroundImage: `url(${theme.cardImage})`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-              }
-            : { background: theme.cardColor }),
-          boxShadow: '0px 1px 3px 0px rgba(0,0,0,0.05), 0px 8px 32px 0px rgba(0,0,0,0.07)',
-          border: '1px solid rgba(0,0,0,0.07)',
-        };
+  const respondentCardShell = useMemo(
+    () => getCardShellSurface(theme),
+    [theme],
+  );
 
   const previewStepNav =
     activeScreen?.type === 'content' ? (
@@ -151,6 +150,7 @@ export default function FormRespondentView({ draft, formId }) {
         onGoPrev={goBack}
         onGoContinue={recordAndAdvance}
         showBackButton={showBackButton}
+        compactLayout={isCompact}
       />
     ) : null;
 
@@ -165,7 +165,7 @@ export default function FormRespondentView({ draft, formId }) {
   } else if (activeScreen.type === 'intro') {
     if (introEssential && ESSENTIAL_TO_BLOCK[introEssential]) {
       screenBody = (
-        <motion.div key={`intro-essential-${introEssential}`} className="h-full min-h-0 flex flex-col p-5" {...SCREEN_MOTION}>
+        <motion.div key={`intro-essential-${introEssential}`} className={`h-full min-h-0 flex flex-col ${RESPONDENT_SCREEN_FRAME}`} {...SCREEN_MOTION}>
           <div className="w-full flex-1 min-h-0 flex flex-col">
             <ContentCard
               block={ESSENTIAL_TO_BLOCK[introEssential]}
@@ -185,20 +185,20 @@ export default function FormRespondentView({ draft, formId }) {
               onPreviewSnapChange={handlePreviewSnapChange}
               previewScreenId={activeScreen.id}
               responseQualityFormId={formId}
+              compactLayout={isCompact}
             />
           </div>
         </motion.div>
       );
     } else {
       screenBody = (
-        <motion.div key="intro-screen" className="h-full flex flex-col p-5" {...SCREEN_MOTION}>
-          <motion.div
-            layout
-            className={`flex-1 flex flex-col w-full overflow-hidden min-h-[420px] ${theme.fullCanvas ? '' : 'rounded-[20px]'}`}
-            style={cardShellStyle}
+        <motion.div key="intro-screen" className={`h-full flex flex-col ${RESPONDENT_SCREEN_FRAME}`} {...SCREEN_MOTION}>
+          <div
+            className={`flex-1 flex flex-col w-full overflow-hidden min-h-[min(420px,70dvh)] ${respondentCardShell.borderAndRadius}`}
+            style={respondentCardShell.shellStyle}
           >
             <div
-              className={`flex-1 flex flex-col ${welcomeItemsAlignClass} justify-center gap-4 px-[52px] py-[44px]`}
+              className={`flex-1 flex flex-col ${welcomeItemsAlignClass} justify-center gap-4 ${introInnerPadClass(isCompact)}`}
             >
               {draft?.intro?.logo ? (
                 <div className="w-[42px] h-[42px] rounded-[10px] overflow-hidden shrink-0">
@@ -221,55 +221,44 @@ export default function FormRespondentView({ draft, formId }) {
                   {draft.intro.description}
                 </p>
               ) : null}
-              <div className={`flex items-center gap-2 w-full ${welcomeJustifyClass} max-w-[280px]`}>
+              <div className={`flex items-center gap-2 w-full ${welcomeJustifyClass} ${isCompact ? 'max-w-[320px]' : 'max-w-[280px]'}`}>
                 <button
                   type="button"
                   onClick={recordAndAdvance}
-                  className="bg-[#18181a] text-white text-[14px] px-[36px] py-[11px] font-bold rounded-[8px] cursor-pointer hover:bg-[#2c2c2c] transition-colors whitespace-nowrap"
+                  className={`bg-[#18181a] text-white font-bold rounded-[8px] cursor-pointer hover:bg-[#2c2c2c] transition-colors whitespace-nowrap ${isCompact ? 'text-[16px] px-[40px] py-[13px]' : 'text-[14px] px-[36px] py-[11px]'}`}
                 >
                   {draft?.intro?.buttonText || 'Start'}
                 </button>
               </div>
             </div>
-          </motion.div>
+          </div>
         </motion.div>
       );
     }
   } else if (activeScreen.type === 'end') {
-    const endCardBg = theme.fullCanvas
-      ? {}
-      : {
-          background: hexToRgba(
-            draft?.theme?.cardColor ?? '#f9f9fa',
-            typeof draft?.theme?.cardOpacity === 'number' ? draft.theme.cardOpacity : 74,
-          ),
-          boxShadow: '0px 1px 3px 0px rgba(0,0,0,0.05), 0px 8px 32px 0px rgba(0,0,0,0.07)',
-          border: '1px solid rgba(0,0,0,0.07)',
-        };
     screenBody = (
-      <motion.div key="end-screen" className="h-full flex flex-col p-5" {...SCREEN_MOTION}>
-        <motion.div
-          layout
-          className={`flex-1 flex flex-col w-full overflow-hidden min-h-[420px] ${theme.fullCanvas ? '' : 'rounded-[20px]'}`}
-          style={endCardBg}
+      <motion.div key="end-screen" className={`h-full flex flex-col ${RESPONDENT_SCREEN_FRAME}`} {...SCREEN_MOTION}>
+        <div
+          className={`flex-1 flex flex-col w-full overflow-hidden min-h-[min(420px,70dvh)] ${respondentCardShell.borderAndRadius}`}
+          style={respondentCardShell.shellStyle}
         >
-          <div className="flex-1 flex flex-col items-center justify-center gap-4 px-[52px] py-[44px]">
+          <div className={`flex-1 flex flex-col items-center justify-center gap-4 ${introInnerPadClass(isCompact)}`}>
             <div className="w-[36px] h-[36px] rounded-[10px] bg-[#1a9e4a] flex items-center justify-center shrink-0">
               <RiCheckLine size={18} className="text-white" />
             </div>
-            <p className="text-[#111] text-[24px] leading-[28.8px] font-bold text-center tracking-[-0.56px]">
+            <p className={`text-[#111] font-bold text-center tracking-[-0.56px] ${isCompact ? 'text-[28px] leading-[33.6px]' : 'text-[24px] leading-[28.8px]'}`}>
               {draft?.end?.title || 'Thank you'}
             </p>
             {draft?.end?.description ? (
               <p className="text-[#8c8a84] text-[15px] font-normal text-center">{draft.end.description}</p>
             ) : null}
           </div>
-        </motion.div>
+        </div>
       </motion.div>
     );
   } else if (activeScreen.type === 'content' && activeScreen.section && activeScreen.label) {
     screenBody = (
-      <motion.div key={`content-${activeScreen.id}`} className="h-full min-h-0 flex flex-col p-5" {...SCREEN_MOTION}>
+      <motion.div key={`content-${activeScreen.id}`} className={`h-full min-h-0 flex flex-col ${RESPONDENT_SCREEN_FRAME}`} {...SCREEN_MOTION}>
         <div className="w-full flex-1 min-h-0 flex flex-col">
           <ContentCard
             block={activeScreen}
@@ -290,6 +279,7 @@ export default function FormRespondentView({ draft, formId }) {
             onPreviewSnapChange={handlePreviewSnapChange}
             previewScreenId={activeScreen.id}
             responseQualityFormId={formId}
+            compactLayout={isCompact}
           />
         </div>
       </motion.div>
@@ -298,7 +288,7 @@ export default function FormRespondentView({ draft, formId }) {
 
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center p-10"
+      className={theme.fullCanvas ? RESPONDENT_PAGE_SHELL_FULL : RESPONDENT_PAGE_SHELL}
       style={{ backgroundColor: theme.pageBg, fontFamily: theme.typography }}
     >
       <div

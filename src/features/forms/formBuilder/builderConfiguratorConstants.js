@@ -38,9 +38,9 @@ export const ESSENTIALS = [
   { label: 'Captcha', Icon: RiRobot2Line },
 ];
 
-export const CONFIGURE_TILE_GRID = 'grid grid-cols-3 gap-1 items-start pb-[2px]';
+export const CONFIGURE_TILE_GRID = 'grid grid-cols-3 gap-1.5 items-start pb-[2px]';
 export const CONFIGURE_TILE_BASE =
-  'flex flex-col items-center justify-center gap-[2px] h-[40px] w-full px-0.5 rounded-[6px] border cursor-pointer transition-colors';
+  'flex flex-col items-center justify-center gap-[4px] h-[42px] w-full px-1 rounded-[6px] border cursor-pointer transition-colors';
 
 /* ── Configure panel: collapsible sections ── */
 export const ACCORDION_SECTIONS = [

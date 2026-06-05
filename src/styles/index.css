@@ -174,3 +174,15 @@ button[role="switch"] {
   border: none;
   box-shadow: 0 0 0 2.5px white, 0 0 0 4px rgba(0, 0, 0, 0.12);
 }
+
+/* Respondent form fields — neutralize browser autofill chrome in preview/published views */
+.respondent-field-input:-webkit-autofill,
+.respondent-field-input:-webkit-autofill:hover,
+.respondent-field-input:-webkit-autofill:focus,
+.respondent-field-input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-text-fill-color: #111111 !important;
+  caret-color: #111111;
+  transition: background-color 5000s ease-in-out 0s;
+}

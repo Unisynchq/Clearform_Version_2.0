@@ -30,6 +30,9 @@ import {
   formatTimeRemaining,
   buildCalendarGrid,
   formatDurationSeconds,
+  FORM_OVERLAY_TAB_ORDER,
+  FORM_OVERLAY_TAB_PANEL_VARIANTS,
+  FORM_OVERLAY_TAB_PANEL_TRANSITION,
 } from '@/features/forms/components/formOverlay/formOverlayParts';
 
 const overlayAiDismissKey = (id) => `cf:overlay-ai-dismiss:${id}`;
@@ -123,6 +126,15 @@ const FormOverlayModal = () => {
   const handleResponseLimitChange = (value) => {
     setResponseLimit(value);
     persistResponseLimit(value);
+  };
+
+  const tabDirectionRef = useRef(1);
+
+  const handleOverlayTabChange = (tabId) => {
+    const prevIdx = FORM_OVERLAY_TAB_ORDER.indexOf(activeTab);
+    const nextIdx = FORM_OVERLAY_TAB_ORDER.indexOf(tabId);
+    tabDirectionRef.current = nextIdx >= prevIdx ? 1 : -1;
+    setActiveTab(tabId);
   };
 
   // Reset UI/picker state only when a *different* form is opened
@@ -536,26 +548,47 @@ const FormOverlayModal = () => {
               {[
                 { id: 'overview', label: 'Overview' },
                 { id: 'quickSettings', label: 'Quick Settings' },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`text-[12px] font-medium py-[8px] px-1 mr-3 border-b-2 transition-colors cursor-pointer ${
-                    activeTab === tab.id
-                      ? 'border-[#7c3aed] text-[#393939]'
-                      : 'border-transparent text-[#747474] hover:text-[#393939]'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+              ].map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => handleOverlayTabChange(tab.id)}
+                    className={`relative text-[12px] font-medium py-[8px] px-1 mr-3 transition-colors duration-200 cursor-pointer ${
+                      isActive ? 'text-[#393939]' : 'text-[#747474] hover:text-[#393939]'
+                    }`}
+                  >
+                    {isActive ? (
+                      <motion.span
+                        layoutId="form-overlay-active-tab"
+                        className="absolute inset-x-0 bottom-0 h-[2px] rounded-full bg-[#7c3aed]"
+                        transition={{ type: 'spring', stiffness: 520, damping: 36 }}
+                        aria-hidden
+                      />
+                    ) : null}
+                    <span className="relative z-10">{tab.label}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* ── Scrollable content area ── */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden">
+            <AnimatePresence mode="wait" initial={false} custom={tabDirectionRef.current}>
 
             {/* ── Overview content ── */}
-            {activeTab === 'overview' && form.responses === 0 && !confirmedPause && form.status !== 'archived' && (
+            {activeTab === 'overview' && (
+            <motion.div
+              key="overview"
+              custom={tabDirectionRef.current}
+              variants={FORM_OVERLAY_TAB_PANEL_VARIANTS}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={FORM_OVERLAY_TAB_PANEL_TRANSITION}
+            >
+            {form.responses === 0 && !confirmedPause && form.status !== 'archived' && (
               <div className="flex flex-col items-center gap-[8px] py-[52px] px-[24px]">
                 {/* Sad face icon */}
                 <div className="w-[48px] h-[40px] bg-[#f0ede8] rounded-[10px] flex items-center justify-center mb-[8px]">
@@ -582,7 +615,7 @@ const FormOverlayModal = () => {
               </div>
             )}
 
-            {activeTab === 'overview' && (form.responses > 0 || confirmedPause || form.status === 'archived') && (
+            {(form.responses > 0 || confirmedPause || form.status === 'archived') && (
               <div className="px-[16px] py-[14px] flex flex-col gap-[10px] items-center">
 
                 {/* Fetch error banner */}
@@ -757,10 +790,21 @@ const FormOverlayModal = () => {
 
               </div>
             )}
+            </motion.div>
+            )}
 
             {/* ── Quick Settings content ── */}
             {activeTab === 'quickSettings' && (
-              <div className="px-[16px] py-[16px] flex flex-col gap-[10px]">
+            <motion.div
+              key="quickSettings"
+              custom={tabDirectionRef.current}
+              variants={FORM_OVERLAY_TAB_PANEL_VARIANTS}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={FORM_OVERLAY_TAB_PANEL_TRANSITION}
+              className="px-[16px] py-[16px] flex flex-col gap-[10px]"
+            >
 
                 {/* ── Response limit ── */}
                 <div className="bg-[#fdfcfb] border border-[#ede9e3] rounded-[12px] px-[17px] py-[15px] flex items-center justify-between">
@@ -1260,9 +1304,10 @@ const FormOverlayModal = () => {
                   </button>
                 </div>
 
-              </div>
+            </motion.div>
             )}
 
+            </AnimatePresence>
             </div>{/* end scrollable content area */}
 
             </>

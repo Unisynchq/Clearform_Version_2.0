@@ -75,7 +75,9 @@ import {
 } from 'react-icons/ri';
 import { PiCaretCircleUp } from 'react-icons/pi';
 
-import ContentCard from '@/features/forms/formBuilder/BuilderContentCard';
+import ContentCard, { PreviewCardStepNav } from '@/features/forms/formBuilder/BuilderContentCard';
+import { introInnerPadClass } from '@/features/forms/utils/respondentLayout';
+import { getCardShellSurface } from '@/features/forms/utils/respondentThemeStyles';
 import {
   buildCanvasFieldConfigs,
   FIELD_LABEL_TO_CONFIG_PANEL,
@@ -138,7 +140,9 @@ import {
 import BlockVisibilityConditions from '@/features/forms/components/BlockVisibilityConditions';
 import LogicCanvasActionsPanel from '@/features/forms/components/LogicCanvasActionsPanel';
 import {
+  clampLogicCanvasPan,
   LOGIC_CANVAS_DOT_GRID_STYLE,
+  LOGIC_CANVAS_RIGHT_INSET,
   LOGIC_CANVAS_VIEWPORT_CLASS,
 } from '@/features/forms/constants/logicCanvasViewport';
 import AiLogicGenerationFailedBanner from '@/features/forms/components/AiLogicGenerationFailedBanner';
@@ -1171,40 +1175,6 @@ const PreviewPoweredBy = () => (
   </motion.div>
 );
 
-/** Back / Continue — matches Figma (Clearform-Changes 2521:7135) */
-const PreviewCardStepNav = ({ prevScreen, nextScreen, onGoPrev, onGoContinue }) => (
-  <div className="border-t border-[#cfcecd] flex items-center justify-between shrink-0 px-14 pt-[15px] pb-[18px]">
-    <button
-      type="button"
-      onClick={() => onGoPrev?.()}
-      disabled={!prevScreen}
-      className={`inline-flex items-center justify-center gap-[6px] h-[38px] rounded-[6px] border border-solid px-[15px] text-[13px] font-normal transition-colors ${
-        prevScreen
-          ? 'border-[#e2e0dc] bg-white text-[#8a8880] hover:bg-[#f7f6f4] cursor-pointer'
-          : 'border-[#e8e6e2] bg-[#fafaf9] text-[#c4c2bc] cursor-not-allowed'
-      }`}
-      style={{ fontFamily: "'DM Sans', sans-serif", fontVariationSettings: "'opsz' 14" }}
-    >
-      <RiArrowLeftLine size={13} className={`shrink-0 ${prevScreen ? 'text-[#8a8880]' : 'text-[#c4c2bc]'}`} aria-hidden />
-      Back
-    </button>
-    <button
-      type="button"
-      onClick={() => onGoContinue?.()}
-      disabled={!nextScreen}
-      className={`inline-flex items-center justify-center gap-2 h-[38px] rounded-[10px] px-6 text-[14px] font-medium transition-colors ${
-        nextScreen
-          ? 'bg-[#1a1a18] text-white hover:bg-[#2a2a26] cursor-pointer'
-          : 'bg-[#d4d2cc] text-[#a8a6a0] cursor-not-allowed'
-      }`}
-      style={{ fontFamily: "'DM Sans', sans-serif", fontVariationSettings: "'opsz' 14" }}
-    >
-      Continue
-      <RiArrowRightLine size={14} className={`shrink-0 ${nextScreen ? 'text-white' : 'text-[#a8a6a0]'}`} aria-hidden />
-    </button>
-  </div>
-);
-
 /** Shown beside the question title line when Continue is tapped but required preview fields are incomplete. */
 const PreviewRequiredInline = ({ show }) =>
   show ? (
@@ -1410,7 +1380,6 @@ const FormBuilderPage = () => {
   const [settingsConfirmationEmail, setSettingsConfirmationEmail] = useState(true);
   const [settingsSubmissionNotifications, setSettingsSubmissionNotifications] = useState(false);
   const [settingsEmailCollection, setSettingsEmailCollection] = useState(true);
-  const [settingsLanguage, setSettingsLanguage] = useState('English');
   const [settingsPasswordProtection, setSettingsPasswordProtection] = useState(false);
   const [settingsResponseLimit, setSettingsResponseLimit] = useState(false);
   const [settingsResponseLimitCount, setSettingsResponseLimitCount] = useState('500');
@@ -1426,6 +1395,7 @@ const FormBuilderPage = () => {
   const [designCardColor, setDesignCardColor] = useState('#f9f9fa');
   const [designCardImage, setDesignCardImage] = useState(null);
   const [designCardColorGridOpen, setDesignCardColorGridOpen] = useState(false);
+  const [designBackgroundColorGridOpen, setDesignBackgroundColorGridOpen] = useState(false);
   const [designTextColorGridOpen, setDesignTextColorGridOpen] = useState(false);
   const [designCardOpacity, setDesignCardOpacity] = useState(74);
   const [designTextColor, setDesignTextColor] = useState('#3d3d3d');
@@ -3124,7 +3094,7 @@ const FormBuilderPage = () => {
       confirmationEmail: settingsConfirmationEmail,
       submissionNotifications: settingsSubmissionNotifications,
       emailCollection: settingsEmailCollection,
-      language: settingsLanguage,
+      language: 'English',
       passwordProtection: settingsPasswordProtection,
       responseLimit: settingsResponseLimit,
       responseLimitCount: settingsResponseLimitCount,
@@ -3139,7 +3109,6 @@ const FormBuilderPage = () => {
       settingsConfirmationEmail,
       settingsSubmissionNotifications,
       settingsEmailCollection,
-      settingsLanguage,
       settingsPasswordProtection,
       settingsResponseLimit,
       settingsResponseLimitCount,
@@ -3476,7 +3445,6 @@ const FormBuilderPage = () => {
       if (Object.prototype.hasOwnProperty.call(built.settings, 'confirmationEmail')) setSettingsConfirmationEmail(Boolean(built.settings.confirmationEmail));
       if (Object.prototype.hasOwnProperty.call(built.settings, 'submissionNotifications')) setSettingsSubmissionNotifications(Boolean(built.settings.submissionNotifications));
       if (Object.prototype.hasOwnProperty.call(built.settings, 'emailCollection')) setSettingsEmailCollection(Boolean(built.settings.emailCollection));
-      if (built.settings.language) setSettingsLanguage(built.settings.language);
       if (Object.prototype.hasOwnProperty.call(built.settings, 'passwordProtection')) setSettingsPasswordProtection(Boolean(built.settings.passwordProtection));
       if (Object.prototype.hasOwnProperty.call(built.settings, 'responseLimit')) setSettingsResponseLimit(Boolean(built.settings.responseLimit));
       if (built.settings.responseLimitCount != null) setSettingsResponseLimitCount(String(built.settings.responseLimitCount));
@@ -4190,6 +4158,7 @@ const FormBuilderPage = () => {
         nextScreen={nextScreen}
         onGoPrev={goPreviewPrev}
         onGoContinue={goPreviewNext}
+        compactLayout={deviceView === 'mobile'}
       />
     ) : null;
 
@@ -4695,11 +4664,28 @@ const FormBuilderPage = () => {
     logicCanvasZoomRef.current = logicCanvasZoom;
   }, [logicCanvasZoom]);
 
+  const applyLogicCanvasPan = useCallback((nextPan) => {
+    const vp = logicViewportRef.current;
+    const board = logicBoardMeasureRef.current;
+    if (!vp || !board) {
+      setLogicCanvasPan(nextPan);
+      return;
+    }
+    setLogicCanvasPan(
+      clampLogicCanvasPan(
+        nextPan,
+        logicCanvasZoomRef.current,
+        board.offsetWidth,
+        vp.clientWidth,
+      ),
+    );
+  }, []);
+
   const fitLogicCanvasView = useCallback(() => {
     const vp = logicViewportRef.current;
     const board = logicBoardMeasureRef.current;
     if (!vp || !board) return;
-    const vw = vp.clientWidth;
+    const vw = Math.max(0, vp.clientWidth - LOGIC_CANVAS_RIGHT_INSET);
     const vh = vp.clientHeight;
     const w = board.offsetWidth;
     const h = board.offsetHeight;
@@ -4710,8 +4696,8 @@ const FormBuilderPage = () => {
     const panX = (vw - w * newZoom) / 2;
     const panY = (vh - h * newZoom) / 2;
     setLogicCanvasZoom(newZoom);
-    setLogicCanvasPan({ x: panX, y: panY });
-  }, []);
+    applyLogicCanvasPan({ x: panX, y: panY });
+  }, [applyLogicCanvasPan]);
 
   const handleLogicCanvasWheel = useCallback((e) => {
     const vp = logicViewportRef.current;
@@ -4728,8 +4714,8 @@ const FormBuilderPage = () => {
     const wx = (mx - prevPan.x) / prevZoom;
     const wy = (my - prevPan.y) / prevZoom;
     setLogicCanvasZoom(newZoom);
-    setLogicCanvasPan({ x: mx - wx * newZoom, y: my - wy * newZoom });
-  }, []);
+    applyLogicCanvasPan({ x: mx - wx * newZoom, y: my - wy * newZoom });
+  }, [applyLogicCanvasPan]);
 
   useEffect(() => {
     const vp = logicViewportRef.current;
@@ -4742,7 +4728,7 @@ const FormBuilderPage = () => {
     const vp = logicViewportRef.current;
     if (!vp) return;
     const rect = vp.getBoundingClientRect();
-    const mx = rect.width / 2;
+    const mx = (rect.width - LOGIC_CANVAS_RIGHT_INSET) / 2;
     const my = rect.height / 2;
     const prevZoom = logicCanvasZoomRef.current;
     const newZoom = Math.min(2.5, Math.max(0.25, prevZoom * factor));
@@ -4751,8 +4737,8 @@ const FormBuilderPage = () => {
     const wx = (mx - prevPan.x) / prevZoom;
     const wy = (my - prevPan.y) / prevZoom;
     setLogicCanvasZoom(newZoom);
-    setLogicCanvasPan({ x: mx - wx * newZoom, y: my - wy * newZoom });
-  }, []);
+    applyLogicCanvasPan({ x: mx - wx * newZoom, y: my - wy * newZoom });
+  }, [applyLogicCanvasPan]);
 
   const onLogicPanSurfacePointerDown = useCallback((e) => {
     if (e.button !== 0) return;
@@ -4779,11 +4765,11 @@ const FormBuilderPage = () => {
   const onLogicPanSurfacePointerMove = useCallback((e) => {
     const d = logicPanDragRef.current;
     if (!d) return;
-    setLogicCanvasPan({
+    applyLogicCanvasPan({
       x: d.pan.x + e.clientX - d.sx,
       y: d.pan.y + e.clientY - d.sy,
     });
-  }, []);
+  }, [applyLogicCanvasPan]);
 
   const onLogicPanSurfacePointerUp = useCallback((e) => {
     logicPanDragRef.current = null;
@@ -4802,6 +4788,11 @@ const FormBuilderPage = () => {
       requestAnimationFrame(() => fitLogicCanvasView());
     }
   }, [activeTab, contentScreens.length, fitLogicCanvasView]);
+
+  useLayoutEffect(() => {
+    if (activeTab !== 'logic') return;
+    applyLogicCanvasPan(logicCanvasPanRef.current);
+  }, [activeTab, logicBoardSize.width, logicCanvasZoom, applyLogicCanvasPan]);
 
   const publishFormTitle = useMemo(() => {
     if (loadedFormTitle) return loadedFormTitle;
@@ -5213,6 +5204,11 @@ const FormBuilderPage = () => {
     ],
   );
 
+  const builderCardShell = useMemo(
+    () => getCardShellSurface(builderTheme),
+    [builderTheme],
+  );
+
   const canvasConfigSnapshot = JSON.stringify(configGlobalsRef.current);
 
   const canvasFieldConfigs = useMemo(
@@ -5539,6 +5535,7 @@ const FormBuilderPage = () => {
     descriptionShowCharCount,
     descriptionTextSize,
     designBackground,
+    designBackgroundColorGridOpen,
     designCardColor,
     designCardColorGridOpen,
     designCardImage,
@@ -5755,6 +5752,7 @@ const FormBuilderPage = () => {
     setDescriptionShowCharCount,
     setDescriptionTextSize,
     setDesignBackground,
+    setDesignBackgroundColorGridOpen,
     setDesignCardColor,
     setDesignCardColorGridOpen,
     setDesignTextColorGridOpen,
@@ -5902,7 +5900,6 @@ const FormBuilderPage = () => {
     setSettingsCompletionAction,
     setSettingsConfirmationEmail,
     setSettingsEmailCollection,
-    setSettingsLanguage,
     setSettingsOneAtATime,
     setSettingsPasswordProtection,
     setSettingsResponseLimit,
@@ -6007,7 +6004,6 @@ const FormBuilderPage = () => {
     settingsCompletionAction,
     settingsConfirmationEmail,
     settingsEmailCollection,
-    settingsLanguage,
     settingsOneAtATime,
     settingsPasswordProtection,
     settingsResponseLimit,
@@ -6694,7 +6690,7 @@ const FormBuilderPage = () => {
                   <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
                     <div
                       className={LOGIC_CANVAS_VIEWPORT_CLASS}
-                      style={LOGIC_CANVAS_DOT_GRID_STYLE}
+                      style={{ ...LOGIC_CANVAS_DOT_GRID_STYLE, paddingRight: LOGIC_CANVAS_RIGHT_INSET }}
                     >
                       <LogicCanvasActionsPanel
                         onOpenSheets={openLogicCanvasSheets}
@@ -6715,7 +6711,7 @@ const FormBuilderPage = () => {
                   <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
                     <div
                       className={LOGIC_CANVAS_VIEWPORT_CLASS}
-                      style={LOGIC_CANVAS_DOT_GRID_STYLE}
+                      style={{ ...LOGIC_CANVAS_DOT_GRID_STYLE, paddingRight: LOGIC_CANVAS_RIGHT_INSET }}
                     >
                       <LogicCanvasActionsPanel
                         onOpenSheets={openLogicCanvasSheets}
@@ -6759,7 +6755,10 @@ const FormBuilderPage = () => {
                   <div
                     ref={logicViewportRef}
                     className={`${LOGIC_CANVAS_VIEWPORT_CLASS} touch-none select-none flex-1 min-h-0`}
-                    style={LOGIC_CANVAS_DOT_GRID_STYLE}
+                    style={{
+                      ...LOGIC_CANVAS_DOT_GRID_STYLE,
+                      paddingRight: LOGIC_CANVAS_RIGHT_INSET,
+                    }}
                   >
                   <LogicCanvasActionsPanel
                     onOpenSheets={openLogicCanvasSheets}
@@ -6923,7 +6922,8 @@ const FormBuilderPage = () => {
                     </button>
                   </div>
                   <div
-                    className={`absolute inset-0 z-10 ${logicCanvasPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
+                    className={`absolute top-0 left-0 bottom-0 z-10 ${logicCanvasPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
+                    style={{ right: LOGIC_CANVAS_RIGHT_INSET }}
                     onPointerDown={onLogicPanSurfacePointerDown}
                     onPointerMove={onLogicPanSurfacePointerMove}
                     onPointerUp={onLogicPanSurfacePointerUp}
@@ -7255,13 +7255,14 @@ const FormBuilderPage = () => {
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -6 }}
                           transition={{ duration: 0.2, ease: 'easeOut' }}
-                          className={`h-full min-h-0 flex flex-col ${deviceView === 'mobile' ? 'p-3' : 'p-5'}`}
+                          className={`h-full min-h-0 flex flex-col ${deviceView === 'mobile' ? 'p-0' : 'p-5'}`}
                         >
                           <div className="w-full flex-1 min-h-0 flex flex-col">
                             <ContentCard
                               block={ESSENTIAL_TO_BLOCK[introEssential]}
                               blockNum={1}
                               isIntroScreen
+                              compactLayout={deviceView === 'mobile'}
                               onDelete={() =>
                                 requestDeleteScreen({
                                   kind: 'intro',
@@ -7294,7 +7295,7 @@ const FormBuilderPage = () => {
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -6 }}
                           transition={{ duration: 0.2, ease: 'easeOut' }}
-                          className={`h-full flex flex-col ${deviceView === 'mobile' ? 'p-3' : 'p-5'}`}
+                          className={`h-full flex flex-col ${deviceView === 'mobile' ? 'p-0' : 'p-5'}`}
                         >
                           {/* Hidden logo file input */}
                           <input
@@ -7304,19 +7305,12 @@ const FormBuilderPage = () => {
                             className="hidden"
                             onChange={handleLogoUpload}
                           />
-                          <motion.div
-                            layout
-                            className={`flex-1 flex flex-col w-full overflow-hidden ${designLayoutStyle === 'fullCanvas' ? '' : 'rounded-[20px]'}`}
-                            style={designLayoutStyle === 'fullCanvas' ? {} : {
-                              ...(designCardImage
-                                ? { backgroundImage: `url(${designCardImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-                                : { background: hexToRgba(designCardColor, designCardOpacity) }),
-                              boxShadow: '0px 1px 3px 0px rgba(0,0,0,0.05), 0px 8px 32px 0px rgba(0,0,0,0.07)',
-                              border: '1px solid rgba(0,0,0,0.07)',
-                            }}
+                          <div
+                            className={`flex-1 flex flex-col w-full overflow-hidden ${builderCardShell.borderAndRadius}`}
+                            style={builderCardShell.shellStyle}
                           >
                             {/* Card body */}
-                            <div className={`flex-1 flex flex-col ${welcomeItemsAlignClass} justify-center gap-4 ${deviceView === 'mobile' ? 'px-[32px] py-[28px]' : 'px-[52px] py-[44px]'}`}>
+                            <div className={`flex-1 flex flex-col ${welcomeItemsAlignClass} justify-center gap-4 ${introInnerPadClass(deviceView === 'mobile')}`}>
                               {/* Logo upload */}
                               <button
                                 onClick={() => !isPreview && isEditingContent && logoInputRef.current?.click()}
@@ -7427,7 +7421,7 @@ const FormBuilderPage = () => {
                               )}
                             </div>
                             )}
-                          </motion.div>
+                          </div>
                         </motion.div>
                       )
                     ) : activeScreen?.type === 'content' ? (
@@ -7438,12 +7432,13 @@ const FormBuilderPage = () => {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -6 }}
                         transition={{ duration: 0.2, ease: 'easeOut' }}
-                        className={`h-full min-h-0 flex flex-col ${deviceView === 'mobile' ? 'p-3' : 'p-5'}`}
+                        className={`h-full min-h-0 flex flex-col ${deviceView === 'mobile' ? 'p-0' : 'p-5'}`}
                       >
                         <div className="w-full flex-1 min-h-0 flex flex-col">
                           <ContentCard
                             block={activeScreen}
                             blockNum={contentBlockNum}
+                            compactLayout={deviceView === 'mobile'}
                             onDelete={() =>
                               requestDeleteScreen({
                                 kind: 'content',
@@ -7477,19 +7472,14 @@ const FormBuilderPage = () => {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -6 }}
                         transition={{ duration: 0.2, ease: 'easeOut' }}
-                        className={`h-full flex flex-col ${deviceView === 'mobile' ? 'p-3' : 'p-5'}`}
+                        className={`h-full flex flex-col ${deviceView === 'mobile' ? 'p-0' : 'p-5'}`}
                       >
-                        <motion.div
-                          layout
-                          className={`flex-1 flex flex-col w-full overflow-hidden ${designLayoutStyle === 'fullCanvas' ? '' : 'rounded-[20px]'}`}
-                          style={designLayoutStyle === 'fullCanvas' ? {} : {
-                            background: hexToRgba(designCardColor, designCardOpacity),
-                            boxShadow: '0px 1px 3px 0px rgba(0,0,0,0.05), 0px 8px 32px 0px rgba(0,0,0,0.07)',
-                            border: '1px solid rgba(0,0,0,0.07)',
-                          }}
+                        <div
+                          className={`flex-1 flex flex-col w-full overflow-hidden ${builderCardShell.borderAndRadius}`}
+                          style={builderCardShell.shellStyle}
                         >
                           {/* Card body */}
-                          <div className={`flex-1 flex flex-col items-center justify-center gap-4 ${deviceView === 'mobile' ? 'px-[32px] py-[28px]' : 'px-[52px] py-[44px]'}`}>
+                          <div className={`flex-1 flex flex-col items-center justify-center gap-4 ${introInnerPadClass(deviceView === 'mobile')}`}>
                             {/* Green checkmark badge */}
                             <div className="w-[36px] h-[36px] rounded-[10px] bg-[#1a9e4a] flex items-center justify-center shrink-0">
                               <RiCheckLine size={18} className="text-white" />
@@ -7597,7 +7587,7 @@ const FormBuilderPage = () => {
                             )}
                           </div>
                           )}
-                        </motion.div>
+                        </div>
                       </motion.div>
                 ) : null}
               </AnimatePresence>

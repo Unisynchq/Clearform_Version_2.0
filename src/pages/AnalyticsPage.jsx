@@ -64,6 +64,7 @@ const AnalyticsPage = () => {
   const [exportOpen, setExportOpen] = useState(false);
   const [perfApiStats, setPerfApiStats] = useState(null);
   const [perfApiError, setPerfApiError] = useState(null);
+  const [perfLoading, setPerfLoading] = useState(true);
   const [compareApiData, setCompareApiData] = useState(null);
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareError, setCompareError] = useState(null);
@@ -80,16 +81,35 @@ const AnalyticsPage = () => {
   }, []);
 
   useEffect(() => {
-    if (!selectedFormId) return;
+    if (!selectedFormId) {
+      setPerfApiStats(null);
+      setPerfApiError(null);
+      setPerfLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setPerfLoading(true);
     setPerfApiStats(null);
     setPerfApiError(null);
+
     fetchPerformanceAnalytics(selectedFormId, { range: rangeLabelToParam(rangeLabel) })
       .then((data) => {
+        if (cancelled) return;
         if (data && !data.source) setPerfApiStats(data);
       })
       .catch((err) => {
-        setPerfApiError(err?.message ?? 'Could not load performance analytics.');
+        if (!cancelled) {
+          setPerfApiError(err?.message ?? 'Could not load performance analytics.');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setPerfLoading(false);
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedFormId, rangeLabel, rangeLabelToParam]);
 
   const performanceForm = useMemo(() => {
@@ -291,11 +311,14 @@ const AnalyticsPage = () => {
     ? (perfApiStats?.responses ?? 0) > 0
     : (selectedForm?.responses ?? 0) > 0;
 
-  const mainContentKey = effectiveLoading
-    ? `loading-${activeTab}-${selectedFormId ?? 'none'}`
-    : `ready-${activeTab}-${selectedFormId ?? 'none'}-${
-        activeTab === 'ai' ? aiInsightsVisit : '0'
-      }-${activeTab === 'performance' && !effectiveHasResponseData ? 'empty' : 'full'}`;
+  const performanceFetching = activeTab === 'performance' && perfLoading;
+
+  const mainContentKey =
+    effectiveLoading || performanceFetching
+      ? `loading-${activeTab}-${selectedFormId ?? 'none'}`
+      : `ready-${activeTab}-${selectedFormId ?? 'none'}-${
+          activeTab === 'ai' ? aiInsightsVisit : '0'
+        }-${activeTab === 'performance' && !effectiveHasResponseData ? 'empty' : 'full'}`;
 
   const renderLoadingSkeleton = () => {
     if (activeTab === 'performance') return <AnalyticsPerformanceSkeleton />;
@@ -319,6 +342,9 @@ const AnalyticsPage = () => {
 
     switch (activeTab) {
       case 'performance':
+        if (perfLoading) {
+          return <AnalyticsPerformanceSkeleton />;
+        }
         if (perfApiError) {
           return (
             <div className="mx-auto flex max-w-[480px] flex-col items-center gap-3 rounded-xl border border-[#e8e8e5] bg-white px-6 py-10 text-center shadow-sm">

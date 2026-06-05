@@ -123,6 +123,7 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
   descriptionShowCharCount,
   descriptionTextSize,
   designBackground,
+  designBackgroundColorGridOpen,
   designCardColor,
   designCardColorGridOpen,
   designCardImage,
@@ -339,6 +340,7 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
   setDescriptionShowCharCount,
   setDescriptionTextSize,
   setDesignBackground,
+  setDesignBackgroundColorGridOpen,
   setDesignCardColor,
   setDesignCardColorGridOpen,
   setDesignTextColorGridOpen,
@@ -486,7 +488,6 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
   setSettingsCompletionAction,
   setSettingsConfirmationEmail,
   setSettingsEmailCollection,
-  setSettingsLanguage,
   setSettingsOneAtATime,
   setSettingsPasswordProtection,
   setSettingsResponseLimit,
@@ -591,7 +592,6 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
   settingsCompletionAction,
   settingsConfirmationEmail,
   settingsEmailCollection,
-  settingsLanguage,
   settingsOneAtATime,
   settingsPasswordProtection,
   settingsResponseLimit,
@@ -1163,14 +1163,14 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                                   <Icon size={12} className="shrink-0 text-[#6a6a6a]" />
                                   {itemLabel.length > 13 ? (
                                     <div
-                                      className="label-marquee text-[9px] leading-[10px] text-[#6a6a6a] font-normal"
+                                      className="label-marquee text-[10px] leading-[11px] text-[#6a6a6a] font-medium"
                                       style={{ fontFamily: "'DM Sans', sans-serif", fontVariationSettings: "'opsz' 14" }}
                                     >
                                       <span>{itemLabel}</span>
                                     </div>
                                   ) : (
                                     <span
-                                      className="text-[9px] leading-[10px] text-center whitespace-nowrap text-[#6a6a6a] font-normal"
+                                      className="text-[10px] leading-[11px] text-center whitespace-nowrap text-[#6a6a6a] font-medium"
                                       style={{ fontFamily: "'DM Sans', sans-serif", fontVariationSettings: "'opsz' 14" }}
                                     >
                                       {itemLabel}
@@ -5166,23 +5166,98 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                   {[
                     { color: '#f7edfc', border: '#111', isOutline: true },
                     { color: '#f0eee8', border: '#e3e1da', isOutline: false },
-                    { color: '#111111', border: 'transparent', isOutline: false },
                   ].map(({ color, border, isOutline }) => (
                     <button
                       key={color}
-                      onClick={() => setDesignBackground(color)}
+                      type="button"
+                      onClick={() => {
+                        setDesignBackground(color);
+                        setDesignBackgroundColorGridOpen(false);
+                      }}
                       className="h-[48px] rounded-[8px] cursor-pointer transition-all relative"
                       style={{
                         backgroundColor: color,
                         border: designBackground === color
-                          ? `2px solid #1a1a1a`
+                          ? '2px solid #1a1a1a'
                           : isOutline ? `1px solid ${border}` : `1px solid ${border}`,
                         outline: designBackground === color ? '2px solid rgba(26,26,26,0.2)' : 'none',
                         outlineOffset: '2px',
                       }}
                     />
                   ))}
+                  <button
+                    type="button"
+                    onClick={() => setDesignBackgroundColorGridOpen((v) => !v)}
+                    className="h-[48px] rounded-[8px] border border-dashed border-[#c0c0be] flex items-center justify-center text-[#9a9a9a] text-[18px] leading-none cursor-pointer hover:bg-white/50 transition-colors"
+                    style={{
+                      outline: !['#f7edfc', '#f0eee8'].includes(designBackground.toLowerCase())
+                        ? '2px solid rgba(26,26,26,0.2)'
+                        : 'none',
+                      outlineOffset: '2px',
+                    }}
+                    aria-label="Choose custom background color"
+                  >
+                    +
+                  </button>
                 </div>
+                <AnimatePresence initial={false}>
+                  {designBackgroundColorGridOpen && (
+                    <motion.div
+                      key="design-background-color-grid"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: [0.32, 0.72, 0, 1] }}
+                      style={{ overflow: 'hidden' }}
+                    >
+                      <div className="bg-white border border-[#e5e5e3] rounded-[8px] p-[11px] flex flex-col gap-2 mb-1">
+                        <div className="grid grid-cols-8 gap-1">
+                          {CTA_COLOR_PALETTE.flat().map((color, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                setDesignBackground(color);
+                                setDesignBackgroundColorGridOpen(false);
+                              }}
+                              className="aspect-square rounded-[3px] cursor-pointer hover:scale-110 transition-transform"
+                              style={{
+                                background: color,
+                                border: idx === 0 ? '1px solid #d8d8d6' : '1px solid rgba(0,0,0,0.07)',
+                                outline: designBackground === color ? '2px solid #1a1a1a' : 'none',
+                                outlineOffset: 1,
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <div className="border-t border-[#ebebea] pt-[9px] flex items-center gap-[6px]">
+                          <div
+                            className="w-[22px] h-[22px] rounded-[4px] border border-[#d8d8d6] shrink-0"
+                            style={{ background: designBackground }}
+                          />
+                          <span className="text-[11.5px] text-[#9a9a9a] shrink-0" style={{ fontFamily: 'Courier New, monospace' }}>#</span>
+                          <input
+                            type="text"
+                            value={designBackground.replace('#', '').toUpperCase()}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (/^[0-9A-Fa-f]{0,6}$/.test(val)) setDesignBackground('#' + val);
+                            }}
+                            className="flex-1 text-[11.5px] text-[#9a9a9a] uppercase outline-none bg-transparent min-w-0"
+                            style={{ fontFamily: 'Courier New, monospace' }}
+                            maxLength={6}
+                          />
+                          <button
+                            type="button"
+                            className="px-2 py-1 border border-[#e0e0de] rounded-[4px] text-[10.5px] text-[#9a9a9a] shrink-0 cursor-pointer hover:bg-[#f5f5f5] transition-colors"
+                          >
+                            Custom
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* ── CARD COLOR ── */}

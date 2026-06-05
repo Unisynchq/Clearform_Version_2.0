@@ -67,14 +67,38 @@ export function getRespondentThemeStyles(theme) {
 }
 
 export function respondentCardStyle({ fullCanvas, cardColor, cardImage }) {
-  if (fullCanvas) return {};
-  if (cardImage) {
+  return getCardShellSurface({ fullCanvas, cardColor, cardImage }).shellStyle;
+}
+
+/** Shared card shell surface — builder ContentCard + intro/end welcome screens. */
+export function getCardShellSurface({
+  fullCanvas = false,
+  cardColor = '#f7f6f4',
+  cardImage = null,
+}) {
+  if (fullCanvas) {
     return {
-      backgroundImage: `url(${cardImage})`,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      backgroundColor: cardColor,
+      borderAndRadius: '',
+      shellStyle: {
+        border: 'none',
+        boxShadow: 'none',
+        background: 'transparent',
+        backgroundImage: 'none',
+      },
     };
   }
-  return { backgroundColor: cardColor };
+
+  return {
+    borderAndRadius: 'border border-[rgba(0,0,0,0.07)] rounded-[20px]',
+    shellStyle: {
+      ...(cardImage
+        ? {
+            backgroundImage: `url(${cardImage})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }
+        : { backgroundColor: cardColor }),
+      boxShadow: '0px 1px 3px 0px rgba(0,0,0,0.05), 0px 8px 32px 0px rgba(0,0,0,0.07)',
+    },
+  };
 }

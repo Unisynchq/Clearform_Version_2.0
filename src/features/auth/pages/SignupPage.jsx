@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { FcGoogle } from 'react-icons/fc';
-import { RiGlobalLine, RiArrowDownSLine, RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
+import { RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
 import { setField, setSubmitting, setError, loginSuccess } from '@/store/slices/authSlice';
 import {
   applyBackendOnboardingState,
@@ -355,21 +355,6 @@ const SignupPage = () => {
               </button>
             </div>
           </form>
-
-          {/* Footer */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-[13px] text-[#4c414e] leading-[20px]">Have a question?</span>
-              <a href="#" className="text-[13px] text-[#3c323e] leading-[20px] underline hover:text-[#1a1a1c] transition-colors">
-                Contact us
-              </a>
-            </div>
-            <button className="flex items-center gap-1.5 border border-[rgba(81,76,84,0.15)] rounded-[8px] px-3 h-[30px] hover:bg-[#f4f3ef] transition-colors duration-150 cursor-pointer">
-              <RiGlobalLine size={14} className="text-[#655d67]" />
-              <span className="text-[13px] text-[#655d67] leading-[20px]">English</span>
-              <RiArrowDownSLine size={14} className="text-[#655d67]" />
-            </button>
-          </div>
         </motion.div>
       </div>
     </div>

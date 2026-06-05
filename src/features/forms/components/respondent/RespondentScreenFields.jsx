@@ -3,8 +3,9 @@
  * used by logicEngine (previewFields, previewPicks, etc.).
  */
 
-const fieldClass =
-  'w-full rounded-lg border border-[#e4e4e7] px-3 py-2 text-[14px] outline-none focus:border-[#7c3aed]';
+import { respondentInputClass } from '@/features/forms/utils/respondentFieldInput';
+
+const fieldClass = respondentInputClass();
 const labelClass = 'text-[11px] font-semibold uppercase tracking-wide text-[#71717a]';
 
 function LabeledInput({ label, value, onChange, type = 'text', placeholder = '' }) {

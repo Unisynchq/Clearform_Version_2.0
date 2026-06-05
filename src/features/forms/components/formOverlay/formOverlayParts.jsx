@@ -98,3 +98,32 @@ export function buildCalendarGrid(year, month) {
   for (let d = 1; d <= remaining; d++) cells.push({ day: d, type: 'next' });
   return cells;
 }
+
+/** Tab order for directional panel transitions in FormOverlayModal. */
+export const FORM_OVERLAY_TAB_ORDER = ['overview', 'quickSettings'];
+
+export const FORM_OVERLAY_TAB_SPRING = { type: 'spring', stiffness: 380, damping: 34, mass: 0.88 };
+
+export const FORM_OVERLAY_TAB_PANEL_VARIANTS = {
+  enter: (direction) => ({
+    opacity: 0,
+    x: direction > 0 ? 16 : -16,
+    scale: 0.988,
+  }),
+  center: {
+    opacity: 1,
+    x: 0,
+    scale: 1,
+  },
+  exit: (direction) => ({
+    opacity: 0,
+    x: direction > 0 ? -12 : 12,
+    scale: 0.992,
+  }),
+};
+
+export const FORM_OVERLAY_TAB_PANEL_TRANSITION = {
+  opacity: { duration: 0.24, ease: [0.25, 0.1, 0.25, 1] },
+  x: FORM_OVERLAY_TAB_SPRING,
+  scale: FORM_OVERLAY_TAB_SPRING,
+};

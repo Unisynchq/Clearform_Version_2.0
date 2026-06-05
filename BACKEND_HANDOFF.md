@@ -172,7 +172,44 @@ Suggested user-facing copy: *“Republish forms that were live before [date] so 
 
 **Conclusion:** AI Insights **is hitting the API** (copy matches live counts, not removed demo text). Backend must ensure insights are generated from **actual response rows + published question labels**, not only aggregate counts. Drop-off **`−100%`** on many steps likely indicates a **backend funnel math bug** when completions are 0 — see **B.11**.
 
-**Backend tasks:** **B.11** (drop-off river + tooltip data), **B.12** (AI insights tab — real response content), **B.13** (form overlay Overview AI banner + stats). **Frontend follow-up:** wire tooltip after B.11; wire overlay banner/KPIs after B.13 ships.
+**Backend tasks:** **B.11** (drop-off river + tooltip data), **B.12** (AI insights tab — real response content), **B.13** (form overlay Overview — **Critical / Blocker** for analytics accuracy). **Frontend follow-up:** wire tooltip after B.11; wire overlay banner/KPIs after B.13 ships.
+
+---
+
+### 2026-06-05 — Form overlay Overview: dynamic analytics (Critical / Blocker)
+
+| Field | Value |
+|-------|--------|
+| **Date** | 2026-06-05 |
+| **Priority** | **Critical / Blocker** — Analytics Accuracy |
+| **Reported by** | Product QA on dashboard form overlay → **Overview** tab |
+| **Frontend status** | **Not wired** — KPI cards, Survey Target, Live Since, and AI insight banner use hardcoded placeholders when `responses > 0` |
+| **Backend task** | **B.13** (full contract below) |
+| **Endpoint** | `GET /analytics/forms/:formId/overview` (preferred) or extend `GET /analytics/forms/:formId/performance` with an `overview` block |
+
+#### Context
+
+The **Overview** tab inside `FormOverlayModal.jsx` (dashboard → click form card) currently renders **static frontend placeholder data**. Metrics must reflect **real-time form data** and settings from the overlay **Quick Settings** tab (especially `responseLimit` from `PATCH /forms/:id`).
+
+#### What QA saw (circled in screenshot)
+
+| UI element | Current behavior | Must come from API |
+|------------|------------------|-------------------|
+| Form ID in header | Shows real id from form record | Confirm `formId` in overview payload matches |
+| **Responses / Completion / Avg. time** KPIs | Count is real; **38%**, **1m 42s**, week trends, and **“On target”** labels are hardcoded | Dynamic values + status enums |
+| **Survey Target** | `{responses} of 500 filled`, ring %, “487 more responses needed” — **500 is hardcoded** in JSX | `responsesCount`, `responseLimit`, `responsesPercentage`, `responsesNeeded` from Quick Settings limit |
+| **Live Since** | **“2 March 2026”** and **“7 Days”** hardcoded | `publishedAt`, `daysActive` |
+| **AI insight banner** | Fixed demo sentence (*“Sentiment positive… Step 3 is losing 28%…”*) | `aiInsight.message` from drop-off + NLP/AI |
+| **Improve with AI** | Button has no handler | `aiInsight.actionableStep` drives builder navigation |
+
+#### Acceptance criteria
+
+- No hardcoded strings remain on the frontend for these Overview cards once B.13 ships and FE wires the endpoint.
+- Changing **Response Limit** in Quick Settings and refetching overview updates Survey Target fraction, ring %, and “more responses needed” immediately.
+- Two forms with different drop-off profiles show **different** AI insight copy.
+- **Improve with AI** opens the builder targeting the screen/step referenced in `actionableStep`.
+
+**Frontend follow-up (after backend):** fetch overview on overlay open; replace placeholders in `FormOverlayModal.jsx` and `useFormOverlayMetrics.js`; wire **Improve with AI** → `navigateToFormBuilder(formId, actionableStep)`.
 
 ---
 
@@ -230,7 +267,7 @@ Public routes (`GET /forms/:id/published`, `POST /forms/:id/responses`) must not
 | 10 | **Remove demo** surfaces when APIs are live | Frontend (after your APIs) | **Done** | No “Sample data”, seed charts, or demo toasts when API on |
 | 11 | **Drop-off river** — real per-question metrics + tooltip (no `−100%` bugs, no Figma placeholders) | Backend (+ FE wire tooltip) | **FE partial** — tooltip still placeholder | Clicking Q3 shows real question title, reached count, drop %, avg time from API |
 | 12 | **AI Insights tab** — analyze real response **content**, not just counts | Backend | **FE wired** — needs correct API job | Summary, priority, sentiment, patterns grounded in stored answers for that `formId` |
-| 13 | **Form overlay Overview** — AI insight banner + **Improve with AI** (not demo text) | Backend (+ FE wire) | **Not wired** — demo copy in `FormOverlayModal.jsx` | Banner shows one real insight from responses; button opens builder on suggested screen |
+| 13 | **Form overlay Overview** — dynamic KPIs, targets, live-since, AI insight (**Critical / Blocker**) | Backend (+ FE wire) | **Not wired** — demo copy + hardcoded KPIs in `FormOverlayModal.jsx` | `GET …/overview` returns real metrics linked to Quick Settings `responseLimit`; banner + **Improve with AI** driven by `aiInsight` |
 
 
 #### A.4 Outcomes (what “done” looks like for users)
@@ -979,95 +1016,218 @@ Wired — no new routes. Ship the payload shape above; frontend mappers live in 
 
 ---
 
-#### B.13 Form overlay Overview — AI insight banner and “Improve with AI”
+#### B.13 Form overlay Overview — dynamic analytics (Critical / Blocker)
 
-**What we saw (2026-06-04)**
+**Priority:** **Critical / Blocker** — Analytics Accuracy
 
-Dashboard → click a form card → **Overview** tab in `FormOverlayModal`:
+**Context**
+
+The **Overview** tab for individual forms (`FormOverlayModal.jsx` — dashboard → form card) currently renders **static/hardcoded frontend placeholder data**. The API must return **dynamically calculated fields** that reflect real-time form data and variables configured in the overlay **Quick Settings** tab (notably `responseLimit` via `PATCH /forms/:id` / `AnalyticsSettingsPanel.jsx`).
+
+**What we saw (2026-06-04 / 2026-06-05)**
+
+Dashboard → click a form card → **Overview** tab:
 
 - Purple insight banner always shows the **same demo text**, regardless of form or response count:
   > *“Sentiment positive, completion above benchmark — but Step 3 is losing 28% of respondents. Improve it to gain ~30 more completions.”*
-- **Improve with AI** button has **no click handler** — it does not open the builder, run logic generation, or call any API.
-- **Dismiss** only hides the banner in the current session (local state).
-- Related: when `form.responses > 0`, overview KPIs show **hardcoded** values — **38%** completion, **1m 42s** avg time, **+5% / +4%** week deltas, **“2 March 2026”** live date, **“Est. 12 more days”** — only the response **count** comes from the form record.
+- **Improve with AI** has **no click handler**.
+- When `form.responses > 0`, KPIs show **hardcoded** values — **38%** completion, **1m 42s** avg time, **+5% / +4%** week deltas, **“On target”** on all three cards, **“2 March 2026”** live date, **“7 Days”** badge, **“Est. 12 more days”**.
+- **Survey Target** shows `{responses} of 500 filled` and ring % — **500 is hardcoded in JSX** even though Quick Settings stores `responseLimit` on the form record.
+- Only the response **count** and form **id** in the header come from the live form record.
 
 **What should happen**
 
-- Insight copy is **generated from real analytics** for that `formId` (same data sources as B.11 / B.12: responses, drop-off, completion, sentiment).
-- Copy references **actual screen labels** (e.g. “Q3 · Your name is losing 34%”) — not a fixed “Step 3”.
-- **Improve with AI** receives an **action payload** from the API (e.g. `screenId`, `suggestedFix`) so frontend can open the builder on that screen (or Logic tab) with context.
-- Hide the banner when there is **insufficient data** (&lt; 3 responses) or when the user dismissed it (frontend can persist dismiss per form in localStorage or `PATCH /forms/:id` metadata — coordinate if you want server-side dismiss).
-- Overview KPIs should come from the same performance aggregate, not static strings.
+All Overview metrics are computed server-side for that `formId` and returned in one payload. Quick Settings **Response Limit** is the source of truth for target math. AI insight copy is generated from **real drop-off analytics** (B.11) via the NLP/AI service (B.12 pipeline), not a static template.
 
 **What the frontend does today**
 
 | UI | File | Current behavior |
 |----|------|------------------|
-| AI insight banner | `FormOverlayModal.jsx` (~L589–606) | Hardcoded paragraph; shown whenever form is live, not paused/archived, not dismissed |
+| AI insight banner | `FormOverlayModal.jsx` (~L622–638) | Hardcoded paragraph |
 | Improve with AI | same | `<button>` with no `onClick` |
-| Responses KPI | same | `form.responses` from Redux/API |
-| Completion / avg time / trends | same | Static `38%`, `1m 42s`, `5% this week`, etc. when `responses > 0` |
-| Survey target | same | Uses `form.responses` vs hardcoded `500` limit |
+| Responses KPI | same | `form.responses` real; **“On target”** and **“5% this week”** hardcoded |
+| Completion / avg time | same | Static `38%`, `1m 42s`, trends when `responses > 0` |
+| Survey target | same + `useFormOverlayMetrics.js` | Count real; **500** hardcoded in display strings; ring uses wrong denominator |
+| Live Since / Days active | same | **“2 March 2026”**, **“7 Days”** hardcoded |
+| Quick Settings limit | `FormOverlayModal.jsx` Quick Settings tab | Reads/writes `form.responseLimit` via `PATCH /forms/:id` — must match overview target |
 
 **What backend must build**
 
-**Option A (recommended):** extend **`GET /analytics/forms/:formId/performance`** (or add **`GET /analytics/forms/:formId/overview`**) to include a compact block for the overlay:
+**Endpoint (recommended):** `GET /analytics/forms/:formId/overview`  
+**Auth:** User owns form  
+**Alternative:** Extend `GET /analytics/forms/:formId/performance` with a top-level `overview` object (same shape below).
+
+Frontend will add `API_ENDPOINTS.analytics.overview(formId)` when you confirm the path.
+
+---
+
+##### 1. Form metadata and timeframes
+
+| Field | Type | Rule |
+|-------|------|------|
+| `formId` | string | Actual unique identifier (UUID or numeric id — match `GET /forms/:id`) |
+| `publishedAt` | ISO 8601 | Exact timestamp the form went **live** (first publish or latest republish — document which) |
+| `daysActive` | integer | `floor((now - publishedAt) / 86400000)` — replaces hardcoded **“7 Days”** |
+
+Optional: `estDaysToTarget` — projected days to hit `responseLimit` at current daily response rate (null if rate is 0 or limit already met).
+
+---
+
+##### 2. Target calculations (Quick Settings → Overview)
+
+Read **`responseLimit`** from the form record (same field Quick Settings writes via `PATCH /forms/:id`). Do not hardcode 500.
+
+| Field | Type | Rule |
+|-------|------|------|
+| `responsesCount` | integer | Current total responses for this `formId` (consistent with `GET /forms/:id`.responses) |
+| `responseLimit` | integer | From form settings (`responseLimit`); if unset, return `null` and FE shows “—” |
+| `responsesPercentage` | integer | `responseLimit > 0 ? min(100, round(responsesCount / responseLimit * 100)) : 0` |
+| `responsesNeeded` | integer | `max(0, responseLimit - responsesCount)` when `responseLimit > 0`, else `0` |
+
+**Acceptance:** Updating Response Limit in Quick Settings → refetch overview → Survey Target fraction, ring %, and “N more responses needed” update immediately.
+
+---
+
+##### 3. Performance indicators (KPI row + “On target” labels)
+
+Return KPI values **and** a status enum for each of Responses, Completion Rate, and Avg. Time:
+
+| Status | Meaning (define per metric in backend docs) |
+|--------|---------------------------------------------|
+| `ON_TARGET` | Within acceptable band vs target/benchmark |
+| `BELOW_TARGET` | Underperforming vs target/benchmark |
+| `EXCEEDING_TARGET` | Above target (good for completion/responses; may differ for avg time) |
+
+**Suggested response shape:**
 
 ```json
 {
-  "formId": "f65ea751-...",
-  "overview": {
-    "responses": 13,
-    "responsesTrendWeek": 5,
-    "completionRate": 38,
-    "completionTrendWeek": 4,
-    "avgDurationSeconds": 102,
-    "avgDurationTrend": "same",
-    "responseLimit": 500,
-    "liveSince": "2026-03-02T00:00:00.000Z",
-    "estDaysToTarget": 12,
-    "aiInsight": {
-      "text": "Completion is 38% — Q3 (Your name) loses 34% of respondents. Shorten helper text to recover ~4 completions.",
-      "screenId": 12,
-      "screenLabel": "Your name",
-      "dropPercent": 34,
-      "estimatedGain": 4,
-      "action": "improve_screen"
+  "performance": {
+    "responses": {
+      "value": 13,
+      "trendWeekPercent": 5,
+      "status": "ON_TARGET"
+    },
+    "completionRate": {
+      "value": 38,
+      "trendWeekPercent": 4,
+      "status": "ON_TARGET"
+    },
+    "avgDurationSeconds": {
+      "value": 102,
+      "trendLabel": "same",
+      "status": "ON_TARGET"
     }
   }
 }
 ```
 
-**Option B:** reuse **`POST /analytics/forms/:formId/ai-insights`** with `{ "range": "all", "surface": "overview" }` returning only `summaryText` + `recommendedActions[0]` mapped to the banner shape above.
+**Backend must define baselines** (product decision — document in API README):
+
+| Metric | Suggested baseline source |
+|--------|---------------------------|
+| Responses | Pace toward `responseLimit` given `daysActive` (e.g. on track if `responsesCount / daysActive >= responseLimit / expectedDays`) |
+| Completion rate | Compare to workspace/form benchmark or historical average for this form |
+| Avg. time | Compare to published form’s median duration or product default benchmark |
+
+Week-over-week trends optional when &lt; 7 days of data — return `null` and FE hides sub-labels.
+
+---
+
+##### 4. Dynamic AI insights (NLP/AI-driven)
+
+**Problem:** Insight banner text is entirely static.
+
+**Requirement:** Parse **actual drop-off analytics** (`screenDropoff` from B.11) and generate insight copy via the same NLP/AI service used for B.12. Reference **real screen labels** (e.g. “Q3 · Your name is losing 34%”) — not generic “Step 3”.
+
+Return **`aiInsight`** object:
+
+```json
+{
+  "aiInsight": {
+    "message": "Completion is 38% — Q3 (Your name) loses 34% of respondents. Shorten helper text to recover ~4 completions.",
+    "actionableStep": {
+      "action": "improve_screen",
+      "screenId": 12,
+      "screenLabel": "Your name",
+      "dropPercent": 34,
+      "estimatedGain": 4,
+      "builderTab": "content"
+    }
+  }
+}
+```
 
 | Field | Rule |
 |-------|------|
-| `aiInsight.text` | One sentence; must cite **real** metrics and **real** screen from `screenDropoff` / responses — never a static template |
-| `aiInsight.screenId` | Content screen to open in builder when user clicks **Improve with AI** |
-| `aiInsight.action` | `improve_screen` \| `open_logic` \| `view_analytics` — frontend will branch on this |
-| KPI fields | Same aggregates as performance endpoint; week-over-week trends optional when &lt; 7 days of data |
+| `message` | One actionable sentence; cites **real** metrics and **real** screen from drop-off data — never a fixed template |
+| `actionableStep.action` | `improve_screen` \| `open_logic` \| `view_analytics` — what **Improve with AI** should do |
+| `actionableStep.screenId` | Content screen to focus in builder (when `action === improve_screen`) |
+| `actionableStep.builderTab` | Optional: `content` \| `logic` \| `design` |
+| `actionableStep.estimatedGain` | Optional projected completion recovery |
+
+Return `aiInsight: null` when insufficient data (&lt; 3 responses) or no meaningful drop-off signal. Frontend hides banner or shows empty state.
+
+**Option B (fallback):** `POST /analytics/forms/:formId/ai-insights` with `{ "range": "all", "surface": "overview" }` returning `summaryText` + `recommendedActions[0]` mapped to `aiInsight` above.
+
+---
+
+##### Full example response
+
+```json
+{
+  "formId": "f65ea751-72f2-4f9e-aee8-40bcddd1314e",
+  "publishedAt": "2026-03-02T08:00:00.000Z",
+  "daysActive": 7,
+  "responsesCount": 13,
+  "responseLimit": 500,
+  "responsesPercentage": 3,
+  "responsesNeeded": 487,
+  "estDaysToTarget": 12,
+  "performance": {
+    "responses": { "value": 13, "trendWeekPercent": 5, "status": "ON_TARGET" },
+    "completionRate": { "value": 38, "trendWeekPercent": 4, "status": "ON_TARGET" },
+    "avgDurationSeconds": { "value": 102, "trendLabel": "same", "status": "ON_TARGET" }
+  },
+  "aiInsight": {
+    "message": "Completion is 38% — Q3 (Your name) loses 34% of respondents. Shorten helper text to recover ~4 completions.",
+    "actionableStep": {
+      "action": "improve_screen",
+      "screenId": 12,
+      "screenLabel": "Your name",
+      "dropPercent": 34,
+      "estimatedGain": 4,
+      "builderTab": "content"
+    }
+  }
+}
+```
+
+---
 
 **Improve with AI — expected product behavior (after FE wire)**
 
 1. User clicks **Improve with AI** on form “abbu”.
-2. Frontend opens builder for that `formId`, focuses `screenId` from `aiInsight`, optionally pre-selects Logic or Content tab per `action`.
-3. Optional future: trigger `POST /forms/:formId/logic/generate` scoped to that screen — document if you add this.
+2. Frontend reads `aiInsight.actionableStep` → opens builder for that `formId`, focuses `screenId`, selects tab per `builderTab` / `action`.
+3. Optional future: scoped `POST /forms/:formId/logic/generate` — document if added.
 
 **How frontend will connect**
 
-Not wired yet. After you ship `overview` or `aiInsight` on performance/overview endpoint, frontend will:
+Not wired yet. After you ship the endpoint, frontend will:
 
-- Fetch on overlay open (`formId` from `uiSlice.formOverlay`)
-- Replace hardcoded banner text with `aiInsight.text`
-- Wire **Improve with AI** → `navigateToFormBuilder(formId, { screenId, tab })`
-- Replace static KPI strings with `overview.*` fields
+- `GET /analytics/forms/:formId/overview` on overlay open (`formId` from `uiSlice.formOverlay`)
+- Replace all hardcoded KPI / target / live-since strings with API fields
+- Map `performance.*.status` → **“On target”** / **“Below target”** / **“Exceeding target”** labels
+- Wire **Improve with AI** → `navigateToFormBuilder(formId, actionableStep)`
 
-**Done when**
+**Done when (acceptance criteria)**
 
-- Form with 13 responses and a known drop-off at Q3 shows insight mentioning **Q3’s real label** and **real drop %** — not “Step 3 · 28%” demo copy.
-- **Improve with AI** opens the builder on the screen the API suggested.
+- **No hardcoded strings** remain on the frontend for these Overview cards after FE wires your payload.
+- Changing **Response Limit** in Quick Settings → refetch → Survey Target fraction and percentage update.
+- Form with known Q3 drop-off shows insight with **Q3’s real label** and **real drop %** — not “Step 3 · 28%” demo copy.
+- **Improve with AI** opens builder on the screen from `actionableStep`.
 - Two different forms show **different** insight text.
-- Form with 0 responses hides the AI banner (or shows “Share form to collect responses” — product choice).
+- Form with 0 responses: `aiInsight` is null; banner hidden or shows share CTA (product choice).
 
 ---
 
@@ -1334,6 +1494,7 @@ Per-screen config includes response-quality flags (`longTextResponseQualityEnabl
 | Method | Path | Used by |
 |--------|------|---------|
 | GET | `/analytics/forms/:formId/performance?range=` | Performance tab |
+| GET | `/analytics/forms/:formId/overview` | Form overlay **Overview** tab — **B.13 (Critical)** |
 | GET | `/analytics/forms/:formId/responses?range=` | Responses tab |
 | GET | `/analytics/forms/:formId/compare?range=` | Compare tab |
 | POST | `/analytics/forms/:formId/ai-insights` | AI Insights tab |
