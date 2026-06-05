@@ -7,7 +7,10 @@ export function useFormOverlayMetrics(form, responseLimit) {
   return useMemo(() => {
     const limitNum = parseInt(responseLimit, 10) || 0;
     const responses = form?.responses ?? 0;
-    const completionPct = form && responses > 0 ? Math.round((responses / 500) * 100) : 0;
+    const completionPct =
+      form && limitNum > 0 && responses > 0
+        ? Math.min(100, Math.round((responses / limitNum) * 100))
+        : 0;
     const limitReached = limitNum > 0 && !!form && responses >= limitNum;
     const limitPct =
       limitNum > 0 && form ? Math.min(100, Math.round((responses / limitNum) * 100)) : 0;

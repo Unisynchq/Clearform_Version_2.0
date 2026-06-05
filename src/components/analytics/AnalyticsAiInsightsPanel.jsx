@@ -331,9 +331,9 @@ function AiInsightsLoading() {
 /*  AI Summary + NPS banner — Figma 2241:18307                                */
 /* -------------------------------------------------------------------------- */
 
-function AiSummaryBanner({ insight, npsScore }) {
+function AiSummaryBanner({ insight, npsScore, npsTrendLabel }) {
   const summaryText = insight ?? null;
-  const displayNps = npsScore ?? 78;
+  const showNps = npsScore != null && Number.isFinite(Number(npsScore));
 
   return (
     <div
@@ -357,20 +357,24 @@ function AiSummaryBanner({ insight, npsScore }) {
         )}
       </div>
 
-      <div className="shrink-0 flex flex-col items-end gap-[2px]">
-        <p className="text-[14px] font-medium text-[#99968e] leading-[15.75px] text-right">
-          NPS Score
-        </p>
-        <p className="text-[56px] font-semibold leading-[56px] tracking-[-1.68px] text-[#15140e] text-right">
-          {displayNps}
-        </p>
-        <div className="flex items-center justify-end gap-[3px] pt-[1px]">
-          <RiArrowUpSFill size={11} className="text-[#1a6133] shrink-0" />
-          <span className="text-[12px] font-medium leading-[18px] text-[#1a6133] text-right whitespace-nowrap">
-            +5.2% vs last quarter
-          </span>
+      {showNps ? (
+        <div className="shrink-0 flex flex-col items-end gap-[2px]">
+          <p className="text-[14px] font-medium text-[#99968e] leading-[15.75px] text-right">
+            NPS Score
+          </p>
+          <p className="text-[56px] font-semibold leading-[56px] tracking-[-1.68px] text-[#15140e] text-right">
+            {npsScore}
+          </p>
+          {npsTrendLabel ? (
+            <div className="flex items-center justify-end gap-[3px] pt-[1px]">
+              <RiArrowUpSFill size={11} className="text-[#1a6133] shrink-0" />
+              <span className="text-[12px] font-medium leading-[18px] text-[#1a6133] text-right whitespace-nowrap">
+                {npsTrendLabel}
+              </span>
+            </div>
+          ) : null}
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }
@@ -379,7 +383,7 @@ function AiSummaryBanner({ insight, npsScore }) {
 /*  Priority Focus — Figma 2241:18322                                         */
 /* -------------------------------------------------------------------------- */
 
-function PriorityFocusCard({ title, body, impactEstimate }) {
+function PriorityFocusCard({ title, body, impactEstimate, confidencePercent }) {
   const focusTitle = title || 'Review recent feedback';
   const focusBody =
     body ||
@@ -409,14 +413,21 @@ function PriorityFocusCard({ title, body, impactEstimate }) {
             {impact}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-[2px]">
-          <p className="text-[14px] font-normal leading-[15.75px] text-[rgba(0,0,0,0.35)] text-right">
-            Confidence
-          </p>
-          <p className="text-[14px] font-semibold leading-[21px] text-[rgba(0,0,0,0.9)] text-right">
-            High (89%)
-          </p>
-        </div>
+        {confidencePercent != null ? (
+          <div className="flex flex-col items-end gap-[2px]">
+            <p className="text-[14px] font-normal leading-[15.75px] text-[rgba(0,0,0,0.35)] text-right">
+              Confidence
+            </p>
+            <p className="text-[14px] font-semibold leading-[21px] text-[rgba(0,0,0,0.9)] text-right">
+              {confidencePercent >= 75
+                ? 'High'
+                : confidencePercent >= 50
+                  ? 'Medium'
+                  : 'Growing'}{' '}
+              ({confidencePercent}%)
+            </p>
+          </div>
+        ) : null}
         <motion.button
           type="button"
           whileHover={{ scale: 1.02 }}
@@ -826,11 +837,13 @@ function AnalyticsAiInsightsPanel({
       <AiSummaryBanner
         insight={apiInsights?.summaryText ?? apiInsights?.insight}
         npsScore={apiInsights?.npsScore}
+        npsTrendLabel={apiInsights?.npsTrendLabel}
       />
       <PriorityFocusCard
         title={apiInsights?.priorityTitle}
         body={apiInsights?.priorityBody}
         impactEstimate={apiInsights?.impactEstimate}
+        confidencePercent={apiInsights?.confidencePercent}
       />
       <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-2">
         {patternsColumn}

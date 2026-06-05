@@ -1,5 +1,15 @@
 /** Shared presentational pieces for FormOverlayModal. */
 
+/** Format seconds as `1m 42s` or `45s` for overview KPIs. */
+export function formatDurationSeconds(totalSec) {
+  if (totalSec == null || Number.isNaN(Number(totalSec))) return '—';
+  const sec = Math.round(Number(totalSec));
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return s > 0 ? `${m}m ${s}s` : `${m}m`;
+}
+
 export const StatCard = ({ label, value, sub, subNeutral, note }) => (
   <div className="bg-[#fafaf8] border border-[#e8e6e0] rounded-[10px] p-[11px] flex flex-col gap-[3px] flex-1">
     <p className="text-[10px] font-normal text-[#737373] leading-normal">{label}</p>

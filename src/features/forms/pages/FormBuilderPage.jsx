@@ -1363,6 +1363,7 @@ const FormBuilderPage = () => {
     formTouchedRef.current = true;
   };
   const autoPreviewAppliedRef = useRef(false);
+  const overlayDeepLinkAppliedRef = useRef(false);
   const prevActiveScreenIdRef = useRef(null);
   const configGlobalsRef = useRef({});
   const introTitleRef = useRef('Title');
@@ -3464,6 +3465,7 @@ const FormBuilderPage = () => {
     lastHydratedTemplateIdRef.current = null;
     newFormHydratedRef.current = false;
     autoPreviewAppliedRef.current = false;
+    overlayDeepLinkAppliedRef.current = false;
     builderBaselineRef.current = null;
     builderBaselineSessionRef.current = null;
     formTouchedRef.current = false;
@@ -3486,6 +3488,30 @@ const FormBuilderPage = () => {
     autoPreviewAppliedRef.current = true;
     setIsPreview(true);
   }, [location.state?.startInPreview, screens.length, location.key]);
+
+  useEffect(() => {
+    if (overlayDeepLinkAppliedRef.current) return;
+    if (screens.length === 0) return;
+    const focusId = location.state?.focusScreenId;
+    const startTab = location.state?.startBuilderTab;
+    if (focusId == null && !startTab) return;
+
+    overlayDeepLinkAppliedRef.current = true;
+    if (startTab === 'logic' && contentScreens.length > 0) {
+      setActiveTab('logic');
+    } else if (startTab && startTab !== 'logic') {
+      setActiveTab(startTab);
+    }
+    if (focusId != null && screens.some((s) => s.id === focusId)) {
+      setActiveScreenId(focusId);
+    }
+  }, [
+    location.state?.focusScreenId,
+    location.state?.startBuilderTab,
+    screens,
+    contentScreens.length,
+    location.key,
+  ]);
 
   useEffect(() => {
     if (!activeFormId || !isApiConfigured()) return undefined;

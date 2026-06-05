@@ -278,16 +278,26 @@ const SCENARIO_ONE_OVERRIDES = [
 function buildColumnFromApiStep(step, index) {
   const base = STEPS[index % STEPS.length];
   const kind = step.kind ?? 'healthy';
-  return buildColumn(
-    {
-      ...base,
-      kind,
-      alert: Boolean(step.alert),
-      drop: step.drop ?? null,
-      highlight: false,
-    },
-    step.q ?? `Q${index + 1}`,
-  );
+  return {
+    ...buildColumn(
+      {
+        ...base,
+        kind,
+        alert: Boolean(step.alert),
+        drop: step.drop ?? null,
+        highlight: false,
+      },
+      step.q ?? `Q${index + 1}`,
+    ),
+    screenId: step.screenId ?? null,
+    label: step.label ?? null,
+    fieldType: step.fieldType ?? 'text',
+    reached: step.reached ?? null,
+    continued: step.continued ?? null,
+    dropPercent: step.dropPercent ?? null,
+    avgTimeSeconds: step.avgTimeSeconds ?? null,
+    insight: step.insight ?? null,
+  };
 }
 
 /**

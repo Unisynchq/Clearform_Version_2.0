@@ -1,11 +1,16 @@
 /** Navigation state for opening a form in the builder from the dashboard. */
-export const getFormBuilderState = (form, { preview = false } = {}) => {
+export const getFormBuilderState = (
+  form,
+  { preview = false, focusScreenId, startBuilderTab } = {},
+) => {
   if (!form) return null;
   return {
     formId: form.id,
     formTitle: form.title,
     ...(form.templateId ? { templateId: form.templateId } : {}),
     ...(preview ? { startInPreview: true } : {}),
+    ...(focusScreenId != null ? { focusScreenId } : {}),
+    ...(startBuilderTab ? { startBuilderTab } : {}),
   };
 };
 

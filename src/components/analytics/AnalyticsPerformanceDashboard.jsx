@@ -869,7 +869,7 @@ export function AnalyticsDropoffRiverCard({ form, reduceMountMotion = false }) {
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <p className="text-[10px] font-semibold tracking-[0.5px] uppercase text-[#888780]">
                     <span className="text-[#3aad85] mr-1">{active.q}</span>
-                    Text
+                    {(active.fieldType ?? 'text').replace(/_/g, ' ')}
                   </p>
                   <span
                     className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${badge.cls}`}
@@ -877,27 +877,38 @@ export function AnalyticsDropoffRiverCard({ form, reduceMountMotion = false }) {
                     {badge.label}
                   </span>
                 </div>
-                <div className="text-[15px] font-semibold text-[#18181b]">Your name</div>
+                <div className="text-[15px] font-semibold text-[#18181b]">
+                  {active.label ?? active.q}
+                </div>
                 <div className="mt-2 flex items-baseline gap-3 text-[13px]">
                   <span>
-                    <strong className="text-[#18181b]">1,712</strong>{' '}
+                    <strong className="text-[#18181b]">
+                      {active.reached != null
+                        ? active.reached.toLocaleString()
+                        : '—'}
+                    </strong>{' '}
                     <span className="text-[#888780] text-[11px]">Reached</span>
                   </span>
                   <span className="text-[#dc2626] font-medium">
-                    {active.drop ?? '−4%'}{' '}
+                    {active.drop ?? '—'}{' '}
                     <span className="text-[#888780] font-normal text-[11px]">Dropped</span>
                   </span>
                   <span>
-                    <strong className="text-[#18181b]">8s</strong>{' '}
+                    <strong className="text-[#18181b]">
+                      {active.avgTimeSeconds != null
+                        ? `${active.avgTimeSeconds}s`
+                        : '—'}
+                    </strong>{' '}
                     <span className="text-[#888780] text-[11px]">Avg time</span>
                   </span>
                 </div>
                 <p className="mt-2 text-[11px] text-[#7c7c7c] bg-[#f7f6f2] rounded-[8px] px-3 py-1.5 border border-[#eceae4]">
-                  {active.kind === 'critical'
-                    ? 'Significant drop-off — review this step.'
-                    : active.kind === 'attention'
-                      ? 'Engagement is dipping here.'
-                      : 'Fastest completion in the flow.'}
+                  {active.insight ??
+                    (active.kind === 'critical'
+                      ? 'Significant drop-off — review this step.'
+                      : active.kind === 'attention'
+                        ? 'Engagement is dipping here.'
+                        : 'Healthy progression through this step.')}
                 </p>
               </motion.div>
             ) : null}

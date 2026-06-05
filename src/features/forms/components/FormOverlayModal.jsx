@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -16,6 +16,8 @@ import { formatResponseCount } from '@/constants';
 import { getFormBuilderState } from '../utils/formBuilderNavigation';
 import { navigateToFormBuilder } from '../utils/navigateToFormBuilder';
 import { useFormOverlayMetrics } from '@/hooks/useFormOverlayMetrics';
+import { fetchPerformanceAnalytics } from '@/api/services/analyticsService';
+import { isApiConfigured } from '@/config/env';
 import FormOverlayModalSkeleton from '@/features/forms/components/formOverlay/FormOverlayModalSkeleton';
 import {
   StatCard,
@@ -26,7 +28,10 @@ import {
   DAY_HEADERS,
   formatTimeRemaining,
   buildCalendarGrid,
+  formatDurationSeconds,
 } from '@/features/forms/components/formOverlay/formOverlayParts';
+
+const overlayAiDismissKey = (id) => `cf:overlay-ai-dismiss:${id}`;
 
 const FormOverlayModal = () => {
   const dispatch = useDispatch();
@@ -43,6 +48,7 @@ const FormOverlayModal = () => {
   const [selectedPause, setSelectedPause]     = useState(null);
   const [notificationsOn, setNotificationsOn] = useState(false);
   const [fetchError, setFetchError]           = useState(false);
+  const [overviewData, setOverviewData]     = useState(null);
   const [aiInsightDismissed, setAiInsightDismissed] = useState(false);
   // date-time picker state (local only — persisted to Redux on confirm)
   const [viewYear, setViewYear]   = useState(2026);
@@ -58,6 +64,30 @@ const FormOverlayModal = () => {
   const timeRemaining  = formatTimeRemaining(form?.pauseSettings);
   const pauseType      = form?.pauseSettings?.pauseType ?? null;
 
+  const loadOverview = useCallback(async () => {
+    if (!formId || !isApiConfigured() || (form?.responses ?? 0) < 3) {
+      setOverviewData(null);
+      setFetchError(false);
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    setFetchError(false);
+    try {
+      const data = await fetchPerformanceAnalytics(formId, { range: 'all' });
+      const overview = data?.overview ?? null;
+      setOverviewData(overview);
+      if (overview?.responseLimit != null) {
+        setResponseLimit(String(overview.responseLimit));
+      }
+    } catch {
+      setFetchError(true);
+      setOverviewData(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [formId, form?.responses]);
+
   // Reset UI/picker state only when a *different* form is opened
   const prevFormIdRef = useRef(null);
   useEffect(() => {
@@ -65,33 +95,18 @@ const FormOverlayModal = () => {
     if (formId === prevFormIdRef.current) return;   // same form reopened — keep state
     prevFormIdRef.current = formId;
 
-    let frame2;
-    const frame1 = requestAnimationFrame(() => {
-      frame2 = requestAnimationFrame(() => {
-        setIsLoading(false);
-        if (
-          form?.responses > 0 &&
-          form?.status === 'live' &&
-          !form?.pauseSettings?.confirmed &&
-          Math.random() < 0.25
-        ) {
-          setFetchError(true);
-        }
-      });
-    });
-
     queueMicrotask(() => {
       if (form?.pauseSettings?.confirmed && !isFormPaused(form)) {
         dispatch(clearFormPause(formId));
       }
 
-      setIsLoading(true);
+      setOverviewData(null);
       setFetchError(false);
       setActiveTab('overview');
       setResponseLimit(String(form?.responseLimit ?? 500));
       setSelectedPause(null);
       setNotificationsOn(false);
-      setAiInsightDismissed(false);
+      setAiInsightDismissed(localStorage.getItem(overlayAiDismissKey(formId)) === '1');
 
       const saved = form?.pauseSettings;
       if (saved) {
@@ -108,11 +123,8 @@ const FormOverlayModal = () => {
       }
     });
 
-    return () => {
-      cancelAnimationFrame(frame1);
-      if (frame2) cancelAnimationFrame(frame2);
-    };
-  }, [formId]); // eslint-disable-line react-hooks/exhaustive-deps
+    loadOverview();
+  }, [formId, dispatch, form, loadOverview]);
 
   const calCells    = buildCalendarGrid(viewYear, viewMonth);
   const resumeLabel = `${MONTH_NAMES[viewMonth].slice(0,3)} ${selDay} · ${hour}:${minute} ${ampm} IST`;
@@ -126,6 +138,10 @@ const FormOverlayModal = () => {
     else setViewMonth(m => m + 1);
   };
 
+  const effectiveLimit = String(overviewData?.responseLimit ?? responseLimit);
+  const metricsForm = overviewData
+    ? { ...form, responses: overviewData.responses ?? form?.responses }
+    : form;
   const {
     completionPct,
     limitNum,
@@ -135,14 +151,63 @@ const FormOverlayModal = () => {
     remaining,
     avgRate,
     daysToTarget,
-  } = useFormOverlayMetrics(form, responseLimit);
+  } = useFormOverlayMetrics(metricsForm, effectiveLimit);
+
+  const displayResponses = overviewData?.responses ?? form?.responses ?? 0;
+  const displayCompletion =
+    overviewData?.completionRate != null
+      ? `${Math.round(overviewData.completionRate)}%`
+      : displayResponses > 0
+        ? '—'
+        : '—';
+  const displayAvgTime =
+    overviewData?.avgDurationSeconds != null
+      ? formatDurationSeconds(overviewData.avgDurationSeconds)
+      : displayResponses > 0
+        ? '—'
+        : '—';
+  const responsesTrendSub =
+    overviewData?.responsesTrendWeek != null
+      ? `${overviewData.responsesTrendWeek}% this week`
+      : undefined;
+  const completionTrendSub =
+    overviewData?.completionTrendWeek != null
+      ? `${overviewData.completionTrendWeek}% vs last week`
+      : undefined;
+  const liveSinceLabel = overviewData?.liveSince
+    ? new Date(overviewData.liveSince).toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    : null;
+  const aiInsight = overviewData?.aiInsight ?? null;
 
   const handleRetry = () => {
-    setFetchError(false);
-    setIsLoading(true);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => setIsLoading(false));
+    loadOverview();
+  };
+
+  const handleDismissAiInsight = () => {
+    if (formId) {
+      localStorage.setItem(overlayAiDismissKey(formId), '1');
+    }
+    setAiInsightDismissed(true);
+  };
+
+  const handleImproveWithAi = () => {
+    if (!form || !aiInsight) return;
+    dispatch(closeFormOverlay());
+    navigateToFormBuilder(navigate, dispatch, {
+      formId: form.id,
+      formTitle: form.title,
+      focusScreenId: aiInsight.screenId,
+      startBuilderTab: aiInsight.action === 'open_logic' ? 'logic' : 'content',
     });
+  };
+
+  const handleOpenFullAnalytics = () => {
+    dispatch(closeFormOverlay());
+    navigate(`/dashboard/analytics?form=${formId}&tab=performance`);
   };
 
   const handleConfirmPause = () => {
@@ -471,7 +536,11 @@ const FormOverlayModal = () => {
                         >
                           Try again
                         </button>
-                        <button className="text-[12px] font-medium text-[#6b6966] h-[28px] px-[13px] rounded-[8px] hover:text-[#1a1a1c] transition-colors cursor-pointer">
+                        <button
+                          type="button"
+                          onClick={handleOpenFullAnalytics}
+                          className="text-[12px] font-medium text-[#6b6966] h-[28px] px-[13px] rounded-[8px] hover:text-[#1a1a1c] transition-colors cursor-pointer"
+                        >
                           Open full analytics →
                         </button>
                       </div>
@@ -514,21 +583,25 @@ const FormOverlayModal = () => {
                 <div className={`flex gap-[16px] items-start w-[calc(100%-15px)] transition-opacity ${confirmedPause || form.status === 'archived' || fetchError ? 'opacity-40 pointer-events-none' : ''}`}>
                   <StatCard
                     label="Responses"
-                    value={formatResponseCount(form.responses)}
-                    sub={form.responses > 0 ? '5% this week' : undefined}
-                    note={form.responses > 0 ? 'On target' : undefined}
+                    value={formatResponseCount(displayResponses)}
+                    sub={displayResponses > 0 ? responsesTrendSub : undefined}
+                    note={displayResponses > 0 && !fetchError ? 'On target' : undefined}
                   />
                   <StatCard
                     label="Completion rate"
-                    value={form.responses > 0 ? '38%' : '—'}
-                    sub={form.responses > 0 ? '4% vs last week' : undefined}
-                    note={form.responses > 0 ? 'On target' : undefined}
+                    value={displayResponses > 0 ? displayCompletion : '—'}
+                    sub={displayResponses > 0 ? completionTrendSub : undefined}
+                    note={displayResponses > 0 && !fetchError ? 'On target' : undefined}
                   />
                   <StatCard
                     label="Avg. time"
-                    value={form.responses > 0 ? '1m 42s' : '—'}
-                    subNeutral={form.responses > 0 ? '~ same' : undefined}
-                    note={form.responses > 0 ? 'On target' : undefined}
+                    value={displayResponses > 0 ? displayAvgTime : '—'}
+                    subNeutral={
+                      displayResponses > 0 && overviewData?.avgDurationTrend === 'same'
+                        ? '~ same'
+                        : undefined
+                    }
+                    note={displayResponses > 0 && !fetchError ? 'On target' : undefined}
                   />
                 </div>
 
@@ -548,7 +621,7 @@ const FormOverlayModal = () => {
                       <div className="flex flex-col gap-[4px] min-w-0 pl-[4px]">
                         <p className="text-[14px] font-medium text-[#1a1814] leading-[19.5px]">Survey Target</p>
                         <p className="text-[12px] font-medium text-[#737373] leading-[19.5px] whitespace-nowrap">
-                          {form.responses} of 500 filled
+                          {displayResponses} of {limitNum || 500} filled
                         </p>
                       </div>
                       <div className="relative w-[62px] h-[62px] shrink-0">
@@ -558,7 +631,7 @@ const FormOverlayModal = () => {
                         </span>
                       </div>
                     </div>
-                    <PillRow text={`${Math.max(0, 500 - form.responses)} more responses needed`} />
+                    <PillRow text={`${remaining} more responses needed`} />
                   </div>
 
                   {/* Live Since card — paddings/gaps mirrored to keep the row aligned with Survey Target */}
@@ -567,7 +640,7 @@ const FormOverlayModal = () => {
                       <div className="flex flex-col gap-[4px] min-w-0 pl-[4px]">
                         <p className="text-[14px] font-medium text-[#1a1814] leading-[19.5px]">Live Since</p>
                         <p className="text-[12px] font-medium text-[#737373] leading-[19.5px] whitespace-nowrap">
-                          2 March 2026
+                          {liveSinceLabel ?? '—'}
                         </p>
                       </div>
                       {/* 7 Days badge — sized to match the 64×64 progress ring */}
@@ -580,24 +653,35 @@ const FormOverlayModal = () => {
                         </span>
                       </div>
                     </div>
-                    <PillRow text="Est. 12 more days to meet target" />
+                    <PillRow
+                      text={
+                        daysToTarget != null
+                          ? `Est. ${daysToTarget} more days to meet target`
+                          : 'Collecting response data'
+                      }
+                    />
                   </div>
 
                 </div>
 
                 {/* AI insight — hidden when paused, archived, fetch error, or dismissed */}
-                {!confirmedPause && form.status !== 'archived' && !fetchError && !aiInsightDismissed && (
+                {!confirmedPause && form.status !== 'archived' && !fetchError && !aiInsightDismissed && aiInsight?.text && (
                   <div className="bg-[#f5f3ff] border border-[#e0daff] rounded-[12px] p-[13px] flex flex-col gap-[10px] w-[calc(100%-5px)]">
                     <p className="text-[12.1px] font-normal text-[#374151] leading-[20.8px]">
-                      Sentiment positive, completion above benchmark — but Step 3 is losing 28% of respondents. Improve it to gain ~30 more completions.
+                      {aiInsight.text}
                     </p>
                     <div className="flex items-center gap-[8px]">
-                      <button className="flex items-center gap-1.5 bg-[#6366f1] text-white text-[12px] font-medium px-4 py-[7px] rounded-[8px] hover:bg-[#4f46e5] transition-colors cursor-pointer">
+                      <button
+                        type="button"
+                        onClick={handleImproveWithAi}
+                        className="flex items-center gap-1.5 bg-[#6366f1] text-white text-[12px] font-medium px-4 py-[7px] rounded-[8px] hover:bg-[#4f46e5] transition-colors cursor-pointer"
+                      >
                         <RiSparklingLine size={12} />
                         Improve with AI
                       </button>
                       <button
-                        onClick={() => setAiInsightDismissed(true)}
+                        type="button"
+                        onClick={handleDismissAiInsight}
                         className="bg-white text-[12px] font-medium text-[#1a1a1c] px-4 py-[7px] rounded-[8px] border border-[#e5e3dc] hover:bg-[#f4f3ef] transition-colors cursor-pointer"
                       >
                         Dismiss
