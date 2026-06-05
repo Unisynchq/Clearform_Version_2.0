@@ -93,7 +93,7 @@ import FormBuilderStepBar from '@/features/forms/formBuilder/FormBuilderStepBar'
 import { useFormBuilderRoute } from '@/features/forms/formBuilder/useFormBuilderRoute';
 import { getFormBuilderPath } from '@/features/forms/utils/formBuilderNavigation';
 import { createFormAndSaveSnapshot } from '@/features/forms/utils/ensureBuilderFormPersisted';
-import { finishBuilderRouteTransition } from '@/store/slices/uiSlice';
+import { finishBuilderRouteTransition, openShareModal } from '@/store/slices/uiSlice';
 import FormBuilderLoadingFallback from '@/features/forms/pages/FormBuilderLoadingFallback';
 import * as builderScreenMaps from '@/features/forms/formBuilder/builderScreenMaps';
 import {
@@ -2843,8 +2843,37 @@ const FormBuilderPage = () => {
   const hasLogicOnCanvas =
     logicConnections.length > 0 || Object.keys(logicIfRulesByEdge).length > 0;
   const showLogicCanvas = logicModeManual || aiLogicReady || hasLogicOnCanvas;
-  const openLogicCanvasIntegrations = useCallback(() => setActiveTab('settings'), []);
-  const openLogicCanvasWebhook = useCallback(() => setActiveTab('settings'), []);
+  const openLogicShare = useCallback(
+    ({ channel = null, webhook = false } = {}) => {
+      if (activeFormId == null) return;
+      dispatch(
+        openShareModal({
+          formId: activeFormId,
+          formTitle: loadedFormTitle ?? persistedForm?.title ?? 'Untitled Form',
+          initialChannel: channel,
+          openWebhook: webhook,
+        }),
+      );
+    },
+    [activeFormId, dispatch, loadedFormTitle, persistedForm?.title],
+  );
+  const openLogicCanvasIntegrations = useCallback(() => openLogicShare(), [openLogicShare]);
+  const openLogicCanvasWebhook = useCallback(
+    () => openLogicShare({ channel: 'other', webhook: true }),
+    [openLogicShare],
+  );
+  const openLogicCanvasSheets = useCallback(
+    () => openLogicShare({ channel: 'sheets' }),
+    [openLogicShare],
+  );
+  const openLogicCanvasSlack = useCallback(
+    () => openLogicShare({ channel: 'slack' }),
+    [openLogicShare],
+  );
+  const openLogicCanvasDrive = useCallback(
+    () => openLogicShare({ channel: 'other' }),
+    [openLogicShare],
+  );
   /** Design: only after Add screen creates the form shell */
   const designTabDisabled = !hasScreens;
   /** Logic: needs at least one question screen (also implies hasScreens) */
@@ -6668,6 +6697,9 @@ const FormBuilderPage = () => {
                       style={LOGIC_CANVAS_DOT_GRID_STYLE}
                     >
                       <LogicCanvasActionsPanel
+                        onOpenSheets={openLogicCanvasSheets}
+                        onOpenDrive={openLogicCanvasDrive}
+                        onOpenSlack={openLogicCanvasSlack}
                         onAddIntegration={openLogicCanvasIntegrations}
                         onAddWebhook={openLogicCanvasWebhook}
                       />
@@ -6686,6 +6718,9 @@ const FormBuilderPage = () => {
                       style={LOGIC_CANVAS_DOT_GRID_STYLE}
                     >
                       <LogicCanvasActionsPanel
+                        onOpenSheets={openLogicCanvasSheets}
+                        onOpenDrive={openLogicCanvasDrive}
+                        onOpenSlack={openLogicCanvasSlack}
                         onAddIntegration={openLogicCanvasIntegrations}
                         onAddWebhook={openLogicCanvasWebhook}
                       />
@@ -6727,6 +6762,9 @@ const FormBuilderPage = () => {
                     style={LOGIC_CANVAS_DOT_GRID_STYLE}
                   >
                   <LogicCanvasActionsPanel
+                    onOpenSheets={openLogicCanvasSheets}
+                    onOpenDrive={openLogicCanvasDrive}
+                    onOpenSlack={openLogicCanvasSlack}
                     onAddIntegration={openLogicCanvasIntegrations}
                     onAddWebhook={openLogicCanvasWebhook}
                   />

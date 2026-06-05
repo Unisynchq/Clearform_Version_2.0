@@ -55,6 +55,8 @@ const initialState = {
     open: false,
     formId: null,
     formTitle: '',
+    initialChannel: null,
+    openWebhook: false,
   },
   workspaceContextMenu: {
     open: false,
@@ -170,12 +172,29 @@ const uiSlice = createSlice({
       state.builderRouteTransition.pending = false;
     },
     openShareModal(state, action) {
-      const { formId, formTitle } = action.payload;
-      state.shareModal = { open: true, formId, formTitle };
+      const {
+        formId,
+        formTitle,
+        initialChannel = null,
+        openWebhook = false,
+      } = action.payload;
+      state.shareModal = {
+        open: true,
+        formId,
+        formTitle,
+        initialChannel,
+        openWebhook,
+      };
       state.contextMenu = { open: false, formId: null, x: 0, y: 0 };
     },
     closeShareModal(state) {
-      state.shareModal = { open: false, formId: null, formTitle: '' };
+      state.shareModal = {
+        open: false,
+        formId: null,
+        formTitle: '',
+        initialChannel: null,
+        openWebhook: false,
+      };
     },
     openWorkspaceContextMenu(state, action) {
       const { workspaceId, x, y } = action.payload;

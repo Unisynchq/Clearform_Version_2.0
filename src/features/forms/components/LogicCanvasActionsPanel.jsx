@@ -25,20 +25,25 @@ const AddTileButton = ({ label, onClick }) => (
   </button>
 );
 
-const LogicCanvasIntegratePanel = ({ onAddIntegration }) => (
+const LogicCanvasIntegratePanel = ({
+  onOpenSheets,
+  onOpenDrive,
+  onOpenSlack,
+  onAddIntegration,
+}) => (
   <div className={PANEL_CLASS}>
     <div className="flex items-center gap-2 px-4 pt-3.5 pb-2">
       <RiLayoutGridLine size={16} className="shrink-0 text-[#1a1a1a]" aria-hidden />
       <h3 className="text-[13px] font-semibold leading-none text-[#1a1a1a]">Integrate</h3>
     </div>
     <div className="flex items-center gap-2 px-4 pb-4">
-      <button type="button" className={TILE_CLASS} aria-label="Google Sheets">
+      <button type="button" className={TILE_CLASS} aria-label="Google Sheets" onClick={onOpenSheets}>
         <AssetIcon src={sheetsIcon} />
       </button>
-      <button type="button" className={TILE_CLASS} aria-label="Google Drive">
+      <button type="button" className={TILE_CLASS} aria-label="Google Drive" onClick={onOpenDrive}>
         <AssetIcon src={googleDriveIcon} />
       </button>
-      <button type="button" className={TILE_CLASS} aria-label="Slack">
+      <button type="button" className={TILE_CLASS} aria-label="Slack" onClick={onOpenSlack}>
         <AssetIcon src={slackIcon} />
       </button>
       <AddTileButton label="Add integration" onClick={onAddIntegration} />
@@ -64,7 +69,13 @@ const LogicCanvasWebhooksPanel = ({ onAddWebhook }) => (
 /**
  * Fixed overlay on the logic canvas viewport — stays at 1:1 scale while the board pans/zooms.
  */
-const LogicCanvasActionsPanel = ({ onAddIntegration, onAddWebhook }) => (
+const LogicCanvasActionsPanel = ({
+  onOpenSheets,
+  onOpenDrive,
+  onOpenSlack,
+  onAddIntegration,
+  onAddWebhook,
+}) => (
   <div
     className="pointer-events-none absolute right-4 top-4 z-20 flex w-[224px] flex-col gap-2.5"
     style={{ fontFamily: "'DM Sans', sans-serif" }}
@@ -74,7 +85,12 @@ const LogicCanvasActionsPanel = ({ onAddIntegration, onAddWebhook }) => (
       Actions
     </p>
     <div className="pointer-events-auto flex flex-col gap-2.5">
-      <LogicCanvasIntegratePanel onAddIntegration={onAddIntegration} />
+      <LogicCanvasIntegratePanel
+        onOpenSheets={onOpenSheets}
+        onOpenDrive={onOpenDrive}
+        onOpenSlack={onOpenSlack}
+        onAddIntegration={onAddIntegration}
+      />
       <LogicCanvasWebhooksPanel onAddWebhook={onAddWebhook} />
     </div>
   </div>

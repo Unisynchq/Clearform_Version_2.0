@@ -15,6 +15,7 @@ import {
   countNavForms,
 } from '@/features/forms/utils/workspacesStorage';
 import { readFormsUi } from '@/features/forms/utils/formsUiStorage';
+import { normalizeApiForms, normalizeApiForm } from '@/utils/normalizeApiForm';
 
 // Convert a "Xm/Xh/Xd/Xw ago" string to milliseconds so we can sort by recency
 function timeAgoToMs(timeAgo) {
@@ -93,7 +94,7 @@ const formsSlice = createSlice({
     updateForm(state, action) {
       const { id, changes } = action.payload;
       const form = state.forms.find((f) => f.id === id);
-      if (form) Object.assign(form, changes);
+      if (form) Object.assign(form, normalizeApiForm({ ...form, ...changes }));
       applyWorkspaceCounts(state);
     },
     setFormPause(state, action) {
@@ -158,7 +159,7 @@ const formsSlice = createSlice({
       state.advancedFilters = { status: [], responses: [] };
     },
     setForms(state, action) {
-      state.forms = action.payload;
+      state.forms = normalizeApiForms(action.payload);
       applyWorkspaceCounts(state);
     },
     setWorkspaces(state, action) {

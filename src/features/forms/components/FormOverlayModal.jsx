@@ -10,7 +10,8 @@ import {
   RiPencilLine, RiEyeLine, RiArchiveLine,
 } from 'react-icons/ri';
 import { closeFormOverlay } from '@/store/slices/uiSlice';
-import { setFormPause, clearFormPause, unarchiveForm } from '@/store/slices/formsSlice';
+import { setFormPause, clearFormPause, unarchiveForm, updateForm } from '@/store/slices/formsSlice';
+import { updateFormResponseLimit } from '@/api/services/formSettingsService';
 import { isFormPaused } from '../utils/formPause';
 import { formatResponseCount } from '@/constants';
 import { getFormBuilderState } from '../utils/formBuilderNavigation';
@@ -33,6 +34,15 @@ import {
 
 const overlayAiDismissKey = (id) => `cf:overlay-ai-dismiss:${id}`;
 
+function targetStatusNote(responses, limitNum, completionRate, nearLimit, limitReached) {
+  if (responses <= 0) return undefined;
+  if (limitReached) return 'Target reached';
+  if (nearLimit) return 'Near target';
+  if (completionRate != null && completionRate >= 60) return 'On track';
+  if (completionRate != null && completionRate < 30) return 'Needs attention';
+  return undefined;
+}
+
 const FormOverlayModal = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -48,8 +58,11 @@ const FormOverlayModal = () => {
   const [selectedPause, setSelectedPause]     = useState(null);
   const [notificationsOn, setNotificationsOn] = useState(false);
   const [fetchError, setFetchError]           = useState(false);
+  const [perfData, setPerfData]             = useState(null);
   const [overviewData, setOverviewData]     = useState(null);
   const [aiInsightDismissed, setAiInsightDismissed] = useState(false);
+  const limitSaveTimerRef = useRef(null);
+  const prevTabRef = useRef('overview');
   // date-time picker state (local only — persisted to Redux on confirm)
   const [viewYear, setViewYear]   = useState(2026);
   const [viewMonth, setViewMonth] = useState(4);   // 0-indexed; 4 = May
@@ -65,7 +78,8 @@ const FormOverlayModal = () => {
   const pauseType      = form?.pauseSettings?.pauseType ?? null;
 
   const loadOverview = useCallback(async () => {
-    if (!formId || !isApiConfigured() || (form?.responses ?? 0) < 3) {
+    if (!formId || !isApiConfigured()) {
+      setPerfData(null);
       setOverviewData(null);
       setFetchError(false);
       setIsLoading(false);
@@ -76,17 +90,40 @@ const FormOverlayModal = () => {
     try {
       const data = await fetchPerformanceAnalytics(formId, { range: 'all' });
       const overview = data?.overview ?? null;
+      setPerfData(data);
       setOverviewData(overview);
-      if (overview?.responseLimit != null) {
-        setResponseLimit(String(overview.responseLimit));
+      const limit = overview?.responseLimit ?? form?.responseLimit;
+      if (limit != null) {
+        setResponseLimit(String(limit));
       }
     } catch {
       setFetchError(true);
+      setPerfData(null);
       setOverviewData(null);
     } finally {
       setIsLoading(false);
     }
-  }, [formId, form?.responses]);
+  }, [formId, form?.responseLimit]);
+
+  const persistResponseLimit = useCallback(
+    (value) => {
+      const n = parseInt(value, 10);
+      if (!formId || !Number.isFinite(n) || n < 1) return;
+      dispatch(updateForm({ id: formId, changes: { responseLimit: n } }));
+      if (limitSaveTimerRef.current) clearTimeout(limitSaveTimerRef.current);
+      limitSaveTimerRef.current = setTimeout(() => {
+        if (isApiConfigured()) {
+          updateFormResponseLimit(formId, n).catch(() => {});
+        }
+      }, 400);
+    },
+    [dispatch, formId],
+  );
+
+  const handleResponseLimitChange = (value) => {
+    setResponseLimit(value);
+    persistResponseLimit(value);
+  };
 
   // Reset UI/picker state only when a *different* form is opened
   const prevFormIdRef = useRef(null);
@@ -126,6 +163,20 @@ const FormOverlayModal = () => {
     loadOverview();
   }, [formId, dispatch, form, loadOverview]);
 
+  useEffect(() => {
+    if (prevTabRef.current === 'quickSettings' && activeTab === 'overview') {
+      loadOverview();
+    }
+    prevTabRef.current = activeTab;
+  }, [activeTab, loadOverview]);
+
+  useEffect(
+    () => () => {
+      if (limitSaveTimerRef.current) clearTimeout(limitSaveTimerRef.current);
+    },
+    [],
+  );
+
   const calCells    = buildCalendarGrid(viewYear, viewMonth);
   const resumeLabel = `${MONTH_NAMES[viewMonth].slice(0,3)} ${selDay} · ${hour}:${minute} ${ampm} IST`;
 
@@ -138,10 +189,16 @@ const FormOverlayModal = () => {
     else setViewMonth(m => m + 1);
   };
 
-  const effectiveLimit = String(overviewData?.responseLimit ?? responseLimit);
-  const metricsForm = overviewData
-    ? { ...form, responses: overviewData.responses ?? form?.responses }
-    : form;
+  const effectiveLimit = String(
+    overviewData?.responseLimit ?? form?.responseLimit ?? responseLimit,
+  );
+  const displayResponses =
+    overviewData?.responses ?? perfData?.responses ?? form?.responses ?? 0;
+  const rawCompletionRate =
+    overviewData?.completionRate ?? perfData?.completionRate ?? null;
+  const rawAvgDurationSeconds =
+    overviewData?.avgDurationSeconds ?? perfData?.avgDurationSeconds ?? null;
+  const metricsForm = { ...form, responses: displayResponses };
   const {
     completionPct,
     limitNum,
@@ -153,19 +210,21 @@ const FormOverlayModal = () => {
     daysToTarget,
   } = useFormOverlayMetrics(metricsForm, effectiveLimit);
 
-  const displayResponses = overviewData?.responses ?? form?.responses ?? 0;
   const displayCompletion =
-    overviewData?.completionRate != null
-      ? `${Math.round(overviewData.completionRate)}%`
-      : displayResponses > 0
-        ? '—'
-        : '—';
+    rawCompletionRate != null
+      ? `${Math.round(rawCompletionRate)}%`
+      : '—';
   const displayAvgTime =
-    overviewData?.avgDurationSeconds != null
-      ? formatDurationSeconds(overviewData.avgDurationSeconds)
-      : displayResponses > 0
-        ? '—'
-        : '—';
+    rawAvgDurationSeconds != null
+      ? formatDurationSeconds(rawAvgDurationSeconds)
+      : '—';
+  const targetNote = targetStatusNote(
+    displayResponses,
+    limitNum,
+    rawCompletionRate,
+    nearLimit,
+    limitReached,
+  );
   const responsesTrendSub =
     overviewData?.responsesTrendWeek != null
       ? `${overviewData.responsesTrendWeek}% this week`
@@ -174,13 +233,19 @@ const FormOverlayModal = () => {
     overviewData?.completionTrendWeek != null
       ? `${overviewData.completionTrendWeek}% vs last week`
       : undefined;
-  const liveSinceLabel = overviewData?.liveSince
-    ? new Date(overviewData.liveSince).toLocaleDateString('en-GB', {
+  const liveSinceIso = overviewData?.liveSince ?? form?.publishedAt ?? null;
+  const liveSinceLabel = liveSinceIso
+    ? new Date(liveSinceIso).toLocaleDateString('en-GB', {
         day: 'numeric',
         month: 'long',
         year: 'numeric',
       })
     : null;
+  const liveDays =
+    form?.daysActive ??
+    (liveSinceIso
+      ? Math.max(1, Math.ceil((Date.now() - new Date(liveSinceIso).getTime()) / 86_400_000))
+      : null);
   const aiInsight = overviewData?.aiInsight ?? null;
 
   const handleRetry = () => {
@@ -585,13 +650,13 @@ const FormOverlayModal = () => {
                     label="Responses"
                     value={formatResponseCount(displayResponses)}
                     sub={displayResponses > 0 ? responsesTrendSub : undefined}
-                    note={displayResponses > 0 && !fetchError ? 'On target' : undefined}
+                    note={!fetchError ? targetNote : undefined}
                   />
                   <StatCard
                     label="Completion rate"
                     value={displayResponses > 0 ? displayCompletion : '—'}
                     sub={displayResponses > 0 ? completionTrendSub : undefined}
-                    note={displayResponses > 0 && !fetchError ? 'On target' : undefined}
+                    note={!fetchError ? targetNote : undefined}
                   />
                   <StatCard
                     label="Avg. time"
@@ -601,7 +666,7 @@ const FormOverlayModal = () => {
                         ? '~ same'
                         : undefined
                     }
-                    note={displayResponses > 0 && !fetchError ? 'On target' : undefined}
+                    note={!fetchError ? targetNote : undefined}
                   />
                 </div>
 
@@ -649,7 +714,7 @@ const FormOverlayModal = () => {
                         style={{ borderTop: '10px solid #897dff' }}
                       >
                         <span className="text-[11px] font-semibold text-[#1a1814] leading-normal">
-                          7 Days
+                          {liveDays != null ? `${liveDays} Days` : '—'}
                         </span>
                       </div>
                     </div>
@@ -713,7 +778,7 @@ const FormOverlayModal = () => {
                     <input
                       type="text"
                       value={responseLimit}
-                      onChange={(e) => setResponseLimit(e.target.value)}
+                      onChange={(e) => handleResponseLimitChange(e.target.value)}
                       className="bg-[#f0eee9] border border-[#e5e2da] rounded-[8px] px-[11px] py-[7px] w-[88px] text-[12px] text-[#1a1916] text-center font-normal outline-none focus:border-[#7c3aed] transition-colors"
                     />
                   )}
@@ -729,7 +794,7 @@ const FormOverlayModal = () => {
                     <div className="flex items-center justify-between w-full">
                       <p className="text-[14px] font-bold text-[#14532d] leading-normal">Response target reached!</p>
                       <button
-                        onClick={() => setResponseLimit(String(limitNum + 500))}
+                        onClick={() => handleResponseLimitChange(String(limitNum + 500))}
                         className="bg-[#16a34a] text-white text-[11.5px] font-semibold px-[11px] py-[6px] rounded-[8px] hover:bg-[#15803d] transition-colors cursor-pointer whitespace-nowrap"
                       >
                         ↑ Raise limit
@@ -805,7 +870,7 @@ const FormOverlayModal = () => {
                     <div className="flex items-center justify-between w-full">
                       <p className="text-[13px] font-semibold text-[#14532d] leading-normal">Almost reaching your target</p>
                       <button
-                        onClick={() => setResponseLimit(String(limitNum + 500))}
+                        onClick={() => handleResponseLimitChange(String(limitNum + 500))}
                         className="bg-[#16a34a] text-white text-[11.5px] font-semibold px-[11px] py-[6px] rounded-[8px] hover:bg-[#15803d] transition-colors cursor-pointer whitespace-nowrap"
                       >
                         ↑ Raise limit

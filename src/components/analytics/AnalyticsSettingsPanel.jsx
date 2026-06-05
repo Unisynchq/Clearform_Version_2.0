@@ -24,6 +24,8 @@ import { DEFAULT_LIFECYCLE_MODE, mergeAlertSettings } from '@/utils/formAlertDef
 import { dispatchSyncFormAlerts } from '@/utils/syncFormAlertsToStore';
 import { clearNotificationsForForm } from '@/store/slices/notificationsSlice';
 import { buildFallbackPublicUrl, fetchShareLinks } from '@/api/services/shareService';
+import { updateFormResponseLimit } from '@/api/services/formSettingsService';
+import { isApiConfigured } from '@/config/env';
 
 const LIFECYCLE_OPTIONS = [
   { value: 'No limit', label: 'No limit' },
@@ -214,6 +216,9 @@ function AnalyticsSettingsPanel({ form }) {
     dispatch(updateForm({ id: form.id, changes }));
     const nextForm = { ...form, ...changes };
     dispatchSyncFormAlerts(dispatch, nextForm);
+    if (isApiConfigured() && changes.responseLimit != null) {
+      updateFormResponseLimit(form.id, changes.responseLimit).catch(() => {});
+    }
   }, 300);
 
   const persistAlertSettings = useDebouncedCallback((nextAlertSettings) => {

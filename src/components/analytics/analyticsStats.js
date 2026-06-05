@@ -79,7 +79,7 @@ export function deriveFormStatsFromApi(form, apiStats) {
   const reached = funnel.reached ?? Math.max(submitted, Math.round(submitted * 1.2));
   const opened = funnel.opened ?? Math.max(submitted, Math.round(submitted * 1.1));
   const started = funnel.started ?? Math.max(submitted, Math.round(submitted / Math.max((apiStats.completionRate ?? 50) / 100, 0.05)));
-  const target = Math.max(submitted, form?.responseLimit ?? (submitted * 2 || 500));
+  const target = form?.responseLimit ?? Math.max(submitted, submitted * 2 || 500);
 
   const avgTimeSec = apiStats.avgDurationMs
     ? Math.round(apiStats.avgDurationMs / 1000)

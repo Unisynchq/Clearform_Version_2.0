@@ -213,7 +213,9 @@ const ShareFormModal = () => {
   const dispatch = useDispatch();
   const [searchParams] = useSearchParams();
   const { showToast } = useToast();
-  const { open, formTitle, formId } = useSelector((s) => s.ui.shareModal);
+  const { open, formTitle, formId, initialChannel, openWebhook } = useSelector(
+    (s) => s.ui.shareModal,
+  );
   const forms = useSelector((s) => s.forms.forms ?? []);
   const workspaces = useSelector((s) => s.forms.workspaces ?? []);
   const activeForm = forms.find((f) => String(f.id) === String(formId));
@@ -321,12 +323,20 @@ const ShareFormModal = () => {
   useEffect(() => {
     if (!open) {
       setActiveChannel(null);
+      setWebhookOpen(false);
       setSheetsSaved(false);
       setResolvedWorkspaceId(null);
       return;
     }
+    if (initialChannel) {
+      setActiveChannel(initialChannel);
+    }
+    if (openWebhook) {
+      setActiveChannel('other');
+      setWebhookOpen(true);
+    }
     refreshIntegrations();
-  }, [open, refreshIntegrations]);
+  }, [open, refreshIntegrations, initialChannel, openWebhook]);
 
   useEffect(() => {
     if (!open || !isApiConfigured()) return;
