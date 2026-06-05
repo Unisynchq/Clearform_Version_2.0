@@ -70,7 +70,11 @@ import {
   parseMaxFileSizeBytes,
 } from '@/features/forms/utils/fileSizeLimits';
 import { getCardShellSurface } from '@/features/forms/utils/respondentThemeStyles';
-import { respondentInputClass, respondentTextareaClass } from '@/features/forms/utils/respondentFieldInput';
+import {
+  respondentInputClass,
+  respondentTextareaClass,
+  RESPONDENT_QUALITY_FIELD_PAD,
+} from '@/features/forms/utils/respondentFieldInput';
 
 
 const CardShell = ({ children, fullCanvas = false, cardColor = '#f7f6f4', cardImage = null, scrollable = false, footer = null }) => {
@@ -84,7 +88,7 @@ const CardShell = ({ children, fullCanvas = false, cardColor = '#f7f6f4', cardIm
       >
         <div
           className={`flex-1 flex flex-col min-h-0 ${
-            scrollable ? 'overflow-y-auto overflow-x-hidden' : 'overflow-hidden justify-between'
+            scrollable ? 'overflow-y-auto overflow-x-hidden' : 'overflow-x-hidden overflow-y-auto justify-between'
           }`}
         >
           {children}
@@ -96,7 +100,7 @@ const CardShell = ({ children, fullCanvas = false, cardColor = '#f7f6f4', cardIm
 
   return (
     <div
-      className={`${scrollable ? 'overflow-y-auto min-h-0' : 'overflow-hidden'} flex-1 flex flex-col justify-between transition-colors duration-300 ${borderAndRadius}`}
+      className={`${scrollable ? 'overflow-y-auto min-h-0' : 'overflow-x-hidden overflow-y-auto min-h-0'} flex-1 flex flex-col justify-between transition-colors duration-300 ${borderAndRadius}`}
       style={shellStyle}
     >
       {children}
@@ -2458,29 +2462,43 @@ const ContentCardInner = ({
           <div className="mt-[19px]">
             {isPreviewMode ? (
               <>
-                <input
-                  type={stInputType}
-                  value={shortTextDraft}
-                  onChange={(e) => setShortTextDraft(e.target.value.slice(0, stMaxChars))}
-                  maxLength={stMaxChars}
-                  placeholder={stPlaceholder}
-                  aria-label={stQuestion}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  className={respondentInputClass(stTextAlign)}
-                />
                 {shortTextResponseQualityConfig?.enabled ? (
                   <ResponseQualityFeedback
+                    embedded
                     evaluation={responseQualityEvaluation}
                     charCount={shortTextDraft.length}
                     maxChars={stMaxChars}
                     answerLabel="Short answer"
-                  />
+                  >
+                    <input
+                      type={stInputType}
+                      value={shortTextDraft}
+                      onChange={(e) => setShortTextDraft(e.target.value.slice(0, stMaxChars))}
+                      maxLength={stMaxChars}
+                      placeholder={stPlaceholder}
+                      aria-label={stQuestion}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      className={respondentInputClass(`${stTextAlign} ${RESPONDENT_QUALITY_FIELD_PAD}`)}
+                    />
+                  </ResponseQualityFeedback>
                 ) : (
+                  <input
+                    type={stInputType}
+                    value={shortTextDraft}
+                    onChange={(e) => setShortTextDraft(e.target.value.slice(0, stMaxChars))}
+                    maxLength={stMaxChars}
+                    placeholder={stPlaceholder}
+                    aria-label={stQuestion}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    className={respondentInputClass(stTextAlign)}
+                  />
+                )}
+                {!shortTextResponseQualityConfig?.enabled ? (
                   <div className="flex justify-between items-center pt-[11px] pb-[9px]">
                     <p className="text-[#bbb] text-[11px]">Short answer</p>
                     <p className="text-[#bbb] text-[11px]">{shortTextDraft.length} / {stMaxChars}</p>
                   </div>
-                )}
+                ) : null}
               </>
             ) : (
               <>
@@ -2570,31 +2588,46 @@ const ContentCardInner = ({
           <div className="mt-[19px]">
             {isPreviewMode ? (
               <>
-                <textarea
-                  value={longTextDraft}
-                  onChange={(e) => setLongTextDraft(e.target.value.slice(0, ltMaxChars))}
-                  maxLength={ltMaxChars}
-                  placeholder={ltPlaceholder}
-                  inputMode={ltInputMode}
-                  aria-label={ltQuestion}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  rows={3}
-                  className={respondentTextareaClass(ltTextAlign)}
-                />
                 {longTextResponseQualityConfig?.enabled ? (
                   <ResponseQualityFeedback
+                    embedded
                     evaluation={responseQualityEvaluation}
                     charCount={longTextDraft.length}
                     maxChars={ltMaxChars}
-                  />
+                  >
+                    <textarea
+                      value={longTextDraft}
+                      onChange={(e) => setLongTextDraft(e.target.value.slice(0, ltMaxChars))}
+                      maxLength={ltMaxChars}
+                      placeholder={ltPlaceholder}
+                      inputMode={ltInputMode}
+                      aria-label={ltQuestion}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      rows={3}
+                      className={respondentTextareaClass(`${ltTextAlign} ${RESPONDENT_QUALITY_FIELD_PAD}`)}
+                    />
+                  </ResponseQualityFeedback>
                 ) : (
+                  <textarea
+                    value={longTextDraft}
+                    onChange={(e) => setLongTextDraft(e.target.value.slice(0, ltMaxChars))}
+                    maxLength={ltMaxChars}
+                    placeholder={ltPlaceholder}
+                    inputMode={ltInputMode}
+                    aria-label={ltQuestion}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    rows={3}
+                    className={respondentTextareaClass(ltTextAlign)}
+                  />
+                )}
+                {!longTextResponseQualityConfig?.enabled ? (
                   <div className="flex justify-between items-center pt-[11px] pb-[9px]">
                     <p className="text-[#bbb] text-[11px]">Long answer</p>
                     <p className="text-[#bbb] text-[11px]">
                       {longTextDraft.length}{ltMinChars > 0 ? ` (min ${ltMinChars})` : ''} / {ltMaxChars}
                     </p>
                   </div>
-                )}
+                ) : null}
               </>
             ) : (
               <>

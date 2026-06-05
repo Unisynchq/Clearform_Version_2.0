@@ -1374,7 +1374,7 @@ const FormBuilderPage = () => {
   /* ── Form Settings state ── */
   const [settingsOneAtATime, setSettingsOneAtATime] = useState(false);
   const [settingsAutoAdvance, setSettingsAutoAdvance] = useState(true);
-  const [settingsBackButton, setSettingsBackButton] = useState(false);
+  const [settingsBackButton, setSettingsBackButton] = useState(true);
   const [settingsCompletionAction, setSettingsCompletionAction] = useState('Show thank you screen');
   const [settingsResubmission, setSettingsResubmission] = useState(true);
   const [settingsConfirmationEmail, setSettingsConfirmationEmail] = useState(true);

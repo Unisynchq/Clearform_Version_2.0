@@ -16,3 +16,6 @@ export function respondentInputClass(extra = '') {
 export function respondentTextareaClass(extra = '') {
   return respondentInputClass(`resize-y min-h-[72px] leading-[1.5] ${extra}`.trim());
 }
+
+/** Extra inset when AI quality indicator is anchored inside the field */
+export const RESPONDENT_QUALITY_FIELD_PAD = 'pb-9 pr-12';

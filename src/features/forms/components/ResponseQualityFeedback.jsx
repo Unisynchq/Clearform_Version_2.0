@@ -145,8 +145,7 @@ export function ResponseQualityMessage({ level, message, onDismiss }) {
   );
 }
 
-/** Indicator row + optional dismissible message; wave while typing, quality after idle. */
-export default function ResponseQualityFeedback({ evaluation, charCount, maxChars, answerLabel = 'Long answer' }) {
+function useResponseQualityDisplay(evaluation, charCount) {
   const [dismissed, setDismissed] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [settledEvaluation, setSettledEvaluation] = useState(null);
@@ -171,11 +170,94 @@ export default function ResponseQualityFeedback({ evaluation, charCount, maxChar
     setDismissed(false);
   }, [settledEvaluation?.level, settledEvaluation?.message]);
 
-  const charCountLabel = (
+  const showSettled = !isTyping && settledEvaluation;
+  const showMessage = showSettled && settledEvaluation.message && !dismissed;
+
+  return {
+    dismissed,
+    setDismissed,
+    isTyping,
+    settledEvaluation,
+    showSettled,
+    showMessage,
+  };
+}
+
+function renderIndicator({ isTyping, settledEvaluation, answerLabel }) {
+  if (isTyping) return <ResponseQualityWaveDots />;
+  if (settledEvaluation) return <ResponseQualityIndicator level={settledEvaluation.level} />;
+  return (
     <p className="text-[#bbb] text-[11px]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+      {answerLabel}
+    </p>
+  );
+}
+
+/** Indicator row + optional dismissible message; wave while typing, quality after idle. */
+export default function ResponseQualityFeedback({
+  evaluation,
+  charCount,
+  maxChars,
+  answerLabel = 'Long answer',
+  embedded = false,
+  children = null,
+}) {
+  const { setDismissed, isTyping, settledEvaluation, showMessage } = useResponseQualityDisplay(
+    evaluation,
+    charCount,
+  );
+
+  const charCountLabel = (
+    <p className="text-[#bbb] text-[11px] tabular-nums" style={{ fontFamily: "'DM Sans', sans-serif" }}>
       {charCount} / {maxChars}
     </p>
   );
+
+  const indicator = renderIndicator({ isTyping, settledEvaluation, answerLabel });
+
+  if (embedded && children) {
+    return (
+      <>
+        <div className="relative w-full">
+          {children}
+          {charCount > 0 ? (
+            <>
+              <div
+                className="absolute bottom-[10px] left-[12px] z-10 pointer-events-none flex items-center"
+                aria-live="polite"
+              >
+                {charCountLabel}
+              </div>
+              <div
+                className="absolute bottom-[10px] right-[12px] z-10 pointer-events-none flex items-center"
+                aria-live="polite"
+              >
+                {indicator}
+              </div>
+            </>
+          ) : null}
+        </div>
+        {charCount === 0 ? (
+          <div className="flex justify-between items-center pt-[11px] pb-[9px]">
+            <p className="text-[#bbb] text-[11px]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+              {answerLabel}
+            </p>
+            {charCountLabel}
+          </div>
+        ) : null}
+        <AnimatePresence mode="wait">
+          {showMessage && (
+            <ResponseQualityMessage
+              key={`${settledEvaluation.level}-${settledEvaluation.message}`}
+              level={settledEvaluation.level}
+              message={settledEvaluation.message}
+              onDismiss={() => setDismissed(true)}
+            />
+          )}
+        </AnimatePresence>
+      </>
+    );
+  }
 
   if (charCount === 0) {
     return (
@@ -186,20 +268,6 @@ export default function ResponseQualityFeedback({ evaluation, charCount, maxChar
         {charCountLabel}
       </div>
     );
-  }
-
-  const showSettled = !isTyping && settledEvaluation;
-  const showMessage = showSettled && settledEvaluation.message && !dismissed;
-
-  let indicator = (
-    <p className="text-[#bbb] text-[11px]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-      {answerLabel}
-    </p>
-  );
-  if (isTyping) {
-    indicator = <ResponseQualityWaveDots />;
-  } else if (settledEvaluation) {
-    indicator = <ResponseQualityIndicator level={settledEvaluation.level} />;
   }
 
   return (
