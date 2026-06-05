@@ -86,7 +86,7 @@ When implementing `POST /forms/:id/publish` and `GET /forms/:id/published`, roun
 
 | Field | Value |
 |-------|--------|
-| **Scope** | Frontend-only (local / pending push to `main`) |
+| **Scope** | Frontend-only — pushed on `main` (`ad5ca1d` and follow-ups) |
 | **Backend changes** | **None required** for these UI changes — consumes existing contract in `src/api/endpoints.js` |
 
 #### Shipped on frontend (when `VITE_API_BASE_URL` is set)
@@ -142,6 +142,37 @@ Suggested user-facing copy: *“Republish forms that were live before [date] so 
 
 ---
 
+### 2026-06-04 — Analytics QA: drop-off river tooltip + AI insights data (backend tasks)
+
+| Field | Value |
+|-------|--------|
+| **Date** | 2026-06-04 |
+| **Reported by** | Product QA on live Analytics (Performance + AI Insights tabs) |
+| **Frontend status** | API calls are wired; **remaining gaps are backend payloads + one FE tooltip wiring pass** |
+| **Repo** | `main` on https://github.com/Unisynchq/Clearform_Version_2.0 |
+
+#### What QA saw (screenshots)
+
+1. **Question drop-off river** — clicking a column (e.g. Q3) opens a tooltip card that still shows **placeholder copy**: question title `"Your name"`, **Reached `1,712`**, **Avg time `8s`**, and a generic one-line insight. Red pills above some columns show **`−100%`** for multiple steps at once.
+2. **AI Insights tab** — with **13 responses**, the tab loads (no demo badge). **AI Summary** and **Priority Focus** show the **same paragraph** (13 responses, 0 completions, quality 0/100). **Quick Stats** shows **100% negative** sentiment and **100%** top issue. **Top Patterns** correctly shows “need 25+ responses”.
+
+#### Frontend recheck (2026-06-04)
+
+| Area | Wired? | Notes |
+|------|--------|-------|
+| `GET /analytics/forms/:id/performance` | Yes | `AnalyticsPage.jsx` merges `screenDropoff` into `performanceForm` for the river |
+| `POST /analytics/forms/:id/ai-insights` | Yes | Called on AI tab; polls when `status === 'processing'` |
+| River column severity / `drop` string | Partial | FE reads `screenDropoff[].drop` from API — **not** seeded demo when API returns the array |
+| River **tooltip card** body | **No** | `AnalyticsPerformanceDashboard.jsx` still hardcodes title, reached, avg time (Figma placeholders). FE will wire once backend extends `screenDropoff` (see **B.11**) |
+| AI Summary / Priority / Quick Stats | Partial | FE displays `apiInsights.*` when `status === 'ready'`. **NPS default `78`**, trend `+5.2%`, and confidence `High (89%)` are still FE fallbacks when API omits those fields |
+| Top Patterns | Yes | Empty until 25+ responses or API returns `patterns[]` |
+
+**Conclusion:** AI Insights **is hitting the API** (copy matches live counts, not removed demo text). Backend must ensure insights are generated from **actual response rows + published question labels**, not only aggregate counts. Drop-off **`−100%`** on many steps likely indicates a **backend funnel math bug** when completions are 0 — see **B.11**.
+
+**Backend tasks:** **B.11** (drop-off river + tooltip data), **B.12** (AI insights must use response content). **Frontend follow-up:** wire tooltip fields after B.11 contract ships.
+
+---
+
 ## READ THIS FIRST — Product review and backend obligations
 
 This block was added after hands-on QA of the Clearform v2 frontend on `main`. The UI is largely complete; **many flows are now wired to `src/api/services/*` when `VITE_API_BASE_URL` is set.** Remaining gaps are mostly **backend endpoints**, **VPS/infra**, and **end-to-end QA on production**. Do not skip this section.
@@ -194,6 +225,8 @@ Public routes (`GET /forms/:id/published`, `POST /forms/:id/responses`) must not
 | 8 | **Form ↔ Integrations ↔ Analytics** all use same `formId` | Backend scoped APIs + Frontend URLs | **Done** (URLs + panel `formId`) | Picking form 123 in builder = analytics `?form=123` = webhooks for 123 |
 | 9 | **Integrations** actually connect and fire | Backend OAuth/webhooks | **FE wired** — needs Composio + queue | Connect, test, and deliver events from UI |
 | 10 | **Remove demo** surfaces when APIs are live | Frontend (after your APIs) | **Done** | No “Sample data”, seed charts, or demo toasts when API on |
+| 11 | **Drop-off river** — real per-question metrics + tooltip (no `−100%` bugs, no Figma placeholders) | Backend (+ FE wire tooltip) | **FE partial** — tooltip still placeholder | Clicking Q3 shows real question title, reached count, drop %, avg time from API |
+| 12 | **AI Insights** — analyze real response **content**, not just counts | Backend | **FE wired** — needs correct API job | Summary, priority, sentiment, patterns grounded in stored answers for that `formId` |
 
 
 #### A.4 Outcomes (what “done” looks like for users)
@@ -724,6 +757,221 @@ Complete for demo removal. Coordinate field names when adding new analytics/insi
 
 Production `.env` has API URL — no “Sample data”, no demo toasts, empty analytics shows “No responses yet” not fake charts.
 
+---
+
+#### B.11 Question drop-off river — per-question metrics and tooltip (fix static `−100%`)
+
+**What we saw (2026-06-04)**
+
+On Analytics → **Performance** → **Question drop-off river**:
+
+- Red severity pills show **`−100%`** on multiple questions (e.g. Q3, Q5, Q6) at the same time.
+- Clicking a column opens a tooltip that still shows **dummy UI**: question **“Your name”**, **Reached `1,712`**, **Avg time `8s`**, and a generic insight line — regardless of the selected question.
+- Footer captions use the form’s total **`responses`** for both “started” and “finished” (frontend limitation until funnel fields are returned).
+
+**What should happen**
+
+- Each content screen in the published snapshot maps to one river column (`Q1` … `QN`).
+- **Drop %** between steps is computed from real session/response events for that `formId` and date `range`.
+- **`−100%` on every step is wrong** unless literally zero respondents continued past each screen — verify your formula when `completed === 0` but `started > 0`.
+- Tooltip shows the **real question label**, **reached** count, **drop** rate, and **average time on screen** for that step.
+
+**What the frontend does today**
+
+- `AnalyticsPage.jsx` calls `GET /analytics/forms/:formId/performance?range=` and merges `screenDropoff` onto the selected form.
+- `dropoffRiverData.js` → `buildAdaptiveRiverColumns()` uses API `screenDropoff` when `length >= 5`; each step supports `q`, `kind`, `alert`, `drop` (display string for pills).
+- **Tooltip card is not wired to API yet** — `AnalyticsDropoffRiverCard` in `AnalyticsPerformanceDashboard.jsx` hardcodes title/metrics (FE will map new fields once you ship them).
+
+**What backend must build**
+
+Extend **`GET /analytics/forms/:formId/performance`** (same query `range=7d|30d|90d|all`).
+
+**Top-level funnel** (for started/finished captions and stats row):
+
+```json
+{
+  "formId": 123,
+  "range": "all",
+  "responses": 13,
+  "contentScreenCount": 6,
+  "funnel": {
+    "reached": 13,
+    "opened": 13,
+    "started": 13,
+    "submitted": 0
+  },
+  "screenDropoff": [ /* see below */ ]
+}
+```
+
+**Per-screen `screenDropoff[]` item** (one entry per **content** screen, order = respondent order):
+
+```json
+{
+  "screenId": 12,
+  "q": "Q3",
+  "kind": "critical",
+  "alert": true,
+  "drop": "−34%",
+  "dropPercent": 34,
+  "label": "Your name",
+  "fieldType": "short_text",
+  "reached": 12,
+  "continued": 8,
+  "dropCount": 4,
+  "avgTimeSeconds": 8,
+  "insight": "Significant drop-off — review wording or make this field optional."
+}
+```
+
+| Field | Rule |
+|-------|------|
+| `label` | Primary question text from **published snapshot** (`screens[].config` / field label), not a constant |
+| `reached` | Distinct sessions that **viewed** this screen in range |
+| `continued` | Sessions that **submitted an answer** and moved to the next screen (or end) |
+| `dropPercent` | `round((1 - continued / reached) * 100)` when `reached > 0`, else `0` |
+| `drop` | Display string for pills, e.g. `"−34%"` — must match `dropPercent` |
+| `kind` / `alert` | `critical` if drop ≥ 70%, `attention` if 40–69%, else `healthy` (matches legend on card) |
+| `avgTimeSeconds` | Mean dwell time on this screen from response metadata / events |
+| `insight` | One sentence; may be rule-based or LLM — must reference **this** screen’s stats |
+
+**Drop calculation (avoid the `−100%` bug)**
+
+Recommended per-step formula:
+
+```text
+reached[i]   = sessions that rendered screen i
+continued[i] = sessions that advanced past screen i (answer + next navigation)
+dropPercent[i] = reached[i] > 0 ? round((1 - continued[i] / reached[i]) * 100) : 0
+```
+
+Do **not** set every step to `100%` just because `submitted === 0`. Partial progress (answered Q1–Q2 then abandoned) should show high drop on the **last touched** screen, not on every downstream screen with `reached === 0`.
+
+**How frontend will connect**
+
+Already merges `screenDropoff` for column shapes. After you ship extended fields, frontend will replace tooltip placeholders with `label`, `reached`, `drop`/`dropPercent`, `avgTimeSeconds`, `insight` (tracked in FE; no backend action).
+
+**Done when**
+
+- Form with 13 starts and 0 completions: river shows believable per-step drops (not identical `−100%` on all red columns).
+- Clicking Q3 tooltip shows Q3’s **real label** and counts from API, not `1,712` / `Your name` / `8s` placeholders.
+- Changing date range updates `screenDropoff` and funnel counts.
+
+---
+
+#### B.12 AI Insights — must analyze real response content (not counts-only)
+
+**What we saw (2026-06-04)**
+
+On Analytics → **AI Insights** with **13 responses**:
+
+- Tab **does** call `POST /analytics/forms/:formId/ai-insights` (not offline demo).
+- **AI Summary** and **Priority Focus** repeat the **same text** (13 responses, 0 completions, quality score 0/100).
+- **Quick Stats**: 100% negative sentiment, top issue **100%** — may be mathematically correct for tiny samples but reads like placeholder severity; must be derived from **answer text**, not hardcoded templates.
+- **Top Patterns** empty — correct until 25+ responses (frontend gate).
+
+**What should happen**
+
+Backend runs an insights job that:
+
+1. Loads **all responses** for `formId` + `range` from the same table as `GET /forms/:formId/responses`.
+2. Loads **published snapshot** (or builder snapshot) to map `screenId` → question labels, field types, and options.
+3. Passes **question + answer pairs** (and completion status, duration, response-quality scores if stored) into the LLM or analytics pipeline.
+4. Returns **distinct** copy for summary vs priority vs patterns — not one paragraph duplicated.
+5. Returns `status: "insufficient_data"` when `responses < 10` in range (frontend already handles).
+6. Supports async: `{ "status": "processing" }` then `{ "status": "ready", ... }` on poll (frontend polls every 2.5s).
+
+**What the frontend does today**
+
+- `AnalyticsPage.jsx` → `generateAiInsights(formId, { range })` on AI tab visit.
+- `AnalyticsAiInsightsPanel.jsx` renders when `apiInsights.status === 'ready'`:
+  - `summaryText` / `insight` → AI Summary
+  - `priorityTitle`, `priorityBody`, `impactEstimate` → Priority Focus
+  - `quickStats` → Quick Stats card (`sentiment`, `topIssueCategory`, `topIssuePercent`, `sevenDayTrend`)
+  - `patterns[]` → Top Patterns (25+ responses)
+  - `recommendedActions[]` → Recommended Actions
+- **Still hardcoded on FE** (omit from API or send real values): NPS `78` if `npsScore` missing; trend `+5.2% vs last quarter`; confidence `High (89%)`.
+
+**What backend must build**
+
+**Endpoint:** `POST /analytics/forms/:formId/ai-insights`  
+**Body:** `{ "range": "7d" | "30d" | "90d" | "all" }`
+
+**Response when ready:**
+
+```json
+{
+  "status": "ready",
+  "formId": 123,
+  "range": "all",
+  "responseCount": 13,
+  "summaryText": "2–4 sentences: themes from answer text, completion rate, quality — cite specifics.",
+  "npsScore": null,
+  "npsTrendPercent": null,
+  "npsTrendLabel": null,
+  "priorityTitle": "Fix abandonment before Q3",
+  "priorityBody": "Different from summary: one actionable focus with evidence from responses.",
+  "impactEstimate": "Republish with shorter Q3 could recover ~15% completions",
+  "confidencePercent": 72,
+  "quickStats": {
+    "sentiment": { "positive": 0, "neutral": 0, "negative": 100 },
+    "topIssueCategory": "Incomplete submissions",
+    "topIssuePercent": 100,
+    "sevenDayTrend": [
+      { "day": "Mon", "count": 0 },
+      { "day": "Tue", "count": 0 },
+      { "day": "Wed", "count": 2 },
+      { "day": "Thu", "count": 13 }
+    ]
+  },
+  "patterns": [],
+  "recommendedActions": [
+    {
+      "title": "Shorten the name field helper text",
+      "description": "Based on 4 vague answers in Q3",
+      "priority": "high",
+      "actionType": "edit_form"
+    }
+  ]
+}
+```
+
+**Prompt / job requirements (critical)**
+
+| Input | Source |
+|-------|--------|
+| Answer text per screen | `responses[].answersByScreenId` |
+| Question labels | Published `screens` for that `formId` |
+| Completion | `responseType` or presence of end-screen submit |
+| Quality scores | Stored evaluate results if you persist them |
+| Date filter | Apply `range` to `submittedAt` |
+
+**Do not:**
+
+- Return the same string for `summaryText` and `priorityBody`.
+- Return insights when zero responses in range — use `insufficient_data`.
+- Fabricate NPS or sentiment without running classification on text (or return `null` and let FE hide).
+
+**Processing / errors**
+
+```json
+{ "status": "processing", "jobId": "optional" }
+{ "status": "insufficient_data", "responseCount": 3, "message": "Need at least 10 responses" }
+{ "status": "error", "message": "Human-readable failure" }
+```
+
+Rate-limit per user/form (429). Log prompt version + response count, not raw PII in production logs unless policy allows.
+
+**How frontend connects**
+
+Wired — no new routes. Ship the payload shape above; frontend mappers live in `aiInsightsApiMappers.js`.
+
+**Done when**
+
+- Submit 10+ varied text answers on form A → AI tab mentions **actual themes** from those answers (not only “0 completions”).
+- Summary and Priority Focus show **different** copy.
+- Quick Stats 7-day chart matches real submission dates.
+- With &lt; 10 responses, API returns `insufficient_data` and FE shows the empty state (not generic AI prose).
 
 ---
 
@@ -994,7 +1242,11 @@ Per-screen config includes response-quality flags (`longTextResponseQualityEnabl
 | GET | `/analytics/forms/:formId/compare?range=` | Compare tab |
 | POST | `/analytics/forms/:formId/ai-insights` | AI Insights tab |
 
-Until these exist, the UI shows **sample series** and an Analytics **“Sample data”** badge.
+When API is off, analytics panels show **empty states** (demo charts and the “Sample data” badge were removed on `main`). When API is on but payloads are incomplete, Performance may show API `screenDropoff` with a **placeholder tooltip** (see **B.11**); AI Insights calls the real endpoint (see **B.12**).
+
+**`GET /analytics/forms/:formId/performance` — minimum contract**
+
+See **B.11** for full `screenDropoff` + funnel shape. Frontend today consumes: `responses`, `contentScreenCount`, `funnel`, `screenDropoff`, `avgDurationMs`, `completionRate`, `trendPct`, `trendUp`, daily series fields used by stats/funnel cards.
 
 ---
 
@@ -1094,18 +1346,18 @@ Until these exist, the UI shows **sample series** and an Analytics **“Sample d
 
 **Endpoint:** `POST /analytics/forms/:formId/ai-insights`
 
-**UI:** `AnalyticsAiInsightsPanel.jsx` — mock until API returns data (simulated 1.8s load today).
+**UI:** `AnalyticsAiInsightsPanel.jsx` — **wired to API** when `VITE_API_BASE_URL` is set; polls while `status === 'processing'`. Demo constants removed. Full contract and prompt rules: **B.12**.
 
 **Modules backend should populate:**
 
 | Module | Frontend file | Payload fields |
 |--------|---------------|----------------|
-| AI Summary + NPS | `AnalyticsAiInsightsPanel.jsx` | `summaryText`, `npsScore`, sentiment |
-| Priority Focus | same | `priorityTitle`, `priorityBody`, `impactEstimate` |
-| Top Patterns | `TOP_PATTERNS` constant | `[{ percent, label, tag, description, examples[] }]` |
-| Quick Stats | `aiInsights/quickStatsData.js` | 7-day counts, sentiment split |
-| Recommended Actions | `aiInsights/recommendedActionsData.js` | `[{ title, description, priority, actionType }]` |
-| Seven-day chart | `aiInsights/SevenDayTrendChart.jsx` | time series from quick stats |
+| AI Summary + NPS | `AnalyticsAiInsightsPanel.jsx` | `summaryText`, `npsScore`, `npsTrendPercent`, `npsTrendLabel` |
+| Priority Focus | same | `priorityTitle`, `priorityBody`, `impactEstimate`, `confidencePercent` |
+| Top Patterns | `aiInsightsApiMappers.js` | `patterns[]` — `{ percent, label, tag, description, examples[] }` |
+| Quick Stats | `QuickStatsCard.jsx` | `quickStats.sentiment`, `topIssueCategory`, `topIssuePercent`, `sevenDayTrend` |
+| Recommended Actions | `aiInsightsApiMappers.js` | `recommendedActions[]` — `{ title, description, priority, actionType }` |
+| Seven-day chart | `SevenDayTrendChart.jsx` | `quickStats.sevenDayTrend` |
 
 **Gates (frontend-enforced):** min 10 responses for AI insights; min 25 for reliable Top Patterns.
 
