@@ -155,6 +155,7 @@ Suggested user-facing copy: *“Republish forms that were live before [date] so 
 
 1. **Question drop-off river** — clicking a column (e.g. Q3) opens a tooltip card that still shows **placeholder copy**: question title `"Your name"`, **Reached `1,712`**, **Avg time `8s`**, and a generic one-line insight. Red pills above some columns show **`−100%`** for multiple steps at once.
 2. **AI Insights tab** — with **13 responses**, the tab loads (no demo badge). **AI Summary** and **Priority Focus** show the **same paragraph** (13 responses, 0 completions, quality 0/100). **Quick Stats** shows **100% negative** sentiment and **100%** top issue. **Top Patterns** correctly shows “need 25+ responses”.
+3. **Form overlay → Overview** — purple **AI insight** banner always shows the same demo sentence (*“Sentiment positive… Step 3 is losing 28%…”*) and **Improve with AI** does nothing. Overview KPIs also use static values when `responses > 0` (e.g. **38%** completion, **1m 42s** avg time) — see **B.13**.
 
 #### Frontend recheck (2026-06-04)
 
@@ -166,10 +167,12 @@ Suggested user-facing copy: *“Republish forms that were live before [date] so 
 | River **tooltip card** body | **No** | `AnalyticsPerformanceDashboard.jsx` still hardcodes title, reached, avg time (Figma placeholders). FE will wire once backend extends `screenDropoff` (see **B.11**) |
 | AI Summary / Priority / Quick Stats | Partial | FE displays `apiInsights.*` when `status === 'ready'`. **NPS default `78`**, trend `+5.2%`, and confidence `High (89%)` are still FE fallbacks when API omits those fields |
 | Top Patterns | Yes | Empty until 25+ responses or API returns `patterns[]` |
+| Form overlay **Overview AI banner** | **No** | `FormOverlayModal.jsx` — hardcoded insight text; **Improve with AI** has no handler. Needs API (see **B.13**) |
+| Form overlay **Overview KPIs** | **Partial** | `form.responses` is real; completion %, avg time, week trends, Live Since date are **static placeholders** when responses &gt; 0 |
 
 **Conclusion:** AI Insights **is hitting the API** (copy matches live counts, not removed demo text). Backend must ensure insights are generated from **actual response rows + published question labels**, not only aggregate counts. Drop-off **`−100%`** on many steps likely indicates a **backend funnel math bug** when completions are 0 — see **B.11**.
 
-**Backend tasks:** **B.11** (drop-off river + tooltip data), **B.12** (AI insights must use response content). **Frontend follow-up:** wire tooltip fields after B.11 contract ships.
+**Backend tasks:** **B.11** (drop-off river + tooltip data), **B.12** (AI insights tab — real response content), **B.13** (form overlay Overview AI banner + stats). **Frontend follow-up:** wire tooltip after B.11; wire overlay banner/KPIs after B.13 ships.
 
 ---
 
@@ -226,7 +229,8 @@ Public routes (`GET /forms/:id/published`, `POST /forms/:id/responses`) must not
 | 9 | **Integrations** actually connect and fire | Backend OAuth/webhooks | **FE wired** — needs Composio + queue | Connect, test, and deliver events from UI |
 | 10 | **Remove demo** surfaces when APIs are live | Frontend (after your APIs) | **Done** | No “Sample data”, seed charts, or demo toasts when API on |
 | 11 | **Drop-off river** — real per-question metrics + tooltip (no `−100%` bugs, no Figma placeholders) | Backend (+ FE wire tooltip) | **FE partial** — tooltip still placeholder | Clicking Q3 shows real question title, reached count, drop %, avg time from API |
-| 12 | **AI Insights** — analyze real response **content**, not just counts | Backend | **FE wired** — needs correct API job | Summary, priority, sentiment, patterns grounded in stored answers for that `formId` |
+| 12 | **AI Insights tab** — analyze real response **content**, not just counts | Backend | **FE wired** — needs correct API job | Summary, priority, sentiment, patterns grounded in stored answers for that `formId` |
+| 13 | **Form overlay Overview** — AI insight banner + **Improve with AI** (not demo text) | Backend (+ FE wire) | **Not wired** — demo copy in `FormOverlayModal.jsx` | Banner shows one real insight from responses; button opens builder on suggested screen |
 
 
 #### A.4 Outcomes (what “done” looks like for users)
@@ -972,6 +976,98 @@ Wired — no new routes. Ship the payload shape above; frontend mappers live in 
 - Summary and Priority Focus show **different** copy.
 - Quick Stats 7-day chart matches real submission dates.
 - With &lt; 10 responses, API returns `insufficient_data` and FE shows the empty state (not generic AI prose).
+
+---
+
+#### B.13 Form overlay Overview — AI insight banner and “Improve with AI”
+
+**What we saw (2026-06-04)**
+
+Dashboard → click a form card → **Overview** tab in `FormOverlayModal`:
+
+- Purple insight banner always shows the **same demo text**, regardless of form or response count:
+  > *“Sentiment positive, completion above benchmark — but Step 3 is losing 28% of respondents. Improve it to gain ~30 more completions.”*
+- **Improve with AI** button has **no click handler** — it does not open the builder, run logic generation, or call any API.
+- **Dismiss** only hides the banner in the current session (local state).
+- Related: when `form.responses > 0`, overview KPIs show **hardcoded** values — **38%** completion, **1m 42s** avg time, **+5% / +4%** week deltas, **“2 March 2026”** live date, **“Est. 12 more days”** — only the response **count** comes from the form record.
+
+**What should happen**
+
+- Insight copy is **generated from real analytics** for that `formId` (same data sources as B.11 / B.12: responses, drop-off, completion, sentiment).
+- Copy references **actual screen labels** (e.g. “Q3 · Your name is losing 34%”) — not a fixed “Step 3”.
+- **Improve with AI** receives an **action payload** from the API (e.g. `screenId`, `suggestedFix`) so frontend can open the builder on that screen (or Logic tab) with context.
+- Hide the banner when there is **insufficient data** (&lt; 3 responses) or when the user dismissed it (frontend can persist dismiss per form in localStorage or `PATCH /forms/:id` metadata — coordinate if you want server-side dismiss).
+- Overview KPIs should come from the same performance aggregate, not static strings.
+
+**What the frontend does today**
+
+| UI | File | Current behavior |
+|----|------|------------------|
+| AI insight banner | `FormOverlayModal.jsx` (~L589–606) | Hardcoded paragraph; shown whenever form is live, not paused/archived, not dismissed |
+| Improve with AI | same | `<button>` with no `onClick` |
+| Responses KPI | same | `form.responses` from Redux/API |
+| Completion / avg time / trends | same | Static `38%`, `1m 42s`, `5% this week`, etc. when `responses > 0` |
+| Survey target | same | Uses `form.responses` vs hardcoded `500` limit |
+
+**What backend must build**
+
+**Option A (recommended):** extend **`GET /analytics/forms/:formId/performance`** (or add **`GET /analytics/forms/:formId/overview`**) to include a compact block for the overlay:
+
+```json
+{
+  "formId": "f65ea751-...",
+  "overview": {
+    "responses": 13,
+    "responsesTrendWeek": 5,
+    "completionRate": 38,
+    "completionTrendWeek": 4,
+    "avgDurationSeconds": 102,
+    "avgDurationTrend": "same",
+    "responseLimit": 500,
+    "liveSince": "2026-03-02T00:00:00.000Z",
+    "estDaysToTarget": 12,
+    "aiInsight": {
+      "text": "Completion is 38% — Q3 (Your name) loses 34% of respondents. Shorten helper text to recover ~4 completions.",
+      "screenId": 12,
+      "screenLabel": "Your name",
+      "dropPercent": 34,
+      "estimatedGain": 4,
+      "action": "improve_screen"
+    }
+  }
+}
+```
+
+**Option B:** reuse **`POST /analytics/forms/:formId/ai-insights`** with `{ "range": "all", "surface": "overview" }` returning only `summaryText` + `recommendedActions[0]` mapped to the banner shape above.
+
+| Field | Rule |
+|-------|------|
+| `aiInsight.text` | One sentence; must cite **real** metrics and **real** screen from `screenDropoff` / responses — never a static template |
+| `aiInsight.screenId` | Content screen to open in builder when user clicks **Improve with AI** |
+| `aiInsight.action` | `improve_screen` \| `open_logic` \| `view_analytics` — frontend will branch on this |
+| KPI fields | Same aggregates as performance endpoint; week-over-week trends optional when &lt; 7 days of data |
+
+**Improve with AI — expected product behavior (after FE wire)**
+
+1. User clicks **Improve with AI** on form “abbu”.
+2. Frontend opens builder for that `formId`, focuses `screenId` from `aiInsight`, optionally pre-selects Logic or Content tab per `action`.
+3. Optional future: trigger `POST /forms/:formId/logic/generate` scoped to that screen — document if you add this.
+
+**How frontend will connect**
+
+Not wired yet. After you ship `overview` or `aiInsight` on performance/overview endpoint, frontend will:
+
+- Fetch on overlay open (`formId` from `uiSlice.formOverlay`)
+- Replace hardcoded banner text with `aiInsight.text`
+- Wire **Improve with AI** → `navigateToFormBuilder(formId, { screenId, tab })`
+- Replace static KPI strings with `overview.*` fields
+
+**Done when**
+
+- Form with 13 responses and a known drop-off at Q3 shows insight mentioning **Q3’s real label** and **real drop %** — not “Step 3 · 28%” demo copy.
+- **Improve with AI** opens the builder on the screen the API suggested.
+- Two different forms show **different** insight text.
+- Form with 0 responses hides the AI banner (or shows “Share form to collect responses” — product choice).
 
 ---
 
