@@ -81,11 +81,7 @@ const FormCard = ({ form }) => {
         isDisabled
           ? 'opacity-40 cursor-not-allowed'
           : 'cursor-pointer'
-      } ${
-        isSelected
-          ? 'border-2 border-[#1a1a1c] ring-2 ring-[#1a1a1c]/10'
-          : 'border border-[rgba(0,0,0,0.08)]'
-      }`}
+      } border border-[rgba(0,0,0,0.08)]`}
     >
       {/* Compare mode selection checkmark */}
       {compareModeActive && (
