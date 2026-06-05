@@ -221,21 +221,21 @@ const Sidebar = ({ hideLogo = false, exit }) => {
       animate={{ width: isCollapsed ? 60 : 196, opacity: 1, x: 0 }}
       exit={exit ?? { opacity: 0, x: -20, transition: { duration: 0.2, ease: 'easeIn' } }}
       transition={{ duration: 0.2, ease: 'easeInOut' }}
-      className="relative shrink-0 bg-white border-r border-[rgba(0,0,0,0.08)] flex flex-col h-full"
+      className="relative z-30 shrink-0 overflow-visible bg-white border-r border-[rgba(0,0,0,0.08)] flex flex-col h-full"
     >
-      {/* Collapse / expand button — sits on the right border, aligned with "All Forms" */}
-      {!showSidebarSkeleton && (
-        <button
-          onClick={() => setIsCollapsed((v) => !v)}
-          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className={`absolute -right-[10px] z-20 h-5 w-5 rounded-full bg-white border border-[#e9e7e0] flex items-center justify-center hover:bg-[#f4f3ef] transition-colors ${hideLogo ? 'top-[22px]' : 'top-[75px]'}`}
-        >
-          <RiArrowLeftSLine
-            size={12}
-            className={`text-[#6b6966] transition-transform duration-200 ${isCollapsed ? 'rotate-180' : ''}`}
-          />
-        </button>
-      )}
+      {/* Collapse / expand — on the sidebar seam so it stays above page sticky headers */}
+      <button
+        type="button"
+        onClick={() => setIsCollapsed((v) => !v)}
+        aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        className={`absolute -right-3.5 z-50 flex h-7 w-7 items-center justify-center rounded-full border border-[#c9c7c0] bg-white text-[#3f3f46] shadow-[0_1px_4px_rgba(0,0,0,0.14)] transition-colors hover:border-[#a8a6a0] hover:bg-[#f4f3ef] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3b7bf6] focus-visible:ring-offset-2 ${hideLogo ? 'top-[22px]' : 'top-[72px]'}`}
+      >
+        <RiArrowLeftSLine
+          size={16}
+          className={`shrink-0 transition-transform duration-200 ${isCollapsed ? 'rotate-180' : ''}`}
+        />
+      </button>
       <AnimatePresence mode="sync" initial={false}>
         {showSidebarSkeleton ? (
           <motion.div
