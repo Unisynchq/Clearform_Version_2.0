@@ -3,6 +3,7 @@ import { evaluateResponseQualityApi } from '@/api/services/responseQualityServic
 import { isApiConfigured } from '@/config/env';
 import { evaluateResponseQuality } from '@/features/forms/utils/responseQualityScoring';
 
+/** Build handoff B.3 evaluate body — flat aliases + nested criteria.enabled blocks. */
 function buildEvaluatePayload({
   formId,
   screenId,
@@ -14,6 +15,13 @@ function buildEvaluatePayload({
 }) {
   const fieldType = fieldKind === 'longText' ? 'Long text' : 'Short text';
   const fieldId = fieldKind === 'longText' ? 'long-text' : 'short-text';
+  const length = options?.length ?? {};
+  const specificity = options?.specificity ?? {};
+  const relevance = options?.relevance ?? {};
+  const completeness = options?.completeness ?? {};
+  const topicKeywords = relevance.keywords ?? relevance.topicKeywords ?? '';
+  const keywordThreshold = relevance.matchThreshold ?? relevance.keywordThreshold ?? 1;
+
   return {
     formId: Number(formId),
     screenId: Number(screenId),
@@ -23,12 +31,29 @@ function buildEvaluatePayload({
     helperText: helperText ?? '',
     answerText,
     options: {
-      minWords: options?.length?.minWords,
-      sensitivity: options?.specificity?.sensitivity,
-      vagueWords: options?.specificity?.vagueWords,
-      topicKeywords: options?.relevance?.topicKeywords,
-      keywordThreshold: options?.relevance?.keywordThreshold,
-      criteria: options,
+      minWords: length.minWords,
+      sensitivity: specificity.sensitivity,
+      vagueWords: specificity.vagueWords,
+      topicKeywords,
+      keywordThreshold,
+      length,
+      specificity,
+      relevance: {
+        ...relevance,
+        topicKeywords,
+        keywordThreshold,
+      },
+      completeness,
+      criteria: {
+        length,
+        specificity,
+        relevance: {
+          ...relevance,
+          topicKeywords,
+          keywordThreshold,
+        },
+        completeness,
+      },
     },
   };
 }

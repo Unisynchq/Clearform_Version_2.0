@@ -46,6 +46,7 @@ export function mapConnectionsToUiState(connections) {
       connected: active,
       connectionId: row.id ?? row.connectionId,
       metadata: { ...(base[key].metadata ?? {}), ...(row.metadata ?? {}) },
+      health: row.health ?? null,
     };
   }
   return base;
@@ -69,6 +70,7 @@ export function mergeWorkspaceAndFormConnections(workspaceRows, formRows) {
       connected: Boolean(w?.connected || f?.connected),
       connectionId: w?.connectionId ?? f?.connectionId,
       metadata: { ...(w?.metadata ?? {}), ...(f?.metadata ?? {}) },
+      health: w?.health ?? f?.health ?? null,
     };
   }
   return merged;
@@ -177,6 +179,21 @@ export async function syncHistoricalToSheets(workspaceId, integrationId, formId)
     return await apiClient(
       API_ENDPOINTS.integrations.syncHistorical(workspaceId, integrationId),
       { method: 'POST', body: { formId } },
+    );
+  } catch (error) {
+    throw mapIntegrationError(error);
+  }
+}
+
+/** Write one test row to verify spreadsheet access (handoff B.9). */
+export async function testSheetConnection(workspaceId, integrationId, formId) {
+  if (!isApiConfigured() || !workspaceId || !integrationId) {
+    throw new Error('Test requires workspace and integration id');
+  }
+  try {
+    return await apiClient(
+      API_ENDPOINTS.integrations.testSheet(workspaceId, integrationId),
+      { method: 'POST', body: formId ? { formId } : {} },
     );
   } catch (error) {
     throw mapIntegrationError(error);

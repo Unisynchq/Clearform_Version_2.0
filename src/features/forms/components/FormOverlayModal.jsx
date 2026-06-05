@@ -17,7 +17,7 @@ import { formatResponseCount } from '@/constants';
 import { getFormBuilderState } from '../utils/formBuilderNavigation';
 import { navigateToFormBuilder } from '../utils/navigateToFormBuilder';
 import { useFormOverlayMetrics } from '@/hooks/useFormOverlayMetrics';
-import { fetchPerformanceAnalytics } from '@/api/services/analyticsService';
+import { fetchFormOverview, mapOverviewApiToUi } from '@/api/services/analyticsService';
 import { isApiConfigured } from '@/config/env';
 import FormOverlayModalSkeleton from '@/features/forms/components/formOverlay/FormOverlayModalSkeleton';
 import {
@@ -91,11 +91,10 @@ const FormOverlayModal = () => {
     setIsLoading(true);
     setFetchError(false);
     try {
-      const data = await fetchPerformanceAnalytics(formId, { range: 'all' });
-      const overview = data?.overview ?? null;
-      setPerfData(data);
-      setOverviewData(overview);
-      const limit = overview?.responseLimit ?? form?.responseLimit;
+      const data = await fetchFormOverview(formId);
+      setPerfData(null);
+      setOverviewData(mapOverviewApiToUi(data));
+      const limit = data?.responseLimit ?? form?.responseLimit;
       if (limit != null) {
         setResponseLimit(String(limit));
       }
@@ -278,7 +277,9 @@ const FormOverlayModal = () => {
       formId: form.id,
       formTitle: form.title,
       focusScreenId: aiInsight.screenId,
-      startBuilderTab: aiInsight.action === 'open_logic' ? 'logic' : 'content',
+      startBuilderTab:
+        aiInsight.builderTab ??
+        (aiInsight.action === 'open_logic' ? 'logic' : 'content'),
     });
   };
 

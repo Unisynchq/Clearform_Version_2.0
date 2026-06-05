@@ -38,6 +38,7 @@ import {
   saveIntegrationMetadata,
   redirectToOAuth,
   syncHistoricalToSheets,
+  testSheetConnection,
 } from '@/api/services/integrationsService';
 import { apiClient } from '@/api/client';
 import { API_ENDPOINTS } from '@/api/endpoints';
@@ -240,6 +241,7 @@ const ShareFormModal = () => {
   const [connectingKey, setConnectingKey] = useState(null);
   const [savingIntegration, setSavingIntegration] = useState(false);
   const [syncingSheets, setSyncingSheets] = useState(false);
+  const [testingSheet, setTestingSheet] = useState(false);
   const [sheetsSaved, setSheetsSaved] = useState(false);
   const [embedCopied, setEmbedCopied] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -513,6 +515,7 @@ const ShareFormModal = () => {
         message: `Synced ${result.synced} response(s) to Sheets.`,
         duration: 3200,
       });
+      await refreshIntegrations();
     } catch (err) {
       showToast({
         type: 'error',
@@ -523,6 +526,40 @@ const ShareFormModal = () => {
       setSyncingSheets(false);
     }
   };
+
+  const handleTestSheet = async () => {
+    const connectionId = integrations.googleSheets?.connectionId;
+    if (!workspaceId || !connectionId) return;
+    if (!(await ensureToken())) return;
+    setTestingSheet(true);
+    try {
+      await testSheetConnection(workspaceId, connectionId, formId);
+      showToast({
+        type: 'success',
+        message: 'Test row written to your spreadsheet.',
+        duration: 3200,
+      });
+      await refreshIntegrations();
+    } catch (err) {
+      showToast({
+        type: 'error',
+        message: err?.message || 'Sheet test failed — check spreadsheet ID and OAuth.',
+        duration: 3600,
+      });
+    } finally {
+      setTestingSheet(false);
+    }
+  };
+
+  const sheetsHealth = integrations.googleSheets?.health;
+  const sheetsSyncError =
+    sheetsHealth?.lastSyncError ??
+    integrations.googleSheets?.metadata?.lastSyncError ??
+    null;
+  const sheetsLastSyncAt =
+    sheetsHealth?.lastSyncAt ??
+    integrations.googleSheets?.metadata?.lastSyncAt ??
+    null;
 
   const handleChannelClick = (channelId) => {
     if ((channelId === 'slack' || channelId === 'sheets') && !isApiConfigured()) {
@@ -812,25 +849,43 @@ const ShareFormModal = () => {
                                 className="flex-1 text-[13px] outline-none bg-transparent"
                               />
                             </PanelInput>
-                            {sheetsSaved && (
+                            {sheetsSaved && !sheetsSyncError && (
                               <p className="text-[12px] text-[#4caf7d] font-medium">
                                 Spreadsheet linked — new responses will sync automatically.
                               </p>
                             )}
-                            <div className="flex gap-2">
+                            {sheetsSyncError ? (
+                              <p className="text-[12px] text-[#dc2626] font-medium">
+                                Sync error: {sheetsSyncError}
+                              </p>
+                            ) : null}
+                            {sheetsLastSyncAt && !sheetsSyncError ? (
+                              <p className="text-[11px] text-[#6b6965]">
+                                Last synced {new Date(sheetsLastSyncAt).toLocaleString()}
+                              </p>
+                            ) : null}
+                            <div className="flex gap-2 flex-wrap">
                               <button
                                 type="button"
                                 disabled={savingIntegration}
                                 onClick={handleSaveSheetsConfig}
-                                className="flex-1 h-9 rounded-[8px] bg-[#1a1917] text-white text-[12px] font-medium disabled:opacity-60"
+                                className="flex-1 min-w-[80px] h-9 rounded-[8px] bg-[#1a1917] text-white text-[12px] font-medium disabled:opacity-60"
                               >
                                 {savingIntegration ? 'Saving…' : sheetsSaved ? 'Saved' : 'Save'}
                               </button>
                               <button
                                 type="button"
+                                disabled={testingSheet || !spreadsheetId.trim()}
+                                onClick={handleTestSheet}
+                                className="flex-1 min-w-[80px] h-9 rounded-[8px] border border-[#e0ddd7] bg-white text-[12px] font-medium disabled:opacity-60"
+                              >
+                                {testingSheet ? 'Testing…' : 'Test sheet'}
+                              </button>
+                              <button
+                                type="button"
                                 disabled={syncingSheets || !spreadsheetId.trim()}
                                 onClick={handleSyncHistorical}
-                                className="flex-1 h-9 rounded-[8px] border border-[#e0ddd7] bg-white text-[12px] font-medium"
+                                className="flex-1 min-w-[80px] h-9 rounded-[8px] border border-[#e0ddd7] bg-white text-[12px] font-medium disabled:opacity-60"
                               >
                                 {syncingSheets ? 'Syncing…' : 'Sync existing'}
                               </button>

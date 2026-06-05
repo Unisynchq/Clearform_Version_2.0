@@ -39,6 +39,7 @@ export const API_ENDPOINTS = {
     responses: (formId) => `/analytics/forms/${formId}/responses`,
     compare: (formId) => `/analytics/forms/${formId}/compare`,
     aiInsights: (formId) => `/analytics/forms/${formId}/ai-insights`,
+    overview: (formId) => `/analytics/forms/${formId}/overview`,
   },
   logic: {
     generate: (formId) => `/forms/${formId}/logic/generate`,
@@ -59,6 +60,8 @@ export const API_ENDPOINTS = {
     formList: (formId) => `/forms/${formId}/integrations`,
     syncHistorical: (workspaceId, integrationId) =>
       `/workspaces/${workspaceId}/integrations/${integrationId}/sync-historical`,
+    testSheet: (workspaceId, integrationId) =>
+      `/workspaces/${workspaceId}/integrations/${integrationId}/test-sheet`,
   },
   webhooks: {
     list: (formId) => `/forms/${formId}/webhooks`,
