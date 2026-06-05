@@ -1,3 +1,4 @@
+import { isApiConfigured } from '@/config/env';
 import { writeUserForms } from '@/features/forms/utils/userFormsStorage';
 import { writeAllFormResponses } from '@/features/forms/utils/formResponsesStorage';
 import { writeWorkspaces, syncWorkspaceCounts } from '@/features/forms/utils/workspacesStorage';
@@ -31,9 +32,11 @@ const UI_ACTIONS = new Set([
 ]);
 
 const persistFormsSlice = (formsState) => {
-  writeUserForms(formsState.forms);
-  writeAllFormResponses(formsState.responsesByFormId ?? {});
-  writeWorkspaces(syncWorkspaceCounts(formsState.workspaces, formsState.forms));
+  if (!isApiConfigured()) {
+    writeUserForms(formsState.forms);
+    writeAllFormResponses(formsState.responsesByFormId ?? {});
+    writeWorkspaces(syncWorkspaceCounts(formsState.workspaces, formsState.forms));
+  }
   writeFormsUi({
     activeFilter: formsState.activeFilter,
     activeWorkspace: formsState.activeWorkspace,

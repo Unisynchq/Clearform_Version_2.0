@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   RiShareLine,
@@ -33,8 +34,7 @@ import { readLastWorkspaceId } from '@/features/auth/utils/authClientContext';
 import { loadWorkspacesFromApi } from '@/store/slices/formsSlice';
 import {
   connectIntegration,
-  listFormIntegrations,
-  mapConnectionsToUiState,
+  loadIntegrationUiState,
   saveIntegrationMetadata,
   redirectToOAuth,
   syncHistoricalToSheets,
@@ -211,6 +211,7 @@ const SHARE_CHANNELS = [
 ───────────────────────────────────────── */
 const ShareFormModal = () => {
   const dispatch = useDispatch();
+  const [searchParams] = useSearchParams();
   const { showToast } = useToast();
   const { open, formTitle, formId } = useSelector((s) => s.ui.shareModal);
   const forms = useSelector((s) => s.forms.forms ?? []);
@@ -227,9 +228,10 @@ const ShareFormModal = () => {
 
   const [shareLinks, setShareLinks] = useState(null);
   const [activeChannel, setActiveChannel] = useState(null);
-  const [integrations, setIntegrations] = useState(() =>
-    mapConnectionsToUiState([]),
-  );
+  const [integrations, setIntegrations] = useState({
+    googleSheets: { connected: false },
+    slack: { connected: false },
+  });
   const [spreadsheetId, setSpreadsheetId] = useState('');
   const [sheetRange, setSheetRange] = useState('Sheet1!A1');
   const [slackChannel, setSlackChannel] = useState('');
@@ -302,8 +304,7 @@ const ShareFormModal = () => {
   const refreshIntegrations = useCallback(async () => {
     if (!isApiConfigured() || !formId) return;
     try {
-      const rows = await listFormIntegrations(formId);
-      const mapped = mapConnectionsToUiState(rows);
+      const mapped = await loadIntegrationUiState({ workspaceId, formId });
       setIntegrations(mapped);
       setSpreadsheetId(mapped.googleSheets?.metadata?.spreadsheetId ?? '');
       setSheetRange(mapped.googleSheets?.metadata?.sheetRange ?? 'Sheet1!A1');
@@ -315,7 +316,7 @@ const ShareFormModal = () => {
     } catch {
       /* keep prior */
     }
-  }, [formId]);
+  }, [formId, workspaceId]);
 
   useEffect(() => {
     if (!open) {
@@ -326,6 +327,18 @@ const ShareFormModal = () => {
     }
     refreshIntegrations();
   }, [open, refreshIntegrations]);
+
+  useEffect(() => {
+    if (!open || !isApiConfigured()) return;
+    const connected = searchParams.get('connected');
+    if (!connected) return;
+    refreshIntegrations();
+    showToast({
+      type: 'success',
+      message: `${connected.replace(/_/g, ' ')} connected successfully.`,
+      duration: 2800,
+    });
+  }, [open, searchParams, refreshIntegrations, showToast]);
 
   useEffect(() => {
     if (!open || !formId || !isApiConfigured() || activeForm?.workspace) return;
@@ -356,6 +369,14 @@ const ShareFormModal = () => {
   };
 
   const handleConnectProvider = async (feKey) => {
+    if (!isApiConfigured()) {
+      showToast({
+        type: 'error',
+        message: 'Connect your API to link integrations.',
+        duration: 3200,
+      });
+      return;
+    }
     if (!workspaceId) {
       showToast({
         type: 'error',
@@ -494,6 +515,14 @@ const ShareFormModal = () => {
   };
 
   const handleChannelClick = (channelId) => {
+    if ((channelId === 'slack' || channelId === 'sheets') && !isApiConfigured()) {
+      showToast({
+        type: 'error',
+        message: 'Connect your API to configure Slack or Google Sheets.',
+        duration: 3200,
+      });
+      return;
+    }
     setActiveChannel((prev) => (prev === channelId ? null : channelId));
     if (channelId === 'email' && fullUrl) {
       const body = encodeURIComponent(buildShareMessage(formTitle, fullUrl));
@@ -738,6 +767,9 @@ const ShareFormModal = () => {
                         <p className="text-[12px] text-[#6b6965]">
                           Connect Google Sheets, paste your spreadsheet ID, then new responses sync automatically.
                         </p>
+                        {integrations.googleSheets?.connected ? (
+                          <p className="text-[12px] font-medium text-[#16a34a]">Google Sheets connected</p>
+                        ) : null}
                         {!integrations.googleSheets?.connectionId ? (
                           <button
                             type="button"
@@ -803,6 +835,9 @@ const ShareFormModal = () => {
                         <p className="text-[12px] text-[#6b6965]">
                           New responses post to your Slack channel when the form is submitted.
                         </p>
+                        {integrations.slack?.connected ? (
+                          <p className="text-[12px] font-medium text-[#16a34a]">Slack connected</p>
+                        ) : null}
                         {!integrations.slack?.connectionId ? (
                           <button
                             type="button"

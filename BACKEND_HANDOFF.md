@@ -82,9 +82,69 @@ When implementing `POST /forms/:id/publish` and `GET /forms/:id/published`, roun
 
 ---
 
+### 2026-06-04 — API wiring, demo removal, integrations & QA prep (frontend)
+
+| Field | Value |
+|-------|--------|
+| **Scope** | Frontend-only (local / pending push to `main`) |
+| **Backend changes** | **None required** for these UI changes — consumes existing contract in `src/api/endpoints.js` |
+
+#### Shipped on frontend (when `VITE_API_BASE_URL` is set)
+
+| Area | What changed |
+|------|----------------|
+| **App load** | `formsService.listForms()`; skip localStorage seed when API on |
+| **Builder** | Draft/publish via services; autosave debounce 5s + unchanged-snapshot skip |
+| **Back button** | `performLeaveBuilder()` → explicit `/dashboard` or `/onboarding` (never `navigate(-1)`) |
+| **Logic tab** | **Generate Logic** banner sticky in AI-Driven mode |
+| **Analytics** | Real API only; removed Sample data badge, mock charts, `client-demo` stubs, fake AI insights |
+| **Responses** | Public submit via `responsesService`; analytics responses panel from API |
+| **Response quality** | `useResponseQualityEvaluation` on builder preview **and** live `FormRespondentView` |
+| **Profile** | `PATCH /auth/me`, `DELETE /auth/me`, Firebase `sendPasswordResetEmail`; no demo toasts |
+| **Share modal** | Slack/Sheets OAuth, embed from share-links API, webhooks CRUD + test |
+| **Integrations** | `loadIntegrationUiState()` merges workspace OAuth + per-form config; no localStorage when API on |
+
+Key files: `ShareFormModal.jsx`, `ManageIntegrationsModal.jsx`, `IntegrationsPanel.jsx`, `integrationsService.js`, `analyticsService.js`, `ProfilePage.jsx`, `FormBuilderPage.jsx`.
+
+#### QA after FE deploy (run before release)
+
+```bash
+npm run build
+npm run audit:handoff    # must pass
+npm test
+npm run test:published # optional — preview/publish parity locally
+```
+
+| # | Manual step | Pass criteria |
+|---|-------------|---------------|
+| 1 | Sign in → dashboard → open form → **Back** | Lands on `/dashboard` (never `/signin`) |
+| 2 | Publish → incognito `/f/:formId` → submit | `POST /forms/:id/responses` succeeds |
+| 3 | Analytics `?form=thatId` | New response in Responses tab; performance count updates |
+| 4 | Response quality | Same nudges on builder preview and live `/f/:id` (API or heuristics offline) |
+| 5 | Preview vs published | Theme, intro, logic, blocks match (`FormRespondentView` + `ContentCard`) |
+
+Requires live API + backend for steps 2–3 in production. Offline mode uses `publishedFormStorage` only.
+
+#### One-time product note (founder + FE)
+
+**Forms published before the preview-parity fix (`25b56eb`) must be republished once** from the builder so the server snapshot includes latest `theme`, `intro` (logo, essential), and merged `logicIfRulesByEdge`. Live `/f/:id` reads **published** JSON only — not the draft.
+
+Suggested user-facing copy: *“Republish forms that were live before [date] so respondents see your latest design and logic.”*
+
+#### Not frontend — do not assign to FE dev
+
+| Owner | Item |
+|-------|------|
+| VPS / DevOps | `SENTRY_DSN` on server |
+| VPS / DevOps | Upstash Redis quota |
+| VPS / Backend | Composio dashboard + OAuth redirect URLs on server |
+| VPS / Backend | API deploy, DB migrations, webhooks delivery queue |
+
+---
+
 ## READ THIS FIRST — Product review and backend obligations
 
-This block was added after hands-on QA of the Clearform v2 frontend on `main`. The UI is largely complete but still runs on **localStorage** and **demo data** in several places. Your APIs are what turn this into a real product. Do not skip this section.
+This block was added after hands-on QA of the Clearform v2 frontend on `main`. The UI is largely complete; **many flows are now wired to `src/api/services/*` when `VITE_API_BASE_URL` is set.** Remaining gaps are mostly **backend endpoints**, **VPS/infra**, and **end-to-end QA on production**. Do not skip this section.
 
 
 ### A. Data, tasks, and outcomes
@@ -94,7 +154,7 @@ This block was added after hands-on QA of the Clearform v2 frontend on `main`. T
 
 The frontend on `main` is structurally ready for backend integration: API client, endpoint map, and service facades exist under `src/api/`. Today, many flows still work offline via `localStorage` and seeded demo forms. Product testing found specific gaps between what users see and what a production backend must provide. The items below are **blocking** for a proper handoff — not nice-to-haves.
 
-Frontend will wire each endpoint as you ship it (`VITE_API_BASE_URL` + `VITE_USE_MOCK_API=false`). Until then, demo fallbacks remain visible in places (called out below).
+Frontend services are wired when `VITE_API_BASE_URL` is set (`VITE_USE_MOCK_API=false`). Remaining work is **backend implementation**, **VPS/infra**, and **production QA** — not additional demo UI.
 
 
 #### A.2 The `formId` rule (read this before any endpoint design)
@@ -122,18 +182,18 @@ Public routes (`GET /forms/:id/published`, `POST /forms/:id/responses`) must not
 #### A.3 Task list (who does what)
 
 
-| # | Task | Primary owner | Outcome when done |
-|---|------|---------------|-------------------|
-| 1 | Form builder **Back** goes to Dashboard, not Sign in | Frontend | User never lands on `/signin` after Back from builder |
-| 2 | **Responses** tied to the correct form | Backend + Frontend | Submit on `/f/:formId` creates a row; Analytics shows it for that `formId` only |
-| 3 | **Response Quality AI** uses question + answer + sidebar parameters | Backend (+ Frontend wire) | Same quality feedback on live form as in builder preview |
-| 4 | **Published form** matches builder **Preview** (design + logic) | Backend stores snapshot; Frontend renders it | `/f/:id` looks and behaves like preview mode |
-| 5 | **Settings** — delete account, password reset, profile, integrations | Backend + Frontend | No “not available in this demo” toasts |
-| 6 | **Do not save draft** many times for one edit | Frontend (debounce/dedupe); Backend accepts PUT | One meaningful snapshot write per edit burst + on leave/publish |
-| 7 | Logic tab — **Generate Logic** control always visible | Frontend | User can always re-run or start AI logic from Logic tab |
-| 8 | **Form ↔ Integrations ↔ Analytics** all use same `formId` | Backend scoped APIs + Frontend URLs | Picking form 123 in builder = analytics `?form=123` = webhooks for 123 |
-| 9 | **Integrations** actually connect and fire | Backend OAuth/webhooks | Connect, test, and deliver events from UI |
-| 10 | **Remove demo** surfaces when APIs are live | Frontend (after your APIs) | No “Sample data”, seed counts, or demo toasts in production |
+| # | Task | Primary owner | FE status | Outcome when done |
+|---|------|---------------|-----------|-------------------|
+| 1 | Form builder **Back** goes to Dashboard, not Sign in | Frontend | **Done** | User never lands on `/signin` after Back from builder |
+| 2 | **Responses** tied to the correct form | Backend + Frontend | **FE wired** — needs live API | Submit on `/f/:formId` creates a row; Analytics shows it for that `formId` only |
+| 3 | **Response Quality AI** uses question + answer + sidebar parameters | Backend (+ Frontend wire) | **FE wired** — needs evaluate API | Same quality feedback on live form as in builder preview |
+| 4 | **Published form** matches builder **Preview** (design + logic) | Backend stores snapshot; Frontend renders it | **Done** (render); **republish** old forms | `/f/:id` looks and behaves like preview mode |
+| 5 | **Settings** — delete account, password reset, profile, integrations | Backend + Frontend | **Done** (profile/OAuth UI) | No demo toasts; real APIs or Firebase reset |
+| 6 | **Do not save draft** many times for one edit | Frontend (debounce/dedupe); Backend accepts PUT | **Done** (5s debounce + dedupe) | One meaningful snapshot write per edit burst + on leave/publish |
+| 7 | Logic tab — **Generate Logic** control always visible | Frontend | **Done** (sticky banner) | User can always re-run or start AI logic from Logic tab |
+| 8 | **Form ↔ Integrations ↔ Analytics** all use same `formId` | Backend scoped APIs + Frontend URLs | **Done** (URLs + panel `formId`) | Picking form 123 in builder = analytics `?form=123` = webhooks for 123 |
+| 9 | **Integrations** actually connect and fire | Backend OAuth/webhooks | **FE wired** — needs Composio + queue | Connect, test, and deliver events from UI |
+| 10 | **Remove demo** surfaces when APIs are live | Frontend (after your APIs) | **Done** | No “Sample data”, seed charts, or demo toasts when API on |
 
 
 #### A.4 Outcomes (what “done” looks like for users)
@@ -177,19 +237,19 @@ In the form builder, pressing the header **Back** control sometimes navigates to
 
 **What the frontend does today**
 
-In `src/features/forms/pages/FormBuilderPage.jsx`, `performLeaveBuilder()` calls `navigate(-1)` when browser history length is greater than 1. If the user’s history stack includes `/signin` before `/dashboard`, Back goes to sign-in. This is a **frontend routing bug**; no API is involved.
+**Fixed.** `performLeaveBuilder()` in `FormBuilderPage.jsx` navigates explicitly to `/dashboard`, or `/onboarding` when `fromOnboarding` or the onboarding stepper is active. It does **not** call `navigate(-1)`.
 
 **What backend must build**
 
 Nothing. No endpoint change.
 
-**How frontend will connect**
+**How frontend connects**
 
-Frontend will remove `navigate(-1)` and always use explicit routes: `/dashboard` or `/onboarding` when `fromOnboarding` is true.
+No further frontend work required for this item.
 
 **Done when**
 
-Sign in → dashboard → open any form → Back → dashboard. Sign in must never appear.
+Sign in → dashboard → open any form → Back → dashboard. Sign in must never appear. *(Re-verify after each FE deploy — see QA table in implementation log above.)*
 
 ---
 
@@ -210,7 +270,8 @@ The Analytics **Responses** tab and dashboard **response counts** do not reliabl
 
 - Analytics reads `selectFormResponses` from Redux `forms.responsesByFormId[formId]` (`src/store/slices/formsSlice.js`).
 - `src/components/analytics/AnalyticsResponsesPanel.jsx` builds table columns from the builder draft + stored responses.
-- `src/features/forms/pages/PublicFormPage.jsx` and `src/features/forms/components/FormRespondentView.jsx` run the form to completion but **do not** call `addFormResponse` or `appendFormResponse` (`src/features/forms/utils/formResponsesStorage.js`) when the respondent finishes.
+- When API is configured, `FormRespondentView.jsx` calls `submitFormResponse()` (`responsesService`) on completion; Analytics loads via `analyticsService` / `fetchFormResponses`.
+- When API is **not** configured, submissions still use local `formResponsesStorage` paths only.
 - Demo forms in `src/constants/index.js` can show `responses: 500` (etc.) while `responsesByFormId` has no rows for that id.
 
 **What backend must build**
@@ -288,7 +349,7 @@ Response quality scoring in the builder preview can nudge the user about answer 
 - `src/features/forms/utils/responseQualityScoring.js` — client-side heuristics only; file comment says “Dummy … (no AI)”.
 - `src/features/forms/formBuilder/BuilderContentCard.jsx` calls `evaluateResponseQuality()` in **preview mode** only.
 - Settings live in screen `config` and in panel state, synced via `screenConfigSync.js` into the publish snapshot (`longTextResponseQualityEnabled`, `longTextResponseQualityOptions`, `shortTextResponseQuality*`).
-- `PublicFormPage` / `FormRespondentView` **do not** call quality evaluation today.
+- `useResponseQualityEvaluation` in `BuilderContentCard.jsx` and `FormRespondentView.jsx` (via `responseQualityFormId`) calls `POST .../response-quality/evaluate` when API is configured; falls back to `responseQualityScoring.js` heuristics offline.
 
 **What backend must build**
 
@@ -411,43 +472,43 @@ Change theme and add a logic branch in builder → publish → open `/f/:id` →
 
 **What we saw**
 
-Profile and settings actions show toast messages like **“not available in this demo”** instead of performing real operations (delete account, password reset email, some integration configuration).
+Profile and settings actions previously showed demo toasts instead of real operations.
 
 **What should happen**
 
 - Delete account removes the user and their session.
-- Password reset sends email (or your auth provider flow).
-- Profile fields save to the server.
-- Integration connect/disconnect persists and reflects in the form builder / integrations UI.
+- Password reset sends email via **Firebase** (not a custom backend forgot-password route).
+- Profile fields save to the server when API is configured.
+- Integration connect/disconnect persists and reflects in builder / share / profile UI.
 
 **What the frontend does today**
 
-| Action | File |
-|--------|------|
-| Delete account | `src/features/profile/pages/ProfilePage.jsx` |
-| Password reset | `src/features/profile/components/ProfileSecurityPanel.jsx` |
-| Integration config toast | `src/features/profile/components/ProfileIntegrationsPanel.jsx` |
-| Integrations modal | `src/features/forms/components/ManageIntegrationsModal.jsx` (local storage via `profileIntegrationDefaults`) |
+| Action | Implementation |
+|--------|----------------|
+| Delete account | `DELETE /auth/me` via `authMeService.deleteAccount()` — then Firebase `signOutUser()` (`ProfilePage.jsx`) |
+| Password reset | Firebase `sendPasswordResetEmail` (`ProfileSecurityPanel.jsx`) |
+| Profile save | `PATCH /auth/me` via `authMeService.updateMe()` when API configured (`ProfilePage.jsx`) |
+| Integrations (profile) | Workspace OAuth via `integrationsService` (`ProfileIntegrationsPanel.jsx`) |
+| Integrations (form) | `ManageIntegrationsModal.jsx`, `ShareFormModal.jsx`, `IntegrationsPanel.jsx` — see **B.9** |
 
 **What backend must build**
 
-| Action | Suggested API |
-|--------|----------------|
-| Delete account | `DELETE /auth/me` or `POST /auth/delete-account` (confirm body if needed) |
-| Password reset | `POST /auth/forgot-password` with `{ "email" }` |
-| Update profile | `PATCH /auth/me` — name, email, display name, avatar |
-| Change password | `POST /auth/change-password` when logged in |
-| Sign out | `POST /auth/sign-out` |
+| Action | API |
+|--------|-----|
+| Delete account | `DELETE /auth/me` |
+| Update profile | `PATCH /auth/me` |
+| Password reset | **Firebase Auth** (frontend-only; no custom `/auth/forgot-password` required) |
+| Change password (logged in) | Firebase or `POST /auth/change-password` if you add server-side validation |
 
 Integrations are covered in B.8 and B.9.
 
-**How frontend will connect**
+**How frontend connects**
 
-Replace demo toasts with API calls; on 401 use existing `ApiError` handling (sign out). Show success/error toasts from server messages.
+Wired. On 401, existing `ApiError` handling signs the user out. No `"not available in this demo"` strings remain.
 
 **Done when**
 
-Delete account → user logged out and cannot sign in with same credentials. Forgot password → email flow triggered (or valid error). No demo toast strings in production.
+Delete account → user logged out. Forgot password → Firebase email sent (or real error). Profile save hits `PATCH /auth/me` when API is on.
 
 ---
 
@@ -465,7 +526,7 @@ The form builder feels like it saves the draft **over and over** while editing (
 
 **What the frontend does today**
 
-`FormBuilderPage.jsx` (~lines 3800–3844): **1 second debounced** `useEffect` with a **large dependency list** (screens, logic, theme, settings, AI status, etc.). Each firing calls `writeBuilderDraft()` and Redux `updateForm`. Identical snapshots may still rewrite localStorage.
+**Improved.** `FormBuilderPage.jsx` autosave uses a **5 second debounce**, skips persist when `JSON.stringify(snapshot)` is unchanged (`lastPersistedSnapshotRef`), and routes through `formsService` when API is configured (no direct `writeBuilderDraft` in API mode). `flushBuilderDraft()` still runs on leave/publish.
 
 **What backend must build**
 
@@ -476,13 +537,13 @@ The form builder feels like it saves the draft **over and over** while editing (
 
 Do not implement partial field-level PATCH unless agreed with frontend — the UI sends the whole snapshot from `buildPublishSnapshot()`.
 
-**How frontend will connect**
+**How frontend connects**
 
-Frontend will increase debounce, skip write when snapshot hash unchanged, and keep `flushBuilderDraft()` on leave/publish. Will call `formsService.saveBuilderSnapshot` when API is configured instead of direct `writeBuilderDraft`.
+Wired when `VITE_API_BASE_URL` is set. Backend should accept idempotent full PUTs.
 
 **Done when**
 
-Edit one field, wait — only one network PUT (or one local write) after pause; leaving builder always persists latest snapshot once.
+Edit one field, wait — only one network PUT after pause; leaving builder always persists latest snapshot once.
 
 ---
 
@@ -499,9 +560,7 @@ On the Logic tab, the **“Generate Logic”** banner (AI-Driven Logic) **disapp
 
 **What the frontend does today**
 
-- `AiLogicIdleBanner.jsx` — “Generate Logic” button.
-- Shown only when `!showLogicCanvas`, where `showLogicCanvas = logicModeManual || aiLogicReady || hasLogicOnCanvas`. Once connections exist, the banner is **hidden**.
-- AI generation API: `POST /forms/:id/logic/generate` — already documented; `logicService` wired when API configured.
+**Fixed.** `AiLogicIdleBanner` is in a **sticky Logic tab header** whenever AI-Driven mode is active (`!logicModeManual`), including after connections exist on the canvas. `logicService.generateFormLogic` is called when API is configured.
 
 **What backend must build**
 
@@ -518,9 +577,9 @@ POST /forms/:formId/logic/generate
 
 Response: `{ "connections", "ifRulesByEdge", "showIfByScreenId" }` per `applyAiLogicResult.js`. Support **regenerate** (replace or merge — document your behavior; frontend can replace canvas state). Rate limit with **429** and clear JSON error message.
 
-**How frontend will connect**
+**How frontend connects**
 
-Frontend will use a **sticky** Logic tab header with always-visible Generate Logic; calling `logicService.generateFormLogic` on each click when API is set.
+Wired. No further frontend work required for visibility.
 
 **Done when**
 
@@ -542,9 +601,10 @@ Analytics, integrations, and the form builder can feel like separate apps — e.
 
 **What the frontend does today**
 
-- Analytics: `useAnalyticsPageState.js` — `?form=` query param (good pattern).
-- Builder settings: “Manage integrations” may navigate to profile without scoping to `activeFormId`.
-- `IntegrationsPanel.jsx` redirects to `/dashboard/profile?tab=integrations`.
+- Analytics: `useAnalyticsPageState.js` — `?form=` query param.
+- Builder: `IntegrationsPanel.jsx` resolves `formId` from panel state → overlay → URL param; **Manage all** → `/dashboard/analytics?form={id}&tab=settings`.
+- `ManageIntegrationsModal` receives `formId` + `workspaceId` from `FormBuilderSettingsPanel.jsx`.
+- `uiSlice.integrationsPanel.formId` set by `openIntegrationsPanel`.
 
 **What backend must build**
 
@@ -575,9 +635,9 @@ Webhook JSON on `response.created` example:
 }
 ```
 
-**How frontend will connect**
+**How frontend connects**
 
-Pass `activeFormId` into integration modals; link from form overlay to `/dashboard/analytics?form={id}`; store integration config keyed by form on server, not only in profile localStorage.
+Wired. Integration modals and share UI pass `formId`; server is source of truth when API is on.
 
 **Done when**
 
@@ -585,36 +645,44 @@ Two forms A and B — webhook test for A fires only on A’s submit; analytics f
 
 ---
 
-#### B.9 Integrations must work (not just UI placeholders)
+#### B.9 Integrations & Share must work (not just UI placeholders)
 
 **What we saw**
 
-Integrations UI exists (webhook URL, Google Sheets, etc.) but connection is **local/profile storage** or demo — not a live backend.
+Integrations UI existed but connection was **local/profile storage** or demo — not a live backend.
 
 **What should happen**
 
-- User can connect Google Sheets (or your supported providers), save webhook URL, **test** delivery, and receive events on new responses.
-- Connection status (connected / error) is visible per form or per account per your product model.
+- **Share modal:** Slack / Sheets / Embed / Email use real OAuth + API (not local-only).
+- **Integrations modal:** Read/write workspace + form integrations API; connected status from server.
+- User can save webhook URL, **test** delivery, and receive events on new responses.
 
 **What the frontend does today**
 
-- `ManageIntegrationsModal.jsx`, `IntegrationsPanel.jsx`, `profileIntegrationDefaults.js`, `readIntegrationSettings(email)`.
-- Razorpay billing remains placeholder (`RazorpayCheckoutPlaceholder.jsx`) — separate from form integrations.
+| Surface | Behavior when `VITE_API_BASE_URL` is set |
+|---------|------------------------------------------|
+| `ShareFormModal.jsx` | `fetchShareLinks`; Slack/Sheets OAuth via `connectIntegration` + redirect; metadata via `saveIntegrationMetadata`; webhooks CRUD + test; embed from API URL; email via `mailto:` |
+| `ManageIntegrationsModal.jsx` | `loadIntegrationUiState({ workspaceId, formId })`; OAuth connect/disconnect; no localStorage |
+| `IntegrationsPanel.jsx` | Server badges via `loadIntegrationUiState`; webhook connected from `listFormWebhooks` |
+| `ProfileIntegrationsPanel.jsx` | Workspace `listWorkspaceIntegrations` + OAuth |
+| `integrationsService.js` | `mergeWorkspaceAndFormConnections`, `loadIntegrationUiState` |
+
+Razorpay billing remains placeholder (`RazorpayCheckoutPlaceholder.jsx`) — separate from form integrations.
 
 **What backend must build**
 
-- OAuth flows or API keys per provider (at minimum **webhook** + one of Sheets/Slack if product requires).
-- Persist connection per user and/or per `formId`.
+- Composio (or equivalent) OAuth for `google_sheets`, `slack`, `google_drive` on workspace routes.
+- `GET/PATCH /workspaces/:id/integrations` and `GET/PATCH /forms/:formId/integrations`.
 - `POST .../webhooks/.../test` returns success/failure with log snippet.
 - Delivery queue with retries; store last error on integration record.
 
-**How frontend will connect**
+**How frontend connects**
 
-Replace localStorage merge with GET/PATCH integrations API; show connected badges from server truth.
+Wired. Backend must return connection rows with `provider`, `id`, `active`, `metadata` as documented in `mapConnectionsToUiState`.
 
 **Done when**
 
-Paste webhook URL → Test → 200 and sample payload received; submit real response → webhook receives `response.created`.
+Share → Connect Slack/Sheets → OAuth completes → connected badge shows → save spreadsheet/channel → submit response → webhook/Sheets fire.
 
 ---
 
@@ -622,35 +690,39 @@ Paste webhook URL → Test → 200 and sample payload received; submit real resp
 
 **What we saw**
 
-Parts of the app still show **demo / sample** behavior: fake analytics, seed forms, demo toasts, mock AI insights copy, `client-demo` service fallbacks.
+Parts of the app showed **demo / sample** behavior: fake analytics, demo toasts, mock AI insights, `client-demo` stubs.
 
 **What should happen**
 
-When `VITE_API_BASE_URL` is set and your endpoints return real data, users should never see misleading demo content.
+When `VITE_API_BASE_URL` is set, users should never see misleading demo content.
 
-**What the frontend does today (remove as you ship APIs)**
+**What the frontend does today**
 
-| Demo surface | Location | Remove when |
-|--------------|----------|-------------|
-| “Sample data” badge | `src/pages/AnalyticsPage.jsx` | Analytics APIs return real series |
-| Hardcoded AI insights | `src/components/analytics/AnalyticsAiInsightsPanel.jsx` | `POST .../ai-insights` |
-| Demo performance/compare charts | `analyticsStats.js`, compare panels | `GET performance`, `GET compare` |
-| Seed forms | `src/constants/index.js` bootstrap | `GET /forms` on app load |
-| Demo toasts | Profile pages | Real auth/profile APIs |
-| `source: 'client-demo'` | `src/api/services/analyticsService.js` | API configured |
-| Local-only responses | `formResponsesStorage` | `POST/GET responses` |
+**Removed or gated** (when API configured):
+
+| Former demo surface | Status |
+|---------------------|--------|
+| “Sample data” badge (`AnalyticsPage.jsx`) | Removed |
+| `TOP_PATTERNS` / mock AI insights | Removed; empty or API-only |
+| Demo performance/compare charts | Removed; empty states (“No responses yet”) |
+| `METRIC_ROWS` compare table | Removed |
+| `client-demo` in `analyticsService.js` | Removed; empty payloads offline |
+| Demo integration/profile toasts | Removed; real errors or OAuth |
+| Seed analytics in `deriveFormStats` display path | Removed for analytics UI |
+
+Offline mode (no `VITE_API_BASE_URL`) still uses localStorage for forms/responses — intended for local dev only.
 
 **What backend must build**
 
-Ship the endpoints in Priorities 1–2 and 2.5 so frontend can delete fallbacks. Return explicit empty states (`{ items: [], total: 0 }`) instead of errors when no data.
+Return explicit empty states (`{ items: [], total: 0 }`) instead of errors when no data. Ship Priorities 1–2 endpoints so production never runs in offline mode.
 
-**How frontend will connect**
+**How frontend connects**
 
-Frontend removes mock constants in the same PR that wires your endpoint; coordinates with you on field names.
+Complete for demo removal. Coordinate field names when adding new analytics/insights shapes.
 
 **Done when**
 
-Production `.env` has API URL — no “Sample data”, no demo toasts, empty analytics shows “no responses yet” not fake charts.
+Production `.env` has API URL — no “Sample data”, no demo toasts, empty analytics shows “No responses yet” not fake charts.
 
 
 ---
@@ -718,14 +790,16 @@ Frontend uses `VITE_API_BASE_URL` (e.g. `https://api.yourdomain.com/v1`). Enable
 
 #### C.10 Test with the real UI
 
-Recommended manual path:
+Recommended manual path (matches **QA after FE deploy**):
 
-1. Sign up → onboarding → create form in builder
+1. Sign in → dashboard → open form → **Back** → must land on `/dashboard`
 2. Add questions, theme, logic (AI or manual)
-3. Publish
+3. **Publish** (republish if form was live before preview-parity fix)
 4. Open `/f/:formId` in incognito, complete submission
-5. Sign in → Analytics `?form=thatId` → Responses tab
-6. Connect webhook → test → submit again → verify delivery
+5. Sign in → Analytics `?form=thatId` → Responses tab + performance count
+6. Compare builder **Preview** vs incognito — visual parity
+7. Share modal → Slack/Sheets OAuth (if enabled) → webhook test → submit again → verify delivery
+8. `npm run audit:handoff` before tagging release
 
 Run frontend with:
 
@@ -761,9 +835,11 @@ Add rows to **Questions for product/backend** at the end of this file if you nee
 | Responses | `formResponsesStorage` | `GET/POST /forms/:id/responses` |
 | Workspaces | `workspacesStorage` | `GET/POST/PATCH/DELETE /workspaces` |
 | Templates | Static catalog + `fetchTemplates` stub | `GET /templates` |
-| Analytics | **Demo / sample data in components** | Real aggregates + time series |
-| AI logic | Local stub when no API; **`logicService` wired** when `VITE_API_BASE_URL` set | `POST /forms/:id/logic/generate` |
-| Response quality | Frontend heuristics (builder preview only) | `POST /forms/:id/response-quality/evaluate` (proposed) |
+| Analytics | **`analyticsService` when API on**; empty states offline | Real aggregates + time series |
+| AI logic | Local stub when no API; **`logicService` wired** when API set | `POST /forms/:id/logic/generate` |
+| Response quality | **API + heuristics** on preview and live form (`useResponseQualityEvaluation`) | `POST /forms/:id/response-quality/evaluate` |
+| Integrations / Share | **`integrationsService` + webhooks** when API on | Workspace OAuth + form PATCH + webhook queue |
+| Profile | **`PATCH/DELETE /auth/me`**; Firebase password reset | Same |
 | Notifications | `notificationsStorage` | `GET /notifications` |
 
 Frontend API scaffolding (ready to wire):
@@ -783,7 +859,14 @@ VITE_API_BASE_URL=https://api.yourdomain.com/v1
 VITE_USE_MOCK_API=false
 ```
 
-Run handoff audit before release: `npm run audit:handoff`
+Run before every FE release:
+
+```bash
+npm run build
+npm run audit:handoff   # favicon/title + JSX sanity — must exit 0
+```
+
+See **QA after FE deploy** in the implementation log (2026-06-04) for the full manual checklist.
 
 ---
 

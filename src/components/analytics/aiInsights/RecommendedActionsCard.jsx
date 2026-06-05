@@ -3,10 +3,6 @@ import { motion } from 'motion/react';
 import { RiArrowRightSLine } from 'react-icons/ri';
 import MoreDetailsTrigger from './MoreDetailsTrigger';
 import EffortDots from './EffortDots';
-import {
-  RECOMMENDED_ACTIONS_COMPACT,
-  RECOMMENDED_ACTIONS_EXPANDED,
-} from './recommendedActionsData';
 
 function RecommendedActionCompactCell({ action }) {
   return (
@@ -38,7 +34,7 @@ function RecommendedActionCompactCell({ action }) {
   );
 }
 
-function RecommendedActionsExpanded({ actions = RECOMMENDED_ACTIONS_EXPANDED }) {
+function RecommendedActionsExpanded({ actions = [] }) {
   return (
     <div className="rounded-[16px] border border-[#e8e8e3] bg-white p-px shadow-[0px_24px_80px_rgba(0,0,0,0.18),0px_8px_24px_rgba(0,0,0,0.08)]">
       <div className="border-b border-[#efefeb]">
@@ -140,22 +136,19 @@ function RecommendedActionsExpanded({ actions = RECOMMENDED_ACTIONS_EXPANDED }) 
   );
 }
 
-export default function RecommendedActionsCard({
-  compactActions,
-  expandedActions,
-  useLiveData = false,
-}) {
+export default function RecommendedActionsCard({ compactActions, expandedActions }) {
   const [expanded, setExpanded] = useState(false);
-  const compact = useLiveData
-    ? (compactActions ?? [])
-    : compactActions?.length
-      ? compactActions
-      : RECOMMENDED_ACTIONS_COMPACT;
-  const expandedList = useLiveData
-    ? (expandedActions ?? [])
-    : expandedActions?.length
-      ? expandedActions
-      : RECOMMENDED_ACTIONS_EXPANDED;
+  const compact = compactActions ?? [];
+  const expandedList = expandedActions ?? [];
+
+  if (compact.length === 0 && expandedList.length === 0) {
+    return (
+      <div className="flex flex-col gap-[20.574px] overflow-hidden rounded-[18px] border-[1.286px] border-[rgba(0,0,0,0.11)] bg-white px-[30px] py-[27px]">
+        <p className="text-[16px] font-semibold leading-[25.075px] text-[#15140e]">Recommended Actions</p>
+        <p className="text-[13px] text-[#9b9b95]">No recommended actions yet. Insights will appear once analysis completes.</p>
+      </div>
+    );
+  }
 
   if (expanded) {
     return (

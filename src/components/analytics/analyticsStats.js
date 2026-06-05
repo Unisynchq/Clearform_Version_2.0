@@ -1,5 +1,3 @@
-import { isApiConfigured } from '@/config/env';
-
 /**
  * Derive per-form analytics numbers. Real backends will replace this with API data,
  * but the proportions here mirror the Figma reference (1840→632→453→248).
@@ -70,34 +68,22 @@ function emptyFormStats(form) {
 /** Build funnel display stats from API performance payload when available. */
 export function deriveFormStatsFromApi(form, apiStats) {
   if (!apiStats || apiStats.source === 'client-demo') {
-    return isApiConfigured() ? emptyFormStats(form) : deriveFormStats(form);
+    return emptyFormStats(form);
   }
   const funnel = apiStats.funnel ?? {};
   const totalResponses = apiStats.responses ?? funnel.submitted ?? 0;
   const submitted = totalResponses;
   if (totalResponses === 0) {
-    return isApiConfigured()
-      ? emptyFormStats(form)
-      : {
-          ...deriveFormStats(form),
-          reached: 0,
-          opened: 0,
-          started: 0,
-          submitted: 0,
-          conversion: '0.0',
-          conversionPct: 0,
-        };
+    return emptyFormStats(form);
   }
   const reached = funnel.reached ?? Math.max(submitted, Math.round(submitted * 1.2));
   const opened = funnel.opened ?? Math.max(submitted, Math.round(submitted * 1.1));
   const started = funnel.started ?? Math.max(submitted, Math.round(submitted / Math.max((apiStats.completionRate ?? 50) / 100, 0.05)));
   const target = Math.max(submitted, form?.responseLimit ?? (submitted * 2 || 500));
 
-  const seed = ((form?.id ?? 1) * 2654435761) >>> 0;
-  const slice = (offset) => ((seed >>> offset) & 0xff) / 255;
   const avgTimeSec = apiStats.avgDurationMs
     ? Math.round(apiStats.avgDurationMs / 1000)
-    : Math.round(110 + slice(3) * 110);
+    : 0;
 
   return buildFunnelStats({
     submitted,
@@ -106,9 +92,9 @@ export function deriveFormStatsFromApi(form, apiStats) {
     opened,
     started,
     avgTimeSec,
-    trendPct: Math.round(8 + slice(11) * 22),
-    trendUp: (seed & 1) === 1,
-    seed,
+    trendPct: typeof apiStats.trendPct === 'number' ? apiStats.trendPct : 0,
+    trendUp: apiStats.trendUp !== false,
+    seed: 0,
   });
 }
 

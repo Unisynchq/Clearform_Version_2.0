@@ -77,6 +77,7 @@ const initialState = {
   },
   integrationsPanel: {
     open: false,
+    formId: null,
   },
   compareMode: {
     active: false,
@@ -208,14 +209,26 @@ const uiSlice = createSlice({
     closeNotificationCenter(state) {
       state.notificationCenter.open = false;
     },
-    toggleIntegrationsPanel(state) {
-      state.integrationsPanel.open = !state.integrationsPanel.open;
-      if (state.integrationsPanel.open) {
+    toggleIntegrationsPanel(state, action) {
+      const nextOpen = !state.integrationsPanel.open;
+      state.integrationsPanel.open = nextOpen;
+      if (nextOpen) {
         state.notificationCenter.open = false;
+        if (action.payload?.formId != null) {
+          state.integrationsPanel.formId = action.payload.formId;
+        }
+      } else {
+        state.integrationsPanel.formId = null;
       }
+    },
+    openIntegrationsPanel(state, action) {
+      state.integrationsPanel.open = true;
+      state.integrationsPanel.formId = action.payload?.formId ?? null;
+      state.notificationCenter.open = false;
     },
     closeIntegrationsPanel(state) {
       state.integrationsPanel.open = false;
+      state.integrationsPanel.formId = null;
     },
     openCompareMode(state, action) {
       const { formId } = action.payload;
@@ -293,6 +306,7 @@ export const {
   toggleNotificationCenter,
   closeNotificationCenter,
   toggleIntegrationsPanel,
+  openIntegrationsPanel,
   closeIntegrationsPanel,
   openCompareMode,
   closeCompareMode,

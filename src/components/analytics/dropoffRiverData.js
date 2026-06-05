@@ -1,3 +1,4 @@
+import { isApiConfigured } from '@/config/env';
 import { readBuilderDraft } from '@/features/forms/utils/builderDraftStorage';
 
 /**
@@ -112,10 +113,7 @@ const RIVER_Q_MAX = STEPS.length;
 /** Minimum questions required to show the drop-off river (product rule). */
 export const RIVER_MIN_QUESTIONS = 5;
 
-/**
- * Explicit question count from the form, if any (`questionCount` or `questions.length`).
- * Returns `null` when the app should use the default full 22-step demo layout.
- */
+/** Explicit question count from the form, if any (`questionCount` or `questions.length`). */
 export function getRiverQuestionCountRaw(form) {
   if (typeof form?.questionCount === 'number' && Number.isFinite(form.questionCount)) {
     return Math.round(form.questionCount);
@@ -126,28 +124,38 @@ export function getRiverQuestionCountRaw(form) {
   return null;
 }
 
-/** True when the form has no explicit count (default river) or count >= RIVER_MIN_QUESTIONS. */
+/** True when the form has enough questions and real drop-off data (or builder screens). */
 export function hasRiverEnoughData(form) {
+  if (Array.isArray(form?.screenDropoff) && form.screenDropoff.length >= RIVER_MIN_QUESTIONS) {
+    return true;
+  }
   const raw = getRiverQuestionCountRaw(form);
-  if (raw == null) return true;
-  return raw >= RIVER_MIN_QUESTIONS;
+  if (raw != null) return raw >= RIVER_MIN_QUESTIONS;
+  if (form?.id != null) {
+    const draft = readBuilderDraft(form.id);
+    const content = draft?.screens?.filter((s) => s.type === 'content') ?? [];
+    return content.length >= RIVER_MIN_QUESTIONS;
+  }
+  return false;
 }
 
 /**
  * Question count from builder draft when available; otherwise form metadata or default.
  */
 export function deriveQuestionCount(form) {
-  if (form?.id != null) {
+  if (!isApiConfigured() && form?.id != null) {
     const draft = readBuilderDraft(form.id);
     const content = draft?.screens?.filter((s) => s.type === 'content') ?? [];
     if (content.length > 0) return content.length;
   }
   const raw = getRiverQuestionCountRaw(form);
   if (raw != null) return Math.max(RIVER_Q_MIN, Math.min(RIVER_Q_MAX, raw));
-  const seed = ((form?.id ?? 1) * 2654435761) >>> 0;
-  const MIN = 6;
-  const MAX = 22;
-  return MIN + (seed % (MAX - MIN + 1));
+  if (form?.id != null) {
+    const draft = readBuilderDraft(form.id);
+    const content = draft?.screens?.filter((s) => s.type === 'content') ?? [];
+    if (content.length > 0) return content.length;
+  }
+  return 0;
 }
 
 /**
@@ -298,18 +306,16 @@ export function buildAdaptiveRiverColumns(form) {
     return [];
   }
   const n = getRiverQuestionCount(form);
-  if (n === SCENARIO_FIVE_META.length) {
-    return buildRiverScenarioFiveWideColumns();
-  }
-  const useScenarioOne = n === SCENARIO_ONE_OVERRIDES.length;
+  if (n < RIVER_MIN_QUESTIONS) return [];
 
   return Array.from({ length: n }, (_, i) => {
     const base = STEPS[i % STEPS.length];
-    const tier = useScenarioOne ? SCENARIO_ONE_OVERRIDES[i] : riverTierForIndex(form, i);
     return buildColumn(
       {
         ...base,
-        ...tier,
+        kind: 'healthy',
+        alert: false,
+        drop: null,
         highlight: false,
       },
       `Q${i + 1}`,

@@ -184,6 +184,7 @@ export default function FormRespondentView({ draft, formId }) {
               previewScreenValidatorRef={previewScreenValidatorRef}
               onPreviewSnapChange={handlePreviewSnapChange}
               previewScreenId={activeScreen.id}
+              responseQualityFormId={formId}
             />
           </div>
         </motion.div>
@@ -288,6 +289,7 @@ export default function FormRespondentView({ draft, formId }) {
             previewScreenValidatorRef={previewScreenValidatorRef}
             onPreviewSnapChange={handlePreviewSnapChange}
             previewScreenId={activeScreen.id}
+            responseQualityFormId={formId}
           />
         </div>
       </motion.div>

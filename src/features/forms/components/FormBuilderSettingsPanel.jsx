@@ -230,14 +230,27 @@ export default function FormBuilderSettingsPanel({
                   title="Connect integrations"
                   description="Send responses to Zapier, Slack, Google Sheets, and more"
                 >
-                  <button
-                    type="button"
-                    onClick={() => setManageIntegrationsOpen(true)}
-                    className="inline-flex items-center gap-1 text-[13px] font-medium text-[#0a0a0a] transition-opacity hover:opacity-70"
-                  >
-                    Manage
-                    <RiExternalLinkLine size={12} aria-hidden />
-                  </button>
+                  <div className="flex flex-col items-end gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setManageIntegrationsOpen(true)}
+                      className="inline-flex items-center gap-1 text-[13px] font-medium text-[#0a0a0a] transition-opacity hover:opacity-70"
+                    >
+                      Manage
+                      <RiExternalLinkLine size={12} aria-hidden />
+                    </button>
+                    {activeFormId ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigate(`/dashboard/analytics?form=${activeFormId}&tab=settings`)
+                        }
+                        className="text-[11px] font-medium text-[#3b82b6] transition-opacity hover:opacity-75"
+                      >
+                        View in analytics →
+                      </button>
+                    ) : null}
+                  </div>
                 </AccessSecurityRow>
               </div>
             </section>

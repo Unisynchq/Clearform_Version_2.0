@@ -158,7 +158,7 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
     const fromForm = form?.publishedSnapshot ?? form?.builderSnapshot;
     if (fromForm?.screens?.length) return fromForm;
     if (fetchedSnapshot?.screens?.length) return fetchedSnapshot;
-    if (form?.id != null) {
+    if (!isApiConfigured() && form?.id != null) {
       const local = readBuilderDraft(form.id);
       if (local?.screens?.length) return local;
     }

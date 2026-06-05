@@ -14,68 +14,11 @@ import {
   getRiverQuestionCountRaw,
   hasRiverEnoughData,
 } from './dropoffRiverData';
-import { deriveFormStats, deriveFormStatsFromApi } from './analyticsStats';
-import { isApiConfigured } from '@/config/env';
+import { deriveFormStatsFromApi } from './analyticsStats';
 
 const CHART_MAX = 20;
 const CHART_MAX_COMPLETION = 100;
 const CHART_MAX_TIME = 30;
-
-const DAILY_BARS = [
-  { label: 'Apr 1', value: 9, tier: 'ok' },
-  { label: 'Apr 3', value: 7, tier: 'ok' },
-  { label: 'Apr 5', value: 6, tier: 'warn' },
-  { label: 'Apr 7', value: 11, tier: 'ok' },
-  { label: 'Apr 9', value: 10, tier: 'ok' },
-  { label: 'Apr 11', value: 8, tier: 'ok' },
-  { label: 'Apr 12', value: 8, tier: 'warn' },
-  { label: 'Apr 13', value: 12, tier: 'ok' },
-  { label: 'Apr 14', value: 2, tier: 'bad', highlight: true },
-  { label: 'Apr 15', value: 9, tier: 'ok' },
-  { label: 'Apr 17', value: 10, tier: 'ok' },
-  { label: 'Apr 19', value: 14, tier: 'ok' },
-  { label: 'Apr 21', value: 11, tier: 'ok' },
-  { label: 'Apr 23', value: 10, tier: 'ok' },
-  { label: 'Apr 25', value: 9, tier: 'ok' },
-];
-
-/** Same x-axis as daily responses; values are 0–100% completion for that day. */
-const COMPLETION_BARS = [
-  { label: 'Apr 1', value: 84, tier: 'ok' },
-  { label: 'Apr 3', value: 76, tier: 'warn' },
-  { label: 'Apr 5', value: 87, tier: 'ok' },
-  { label: 'Apr 7', value: 82, tier: 'ok' },
-  { label: 'Apr 9', value: 81, tier: 'ok' },
-  { label: 'Apr 11', value: 85, tier: 'ok' },
-  { label: 'Apr 12', value: 83, tier: 'ok' },
-  { label: 'Apr 13', value: 86, tier: 'ok' },
-  { label: 'Apr 14', value: 52, tier: 'bad', highlight: true },
-  { label: 'Apr 15', value: 81, tier: 'ok' },
-  { label: 'Apr 17', value: 83, tier: 'ok' },
-  { label: 'Apr 19', value: 88, tier: 'ok' },
-  { label: 'Apr 21', value: 79, tier: 'warn' },
-  { label: 'Apr 23', value: 80, tier: 'warn' },
-  { label: 'Apr 25', value: 84, tier: 'ok' },
-];
-
-/** Seconds per question (demo series). */
-const TIME_BARS = [
-  { label: 'Apr 1', value: 6, tier: 'ok' },
-  { label: 'Apr 3', value: 9, tier: 'ok' },
-  { label: 'Apr 5', value: 5, tier: 'ok' },
-  { label: 'Apr 7', value: 8, tier: 'ok' },
-  { label: 'Apr 9', value: 10, tier: 'warn' },
-  { label: 'Apr 11', value: 7, tier: 'ok' },
-  { label: 'Apr 12', value: 8, tier: 'ok' },
-  { label: 'Apr 13', value: 6, tier: 'ok' },
-  { label: 'Apr 14', value: 24, tier: 'bad', highlight: true },
-  { label: 'Apr 15', value: 8, tier: 'ok' },
-  { label: 'Apr 17', value: 8, tier: 'ok' },
-  { label: 'Apr 19', value: 7, tier: 'ok' },
-  { label: 'Apr 21', value: 9, tier: 'warn' },
-  { label: 'Apr 23', value: 11, tier: 'warn' },
-  { label: 'Apr 25', value: 8, tier: 'ok' },
-];
 
 function barColor(tier) {
   if (tier === 'bad') return 'bg-[rgba(231,76,60,0.85)]';
@@ -192,10 +135,7 @@ const statsRowVariant = {
 };
 
 function formatStatsDisplay(form, apiStats) {
-  const s =
-    isApiConfigured() || (apiStats && !apiStats.source)
-      ? deriveFormStatsFromApi(form, apiStats)
-      : deriveFormStats(form);
+  const s = deriveFormStatsFromApi(form, apiStats);
   if (apiStats && !apiStats.source) {
     if (apiStats.avgTimePerQuestion && apiStats.avgTimePerQuestion !== '—') {
       s.avgTimeLabel = apiStats.avgTimePerQuestion;
@@ -297,11 +237,8 @@ export function AnalyticsStatsRow({ form, apiStats }) {
 }
 
 export function AnalyticsFunnelCard({ form, apiStats }) {
-  const stats =
-    isApiConfigured() || (apiStats && !apiStats.source)
-      ? deriveFormStatsFromApi(form, apiStats)
-      : deriveFormStats(form);
-  const animKey = `${form?.id ?? 'empty'}-${apiStats?.responses ?? 'demo'}`;
+  const stats = deriveFormStatsFromApi(form, apiStats);
+  const animKey = `${form?.id ?? 'empty'}-${apiStats?.responses ?? 0}`;
 
   return (
     <div className="bg-white rounded-[10px] px-4 sm:px-8 py-6 flex flex-col items-center border border-[#eceae4]/80 min-h-[420px]">
@@ -551,10 +488,6 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
 
   const apiBars = useMemo(() => buildBarsFromSeries(apiStats?.dailySeries, seg), [apiStats?.dailySeries, seg]);
 
-  const useApiBars =
-    isApiConfigured() &&
-    Boolean(apiStats && !apiStats.source && (apiBars?.length || apiStats.responses === 0));
-
   const avgFromSeries = useMemo(() => {
     if (!apiBars?.length) return null;
     const sum = apiBars.reduce((acc, b) => acc + b.value, 0);
@@ -566,27 +499,13 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
       case 'completion':
         return {
           chartMax: CHART_MAX_COMPLETION,
-          bars: useApiBars ? (apiBars ?? []) : COMPLETION_BARS,
+          bars: apiBars ?? [],
           yTicks: ['100', '75', '50', '25', '0'],
-          kpiWhole: useApiBars ? avgFromSeries : '13.5',
+          kpiWhole: avgFromSeries ?? '—',
           kpiFraction: '%',
           kpiSub: 'Avg. completion rate',
-          trend: useApiBars
-            ? null
-            : {
-            icon: 'down',
-            wrapCls: 'bg-[#fff8ee]',
-            textCls: 'text-[#a16207]',
-            text: 'Below trend · last 30 days',
-          },
-          insight: useApiBars
-            ? null
-            : {
-            border: 'border-[#ffe8c8]',
-            bg: 'bg-[#fffbf5]',
-            textCls: 'text-[#a16207]',
-            body: 'Apr 14 fell to 52% completion — worth checking if the form felt longer that day.',
-          },
+          trend: null,
+          insight: null,
           chartTitle: 'Completion rate',
           guideTop: 'top-[32%]',
           guideLabel: 'industry avg.: 35%',
@@ -594,27 +513,13 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
       case 'time':
         return {
           chartMax: CHART_MAX_TIME,
-          bars: useApiBars ? (apiBars ?? []) : TIME_BARS,
+          bars: apiBars ?? [],
           yTicks: ['30', '24', '18', '12', '6'],
-          kpiWhole: useApiBars ? avgFromSeries : '8.4',
+          kpiWhole: avgFromSeries ?? '—',
           kpiFraction: 's',
           kpiSub: 'Avg. time per question',
-          trend: useApiBars
-            ? null
-            : {
-            icon: 'up',
-            wrapCls: 'bg-[#eafaf1]',
-            textCls: 'text-[rgba(26,158,78,0.85)]',
-            text: 'Getting faster · last 30 days',
-          },
-          insight: useApiBars
-            ? null
-            : {
-            border: 'border-[#ffd6d6]',
-            bg: 'bg-[#fff5f5]',
-            textCls: 'text-[rgba(192,57,43,0.65)]',
-            body: 'Apr 14 averaged 24s per question — possible friction or distraction.',
-          },
+          trend: null,
+          insight: null,
           chartTitle: 'Seconds per question',
           guideTop: 'top-[28%]',
           guideLabel: 'goal: 10s',
@@ -622,33 +527,19 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
       default:
         return {
           chartMax: CHART_MAX,
-          bars: useApiBars ? (apiBars ?? []) : DAILY_BARS,
+          bars: apiBars ?? [],
           yTicks: ['20', '15', '10', '5', '0'],
-          kpiWhole: useApiBars ? avgFromSeries : '8.3',
+          kpiWhole: avgFromSeries ?? '—',
           kpiFraction: '/day',
           kpiSub: 'Avg. responses per day',
-          trend: useApiBars
-            ? null
-            : {
-            icon: 'up',
-            wrapCls: 'bg-[#eafaf1]',
-            textCls: 'text-[rgba(26,158,78,0.85)]',
-            text: 'Trending up · last 30 days',
-          },
-          insight: useApiBars
-            ? null
-            : {
-            border: 'border-[#ffd6d6]',
-            bg: 'bg-[#fff5f5]',
-            textCls: 'text-[rgba(192,57,43,0.65)]',
-            body: 'Apr 14 had the lowest responses — only 2 on that day',
-          },
+          trend: null,
+          insight: null,
           chartTitle: 'Responses per day',
           guideTop: 'top-[25%]',
           guideLabel: 'typical: 8',
         };
     }
-  }, [seg, apiBars, useApiBars, avgFromSeries]);
+  }, [seg, apiBars, avgFromSeries]);
 
   return (
     <div className="bg-white rounded-[20px] border border-[#ebebeb] overflow-hidden flex flex-col min-h-[420px]">

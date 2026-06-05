@@ -7,7 +7,6 @@ import {
   DROP_VB_H,
   DROP_VB_W,
 } from './dropoffRiverConstants';
-import { deriveFormStats } from './analyticsStats';
 import { computeNarrowSeamOverlay } from './riverSeamOverlayLayout';
 import { RiverSeamAlertStack } from './RiverSeamAlertStack';
 import { RIVER_COLUMNS, matchesFilter } from './dropoffRiverData';
@@ -55,12 +54,12 @@ export default function DropoffRiverChart({
   const [seamOverlays, setSeamOverlays] = useState({});
 
   const { startedLabel, finishedLabel } = useMemo(() => {
-    const stats = deriveFormStats(form);
+    const count = form?.responses ?? 0;
     return {
-      startedLabel: `${stats.started.toLocaleString()} started`,
-      finishedLabel: `${stats.submitted.toLocaleString()} finished`,
+      startedLabel: `${count.toLocaleString()} started`,
+      finishedLabel: `${count.toLocaleString()} finished`,
     };
-  }, [form]);
+  }, [form?.responses]);
 
   useLayoutEffect(() => {
     const root = chartRootRef.current;

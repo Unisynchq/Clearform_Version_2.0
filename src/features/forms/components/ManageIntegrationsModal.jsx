@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { useSearchParams } from 'react-router-dom';
 import { RiCheckLine, RiShieldCheckLine } from 'react-icons/ri';
 import ProfileModal from '@/components/profile/ProfileModal';
 import sheetsIcon from '@/assets/Icons/sheets.svg';
@@ -9,19 +10,11 @@ import { isApiConfigured } from '@/config/env';
 import {
   connectIntegration,
   disconnectIntegration,
-  listFormIntegrations,
-  mapConnectionsToUiState,
-  patchIntegration,
+  loadIntegrationUiState,
   redirectToOAuth,
+  saveIntegrationMetadata,
 } from '@/api/services/integrationsService';
-import {
-  readIntegrationSettings,
-  writeIntegrationSettings,
-} from '@/features/profile/utils/profileSettingsStorage';
-import {
-  cloneIntegrations,
-  mergeIntegrations,
-} from '@/features/profile/utils/profileIntegrationDefaults';
+import { mergeIntegrations } from '@/features/profile/utils/profileIntegrationDefaults';
 import { useToast } from '@/hooks/useToast';
 import { getFreshAuthToken } from '@/features/auth/utils/authTokenRefresh';
 
@@ -121,30 +114,37 @@ function IntegrationCard({ card, connected, onToggle, busy }) {
 }
 
 export default function ManageIntegrationsModal({ open, onClose, formId, workspaceId }) {
-  const email = useSelector((state) => state.auth.email);
+  const [searchParams] = useSearchParams();
   const authSubmitting = useSelector((state) => state.auth.isSubmitting);
   const { showToast } = useToast();
   const [integrations, setIntegrations] = useState(() => mergeIntegrations(null));
   const [connectingKey, setConnectingKey] = useState(null);
   const [spreadsheetId, setSpreadsheetId] = useState('');
   const [slackChannel, setSlackChannel] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const useApi = isApiConfigured() && Boolean(formId || workspaceId);
+  const useApi = isApiConfigured();
+
+  const applyIntegrationState = useCallback((mapped) => {
+    setIntegrations(mapped);
+    setSpreadsheetId(mapped.googleSheets?.metadata?.spreadsheetId ?? '');
+    setSlackChannel(
+      mapped.slack?.metadata?.slackChannel ?? mapped.slack?.metadata?.channel ?? '',
+    );
+  }, []);
 
   const refreshFromApi = useCallback(async () => {
     if (!useApi) return;
+    setLoading(true);
     try {
-      const rows = formId
-        ? await listFormIntegrations(formId)
-        : [];
-      const mapped = mapConnectionsToUiState(rows);
-      setIntegrations(mapped);
-      setSpreadsheetId(mapped.googleSheets?.metadata?.spreadsheetId ?? '');
-      setSlackChannel(mapped.slack?.metadata?.slackChannel ?? mapped.slack?.metadata?.channel ?? '');
+      const mapped = await loadIntegrationUiState({ workspaceId, formId });
+      applyIntegrationState(mapped);
     } catch {
       /* keep prior state */
+    } finally {
+      setLoading(false);
     }
-  }, [formId, useApi]);
+  }, [applyIntegrationState, formId, useApi, workspaceId]);
 
   useEffect(() => {
     if (!open) return;
@@ -152,18 +152,20 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
       refreshFromApi();
       return;
     }
-    setIntegrations(mergeIntegrations(readIntegrationSettings(email)));
-  }, [open, email, useApi, refreshFromApi]);
+    applyIntegrationState(mergeIntegrations(null));
+  }, [open, useApi, refreshFromApi, applyIntegrationState]);
 
-  const persistLocal = useCallback(
-    (next) => {
-      setIntegrations(next);
-      if (email) {
-        writeIntegrationSettings(email, cloneIntegrations(next));
-      }
-    },
-    [email],
-  );
+  useEffect(() => {
+    if (!open || !useApi) return;
+    const connected = searchParams.get('connected');
+    if (!connected) return;
+    refreshFromApi();
+    showToast({
+      type: 'success',
+      message: `${connected.replace(/_/g, ' ')} connected successfully.`,
+      duration: 2800,
+    });
+  }, [open, searchParams, useApi, refreshFromApi, showToast]);
 
   const handleToggle = async (key, connected) => {
     if (authSubmitting) return;
@@ -188,10 +190,13 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
         }
         return;
       }
-      persistLocal({
-        ...integrations,
-        [key]: { connected: false },
-      });
+      if (useApi) {
+        showToast({
+          type: 'info',
+          message: 'This integration is not connected.',
+          duration: 2200,
+        });
+      }
       return;
     }
 
@@ -221,49 +226,47 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
       return;
     }
 
-    if (isApiConfigured()) {
-      showToast({
-        type: 'error',
-        message: 'Workspace required to connect integrations.',
-        duration: 3200,
-      });
-      return;
-    }
-
-    persistLocal({
-      ...integrations,
-      [key]: { connected: true },
+    showToast({
+      type: 'error',
+      message: isApiConfigured()
+        ? 'Workspace required to connect integrations.'
+        : 'Connect your API to link integrations.',
+      duration: 3200,
     });
-    showToast({ type: 'success', message: 'Connected (demo mode).', duration: 2200 });
   };
 
   const handleDone = async () => {
-    if (useApi && workspaceId) {
-      const sheetsId = integrations.googleSheets?.connectionId;
-      const slackId = integrations.slack?.connectionId;
-      try {
-        if (sheetsId && spreadsheetId.trim()) {
-          await patchIntegration(workspaceId, sheetsId, {
-            metadata: { spreadsheetId: spreadsheetId.trim() },
-          });
-        }
-        if (slackId && slackChannel.trim()) {
-          await patchIntegration(workspaceId, slackId, {
-            metadata: { slackChannel: slackChannel.trim() },
-          });
-        }
-      } catch (err) {
-        showToast({
-          type: 'error',
-          message: err?.message ?? 'Could not save integration settings.',
-          duration: 2800,
-        });
-        return;
-      }
-    } else if (!useApi && email) {
-      writeIntegrationSettings(email, cloneIntegrations(integrations));
+    if (!useApi) {
+      showToast({
+        type: 'error',
+        message: 'Connect your API to save integration settings.',
+        duration: 2800,
+      });
+      return;
     }
-    onClose();
+    const sheetsConnId = integrations.googleSheets?.connectionId;
+    const slackConnId = integrations.slack?.connectionId;
+    try {
+      if (sheetsConnId && spreadsheetId.trim()) {
+        await saveIntegrationMetadata(workspaceId, formId, sheetsConnId, {
+          spreadsheetId: spreadsheetId.trim(),
+        });
+      }
+      if (slackConnId && slackChannel.trim()) {
+        await saveIntegrationMetadata(workspaceId, formId, slackConnId, {
+          slackChannel: slackChannel.trim(),
+        });
+      }
+      await refreshFromApi();
+      showToast({ type: 'success', message: 'Integration settings saved.', duration: 2200 });
+      onClose();
+    } catch (err) {
+      showToast({
+        type: 'error',
+        message: err?.message ?? 'Could not save integration settings.',
+        duration: 2800,
+      });
+    }
   };
 
   return (
@@ -313,6 +316,10 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
             </label>
           ) : null}
         </div>
+      ) : null}
+
+      {loading ? (
+        <p className="px-6 pt-4 text-[12px] text-[#9b9b97]">Loading connections…</p>
       ) : null}
 
       <div className="grid grid-cols-2 gap-2.5 px-6 pb-2 pt-4">

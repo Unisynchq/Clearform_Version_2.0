@@ -39,16 +39,53 @@ export function mapConnectionsToUiState(connections) {
   });
 
   for (const row of connections ?? []) {
-    const key = PROVIDER_TO_KEY[row.provider];
-    if (!key) continue;
+    const key = PROVIDER_TO_KEY[row.provider] ?? row.key;
+    if (!key || !base[key]) continue;
     const active = row.active !== false;
     base[key] = {
       connected: active,
-      connectionId: row.id,
-      metadata: row.metadata ?? {},
+      connectionId: row.id ?? row.connectionId,
+      metadata: { ...(base[key].metadata ?? {}), ...(row.metadata ?? {}) },
     };
   }
   return base;
+}
+
+const INTEGRATION_UI_KEYS = ['googleSheets', 'googleDrive', 'slack', 'webhook', 'notion'];
+
+/** Workspace OAuth connections + per-form metadata merged for UI badges and config fields. */
+export function mergeWorkspaceAndFormConnections(workspaceRows, formRows) {
+  const workspace = mapConnectionsToUiState(workspaceRows);
+  const form = mapConnectionsToUiState(formRows);
+  const merged = mergeIntegrations(workspace);
+
+  for (const key of INTEGRATION_UI_KEYS) {
+    const w = workspace[key];
+    const f = form[key];
+    if (!w?.connected && !f?.connected && !f?.connectionId && !Object.keys(f?.metadata ?? {}).length) {
+      continue;
+    }
+    merged[key] = {
+      connected: Boolean(w?.connected || f?.connected),
+      connectionId: w?.connectionId ?? f?.connectionId,
+      metadata: { ...(w?.metadata ?? {}), ...(f?.metadata ?? {}) },
+    };
+  }
+  return merged;
+}
+
+/** Load connected status from workspace API and form-scoped config from form integrations API. */
+export async function loadIntegrationUiState({ workspaceId, formId } = {}) {
+  if (!isApiConfigured()) {
+    return mapConnectionsToUiState([]);
+  }
+  const [workspaceRows, formRows] = await Promise.all([
+    workspaceId
+      ? listWorkspaceIntegrations(workspaceId).catch(() => [])
+      : Promise.resolve([]),
+    formId ? listFormIntegrations(formId).catch(() => []) : Promise.resolve([]),
+  ]);
+  return mergeWorkspaceAndFormConnections(workspaceRows, formRows);
 }
 
 export async function listWorkspaceIntegrations(workspaceId) {

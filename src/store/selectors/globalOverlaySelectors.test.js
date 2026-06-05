@@ -14,7 +14,7 @@ const closedUi = {
   deleteWorkspaceModal: { open: false },
   confirmModal: { open: false },
   notificationCenter: { open: false },
-  integrationsPanel: { open: false },
+  integrationsPanel: { open: false, formId: null },
   searchPalette: { open: false },
 };
 

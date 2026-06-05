@@ -88,9 +88,9 @@ export function AnalyticsPerformanceEmpty({ onPreview, onShare }) {
             ⧗
           </div>
           <div className="flex flex-col gap-1 max-w-[280px]">
-            <p className="text-[15px] font-semibold text-[#1a1a1c]">No funnel data yet</p>
+            <p className="text-[15px] font-semibold text-[#1a1a1c]">No responses yet</p>
             <p className="text-[13px] text-[#6b6966] leading-relaxed">
-              Once your survey receives responses, the funnel will populate here.
+              Share your form or complete a preview submission to start collecting responses.
             </p>
           </div>
           <button
@@ -108,9 +108,9 @@ export function AnalyticsPerformanceEmpty({ onPreview, onShare }) {
             </svg>
           </div>
           <div className="flex flex-col gap-1 max-w-[280px]">
-            <p className="text-[15px] font-semibold text-[#1a1a1c]">No chart data yet</p>
+            <p className="text-[15px] font-semibold text-[#1a1a1c]">No responses yet</p>
             <p className="text-[13px] text-[#6b6966] leading-relaxed">
-              Once responses arrive, your daily trends will appear here.
+              Daily trends will appear here once you have responses.
             </p>
           </div>
         </div>

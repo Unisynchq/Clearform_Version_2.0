@@ -20,66 +20,9 @@ import {
 } from './aiInsights/aiInsightsApiMappers';
 import { isApiConfigured } from '@/config/env';
 
-const LOAD_MS = 1800;
 const MIN_RESPONSES_FOR_AI = 10;
 /** Figma 19322 — reliable Top Patterns need more responses than general AI insights */
 const MIN_RESPONSES_PATTERNS = 25;
-
-/* -------------------------------------------------------------------------- */
-/*  Mock content shown when the form has enough responses. Mirrors the Figma  */
-/*  copy 1:1 so the design comparison is exact.                               */
-/* -------------------------------------------------------------------------- */
-
-const TOP_PATTERNS = [
-  {
-    percent: 84,
-    label: 'Quick setup process highly appreciated',
-    tag: 'UX',
-    pillLabel: 'User Experience',
-    percentColor: '#1a6133',
-    barColor: '#1a6133',
-    tagBg: '#ede8fc',
-    tagBorder: 'rgba(72,54,166,0.18)',
-    tagColor: '#4836a6',
-    description:
-      'Users consistently mention that they can get started in under 5 minutes without requiring extensive documentation or tutorials. This represents a significant competitive advantage.',
-    examples: [
-      'Set up my first form in 3 minutes - incredibly intuitive!',
-      'No learning curve whatsoever, just works out of the box',
-    ],
-  },
-  {
-    percent: 67,
-    label: 'Need better mobile optimization',
-    tag: 'Feature Request',
-    pillLabel: 'Feature Request',
-    percentColor: '#b33030',
-    barColor: '#b33030',
-    tagBg: '#fef3e2',
-    tagBorder: 'rgba(138,85,8,0.15)',
-    tagColor: '#8a5508',
-    description:
-      'Mobile users report difficulty navigating forms on smaller screens. Form fields are often too small and layout breaks on certain devices.',
-    examples: ['Would love to see better mobile support', 'Forms are hard to fill out on my phone'],
-  },
-  {
-    percent: 59,
-    label: 'Analytics dashboard very helpful',
-    tag: 'Performance',
-    pillLabel: 'Performance',
-    percentColor: '#8a5508',
-    barColor: '#8a5508',
-    tagBg: '#ebf5ef',
-    tagBorder: 'rgba(26,97,51,0.15)',
-    tagColor: '#1a6133',
-    description:
-      'Users find the analytics clear and actionable, helping them make data-driven decisions about their forms and user engagement.',
-    examples: [
-      'Love the insights - helped us improve our conversion rate',
-      'Dashboard gives us exactly what we need to know',
-    ],
-  },
-];
 
 function PatternsFailedInner({ onRetry }) {
   return (
@@ -535,7 +478,7 @@ function TopPatternsCompactRow({ pattern: p, isLast }) {
 
 function TopPatternsCard({ patterns }) {
   const [expanded, setExpanded] = useState(false);
-  const list = patterns ?? TOP_PATTERNS;
+  const list = patterns ?? [];
 
   return (
     <div className="bg-white border-[1.286px] border-[rgba(0,0,0,0.11)] rounded-[18px] px-[30px] pt-[27px] pb-[27px] overflow-hidden">
@@ -754,12 +697,6 @@ function AnalyticsAiInsightsPanel({
       return undefined;
     }
 
-    if (!isApiConfigured()) {
-      setLoading(true);
-      const timeoutId = window.setTimeout(() => setLoading(false), LOAD_MS);
-      return () => window.clearTimeout(timeoutId);
-    }
-
     setLoading(false);
     return undefined;
   }, [
@@ -808,6 +745,12 @@ function AnalyticsAiInsightsPanel({
     );
   }
 
+  if (!isApiConfigured()) {
+    return (
+      <AiInsightsFetchError message="AI insights require a connected API." />
+    );
+  }
+
   if (insightsError || apiInsights?.status === 'error') {
     return (
       <AiInsightsFetchError
@@ -817,12 +760,7 @@ function AnalyticsAiInsightsPanel({
     );
   }
 
-  const patternsForCard =
-    apiLive && mappedPatterns?.length
-      ? mappedPatterns
-      : apiLive
-        ? []
-        : TOP_PATTERNS;
+  const patternsForCard = apiLive && mappedPatterns?.length ? mappedPatterns : [];
 
   const patternsColumn =
     patternsLoadError ? (
@@ -896,16 +834,11 @@ function AnalyticsAiInsightsPanel({
       />
       <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-2">
         {patternsColumn}
-        <QuickStatsCard
-          form={form}
-          quickStats={apiInsights?.quickStats}
-          useLiveData={apiLive}
-        />
+        <QuickStatsCard quickStats={apiInsights?.quickStats} />
       </div>
       <RecommendedActionsCard
         compactActions={mappedActions?.compact}
         expandedActions={mappedActions?.expanded}
-        useLiveData={apiLive}
       />
           </motion.div>
         )}

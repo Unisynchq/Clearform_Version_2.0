@@ -18,6 +18,14 @@ export async function markOnboardingCompleteOnServer() {
   });
 }
 
+export async function updateMe(body) {
+  if (!isApiConfigured()) return null;
+  return apiClient(API_ENDPOINTS.auth.me, {
+    method: 'PATCH',
+    body,
+  });
+}
+
 export async function deleteAccount() {
   if (!isApiConfigured()) {
     throw new Error('Account deletion requires API configuration');

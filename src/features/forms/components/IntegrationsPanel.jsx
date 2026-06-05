@@ -1,19 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { loadWorkspacesFromApi } from '@/store/slices/formsSlice';
+import { readLastWorkspaceId } from '@/features/auth/utils/authClientContext';
+import { parseFormBuilderRouteId } from '@/features/forms/utils/formBuilderNavigation';
 import { AnimatePresence, motion } from 'motion/react';
 import { closeIntegrationsPanel } from '@/store/slices/uiSlice';
 import HooksIcon from '@/features/forms/components/icons/HooksIcon';
 import sheetsIcon from '@/assets/Icons/sheets.svg';
 import { isApiConfigured } from '@/config/env';
-import {
-  listFormIntegrations,
-  mapConnectionsToUiState,
-} from '@/api/services/integrationsService';
+import { loadIntegrationUiState } from '@/api/services/integrationsService';
+import { listFormWebhooks } from '@/api/services/webhooksService';
 import { mergeIntegrations } from '@/features/profile/utils/profileIntegrationDefaults';
-import {
-  readIntegrationSettings,
-} from '@/features/profile/utils/profileSettingsStorage';
 import IntegrationAppRow from '@/features/profile/components/IntegrationAppRow';
 
 const panelEase = [0.25, 0.1, 0.25, 1];
@@ -26,22 +24,51 @@ const IntegrationsPanel = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { formId: formIdParam } = useParams();
   const isOpen = useSelector((state) => state.ui.integrationsPanel.open);
-  const activeFormId = useSelector((state) => state.ui.formOverlay.formId);
-  const email = useSelector((state) => state.auth.email);
+  const panelFormId = useSelector((state) => state.ui.integrationsPanel.formId);
+  const overlayFormId = useSelector((state) => state.ui.formOverlay.formId);
+  const activeFormId =
+    panelFormId ??
+    overlayFormId ??
+    parseFormBuilderRouteId(formIdParam) ??
+    null;
+  const forms = useSelector((state) => state.forms.forms ?? []);
+  const workspaces = useSelector((state) => state.forms.workspaces ?? []);
+  const activeForm = forms.find((f) => String(f.id) === String(activeFormId));
+  const workspaceId =
+    activeForm?.workspace ||
+    workspaces.find((w) => w.id === readLastWorkspaceId())?.id ||
+    workspaces[0]?.id ||
+    null;
   const [integrations, setIntegrations] = useState(() => mergeIntegrations(null));
 
-  const useApi = isApiConfigured() && Boolean(activeFormId);
+  const useApi = isApiConfigured();
 
   const refreshFromApi = useCallback(async () => {
-    if (!useApi || !activeFormId) return;
+    if (!useApi) return;
     try {
-      const rows = await listFormIntegrations(activeFormId);
-      setIntegrations(mapConnectionsToUiState(rows));
+      const mapped = await loadIntegrationUiState({
+        workspaceId,
+        formId: activeFormId,
+      });
+      if (activeFormId) {
+        const hooks = await listFormWebhooks(activeFormId).catch(() => []);
+        mapped.webhook = {
+          ...mapped.webhook,
+          connected: hooks.length > 0,
+        };
+      }
+      setIntegrations(mapped);
     } catch {
       /* keep prior */
     }
-  }, [useApi, activeFormId]);
+  }, [useApi, activeFormId, workspaceId]);
+
+  useEffect(() => {
+    if (!isOpen || !isApiConfigured() || workspaces.length > 0) return;
+    dispatch(loadWorkspacesFromApi());
+  }, [dispatch, isOpen, workspaces.length]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -49,8 +76,8 @@ const IntegrationsPanel = () => {
       refreshFromApi();
       return;
     }
-    setIntegrations(mergeIntegrations(readIntegrationSettings(email)));
-  }, [isOpen, email, useApi, refreshFromApi]);
+    setIntegrations(mergeIntegrations(null));
+  }, [isOpen, useApi, refreshFromApi]);
 
   useEffect(() => {
     if (!isOpen || !useApi) return;
@@ -61,14 +88,18 @@ const IntegrationsPanel = () => {
 
   const handleManageAll = () => {
     dispatch(closeIntegrationsPanel());
-    const tab = 'integrations';
     const connected = searchParams.get('connected');
-    const params = new URLSearchParams();
-    params.set('tab', tab);
-    if (connected) params.set('connected', connected);
     if (activeFormId) {
-      params.set('returnTo', `/form-builder/${activeFormId}`);
+      const params = new URLSearchParams();
+      params.set('form', String(activeFormId));
+      params.set('tab', 'settings');
+      if (connected) params.set('connected', connected);
+      navigate(`/dashboard/analytics?${params.toString()}`);
+      return;
     }
+    const params = new URLSearchParams();
+    params.set('tab', 'integrations');
+    if (connected) params.set('connected', connected);
     navigate(`/dashboard/profile?${params.toString()}`);
   };
 

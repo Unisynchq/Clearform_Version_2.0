@@ -23,65 +23,6 @@ import {
 } from './compare/CompareAnalyticsEmptyStates';
 import { isApiConfigured } from '@/config/env';
 
-const METRIC_ROWS = [
-  {
-    metric: 'Total responses',
-    a: '248',
-    b: '312',
-    c: '0',
-    change: '↓ 20.5%',
-    changeTone: 'bad',
-  },
-  {
-    metric: 'Completion rate',
-    a: '13.5%',
-    b: '18.2%',
-    c: '—',
-    change: '↓ 4.7 pts',
-    changeTone: 'bad',
-  },
-  {
-    metric: 'High quality %',
-    a: '63%',
-    b: '58%',
-    c: '—',
-    change: '↑ 5 pts',
-    changeTone: 'good',
-  },
-  {
-    metric: 'Avg time on form',
-    a: '2m 14s',
-    b: '3m 02s',
-    c: '—',
-    change: '↑ 18s faster',
-    changeTone: 'good',
-  },
-  {
-    metric: 'Biggest drop-off Q',
-    a: 'Q2 (34%)',
-    b: 'Q4 (28%)',
-    c: '—',
-    change: '↓ Worse',
-    changeTone: 'bad',
-  },
-  {
-    metric: 'Avg quality score',
-    a: '4.1 / 5',
-    b: '3.8 / 5',
-    c: '—',
-    change: '↑ +0.3',
-    changeTone: 'good',
-  },
-  {
-    metric: 'Form lifecycle',
-    a: '38d (active)',
-    b: '90d (archived)',
-    c: '—',
-    change: '—',
-    changeTone: 'neutral',
-  },
-];
-
 const METRIC_OPTIONS = [
   { id: 'completion', label: 'Completion rate' },
   { id: 'responses', label: 'Responses / day' },
@@ -214,7 +155,7 @@ function AnalyticsComparePanel({
   const seriesBTitle = otherCompareForms[0]?.title ?? null;
   const useApiCompare = isApiConfigured() && compareApiData && !compareApiData.source;
   const apiRows = buildRowsFromCompareApi(compareApiData);
-  const metricRowsForTable = isApiConfigured() ? (apiRows ?? []) : (apiRows ?? METRIC_ROWS);
+  const metricRowsForTable = apiRows ?? [];
   const showSingleFormLowData =
     compareApiData &&
     !compareApiData.source &&
@@ -530,9 +471,9 @@ function AnalyticsComparePanel({
               selectedMetrics={selectedMetrics}
               onOpenComparePicker={workspaceHasCompareTarget ? openPicker : undefined}
               workspaceHasCompareTarget={workspaceHasCompareTarget}
-              metricHasNoTrendData={useApiCompare && !(compareApiData?.series?.length)}
+              metricHasNoTrendData={!(compareApiData?.series?.length)}
               rangeLabel={rangeLabel}
-              compareDailySeries={useApiCompare ? compareApiData.series : null}
+              compareDailySeries={compareApiData?.series ?? null}
             />
           </motion.div>
         ) : (
@@ -563,6 +504,13 @@ function AnalyticsComparePanel({
                   </tr>
                 </thead>
                 <tbody>
+                  {metricRowsForTable.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-10 text-center text-[13px] text-[#6b6966]">
+                        No responses yet. Compare metrics will appear once forms have response data.
+                      </td>
+                    </tr>
+                  ) : null}
                   {metricRowsForTable.map((row) => (
                     <tr key={row.metric} className="border-b border-[#f4f3ef] hover:bg-[#fcfcfb]">
                       <td className="px-4 py-2.5 font-medium text-[#393939]">{row.metric}</td>

@@ -74,10 +74,19 @@ export function SelectFormToCompareEmpty({ onAddForm, className = '' }) {
 /** Figma: Graph empty state (node 1993:70409). */
 export function TrendMetricNoDataEmpty({
   metricLabel,
+  description,
   suggestLabel,
   onTrySuggestedMetric,
   className = '',
 }) {
+  const title =
+    metricLabel === 'No responses yet'
+      ? metricLabel
+      : `${metricLabel} not tracked in this period`;
+  const body =
+    description ??
+    'Try switching to a different metric or adjusting the date range.';
+
   return (
     <div
       className={`flex w-full flex-col items-center justify-center gap-2.5 rounded-[8px] border border-dashed border-[#c8c4ba] bg-[#f2f0eb] px-4 pb-8 pt-[13px] text-center ${className}`}
@@ -86,10 +95,10 @@ export function TrendMetricNoDataEmpty({
         <ActivityPulseGlyph className="size-7" />
       </div>
       <p className="text-[13px] font-semibold leading-tight text-[#1a1814]">
-        {metricLabel} not tracked in this period
+        {title}
       </p>
       <p className="max-w-[320px] text-[12px] leading-snug text-[#a09c96]">
-        Try switching to a different metric or adjusting the date range.
+        {body}
       </p>
       {onTrySuggestedMetric ? (
         <div className="pt-0.5">

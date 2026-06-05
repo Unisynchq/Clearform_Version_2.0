@@ -16,7 +16,7 @@ import PhotoUploadErrorZone, {
   PhotoAvatarError,
 } from '@/features/profile/components/PhotoUploadErrorZone';
 import { logout, loginSuccess } from '@/store/slices/authSlice';
-import { deleteAccount as deleteAccountOnServer } from '@/api/services/authMeService';
+import { deleteAccount as deleteAccountOnServer, updateMe } from '@/api/services/authMeService';
 import { isApiConfigured } from '@/config/env';
 import { signOutUser } from '@/features/auth/services/firebaseAuthService';
 import { upsertUserAccount } from '@/features/auth/utils/userAccountsStorage';
@@ -363,43 +363,65 @@ const ProfilePage = () => {
     if (nextErrors.displayName || nextErrors.profileEmail) return;
 
     setIsSaving(true);
-    await new Promise((r) => setTimeout(r, 400));
 
     const trimmedDisplayName = displayName.trim();
     const trimmedUsername = username.trim();
     const trimmedProfileEmail = profileEmail.trim();
     const { firstName: fn, lastName: ln } = splitDisplayName(trimmedDisplayName);
-    writeProfileSettings(email, {
-      displayName: trimmedDisplayName,
-      username: trimmedUsername,
-      email: trimmedProfileEmail,
-      language,
-      timezone,
-      photoUrl,
-    });
-    upsertUserAccount({ email, firstName: fn, lastName: ln });
 
-    dispatch(loginSuccess({ email, firstName: fn, lastName: ln }));
+    try {
+      if (isApiConfigured()) {
+        await updateMe({
+          displayName: trimmedDisplayName,
+          username: trimmedUsername,
+          email: trimmedProfileEmail,
+          language,
+          timezone,
+          photoUrl: photoUrl || null,
+          firstName: fn,
+          lastName: ln,
+        });
+      }
 
-    const nextBaseline = {
-      displayName: trimmedDisplayName,
-      username: trimmedUsername,
-      profileEmail: trimmedProfileEmail,
-      language,
-      timezone,
-      photoUrl,
-    };
-    setDisplayName(trimmedDisplayName);
-    setUsername(trimmedUsername);
-    setProfileEmail(trimmedProfileEmail);
-    setProfileBaseline(nextBaseline);
+      writeProfileSettings(email, {
+        displayName: trimmedDisplayName,
+        username: trimmedUsername,
+        email: trimmedProfileEmail,
+        language,
+        timezone,
+        photoUrl,
+      });
+      upsertUserAccount({ email, firstName: fn, lastName: ln });
 
-    setSubmitAttempted(false);
-    setFieldErrors({});
-    setPhotoUploadError(null);
-    setIsSaving(false);
-    dispatchSyncSystemAlerts(dispatch, store.getState());
-    showToast({ type: 'success', message: 'Profile saved.', duration: 2200 });
+      dispatch(loginSuccess({ email, firstName: fn, lastName: ln }));
+
+      const nextBaseline = {
+        displayName: trimmedDisplayName,
+        username: trimmedUsername,
+        profileEmail: trimmedProfileEmail,
+        language,
+        timezone,
+        photoUrl,
+      };
+      setDisplayName(trimmedDisplayName);
+      setUsername(trimmedUsername);
+      setProfileEmail(trimmedProfileEmail);
+      setProfileBaseline(nextBaseline);
+
+      setSubmitAttempted(false);
+      setFieldErrors({});
+      setPhotoUploadError(null);
+      dispatchSyncSystemAlerts(dispatch, store.getState());
+      showToast({ type: 'success', message: 'Profile saved.', duration: 2200 });
+    } catch (err) {
+      showToast({
+        type: 'error',
+        message: err?.message ?? 'Could not save your profile. Please try again.',
+        duration: 3200,
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleSignOut = () => {

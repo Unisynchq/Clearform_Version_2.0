@@ -287,8 +287,9 @@ const AnalyticsPage = () => {
 
   const showDateFilter = activeTab !== 'settings';
 
-  const effectiveHasResponseData =
-    (perfApiStats?.responses ?? 0) > 0 || (selectedForm?.responses ?? 0) > 0;
+  const effectiveHasResponseData = isApiConfigured()
+    ? (perfApiStats?.responses ?? 0) > 0
+    : (selectedForm?.responses ?? 0) > 0;
 
   const mainContentKey = effectiveLoading
     ? `loading-${activeTab}-${selectedFormId ?? 'none'}`
@@ -536,11 +537,6 @@ const AnalyticsPage = () => {
             </div>
           </div>
           <div className="flex items-center justify-end gap-3 shrink-0">
-            {!isApiConfigured() ? (
-              <span className="hidden sm:inline-flex items-center rounded-full border border-[#e5e3dc] bg-[#fafaf8] px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.04em] text-[#888580]">
-                Sample data
-              </span>
-            ) : null}
             {headerActions()}
           </div>
         </header>

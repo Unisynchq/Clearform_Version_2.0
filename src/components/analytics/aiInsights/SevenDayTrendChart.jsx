@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { buildSevenDayTrend } from './quickStatsData';
-
 /** Figma 2241:19568 */
 const CHART_H = 46.279;
 
@@ -44,18 +42,17 @@ function buildEmptyDaysFromApi() {
   }));
 }
 
-export default function SevenDayTrendChart({ form, sevenDayTrend, useLiveData = false }) {
+export default function SevenDayTrendChart({ sevenDayTrend }) {
   const days = useMemo(() => {
     const fromApi = buildDaysFromApi(sevenDayTrend);
     if (fromApi) return fromApi;
-    if (useLiveData) return buildEmptyDaysFromApi();
-    return buildSevenDayTrend(form);
-  }, [form?.id, form?.responses, sevenDayTrend, useLiveData]);
+    return buildEmptyDaysFromApi();
+  }, [sevenDayTrend]);
   const [hovered, setHovered] = useState(() => defaultHoverIndex(days));
 
   useEffect(() => {
     setHovered(defaultHoverIndex(days));
-  }, [form?.id, form?.responses, days]);
+  }, [days]);
 
   return (
     <div className="flex flex-col gap-[10.261px]">

@@ -4,7 +4,6 @@ import ResponseQualityScoringCard, {
   DEFAULT_RESPONSE_QUALITY_OPTIONS,
 } from '@/features/forms/components/ResponseQualityScoringCard';
 import ResponseQualityFeedback from '@/features/forms/components/ResponseQualityFeedback';
-import { evaluateResponseQuality } from '@/features/forms/utils/responseQualityScoring';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { updateForm, loadFormsFromApi, addForm } from '@/store/slices/formsSlice';
@@ -1356,6 +1355,7 @@ const FormBuilderPage = () => {
   const [builderHydrated, setBuilderHydrated] = useState(false);
   const [builderSaveStatus, setBuilderSaveStatus] = useState('idle');
   const lastSaveToastAtRef = useRef(0);
+  const lastPersistedSnapshotRef = useRef(null);
   const ensureFormPersistedRef = useRef(async () => null);
   const ensureFormInFlightRef = useRef(false);
   const formTouchedRef = useRef(false);
@@ -3514,8 +3514,8 @@ const FormBuilderPage = () => {
       isUsableBuilderSnapshot(persistedForm?.builderSnapshot)
         ? persistedForm.builderSnapshot
         : null;
-    const draftSnapshot = formId ? readBuilderDraft(formId) : null;
-    const publishedSnapshot = formId ? readPublishedForm(formId) : null;
+    const draftSnapshot = !isApiConfigured() && formId ? readBuilderDraft(formId) : null;
+    const publishedSnapshot = !isApiConfigured() && formId ? readPublishedForm(formId) : null;
     const fallbackSnapshot = savedSnapshot ? null : newestBuilderSnapshot(draftSnapshot, publishedSnapshot);
     const templateId =
       savedSnapshot?.templateId ??
@@ -3823,6 +3823,7 @@ const FormBuilderPage = () => {
   useEffect(() => {
     logicMergeSessionRef.current = null;
     logicStorageHydratedRef.current = false;
+    lastPersistedSnapshotRef.current = null;
   }, [activeFormId]);
 
   useEffect(() => {
@@ -3859,7 +3860,6 @@ const FormBuilderPage = () => {
       return undefined;
     }
     const timer = setTimeout(() => {
-      if (isApiConfigured()) setBuilderSaveStatus('saving');
       const snapshot = buildPublishSnapshot({
         formId: activeFormId,
         templateId: location.state?.templateId ?? lastHydratedTemplateIdRef.current,
@@ -3888,8 +3888,14 @@ const FormBuilderPage = () => {
         theme: buildBuilderThemeSnapshot(),
         settings: buildBuilderSettingsSnapshot(),
       });
+      const snapshotKey = JSON.stringify(snapshot);
+      if (lastPersistedSnapshotRef.current === snapshotKey) {
+        return;
+      }
+      if (isApiConfigured()) setBuilderSaveStatus('saving');
       saveBuilderSnapshot(activeFormId, snapshot)
         .then(() => {
+          lastPersistedSnapshotRef.current = snapshotKey;
           builderBaselineRef.current = serializeBuilderState();
           formTouchedRef.current = false;
           setIsFormDirty(false);
@@ -3919,7 +3925,7 @@ const FormBuilderPage = () => {
           },
         })
       );
-    }, 2500);
+    }, 5000);
     return () => clearTimeout(timer);
   }, [
     builderHydrated,
@@ -5041,8 +5047,10 @@ const FormBuilderPage = () => {
   }, [closeAllRightPanels]);
 
   const performLeaveBuilder = useCallback(() => {
-    navigate(fromOnboarding ? '/onboarding' : '/dashboard', { replace: true });
-  }, [fromOnboarding, navigate]);
+    const leaveTo =
+      fromOnboarding || showOnboardingStepper ? '/onboarding' : '/dashboard';
+    navigate(leaveTo, { replace: true });
+  }, [fromOnboarding, showOnboardingStepper, navigate]);
 
   const discardAndLeaveBuilder = useCallback(() => {
     restoreFromBuilderBaseline();
@@ -6608,10 +6616,27 @@ const FormBuilderPage = () => {
                   </button>
                 </div>
               </div>
-              {!showLogicCanvas ? (
-                aiLogicGenerationFailed ? (
-                  <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
+              {!logicModeManual ? (
+                <>
+                  {aiLogicGenerationFailed ? (
                     <AiLogicGenerationFailedBanner message={aiLogicGen.errorMessage} />
+                  ) : null}
+                  <AiLogicIdleBanner
+                    onGenerate={handleGenerateAiLogic}
+                    disabled={aiLogicGenerating}
+                  />
+                  {aiLogicReady ? (
+                    <div className="shrink-0 border-b border-[#e5e5e2] bg-[#f0fdf4] px-5 py-2">
+                      <p className="text-[12px] font-medium text-[#166534]">
+                        AI logic applied — edit on the canvas below or switch to Manual Logic anytime.
+                      </p>
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+              {!showLogicCanvas ? (
+                aiLogicGenerationFailed && logicModeManual ? (
+                  <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
                     <div
                       className={LOGIC_CANVAS_VIEWPORT_CLASS}
                       style={LOGIC_CANVAS_DOT_GRID_STYLE}
@@ -6630,10 +6655,6 @@ const FormBuilderPage = () => {
                   </div>
                 ) : (
                   <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
-                    <AiLogicIdleBanner
-                      onGenerate={handleGenerateAiLogic}
-                      disabled={aiLogicGenerating}
-                    />
                     <div
                       className={LOGIC_CANVAS_VIEWPORT_CLASS}
                       style={LOGIC_CANVAS_DOT_GRID_STYLE}
@@ -6647,6 +6668,11 @@ const FormBuilderPage = () => {
                           <p className="text-[14px] text-[#6b6b68] text-center max-w-md leading-relaxed">
                             Generating AI logic from your form…
                           </p>
+                        ) : aiLogicGenerationFailed && !logicModeManual ? (
+                          <AiLogicGenerationFailedPanel
+                            onRetry={handleAiLogicRetry}
+                            onSwitchToManual={selectManualLogicMode}
+                          />
                         ) : (
                           <AiLogicEmptyPanel />
                         )}
@@ -6669,24 +6695,6 @@ const FormBuilderPage = () => {
                 </div>
               ) : (
                 <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
-                  {!logicModeManual ? (
-                    <>
-                      {aiLogicGenerationFailed ? (
-                        <AiLogicGenerationFailedBanner message={aiLogicGen.errorMessage} />
-                      ) : null}
-                      <AiLogicIdleBanner
-                        onGenerate={handleGenerateAiLogic}
-                        disabled={aiLogicGenerating}
-                      />
-                    </>
-                  ) : null}
-                  {!logicModeManual && aiLogicReady ? (
-                    <div className="shrink-0 border-b border-[#e5e5e2] bg-[#f0fdf4] px-5 py-2">
-                      <p className="text-[12px] font-medium text-[#166534]">
-                        AI logic applied — edit on the canvas below or switch to Manual Logic anytime.
-                      </p>
-                    </div>
-                  ) : null}
                   <div
                     ref={logicViewportRef}
                     className={`${LOGIC_CANVAS_VIEWPORT_CLASS} touch-none select-none flex-1 min-h-0`}
@@ -7210,6 +7218,7 @@ const FormBuilderPage = () => {
                             previewScreenValidatorRef={previewScreenValidatorRef}
                             onPreviewSnapChange={handlePreviewSnapChange}
                             previewScreenId={activeScreen.id}
+                            responseQualityFormId={activeFormId}
                           />
                         </div>
                       </motion.div>
@@ -7392,6 +7401,7 @@ const FormBuilderPage = () => {
                             previewScreenValidatorRef={previewScreenValidatorRef}
                             onPreviewSnapChange={handlePreviewSnapChange}
                             previewScreenId={activeScreen.id}
+                            responseQualityFormId={activeFormId}
                           />
                         </div>
                       </motion.div>

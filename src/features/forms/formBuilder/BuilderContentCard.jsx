@@ -46,7 +46,7 @@ import ResponseQualityScoringCard, {
   DEFAULT_RESPONSE_QUALITY_OPTIONS,
 } from '@/features/forms/components/ResponseQualityScoringCard';
 import ResponseQualityFeedback from '@/features/forms/components/ResponseQualityFeedback';
-import { evaluateResponseQuality } from '@/features/forms/utils/responseQualityScoring';
+import { useResponseQualityEvaluation } from '@/features/forms/hooks/useResponseQualityEvaluation';
 import {
   applySecondsToSelection,
   clampSeconds,
@@ -1295,6 +1295,7 @@ const ContentCardInner = ({
   previewScreenValidatorRef,
   onPreviewSnapChange,
   previewScreenId,
+  responseQualityFormId = null,
   isIntroScreen = false,
 }) => {
   const { section, label } = block;
@@ -1380,33 +1381,38 @@ const ContentCardInner = ({
     return mediaConfig?.mediaRandomiseOrder ? shuffleArray([...opts]) : opts;
   }, [mediaOptsKey, mediaConfig?.mediaRandomiseOrder]);
 
-  const responseQualityEvaluation = useMemo(() => {
-    if (!isPreviewMode) return null;
-    if (cardKey === 'qualitative:Long text' && longTextResponseQualityConfig?.enabled) {
-      return evaluateResponseQuality(longTextDraft, {
-        ...longTextResponseQualityConfig,
-        fieldKind: 'longText',
-        question: longTextConfig?.longTextQuestion,
-      });
-    }
-    if (cardKey === 'qualitative:Short text' && shortTextResponseQualityConfig?.enabled) {
-      return evaluateResponseQuality(shortTextDraft, {
-        ...shortTextResponseQualityConfig,
-        fieldKind: 'shortText',
-        question: shortTextConfig?.shortTextQuestion,
-      });
-    }
-    return null;
-  }, [
-    isPreviewMode,
-    cardKey,
-    longTextResponseQualityConfig,
-    shortTextResponseQualityConfig,
-    longTextConfig?.longTextQuestion,
-    shortTextConfig?.shortTextQuestion,
-    longTextDraft,
-    shortTextDraft,
-  ]);
+  const longTextQualityEnabled =
+    isPreviewMode && cardKey === 'qualitative:Long text' && longTextResponseQualityConfig?.enabled;
+  const shortTextQualityEnabled =
+    isPreviewMode && cardKey === 'qualitative:Short text' && shortTextResponseQualityConfig?.enabled;
+
+  const longTextQualityEvaluation = useResponseQualityEvaluation({
+    enabled: longTextQualityEnabled,
+    options: longTextResponseQualityConfig?.options,
+    fieldKind: 'longText',
+    question: longTextConfig?.longTextQuestion,
+    helperText: longTextConfig?.longTextHelperText,
+    answerText: longTextDraft,
+    formId: responseQualityFormId,
+    screenId: previewScreenId,
+  });
+
+  const shortTextQualityEvaluation = useResponseQualityEvaluation({
+    enabled: shortTextQualityEnabled,
+    options: shortTextResponseQualityConfig?.options,
+    fieldKind: 'shortText',
+    question: shortTextConfig?.shortTextQuestion,
+    helperText: shortTextConfig?.shortTextHelperText,
+    answerText: shortTextDraft,
+    formId: responseQualityFormId,
+    screenId: previewScreenId,
+  });
+
+  const responseQualityEvaluation = longTextQualityEnabled
+    ? longTextQualityEvaluation
+    : shortTextQualityEnabled
+      ? shortTextQualityEvaluation
+      : null;
 
   const snapRef = useRef({});
   snapRef.current = {

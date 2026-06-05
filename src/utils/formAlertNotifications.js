@@ -1,5 +1,4 @@
-import { deriveFormStats } from '@/components/analytics/analyticsStats';
-import { quickStatsSentimentVariant } from '@/components/analytics/aiInsights/quickStatsData';
+import { deriveFormStatsFromApi } from '@/components/analytics/analyticsStats';
 import { mergeAlertSettings } from '@/utils/formAlertDefaults';
 import {
   NOTIFICATION_ROUTE_KEYS,
@@ -15,10 +14,7 @@ function formAnalyticsAction(formId) {
   });
 }
 
-function sentimentNegativePct(form) {
-  const sentiment = quickStatsSentimentVariant(form);
-  if (sentiment.mode === 'segments') return sentiment.negative ?? 0;
-  if (sentiment.accentLabel === 'negative') return 100;
+function sentimentNegativePct() {
   return 0;
 }
 
@@ -31,11 +27,11 @@ export function evaluateFormAlerts(form) {
   if (!form?.id) return [];
 
   const settings = mergeAlertSettings(form.alertSettings);
-  const stats = deriveFormStats(form);
+  const stats = deriveFormStatsFromApi(form, null);
   const title = form.title ?? 'Untitled form';
   const formId = form.id;
   const responses = form.responses ?? 0;
-  const negativePct = sentimentNegativePct(form);
+  const negativePct = sentimentNegativePct();
   const results = [];
 
   if (settings.completion.enabled) {

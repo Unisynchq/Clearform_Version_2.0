@@ -146,16 +146,13 @@ const ProfileIntegrationsPanel = () => {
       }
       return;
     }
-    if (isApiConfigured()) {
-      showToast({
-        type: 'error',
-        message: 'Create a workspace before connecting integrations.',
-        duration: 3200,
-      });
-      return;
-    }
-    setConnectedLocal(key, true);
-    showToast({ type: 'success', message: `${name} connected (demo).`, duration: 2200 });
+    showToast({
+      type: 'error',
+      message: isApiConfigured()
+        ? 'Create a workspace before connecting integrations.'
+        : 'Connect your API and sign in to link integrations.',
+      duration: 3200,
+    });
   };
 
   const handleDisconnect = async (key, name) => {
@@ -192,13 +189,12 @@ const ProfileIntegrationsPanel = () => {
       closeSheetsModal();
       return;
     }
-    setConnectedLocal('googleSheets', true);
-    showToast({
-      type: 'success',
-      message: 'Google Sheets connected successfully.',
-      duration: 2200,
-    });
     closeSheetsModal();
+    showToast({
+      type: 'error',
+      message: 'Connect your API and workspace to link Google Sheets.',
+      duration: 3200,
+    });
   };
 
   return (

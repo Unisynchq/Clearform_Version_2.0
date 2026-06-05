@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import MoreDetailsTrigger from './MoreDetailsTrigger';
 import SevenDayTrendChart from './SevenDayTrendChart';
-import { quickStatsSentimentVariant } from './quickStatsData';
 import { mapQuickStatsSentimentFromApi } from './aiInsightsApiMappers';
 
 function QuickStatsSentimentBlock({ sentiment }) {
@@ -74,15 +73,12 @@ function QuickStatsSentimentBlock({ sentiment }) {
   );
 }
 
-export default function QuickStatsCard({ form, quickStats: quickStatsApi, useLiveData = false }) {
+export default function QuickStatsCard({ quickStats: quickStatsApi }) {
   const sentiment = useMemo(() => {
     const fromApi = mapQuickStatsSentimentFromApi(quickStatsApi);
     if (fromApi) return fromApi;
-    if (useLiveData) {
-      return { mode: 'segments', positive: 0, neutral: 0, negative: 0 };
-    }
-    return quickStatsSentimentVariant(form);
-  }, [form, quickStatsApi, useLiveData]);
+    return { mode: 'segments', positive: 0, neutral: 0, negative: 0 };
+  }, [quickStatsApi]);
   const topIssuePercent = quickStatsApi?.topIssuePercent;
   const topIssueCategory = quickStatsApi?.topIssueCategory;
   const isSegments = sentiment.mode === 'segments';
@@ -115,25 +111,21 @@ export default function QuickStatsCard({ form, quickStats: quickStatsApi, useLiv
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex flex-col">
             <p className="text-[20px] font-semibold leading-[34.719px] text-[#15140e]">
-              {showTopIssueCategory ? topIssueCategory : useLiveData ? '—' : 'Performance'}
+              {showTopIssueCategory ? topIssueCategory : '—'}
             </p>
             <p className="text-[14.788px] font-normal leading-[22.181px] text-[#99968e]">
               of all feedback mentions
             </p>
           </div>
           <p className="shrink-0 text-[40px] font-medium leading-[41.148px] text-[#15140e]">
-            {showTopIssuePercent ? `${topIssuePercent}%` : useLiveData ? '—' : '42%'}
+            {showTopIssuePercent ? `${topIssuePercent}%` : '—'}
           </p>
         </div>
       </div>
 
       <div className="h-[0.63px] w-full bg-[rgba(0,0,0,0.07)]" aria-hidden />
 
-      <SevenDayTrendChart
-        form={form}
-        sevenDayTrend={quickStatsApi?.sevenDayTrend}
-        useLiveData={useLiveData}
-      />
+      <SevenDayTrendChart sevenDayTrend={quickStatsApi?.sevenDayTrend} />
     </div>
   );
 }

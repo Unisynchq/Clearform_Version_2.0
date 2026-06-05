@@ -2,14 +2,11 @@ import { apiClient } from '@/api/client';
 import { API_ENDPOINTS } from '@/api/endpoints';
 import { isApiConfigured } from '@/config/env';
 
-/**
- * Analytics facade — UI currently uses in-app demo series.
- * Backend should return shapes documented in BACKEND_HANDOFF.md.
- */
+/** Analytics facade — returns empty payloads when the API is not configured. */
 
 export async function fetchPerformanceAnalytics(formId, { range } = {}) {
   if (!isApiConfigured()) {
-    return { formId, range: range ?? 'all', source: 'client-demo' };
+    return { formId, range: range ?? 'all' };
   }
   return apiClient(API_ENDPOINTS.analytics.performance(formId), {
     query: range ? { range } : undefined,
@@ -18,7 +15,7 @@ export async function fetchPerformanceAnalytics(formId, { range } = {}) {
 
 export async function fetchFormResponses(formId, { range, page = 1 } = {}) {
   if (!isApiConfigured()) {
-    return { formId, items: [], page, total: 0, source: 'client-demo' };
+    return { formId, items: [], page, total: 0 };
   }
   return apiClient(API_ENDPOINTS.analytics.responses(formId), {
     query: { range, page },
@@ -27,7 +24,7 @@ export async function fetchFormResponses(formId, { range, page = 1 } = {}) {
 
 export async function generateAiInsights(formId, { range } = {}) {
   if (!isApiConfigured()) {
-    return { formId, insights: [], source: 'client-demo' };
+    return { formId, insights: [] };
   }
   return apiClient(API_ENDPOINTS.analytics.aiInsights(formId), {
     method: 'POST',
@@ -37,7 +34,7 @@ export async function generateAiInsights(formId, { range } = {}) {
 
 export async function fetchCompareAnalytics(formId, { range } = {}) {
   if (!isApiConfigured()) {
-    return { formId, range: range ?? 'all', source: 'client-demo' };
+    return { formId, range: range ?? 'all' };
   }
   return apiClient(API_ENDPOINTS.analytics.compare(formId), {
     query: range ? { range } : undefined,

@@ -8,27 +8,6 @@ const TAB_INITIAL = { opacity: 0, scale: 0.85, y: 2 };
 const TAB_ANIMATE = { opacity: 1, scale: 1, y: 0 };
 const TAB_EXIT = { opacity: 0, scale: 0.85, y: -2 };
 
-const TREND_SERIES_BY_METRIC = {
-  completion: {
-    a: [1, 7, 9, 12, 13.5],
-    b: [3, 6, 8, 11, 18.2],
-    endLabelA: '13.5%',
-    endLabelB: '18.2%',
-  },
-  responses: {
-    a: [4, 9, 11, 15, 19],
-    b: [6, 8, 10, 14, 16.5],
-    endLabelA: '19 /day',
-    endLabelB: '16.5 /day',
-  },
-  avgTime: {
-    a: [14, 12, 10, 8, 6.5],
-    b: [11, 10, 9, 8, 7],
-    endLabelA: '6.5′',
-    endLabelB: '7′',
-  },
-};
-
 const METRIC_HEADLINE = {
   completion: 'Completion rate',
   responses: 'Responses / day',
@@ -62,43 +41,6 @@ const MONTH_SHORT = [
 
 function formatMonthDay(date) {
   return `${MONTH_SHORT[date.getMonth()]} ${date.getDate()}`;
-}
-
-function buildBackDateLabels(daysBack, points) {
-  const today = new Date();
-  const labels = [];
-  for (let i = 0; i < points; i++) {
-    const offset = Math.round(((points - 1 - i) / (points - 1)) * daysBack);
-    const d = new Date(today);
-    d.setDate(today.getDate() - offset);
-    labels.push(formatMonthDay(d));
-  }
-  return labels;
-}
-
-function buildWeeklyLabels(points) {
-  const today = new Date();
-  const labels = [];
-  for (let i = points - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i * 7);
-    labels.push(formatMonthDay(d));
-  }
-  return labels;
-}
-
-function buildXLabelsForRange(rangeLabel, points = 5) {
-  switch (rangeLabel) {
-    case 'Last 7 days':
-      return buildBackDateLabels(6, points);
-    case 'All time':
-    case 'Last 30 days':
-    case 'Last 90 days':
-    case 'This quarter':
-    case 'Custom range…':
-    default:
-      return buildWeeklyLabels(points);
-  }
 }
 
 const TREND_METRIC_TABS = [
@@ -159,7 +101,7 @@ export default function TrendComparisonChart({
     () => buildChartDataFromDailySeries(compareDailySeries, trendMetric),
     [compareDailySeries, trendMetric],
   );
-  const trendData = TREND_SERIES_BY_METRIC[trendMetric];
+  const hasLiveTrend = Boolean(apiTrend?.chartData?.length);
   const yTickSuffix = METRIC_Y_TICK_SUFFIX[trendMetric] ?? '';
   const tooltipSuffix = METRIC_TOOLTIP_SUFFIX[trendMetric] ?? '';
   const betterDirection = METRIC_BETTER_DIRECTION[trendMetric] ?? 'higher';
@@ -177,24 +119,7 @@ export default function TrendComparisonChart({
     ? TREND_METRIC_TABS.filter((tab) => selectedMetrics.includes(tab.id))
     : TREND_METRIC_TABS;
 
-  const xLabels = useMemo(
-    () =>
-      apiTrend?.chartData
-        ? apiTrend.chartData.map((d) => d.name)
-        : buildXLabelsForRange(rangeLabel, trendData.a.length),
-    [apiTrend, rangeLabel, trendData.a.length],
-  );
-
-  const chartData = useMemo(
-    () =>
-      apiTrend?.chartData ??
-      xLabels.map((name, i) => ({
-        name,
-        seriesA: trendData.a[i],
-        seriesB: trendData.b[i],
-      })),
-    [apiTrend, xLabels, trendData],
-  );
+  const chartData = apiTrend?.chartData ?? [];
 
   const ariaSummary = seriesBTitle
     ? `Line chart comparing ${seriesATitle} and ${seriesBTitle} across five periods.`
@@ -202,7 +127,8 @@ export default function TrendComparisonChart({
 
   const showPickerEmpty = !seriesBTitle && workspaceHasCompareTarget && onOpenComparePicker;
   const suggest = suggestedMetricSwitch(trendMetric);
-  const showMetricEmptyPanel = !!seriesBTitle && metricHasNoTrendData;
+  const showMetricEmptyPanel =
+    !showPickerEmpty && (!hasLiveTrend || metricHasNoTrendData);
 
   return (
     <section
@@ -290,9 +216,20 @@ export default function TrendComparisonChart({
           <SelectFormToCompareEmpty onAddForm={onOpenComparePicker} className="min-h-[min(360px,50vh)] border border-[#e9e7e0]" />
         ) : showMetricEmptyPanel ? (
           <TrendMetricNoDataEmpty
-            metricLabel={METRIC_HEADLINE[trendMetric] ?? METRIC_HEADLINE.completion}
-            suggestLabel={suggest.label}
-            onTrySuggestedMetric={() => onTrendMetricChange(suggest.id)}
+            metricLabel={
+              hasLiveTrend
+                ? (METRIC_HEADLINE[trendMetric] ?? METRIC_HEADLINE.completion)
+                : 'No responses yet'
+            }
+            description={
+              hasLiveTrend
+                ? 'Try switching to a different metric or adjusting the date range.'
+                : 'Share your form to collect responses before comparing trends.'
+            }
+            suggestLabel={hasLiveTrend ? suggest.label : null}
+            onTrySuggestedMetric={
+              hasLiveTrend ? () => onTrendMetricChange(suggest.id) : undefined
+            }
             className="min-h-[min(360px,50vh)]"
           />
         ) : (
