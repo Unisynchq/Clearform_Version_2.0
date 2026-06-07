@@ -75,6 +75,24 @@ function hasTopicKeywords(text, keywordsStr, threshold) {
   return hits >= (threshold ?? 1);
 }
 
+function isDefinitelyGibberish(text) {
+  const noSpace = text.toLowerCase().replace(/\s+/g, '');
+  if (!noSpace || noSpace.length < 2) return true;
+  if (/(.)\1{3,}/.test(noSpace)) return true;
+  if (noSpace.length >= 6) {
+    const pair = noSpace.slice(0, 2);
+    if (pair.repeat(Math.ceil(noSpace.length / 2)).slice(0, noSpace.length) === noSpace) return true;
+  }
+  const letters = noSpace.replace(/[^a-z]/g, '');
+  if (letters.length >= 5 && (letters.match(/[aeiou]/g) ?? []).length / letters.length < 0.10) return true;
+  return false;
+}
+
+function hasMinimumRealContent(text) {
+  const tokens = text.trim().split(/\s+/).filter(Boolean);
+  return tokens.filter((t) => /[aeiou]/i.test(t) && t.length >= 2).length >= 3;
+}
+
 function evaluateLength(text, opts) {
   const min = Math.max(1, Number(opts.minWords) || 10);
   if (wordCount(text) >= min) return true;
@@ -96,11 +114,7 @@ function evaluateRelevance(text, opts, context = {}) {
     return looksLikeShortIdentityAnswer(text);
   }
   const keywords = (opts.keywords || '').trim();
-  if (!keywords) {
-    const words = wordCount(text);
-    if (words <= 4) return words >= 1;
-    return words >= 3;
-  }
+  if (!keywords) return wordCount(text) >= 3;
   return hasTopicKeywords(text, keywords, opts.matchThreshold ?? 1);
 }
 
@@ -147,6 +161,13 @@ export function evaluateResponseQuality(
 
   const trimmed = String(text ?? '').trim();
   if (!trimmed) return null;
+
+  if (isDefinitelyGibberish(trimmed)) {
+    return { level: 'red', failCount: 2, message: "This doesn't look like a real answer. Please write a genuine response.", failedIds: ['relevance', 'completeness'] };
+  }
+  if (!hasMinimumRealContent(trimmed)) {
+    return { level: 'red', failCount: 2, message: 'Your answer is too short. Please provide a meaningful response.', failedIds: ['length', 'completeness'] };
+  }
 
   const evalContext = { fieldKind, question };
   const failedIds = active.filter((id) => {
