@@ -53,6 +53,12 @@ export async function fetchFormOverview(formId) {
 export function mapOverviewApiToUi(api) {
   if (!api) return null;
   const step = api.aiInsight?.actionableStep;
+  const kpiStatusLabel = (status) => {
+    if (status === 'EXCEEDING_TARGET') return 'Exceeding target';
+    if (status === 'BELOW_TARGET') return 'Below target';
+    if (status === 'ON_TARGET') return 'On target';
+    return undefined;
+  };
   return {
     responses: api.responsesCount,
     responseLimit: api.responseLimit,
@@ -65,6 +71,9 @@ export function mapOverviewApiToUi(api) {
     completionTrendWeek:
       api.performance?.completionRate?.trendWeekPercent ?? null,
     avgDurationTrend: api.performance?.avgDurationSeconds?.trendLabel ?? null,
+    responsesKpiNote: kpiStatusLabel(api.performance?.responses?.status),
+    completionKpiNote: kpiStatusLabel(api.performance?.completionRate?.status),
+    avgTimeKpiNote: kpiStatusLabel(api.performance?.avgDurationSeconds?.status),
     liveSince: api.publishedAt ?? null,
     daysActive: api.daysActive ?? null,
     aiInsight: api.aiInsight

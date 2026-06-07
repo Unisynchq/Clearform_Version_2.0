@@ -1,5 +1,31 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { readNotifications, writeNotifications } from '@/utils/notificationsStorage';
+import { listNotifications } from '@/api/services/notificationsService';
+import { isApiConfigured } from '@/config/env';
+
+function mapApiNotification(item) {
+  return {
+    id: item.id,
+    unread: !item.readAt,
+    title: item.title,
+    message: item.body,
+    timestamp: item.createdAt,
+    dateGroup: null,
+  };
+}
+
+export const loadNotificationsFromApi = createAsyncThunk(
+  'notifications/loadFromApi',
+  async () => {
+    if (!isApiConfigured()) return [];
+    try {
+      const { items } = await listNotifications();
+      return items.map(mapApiNotification);
+    } catch {
+      return [];
+    }
+  },
+);
 
 const initialState = {
   activeTab: 'all',
@@ -121,6 +147,17 @@ const notificationsSlice = createSlice({
       writeNotifications(state.notifications);
     },
   },
+  extraReducers(builder) {
+    builder.addCase(loadNotificationsFromApi.fulfilled, (state, action) => {
+      const apiItems = action.payload;
+      if (!apiItems.length) return;
+      const existingIds = new Set(state.notifications.map((n) => n.id));
+      const newItems = apiItems.filter((n) => !existingIds.has(n.id));
+      if (!newItems.length) return;
+      state.notifications = [...newItems, ...state.notifications];
+      writeNotifications(state.notifications);
+    });
+  },
 });
 
 export const {
@@ -134,5 +171,6 @@ export const {
   clearNotificationsForForm,
   syncSystemAlertNotifications,
 } = notificationsSlice.actions;
+
 
 export default notificationsSlice.reducer;

@@ -50,6 +50,8 @@ export const API_ENDPOINTS = {
   },
   notifications: {
     list: '/notifications',
+    readOne: (id) => `/notifications/${id}/read`,
+    readAll: '/notifications/read-all',
   },
   integrations: {
     workspaceList: (workspaceId) => `/workspaces/${workspaceId}/integrations`,
@@ -62,6 +64,8 @@ export const API_ENDPOINTS = {
       `/workspaces/${workspaceId}/integrations/${integrationId}/sync-historical`,
     testSheet: (workspaceId, integrationId) =>
       `/workspaces/${workspaceId}/integrations/${integrationId}/test-sheet`,
+    createFormSheet: (formId) =>
+      `/forms/${formId}/integrations/google-sheets/create-sheet`,
   },
   webhooks: {
     list: (formId) => `/forms/${formId}/webhooks`,

@@ -521,6 +521,7 @@ const AnalyticsPage = () => {
         defaultName={defaultExportName}
         rangeLabel={rangeLabel}
         defaultFormat={exportFormatDefault}
+        formId={selectedFormId}
       />
       <div className="flex flex-col min-h-full bg-[#f4f3ef]">
         <Topbar title="Analytics" useFormsLoading={false} />

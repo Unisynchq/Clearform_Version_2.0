@@ -34,6 +34,7 @@ import { readLastWorkspaceId } from '@/features/auth/utils/authClientContext';
 import { loadWorkspacesFromApi } from '@/store/slices/formsSlice';
 import {
   connectIntegration,
+  createFormSheet,
   loadIntegrationUiState,
   saveIntegrationMetadata,
   redirectToOAuth,
@@ -242,6 +243,7 @@ const ShareFormModal = () => {
   const [savingIntegration, setSavingIntegration] = useState(false);
   const [syncingSheets, setSyncingSheets] = useState(false);
   const [testingSheet, setTestingSheet] = useState(false);
+  const [creatingSheet, setCreatingSheet] = useState(false);
   const [sheetsSaved, setSheetsSaved] = useState(false);
   const [embedCopied, setEmbedCopied] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -310,13 +312,19 @@ const ShareFormModal = () => {
     try {
       const mapped = await loadIntegrationUiState({ workspaceId, formId });
       setIntegrations(mapped);
-      setSpreadsheetId(mapped.googleSheets?.metadata?.spreadsheetId ?? '');
-      setSheetRange(mapped.googleSheets?.metadata?.sheetRange ?? 'Sheet1!A1');
-      setSlackChannel(
-        mapped.slack?.metadata?.slackChannel ??
-          mapped.slack?.metadata?.channel ??
-          '',
-      );
+      const sheetsMeta = mapped.googleSheets?.metadata ?? {};
+      const perFormSheet =
+        formId && sheetsMeta.formSpreadsheetIds?.[formId]
+          ? sheetsMeta.formSpreadsheetIds[formId]
+          : sheetsMeta.spreadsheetId;
+      setSpreadsheetId(perFormSheet ?? '');
+      setSheetRange(sheetsMeta.sheetRange ?? 'Sheet1!A1');
+      const slackMeta = mapped.slack?.metadata ?? {};
+      const perFormSlack =
+        formId && slackMeta.formSlackChannels?.[formId]
+          ? slackMeta.formSlackChannels[formId]
+          : slackMeta.slackChannel ?? slackMeta.channel;
+      setSlackChannel(perFormSlack ?? '');
     } catch {
       /* keep prior */
     }
@@ -444,8 +452,13 @@ const ShareFormModal = () => {
     setSavingIntegration(true);
     setSheetsSaved(false);
     try {
+      const existingMeta = integrations.googleSheets?.metadata ?? {};
+      const formSpreadsheetIds = {
+        ...(existingMeta.formSpreadsheetIds ?? {}),
+        ...(formId ? { [formId]: id } : {}),
+      };
       await saveIntegrationMetadata(workspaceId, formId, connectionId, {
-        spreadsheetId: id,
+        ...(formId ? { formSpreadsheetIds } : { spreadsheetId: id }),
         sheetRange: sheetRange.trim() || 'Sheet1!A1',
       });
       await refreshIntegrations();
@@ -487,8 +500,14 @@ const ShareFormModal = () => {
     if (!(await ensureToken())) return;
     setSavingIntegration(true);
     try {
+      const channel = slackChannel.trim() || '#general';
+      const existingMeta = integrations.slack?.metadata ?? {};
+      const formSlackChannels = {
+        ...(existingMeta.formSlackChannels ?? {}),
+        ...(formId ? { [formId]: channel } : {}),
+      };
       await saveIntegrationMetadata(workspaceId, formId, connectionId, {
-        slackChannel: slackChannel.trim() || '#general',
+        ...(formId ? { formSlackChannels } : { slackChannel: channel }),
       });
       await refreshIntegrations();
       showToast({ type: 'success', message: 'Slack channel saved.', duration: 2400 });
@@ -500,6 +519,40 @@ const ShareFormModal = () => {
       });
     } finally {
       setSavingIntegration(false);
+    }
+  };
+
+  const handleCreateSheet = async () => {
+    if (!formId || !integrations.googleSheets?.connectionId) return;
+    if (!(await ensureToken())) return;
+    setCreatingSheet(true);
+    try {
+      const { spreadsheetId: newId, spreadsheetUrl } = await createFormSheet(formId);
+      setSpreadsheetId(newId);
+      setSheetsSaved(false);
+      showToast({
+        type: 'success',
+        message: 'Sheet created — opening in a new tab and linking to this form.',
+        duration: 4000,
+      });
+      window.open(spreadsheetUrl, '_blank', 'noopener,noreferrer');
+      // Persist the new sheet ID automatically
+      const existingMeta = integrations.googleSheets?.metadata ?? {};
+      const formSpreadsheetIds = { ...(existingMeta.formSpreadsheetIds ?? {}), [formId]: newId };
+      await saveIntegrationMetadata(workspaceId, formId, integrations.googleSheets.connectionId, {
+        formSpreadsheetIds,
+        sheetRange: sheetRange.trim() || 'Sheet1!A1',
+      });
+      await refreshIntegrations();
+      setSheetsSaved(true);
+    } catch (err) {
+      showToast({
+        type: 'error',
+        message: err?.message || 'Could not create sheet — check your Google Sheets connection.',
+        duration: 4000,
+      });
+    } finally {
+      setCreatingSheet(false);
     }
   };
 
@@ -828,6 +881,16 @@ const ShareFormModal = () => {
                           </button>
                         ) : (
                           <>
+                            {!spreadsheetId && (
+                              <button
+                                type="button"
+                                disabled={creatingSheet}
+                                onClick={handleCreateSheet}
+                                className="w-full h-9 px-4 rounded-[8px] border border-[#e0ddd7] bg-white text-[12px] font-medium text-[#393939] hover:bg-[#f4f3ef] disabled:opacity-60 cursor-pointer"
+                              >
+                                {creatingSheet ? 'Creating sheet…' : 'Auto-create sheet for this form'}
+                              </button>
+                            )}
                             <PanelLabel>Spreadsheet ID</PanelLabel>
                             <PanelInput>
                               <input
@@ -836,7 +899,7 @@ const ShareFormModal = () => {
                                   setSpreadsheetId(e.target.value);
                                   setSheetsSaved(false);
                                 }}
-                                placeholder="From Google Sheets URL"
+                                placeholder="From Google Sheets URL or auto-create above"
                                 className="flex-1 text-[13px] outline-none bg-transparent"
                               />
                             </PanelInput>

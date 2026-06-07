@@ -199,3 +199,21 @@ export async function testSheetConnection(workspaceId, integrationId, formId) {
     throw mapIntegrationError(error);
   }
 }
+
+/**
+ * Creates a dedicated Google Sheet for a form via the backend and returns
+ * { spreadsheetId, spreadsheetUrl }. The backend stores the spreadsheetId
+ * into formSpreadsheetIds[formId] on the workspace's Google Sheets connection.
+ */
+export async function createFormSheet(formId) {
+  if (!isApiConfigured() || !formId) {
+    throw new Error('createFormSheet requires formId and API configured');
+  }
+  try {
+    return await apiClient(API_ENDPOINTS.integrations.createFormSheet(formId), {
+      method: 'POST',
+    });
+  } catch (error) {
+    throw mapIntegrationError(error);
+  }
+}

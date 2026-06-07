@@ -236,6 +236,12 @@ const FormOverlayModal = () => {
     nearLimit,
     limitReached,
   );
+  const responsesKpiNote =
+    overviewData?.responsesKpiNote ?? (!fetchError ? targetNote : undefined);
+  const completionKpiNote =
+    overviewData?.completionKpiNote ?? (!fetchError ? targetNote : undefined);
+  const avgTimeKpiNote =
+    overviewData?.avgTimeKpiNote ?? (!fetchError ? targetNote : undefined);
   const responsesTrendSub =
     overviewData?.responsesTrendWeek != null
       ? `${overviewData.responsesTrendWeek}% this week`
@@ -253,6 +259,7 @@ const FormOverlayModal = () => {
       })
     : null;
   const liveDays =
+    overviewData?.daysActive ??
     form?.daysActive ??
     (liveSinceIso
       ? Math.max(1, Math.ceil((Date.now() - new Date(liveSinceIso).getTime()) / 86_400_000))
@@ -684,13 +691,13 @@ const FormOverlayModal = () => {
                     label="Responses"
                     value={formatResponseCount(displayResponses)}
                     sub={displayResponses > 0 ? responsesTrendSub : undefined}
-                    note={!fetchError ? targetNote : undefined}
+                    note={responsesKpiNote}
                   />
                   <StatCard
                     label="Completion rate"
                     value={displayResponses > 0 ? displayCompletion : '—'}
                     sub={displayResponses > 0 ? completionTrendSub : undefined}
-                    note={!fetchError ? targetNote : undefined}
+                    note={completionKpiNote}
                   />
                   <StatCard
                     label="Avg. time"
@@ -700,7 +707,7 @@ const FormOverlayModal = () => {
                         ? '~ same'
                         : undefined
                     }
-                    note={!fetchError ? targetNote : undefined}
+                    note={avgTimeKpiNote}
                   />
                 </div>
 

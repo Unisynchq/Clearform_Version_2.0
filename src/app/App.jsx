@@ -10,6 +10,7 @@ import BuilderRouteTransitionOverlay from '@/components/layout/BuilderRouteTrans
 import AuthRedirectHandler from '@/features/auth/components/AuthRedirectHandler';
 import FirebaseSessionBridge from '@/features/auth/components/FirebaseSessionBridge';
 import { loadFormsFromApi, loadWorkspacesFromApi } from '@/store/slices/formsSlice';
+import { loadNotificationsFromApi } from '@/store/slices/notificationsSlice';
 
 const App = () => {
   const dispatch = useDispatch();
@@ -19,6 +20,7 @@ const App = () => {
     if (isAuthenticated) {
       dispatch(loadFormsFromApi());
       dispatch(loadWorkspacesFromApi());
+      dispatch(loadNotificationsFromApi());
     }
   }, [isAuthenticated, dispatch]);
 

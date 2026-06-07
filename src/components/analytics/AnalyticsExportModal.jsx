@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RiCloseLine } from 'react-icons/ri';
 import Select from '../ui/Select';
+import { getFreshAuthToken } from '@/features/auth/utils/authTokenRefresh';
+import { env } from '@/config/env';
 
 const FORMAT_OPTIONS = [
   { value: 'PDF', label: 'PDF' },
@@ -17,22 +19,71 @@ const RANGE_OPTIONS = [
   { value: 'This quarter', label: 'This quarter' },
 ];
 
+const RANGE_PARAM_MAP = {
+  'All time': 'all',
+  'Last 7 days': '7d',
+  'Last 30 days': '30d',
+  'Last 90 days': '90d',
+  'This quarter': '90d',
+};
+
 const AnalyticsExportModal = ({
   open,
   onClose,
   defaultName,
   rangeLabel,
   defaultFormat = 'PDF',
+  formId,
 }) => {
   const [format, setFormat] = useState(defaultFormat);
   const [range, setRange] = useState(rangeLabel ?? 'All time');
+  const [isExporting, setIsExporting] = useState(false);
+  const reportNameRef = useRef(defaultName);
 
   useEffect(() => {
     if (open) {
       setFormat(defaultFormat);
       setRange(rangeLabel ?? 'All time');
+      reportNameRef.current = defaultName;
     }
-  }, [open, defaultFormat, rangeLabel]);
+  }, [open, defaultFormat, rangeLabel, defaultName]);
+
+  const handleExport = async () => {
+    if (format === 'PDF') {
+      window.print();
+      onClose();
+      return;
+    }
+    if (!formId || !env.apiBaseUrl) {
+      onClose();
+      return;
+    }
+    setIsExporting(true);
+    try {
+      const fmt = format.toLowerCase();
+      const rangeParam = RANGE_PARAM_MAP[range] ?? 'all';
+      const name = reportNameRef.current ?? `responses-${formId}`;
+      const token = await getFreshAuthToken();
+      const url = `${env.apiBaseUrl}/forms/${formId}/responses/export?format=${fmt}&range=${rangeParam}`;
+      const resp = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) throw new Error(`Export failed (${resp.status})`);
+      const blob = await resp.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${name}.${fmt}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+      onClose();
+    } catch {
+      // Stay open so the user can try again; browser console has the error detail
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -87,6 +138,7 @@ const AnalyticsExportModal = ({
                   <input
                     type="text"
                     defaultValue={defaultName}
+                    onChange={(e) => { reportNameRef.current = e.target.value; }}
                     className="w-full rounded-[8px] border border-[#e5e3dc] px-3 py-2 text-[13px] text-[#1a1a1c] outline-none focus:border-[#17160e] focus:ring-2 focus:ring-black/5"
                   />
                 </label>
@@ -123,10 +175,11 @@ const AnalyticsExportModal = ({
                   </button>
                   <button
                     type="button"
-                    onClick={onClose}
-                    className="h-9 px-4 rounded-[8px] bg-[#17160e] text-[13px] font-medium text-white hover:bg-[#2c2c2e] cursor-pointer"
+                    onClick={handleExport}
+                    disabled={isExporting}
+                    className="h-9 px-4 rounded-[8px] bg-[#17160e] text-[13px] font-medium text-white hover:bg-[#2c2c2e] cursor-pointer disabled:opacity-60"
                   >
-                    Export →
+                    {isExporting ? 'Exporting…' : 'Export →'}
                   </button>
                 </div>
               </div>
