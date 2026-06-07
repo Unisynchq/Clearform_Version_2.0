@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { RiArrowDownSLine, RiCloseLine } from 'react-icons/ri';
 import ProfileModal from '@/components/profile/ProfileModal';
 import { useToast } from '@/hooks/useToast';
+import { getFreshAuthToken } from '@/features/auth/utils/authTokenRefresh';
+import { env } from '@/config/env';
 
-const FORMAT_OPTIONS = ['PDF', 'CSV', 'JSON'];
+const FORMAT_OPTIONS = ['CSV'];
 
 const DATE_RANGE_OPTIONS = [
   'All time',
@@ -57,14 +59,28 @@ const ExportReportModal = ({
     }
 
     setIsExporting(true);
-    await new Promise((r) => setTimeout(r, 900));
-    setIsExporting(false);
-    onClose();
-    showToast({
-      type: 'success',
-      message: `"${trimmed}" is being prepared as ${format}.`,
-      duration: 2800,
-    });
+    try {
+      const token = await getFreshAuthToken();
+      const url = `${env.apiBaseUrl}/auth/me/export`;
+      const resp = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!resp.ok) throw new Error(`Export failed (${resp.status})`);
+      const blob = await resp.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${trimmed}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+      onClose();
+      showToast({ type: 'success', message: 'Account data exported.', duration: 2500 });
+    } catch {
+      showToast({ type: 'error', message: 'Export failed. Please try again.', duration: 3000 });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
