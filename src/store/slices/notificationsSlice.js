@@ -3,14 +3,50 @@ import { readNotifications, writeNotifications } from '@/utils/notificationsStor
 import { listNotifications } from '@/api/services/notificationsService';
 import { isApiConfigured } from '@/config/env';
 
+function dateGroupLabel(isoString) {
+  if (!isoString) return 'Earlier';
+  const d = new Date(isoString);
+  const now = new Date();
+  const diffDays = Math.floor((now - d) / 86_400_000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return 'This week';
+  return 'Earlier';
+}
+
+function relativeTimestamp(isoString) {
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  const diffMs = Date.now() - d.getTime();
+  const diffMins = Math.floor(diffMs / 60_000);
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHrs = Math.floor(diffMins / 60);
+  if (diffHrs < 24) return `${diffHrs}h ago`;
+  const diffDays = Math.floor(diffHrs / 24);
+  return `${diffDays}d ago`;
+}
+
+const TYPE_ICON = {
+  new_response: { iconType: 'check', iconBg: '#e8f5e9', category: 'forms' },
+  ai_summary: { iconType: 'chat', iconBg: '#e3f2fd', category: 'alerts' },
+  alert: { iconType: 'warning', iconBg: '#fff8e1', category: 'alerts' },
+};
+
 function mapApiNotification(item) {
+  const { iconType, iconBg, category } =
+    TYPE_ICON[item.type] ?? { iconType: 'check', iconBg: '#f5f5f5', category: 'all' };
   return {
     id: item.id,
     unread: !item.readAt,
     title: item.title,
-    message: item.body,
-    timestamp: item.createdAt,
-    dateGroup: null,
+    bodySegments: [{ bold: false, text: item.body ?? '' }],
+    timestamp: relativeTimestamp(item.createdAt),
+    dateGroup: dateGroupLabel(item.createdAt),
+    iconType,
+    iconBg,
+    category,
+    formId: item.formId,
   };
 }
 

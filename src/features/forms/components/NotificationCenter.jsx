@@ -79,7 +79,7 @@ const BodyText = ({ segments }) => (
 
   <p className="text-[12px] leading-[18px] m-0">
 
-    {segments.map((seg, i) => (
+    {Array.isArray(segments) ? segments.map((seg, i) => (
 
       <span
 
@@ -93,7 +93,7 @@ const BodyText = ({ segments }) => (
 
       </span>
 
-    ))}
+    )) : <span className="text-[#7a7670] font-normal">{segments}</span>}
 
   </p>
 
