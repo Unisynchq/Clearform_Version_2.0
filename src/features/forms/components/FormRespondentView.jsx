@@ -22,7 +22,7 @@ import {
   RESPONDENT_PAGE_SHELL_FULL,
   RESPONDENT_SCREEN_FRAME,
 } from '@/features/forms/utils/respondentLayout';
-import { submitFormResponse } from '@/api/services/responsesService';
+import { submitFormResponse, sendAbandonBeacon } from '@/api/services/responsesService';
 import { buildResponseFromPreview } from '@/features/forms/utils/formResponseBuilder';
 
 const emptySnap = () => ({
@@ -63,6 +63,9 @@ export default function FormRespondentView({ draft, formId }) {
   const imageFileInputRef = useRef(null);
   const sessionStartedAtRef = useRef(Date.now());
   const screenEnteredAtRef = useRef({});
+  const isCompletedRef = useRef(false);
+  const activeScreenIdRef = useRef(activeScreenId);
+  const snapsByScreenIdRef = useRef(snapsByScreenId);
 
   useEffect(() => {
     runnerRef.current = createFormLogicRunner({
@@ -71,6 +74,33 @@ export default function FormRespondentView({ draft, formId }) {
       logicIfRulesByEdge,
     });
   }, [screens, logicConnections, logicIfRulesByEdge]);
+
+  // Keep refs in sync so the abandon handler always sees the latest values.
+  useEffect(() => { activeScreenIdRef.current = activeScreenId; }, [activeScreenId]);
+  useEffect(() => { snapsByScreenIdRef.current = snapsByScreenId; }, [snapsByScreenId]);
+
+  // Send a partial session beacon when the user leaves without completing the form.
+  useEffect(() => {
+    if (!formId) return;
+    const handleAbandon = () => {
+      if (isCompletedRef.current) return;
+      sendAbandonBeacon(
+        formId,
+        snapsByScreenIdRef.current,
+        activeScreenIdRef.current,
+        sessionStartedAtRef.current,
+      );
+    };
+    window.addEventListener('beforeunload', handleAbandon);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') handleAbandon();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('beforeunload', handleAbandon);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [formId]);
 
   const activeScreen = screens.find((s) => s.id === activeScreenId) ?? null;
   const activeScreenIdx = Math.max(0, screens.findIndex((s) => s.id === activeScreenId));
@@ -114,6 +144,7 @@ export default function FormRespondentView({ draft, formId }) {
     const isFormComplete = nextId == null || nextScreen?.type === 'end';
 
     if (isFormComplete && formId) {
+      isCompletedRef.current = true;
       const mergedSnaps = { ...snapsByScreenId, [activeScreenId]: snap };
       const startedAtMs = sessionStartedAtRef.current;
       const durationMs = Math.max(0, Date.now() - startedAtMs);

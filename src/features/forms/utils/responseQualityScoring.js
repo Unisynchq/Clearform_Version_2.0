@@ -46,6 +46,23 @@ const ASPIRATION_TOKENS = new Set([
 const CONCRETE_NOUNS =
   /\b(form|question|step|screen|field|page|because|when|feature|issue|problem|example|process|workflow|survey|feedback|response|answer|detail|reason|time|day|week|month|year|\d+)\b/i;
 
+// Unconditional override patterns — these always return red regardless of other criteria.
+const TOXIC_PATTERN =
+  /\b(fuck(?:ing|er|face|head|wit)?|shit(?:ty|head|hole)?|asshole|ass\s*hole|bastard|bitch(?:es|ing)?|dumbf[u*]ck|cunt|dick(?:head)?|motherfucker?|wh[o0]re|d[i1]ck)\b/i;
+
+const PROMPT_INJECTION_PATTERN =
+  /\b(ignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|context|prompts?)|system\s*prompt|you\s+are\s+now\s+a|act\s+as\s+(a\s+)?different|jailbreak|forget\s+(all\s+)?previous|override\s+(your\s+)?instructions?|disregard\s+(all\s+)?previous)\b/i;
+
+function isEmojiSpam(text) {
+  const emojiMatches = text.match(/\p{Emoji_Presentation}|\p{Extended_Pictographic}/gu) ?? [];
+  const wordTokens = text.trim().split(/\s+/).filter(Boolean);
+  return emojiMatches.length >= 4 && emojiMatches.length / (wordTokens.length + emojiMatches.length) > 0.5;
+}
+
+function isRepetitiveSpam(text) {
+  return /(.{10,})\1{2,}/.test(text);
+}
+
 function escapeRegex(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -219,6 +236,42 @@ function isLowValueVerbose(text, questionText) {
 }
 
 export function runMandatoryQualityOverrides(text, questionText) {
+  if (TOXIC_PATTERN.test(text)) {
+    return {
+      level: 'red',
+      failCount: 2,
+      message: "This doesn't look like a real answer. Please write a genuine response to the question.",
+      failedIds: ['relevance', 'completeness'],
+    };
+  }
+
+  if (PROMPT_INJECTION_PATTERN.test(text)) {
+    return {
+      level: 'red',
+      failCount: 2,
+      message: "This doesn't look like a real answer. Please write a genuine response to the question.",
+      failedIds: ['relevance', 'completeness'],
+    };
+  }
+
+  if (isEmojiSpam(text)) {
+    return {
+      level: 'red',
+      failCount: 2,
+      message: "This doesn't look like a real answer. Please write a genuine response to the question.",
+      failedIds: ['relevance', 'completeness'],
+    };
+  }
+
+  if (isRepetitiveSpam(text)) {
+    return {
+      level: 'red',
+      failCount: 2,
+      message: "This doesn't look like a real answer. Please write a genuine response to the question.",
+      failedIds: ['relevance', 'completeness'],
+    };
+  }
+
   if (hasKeyboardMashSegment(text) || mashCharMass(text) > 0.25) {
     return {
       level: 'red',
