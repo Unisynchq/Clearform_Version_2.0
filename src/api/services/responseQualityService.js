@@ -6,12 +6,14 @@ import { isApiConfigured } from '@/config/env';
  * Live response-quality scoring — POST /forms/:formId/response-quality/evaluate
  * @see BACKEND_HANDOFF.md
  */
-export async function evaluateResponseQualityApi(formId, body) {
+export async function evaluateResponseQualityApi(formId, body, { signal } = {}) {
   if (!isApiConfigured() || formId == null) {
     return null;
   }
   return apiClient(API_ENDPOINTS.responseQuality.evaluate(formId), {
     method: 'POST',
     body,
+    signal,
+    timeoutMs: 12_000,
   });
 }

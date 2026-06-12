@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'motion/react';
 import { getRouteTransitionKey } from '@/constants/routeTransitions';
@@ -9,7 +10,7 @@ import AllFormsPage from '@/features/forms/pages/AllFormsPage';
 import TemplatesPage from '@/features/templates/pages/TemplatesPage';
 import FormBuilderPageShell from '@/features/forms/pages/FormBuilderPageShell';
 import LegacyFormBuilderRedirect from '@/routes/LegacyFormBuilderRedirect';
-import PublicFormPage from '@/features/forms/pages/PublicFormPage';
+const PublicFormPage = lazy(() => import('@/features/forms/pages/PublicFormPage'));
 import RouteErrorBoundary from '@/components/errors/RouteErrorBoundary';
 import {
   DashboardErrorFallback,
@@ -150,7 +151,16 @@ const AppRoutes = () => {
           element={
             <RouteTransitionShell variant="auth">
               <RouteErrorBoundary fallback={PublicFormErrorFallback}>
-                <PublicFormPage />
+                <Suspense
+                  fallback={
+                    <div className="min-h-screen bg-[#f4f3ef] flex flex-col items-center justify-center gap-3">
+                      <div className="w-10 h-10 rounded-full border-2 border-[#e4e4e7] border-t-[#18181b] animate-spin" />
+                      <p className="text-[14px] text-[#71717a]">Loading form…</p>
+                    </div>
+                  }
+                >
+                  <PublicFormPage />
+                </Suspense>
               </RouteErrorBoundary>
             </RouteTransitionShell>
           }

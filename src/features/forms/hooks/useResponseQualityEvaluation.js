@@ -73,8 +73,14 @@ function normalizeApiEvaluation(result) {
   };
 }
 
+function mergeEvaluations(heuristic, apiResult) {
+  if (!apiResult) return heuristic;
+  if (!heuristic) return apiResult;
+  return apiResult;
+}
+
 /**
- * Debounced response-quality evaluation — API when configured, heuristics offline.
+ * Debounced response-quality evaluation — optimistic heuristics, API refine when configured.
  */
 export function useResponseQualityEvaluation({
   enabled,
@@ -90,6 +96,7 @@ export function useResponseQualityEvaluation({
   const [evaluation, setEvaluation] = useState(null);
   const timerRef = useRef(null);
   const requestIdRef = useRef(0);
+  const abortRef = useRef(null);
 
   useEffect(() => {
     if (!enabled || !options) {
@@ -106,14 +113,18 @@ export function useResponseQualityEvaluation({
     const runHeuristics = () =>
       evaluateResponseQuality(trimmed, { enabled, options, fieldKind, question });
 
+    setEvaluation(runHeuristics());
+
     if (!isApiConfigured() || formId == null || screenId == null) {
-      setEvaluation(runHeuristics());
       return undefined;
     }
 
     clearTimeout(timerRef.current);
+    abortRef.current?.abort();
     const requestId = ++requestIdRef.current;
     timerRef.current = setTimeout(async () => {
+      const controller = new AbortController();
+      abortRef.current = controller;
       try {
         const result = await evaluateResponseQualityApi(
           formId,
@@ -126,16 +137,22 @@ export function useResponseQualityEvaluation({
             answerText: trimmed,
             options,
           }),
+          { signal: controller.signal },
         );
         if (requestId !== requestIdRef.current) return;
-        setEvaluation(normalizeApiEvaluation(result) ?? runHeuristics());
-      } catch {
+        const apiEval = normalizeApiEvaluation(result);
+        setEvaluation((prev) => mergeEvaluations(prev ?? runHeuristics(), apiEval));
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
         if (requestId !== requestIdRef.current) return;
         setEvaluation(runHeuristics());
       }
     }, debounceMs);
 
-    return () => clearTimeout(timerRef.current);
+    return () => {
+      clearTimeout(timerRef.current);
+      abortRef.current?.abort();
+    };
   }, [
     enabled,
     options,

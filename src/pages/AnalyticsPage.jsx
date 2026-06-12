@@ -196,13 +196,15 @@ const AnalyticsPage = () => {
     if (!selectedFormId || activeTab !== 'ai') return undefined;
     if (aiApiInsights?.status !== 'processing') return undefined;
 
-    const maxAttempts = 25;
-    const intervalMs = 2500;
-    const id = window.setInterval(async () => {
-      aiPollAttemptsRef.current += 1;
-      if (aiPollAttemptsRef.current > maxAttempts) {
+    const maxAttempts = 12;
+    let attempts = 0;
+    let timeoutId = null;
+
+    const poll = async () => {
+      attempts += 1;
+      aiPollAttemptsRef.current = attempts;
+      if (attempts > maxAttempts) {
         setAiInsightsError('Insights are taking longer than expected. Try again in a moment.');
-        window.clearInterval(id);
         return;
       }
       try {
@@ -210,18 +212,24 @@ const AnalyticsPage = () => {
         if (!data) return;
         setAiApiInsights(data);
         if (data.status === 'ready' || data.status === 'insufficient_data' || data.status === 'error') {
-          window.clearInterval(id);
           if (data.status === 'error') {
             setAiInsightsError(data.message ?? 'Insights could not be generated.');
           }
+          return;
         }
       } catch (err) {
         setAiInsightsError(err?.message ?? 'Could not load AI insights.');
-        window.clearInterval(id);
+        return;
       }
-    }, intervalMs);
+      const delayMs = Math.min(2500 * 1.4 ** (attempts - 1), 8000);
+      timeoutId = window.setTimeout(poll, delayMs);
+    };
 
-    return () => window.clearInterval(id);
+    timeoutId = window.setTimeout(poll, 2500);
+
+    return () => {
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
   }, [
     selectedFormId,
     activeTab,

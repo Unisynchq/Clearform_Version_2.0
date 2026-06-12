@@ -81,9 +81,10 @@ export function deriveFormStatsFromApi(form, apiStats) {
   const started = funnel.started ?? Math.max(submitted, Math.round(submitted / Math.max((apiStats.completionRate ?? 50) / 100, 0.05)));
   const target = form?.responseLimit ?? Math.max(submitted, submitted * 2 || 500);
 
-  const avgTimeSec = apiStats.avgDurationMs
-    ? Math.round(apiStats.avgDurationMs / 1000)
-    : 0;
+  const avgTimeSec =
+    typeof apiStats.avgDurationMs === 'number' && apiStats.avgDurationMs > 0
+      ? Math.round(apiStats.avgDurationMs / 1000)
+      : null;
 
   return buildFunnelStats({
     submitted,
@@ -128,9 +129,14 @@ function buildFunnelStats({
   const conversionRaw = reached > 0 ? (submitted / reached) * 100 : 0;
   const conversion = Number.isFinite(conversionRaw) ? conversionRaw.toFixed(1) : '0.0';
 
-  const m = Math.floor(avgTimeSec / 60);
-  const s = avgTimeSec % 60;
-  const avgTimeLabel = m > 0 ? `${m}m ${s.toString().padStart(2, '0')}s` : `${s}s`;
+  const avgTimeLabel =
+    avgTimeSec == null
+      ? '—'
+      : (() => {
+          const m = Math.floor(avgTimeSec / 60);
+          const s = avgTimeSec % 60;
+          return m > 0 ? `${m}m ${s.toString().padStart(2, '0')}s` : `${s}s`;
+        })();
 
   return {
     submitted,

@@ -12,6 +12,17 @@ export class ApiError extends Error {
   }
 }
 
+const PUBLIC_API_PATH_PATTERNS = [
+  /^\/forms\/[^/]+\/published$/,
+  /^\/forms\/[^/]+\/responses$/,
+  /^\/forms\/[^/]+\/response-quality\/evaluate$/,
+];
+
+function isPublicApiPath(path) {
+  const normalized = path?.startsWith('/') ? path : `/${path ?? ''}`;
+  return PUBLIC_API_PATH_PATTERNS.some((re) => re.test(normalized));
+}
+
 function buildUrl(path, query) {
   const base = env.apiBaseUrl.replace(/\/$/, '');
   const url = new URL(`${base}${path.startsWith('/') ? path : `/${path}`}`);
@@ -32,9 +43,25 @@ export async function apiClient(path, {
   query,
   headers = {},
   signal,
+  timeoutMs,
+  skipAuth = false,
 } = {}) {
   if (!env.apiBaseUrl?.trim()) {
     throw new ApiError('API base URL is not configured (VITE_API_BASE_URL)', { path });
+  }
+
+  let effectiveSignal = signal;
+  if (timeoutMs && typeof AbortController !== 'undefined') {
+    const timeoutController = new AbortController();
+    const timer = setTimeout(() => timeoutController.abort(), timeoutMs);
+    if (signal) {
+      signal.addEventListener('abort', () => timeoutController.abort());
+    }
+    effectiveSignal = timeoutController.signal;
+    const clearOnDone = () => clearTimeout(timer);
+    if (typeof effectiveSignal.addEventListener === 'function') {
+      effectiveSignal.addEventListener('abort', clearOnDone, { once: true });
+    }
   }
 
   const init = {
@@ -43,7 +70,7 @@ export async function apiClient(path, {
       Accept: 'application/json',
       ...headers,
     },
-    signal,
+    signal: effectiveSignal,
   };
 
   if (body !== undefined) {
@@ -51,16 +78,17 @@ export async function apiClient(path, {
     init.body = JSON.stringify(body);
   }
 
+  const publicRoute = isPublicApiPath(path) || skipAuth;
   let token =
     typeof window !== 'undefined' ? sessionStorage.getItem('clearform:auth-token') : null;
-  if (typeof window !== 'undefined' && auth?.currentUser) {
+  if (!publicRoute && typeof window !== 'undefined' && auth?.currentUser) {
     try {
       token = await getFreshAuthToken();
     } catch {
       // use cached token
     }
   }
-  if (token) init.headers.Authorization = `Bearer ${token}`;
+  if (token && !publicRoute) init.headers.Authorization = `Bearer ${token}`;
 
   let res = await fetch(buildUrl(path, query), init);
   const text = await res.text();

@@ -61,6 +61,8 @@ export default function FormRespondentView({ draft, formId }) {
   const runnerRef = useRef(null);
   const previewScreenValidatorRef = useRef(null);
   const imageFileInputRef = useRef(null);
+  const sessionStartedAtRef = useRef(Date.now());
+  const screenEnteredAtRef = useRef({});
 
   useEffect(() => {
     runnerRef.current = createFormLogicRunner({
@@ -77,6 +79,14 @@ export default function FormRespondentView({ draft, formId }) {
     if (!activeScreen || activeScreen.type !== 'content') return 1;
     return screens.filter((s) => s.type === 'content').findIndex((s) => s.id === activeScreen.id) + 1;
   }, [activeScreen, screens]);
+
+  useEffect(() => {
+    if (activeScreenId == null) return;
+    const now = Date.now();
+    if (!screenEnteredAtRef.current[activeScreenId]) {
+      screenEnteredAtRef.current[activeScreenId] = now;
+    }
+  }, [activeScreenId]);
 
   useEffect(() => {
     const runner = runnerRef.current;
@@ -105,10 +115,15 @@ export default function FormRespondentView({ draft, formId }) {
 
     if (isFormComplete && formId) {
       const mergedSnaps = { ...snapsByScreenId, [activeScreenId]: snap };
+      const startedAtMs = sessionStartedAtRef.current;
+      const durationMs = Math.max(0, Date.now() - startedAtMs);
       const response = buildResponseFromPreview({
         formId,
         screens,
         snapsByScreenId: mergedSnaps,
+        startedAt: new Date(startedAtMs).toISOString(),
+        durationMs,
+        screenTimestamps: { ...screenEnteredAtRef.current },
       });
       submitFormResponse(formId, response, mergedSnaps).catch(() => {});
       if (nextId == null) return;

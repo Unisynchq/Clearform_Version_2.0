@@ -13,16 +13,26 @@ function toSubmissionBody(response, snapsByScreenId) {
     for (const [screenId, snap] of Object.entries(snapsByScreenId)) {
       answersByScreenId[screenId] = snap;
     }
+    const metadata = {
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+      referrer: typeof document !== 'undefined' ? document.referrer || undefined : undefined,
+    };
+    if (typeof response?.durationMs === 'number' && response.durationMs >= 0) {
+      metadata.durationMs = Math.round(response.durationMs);
+    }
+    if (response?.startedAt) {
+      metadata.startedAt = response.startedAt;
+    }
+    if (response?.screenTimestamps && typeof response.screenTimestamps === 'object') {
+      metadata.screenTimestamps = response.screenTimestamps;
+    }
     return {
       submittedAt,
       completed: response?.status === 'completed',
       contact: response?.contact,
       answers: response?.answers,
       answersByScreenId,
-      metadata: {
-        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
-        referrer: typeof document !== 'undefined' ? document.referrer || undefined : undefined,
-      },
+      metadata,
     };
   }
   const { answers, contact, status, startedAt } = response ?? {};

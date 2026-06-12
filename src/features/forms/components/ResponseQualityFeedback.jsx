@@ -170,11 +170,17 @@ function useResponseQualityDisplay(evaluation, charCount) {
     setIsTyping(true);
     const timer = setTimeout(() => {
       setIsTyping(false);
-      setSettledEvaluation(evaluation);
     }, TYPING_SETTLE_MS);
 
     return () => clearTimeout(timer);
-  }, [charCount, evaluation]);
+  }, [charCount]);
+
+  useEffect(() => {
+    if (charCount === 0) return;
+    if (!isTyping) {
+      setSettledEvaluation(evaluation);
+    }
+  }, [charCount, evaluation, isTyping]);
 
   useEffect(() => {
     setDismissed(false);

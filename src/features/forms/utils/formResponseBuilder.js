@@ -11,6 +11,16 @@ const QUESTION_ICON_BGS = [
   '#F0FDF4',
 ];
 
+/** Format milliseconds as human-readable duration (e.g. "2m 15s", "45s"). */
+export function formatDurationMs(ms) {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return '—';
+  const totalSec = Math.round(ms / 1000);
+  if (totalSec < 60) return `${totalSec}s`;
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return s > 0 ? `${m}m ${s}s` : `${m}m`;
+}
+
 /** Format ISO date for the responses table (e.g. "20 Dec 2025 20:14"). */
 export function formatResponseSubmittedAt(iso) {
   if (!iso) return '—';
@@ -144,7 +154,14 @@ export function extractRespondentLabel(screens, snapsByScreenId) {
  * Build a persisted response from builder preview state.
  * @param {{ formId: number|string, screens: object[], snapsByScreenId: Record<number, object> }} params
  */
-export function buildResponseFromPreview({ formId, screens, snapsByScreenId }) {
+export function buildResponseFromPreview({
+  formId,
+  screens,
+  snapsByScreenId,
+  startedAt,
+  durationMs,
+  screenTimestamps,
+}) {
   const contentScreens = (screens ?? []).filter((s) => s.type === 'content');
   const answers = contentScreens.map((screen, i) => ({
     screenId: screen.id,
@@ -153,11 +170,15 @@ export function buildResponseFromPreview({ formId, screens, snapsByScreenId }) {
   }));
 
   const contact = extractRespondentLabel(screens, snapsByScreenId);
+  const submittedAt = new Date().toISOString();
 
   return {
     id: `resp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
     formId,
-    submittedAt: new Date().toISOString(),
+    submittedAt,
+    startedAt: startedAt ?? submittedAt,
+    durationMs: durationMs ?? null,
+    screenTimestamps: screenTimestamps ?? null,
     status: 'completed',
     contact,
     answers,
@@ -216,6 +237,7 @@ export function mapApiResponseForDisplay(item, draft) {
       contact: item.contact && item.contact !== '—' ? item.contact : rebuilt.contact,
       status: item.status ?? rebuilt.status,
       answers: rebuilt.answers,
+      durationMs: item.durationMs ?? item.metadata?.durationMs ?? null,
     };
   }
 
@@ -226,9 +248,15 @@ export function mapApiResponseForDisplay(item, draft) {
 
 /** @param {import('./formResponsesStorage').FormResponseRecord} response */
 export function responseToTableRow(response) {
+  const durationLabel =
+    response.durationMs != null
+      ? formatDurationMs(response.durationMs)
+      : response.metadata?.durationMs != null
+        ? formatDurationMs(response.metadata.durationMs)
+        : '—';
   return [
     response.contact || '—',
-    formatResponseSubmittedAt(response.submittedAt),
+    durationLabel,
     response.status === 'completed' ? 'Completed' : 'Partial',
     ...(response.answers ?? []).map((a) => a.value || '—'),
   ];

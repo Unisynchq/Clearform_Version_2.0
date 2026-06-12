@@ -70,7 +70,8 @@ function buildChartDataFromDailySeries(dailySeries, trendMetric) {
     if (trendMetric === 'completion') {
       return row.count > 0 ? Math.round((row.completions / row.count) * 100) : 0;
     }
-    return row.avgDuration ? Math.round(row.avgDuration / 1000) : 0;
+    if (row.avgDuration && row.avgDuration > 0) return Math.round(row.avgDuration / 1000);
+    return null;
   });
   const last = values[values.length - 1];
   const suffix = trendMetric === 'completion' ? '%' : trendMetric === 'responses' ? ' /day' : 's';

@@ -469,11 +469,20 @@ function buildBarsFromSeries(series, seg) {
   }
   if (seg === 'time') {
     const vals = series.map((r) => {
-      if (typeof r.avgTimePerQuestionSec === 'number') return r.avgTimePerQuestionSec;
-      return r.avgDuration ? Math.round(r.avgDuration / 1000) : 0;
+      if (typeof r.avgTimePerQuestionSec === 'number' && r.avgTimePerQuestionSec > 0) {
+        return r.avgTimePerQuestionSec;
+      }
+      if (r.avgDuration && r.avgDuration > 0) return Math.round(r.avgDuration / 1000);
+      return null;
     });
-    const max = Math.max(...vals, 1);
-    return series.map((r, i) => ({ label: toLabel(r.date), value: vals[i], tier: toTier(vals[i], max) }));
+    const numericVals = vals.filter((v) => v != null);
+    if (numericVals.length === 0) return null;
+    const max = Math.max(...numericVals, 1);
+    return series.map((r, i) => {
+      const val = vals[i];
+      if (val == null) return { label: toLabel(r.date), value: null, tier: 'warn' };
+      return { label: toLabel(r.date), value: val, tier: toTier(val, max) };
+    });
   }
   return null;
 }
@@ -490,8 +499,10 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
 
   const avgFromSeries = useMemo(() => {
     if (!apiBars?.length) return null;
-    const sum = apiBars.reduce((acc, b) => acc + b.value, 0);
-    return (sum / apiBars.length).toFixed(1);
+    const numeric = apiBars.map((b) => b.value).filter((v) => v != null && Number.isFinite(v));
+    if (numeric.length === 0) return null;
+    const sum = numeric.reduce((acc, v) => acc + v, 0);
+    return (sum / numeric.length).toFixed(1);
   }, [apiBars]);
 
   const panel = useMemo(() => {

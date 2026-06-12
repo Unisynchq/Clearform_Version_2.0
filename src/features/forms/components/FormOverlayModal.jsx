@@ -55,7 +55,7 @@ const FormOverlayModal = () => {
     if (!Array.isArray(list)) return undefined;
     return list.find((f) => f.id === formId);
   });
-  const [isLoading, setIsLoading]             = useState(false);
+  const [overviewLoading, setOverviewLoading] = useState(false);
   const [activeTab, setActiveTab]             = useState('overview');
   const [responseLimit, setResponseLimit]     = useState('500');
   const [selectedPause, setSelectedPause]     = useState(null);
@@ -85,10 +85,10 @@ const FormOverlayModal = () => {
       setPerfData(null);
       setOverviewData(null);
       setFetchError(false);
-      setIsLoading(false);
+      setOverviewLoading(false);
       return;
     }
-    setIsLoading(true);
+    setOverviewLoading(true);
     setFetchError(false);
     try {
       const data = await fetchFormOverview(formId);
@@ -103,7 +103,7 @@ const FormOverlayModal = () => {
       setPerfData(null);
       setOverviewData(null);
     } finally {
-      setIsLoading(false);
+      setOverviewLoading(false);
     }
   }, [formId, form?.responseLimit]);
 
@@ -332,8 +332,8 @@ const FormOverlayModal = () => {
             className="fixed inset-0 z-[300] bg-black/20"
           />
 
-          {/* Skeleton — shown for the initial load of each form */}
-          {isLoading && (
+          {/* Skeleton — only when form record is not in Redux yet */}
+          {!form && overviewLoading && (
             <motion.div
               initial={{ opacity: 0, scale: 0.96, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -346,7 +346,7 @@ const FormOverlayModal = () => {
           )}
 
           {/* Panel — matches Figma: w-574px */}
-          {form && !isLoading && (
+          {form && (
           <motion.div
             initial={{ opacity: 0, scale: 0.96, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}

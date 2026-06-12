@@ -81,8 +81,18 @@ export default function PublicFormPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f4f3ef] flex flex-col items-center justify-center">
-        <p className="text-[14px] text-[#71717a]">Loading…</p>
+      <div className="min-h-screen bg-[#f4f3ef] flex flex-col items-center justify-center gap-4 p-8">
+        <div className="w-full max-w-[560px] rounded-[16px] bg-white border border-[#ebebeb] p-8 shadow-sm animate-pulse">
+          <div className="h-3 w-24 bg-[#f0f0f0] rounded mb-6" />
+          <div className="h-6 w-3/4 bg-[#ececec] rounded mb-3" />
+          <div className="h-4 w-full bg-[#f4f4f4] rounded mb-2" />
+          <div className="h-4 w-5/6 bg-[#f4f4f4] rounded mb-8" />
+          <div className="h-28 w-full bg-[#f8f8f8] rounded mb-6" />
+          <div className="flex justify-between">
+            <div className="h-10 w-20 bg-[#f0f0f0] rounded" />
+            <div className="h-10 w-28 bg-[#e8e8e8] rounded" />
+          </div>
+        </div>
       </div>
     );
   }

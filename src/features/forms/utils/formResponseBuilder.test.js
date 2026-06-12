@@ -57,8 +57,19 @@ describe('formResponseBuilder', () => {
       answers: [{ value: 'Yes' }],
     });
     expect(row[0]).toBe('a@b.co');
+    expect(row[1]).toBe('—');
     expect(row[2]).toBe('Completed');
     expect(row[3]).toBe('Yes');
+  });
+
+  it('responseToTableRow shows duration in response time column', () => {
+    const row = responseToTableRow({
+      contact: 'a@b.co',
+      durationMs: 135_000,
+      status: 'completed',
+      answers: [],
+    });
+    expect(row[1]).toBe('2m 15s');
   });
 
   it('sortResponsesByNewest orders by submittedAt descending', () => {
