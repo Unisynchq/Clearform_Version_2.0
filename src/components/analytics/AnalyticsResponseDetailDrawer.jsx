@@ -1,11 +1,16 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   RiArrowUpSLine,
   RiArrowDownSLine,
   RiCloseLine,
+  RiThumbUpLine,
+  RiThumbUpFill,
+  RiThumbDownLine,
+  RiThumbDownFill,
 } from 'react-icons/ri';
+import { submitAiFeedback } from '@/api/services/aiFeedbackService';
 
 const Q_START = 3;
 
@@ -17,6 +22,34 @@ function answerToChips(text) {
     .filter(Boolean);
 }
 
+function qualityLevelFromScore(score) {
+  if (score == null) return null;
+  if (score >= 70) return 'green';
+  if (score >= 40) return 'amber';
+  return 'red';
+}
+
+const QUALITY_CONFIG = {
+  green: {
+    label: 'High quality',
+    bg: '#f0fdf4',
+    text: '#15803d',
+    dot: '#16a34a',
+  },
+  amber: {
+    label: 'Needs improvement',
+    bg: '#fffbeb',
+    text: '#b45309',
+    dot: '#d97706',
+  },
+  red: {
+    label: 'Low quality',
+    bg: '#fef2f2',
+    text: '#b91c1c',
+    dot: '#dc2626',
+  },
+};
+
 export default function AnalyticsResponseDetailDrawer({
   open,
   onClose,
@@ -26,7 +59,15 @@ export default function AnalyticsResponseDetailDrawer({
   onPrev,
   onNext,
   headers,
+  formId,
+  responseItem,
 }) {
+  const [feedback, setFeedback] = useState({ rating: null, status: 'idle' });
+
+  useEffect(() => {
+    setFeedback({ rating: null, status: 'idle' });
+  }, [responseItem?.id]);
+
   useEffect(() => {
     if (!open) return undefined;
     const onKey = (e) => {
@@ -45,6 +86,25 @@ export default function AnalyticsResponseDetailDrawer({
 
   const canPrev = rowIndex > 0;
   const canNext = rowIndex < totalRows - 1;
+
+  const level = qualityLevelFromScore(responseItem?.qualityScore);
+  const qConfig = level ? QUALITY_CONFIG[level] : null;
+
+  async function handleFeedback(rating) {
+    if (!formId || !responseItem?.id || feedback.status === 'submitting') return;
+    setFeedback({ rating, status: 'submitting' });
+    try {
+      await submitAiFeedback(formId, responseItem.id, {
+        rating,
+        aiDecision: level ?? 'unknown',
+        actualAnswer: null,
+        screenId: null,
+      });
+      setFeedback({ rating, status: 'done' });
+    } catch {
+      setFeedback({ rating: null, status: 'idle' });
+    }
+  }
 
   const node = (
     <AnimatePresence>
@@ -121,6 +181,59 @@ export default function AnalyticsResponseDetailDrawer({
                   transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
                   className="flex flex-col"
                 >
+                  {qConfig && (
+                    <div className="flex items-center justify-between border-b border-[rgba(0,0,0,0.08)] px-5 py-3">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium leading-none"
+                          style={{ backgroundColor: qConfig.bg, color: qConfig.text }}
+                        >
+                          <span
+                            className="size-[6px] rounded-full shrink-0"
+                            style={{ backgroundColor: qConfig.dot }}
+                          />
+                          {qConfig.label}
+                        </span>
+                        <span className="text-[11px] text-[#8a8880]">AI decision</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {feedback.status === 'done' ? (
+                          <span className="text-[11px] text-[#8a8880]">
+                            {feedback.rating === 1 ? 'Marked correct' : 'Marked incorrect'}
+                          </span>
+                        ) : (
+                          <>
+                            <span className="mr-1 text-[11px] text-[#8a8880]">Correct?</span>
+                            <motion.button
+                              type="button"
+                              whileTap={{ scale: 0.88 }}
+                              disabled={feedback.status === 'submitting'}
+                              aria-label="AI decision was correct"
+                              onClick={() => handleFeedback(1)}
+                              className="flex size-[26px] items-center justify-center rounded-[5px] border border-[rgba(0,0,0,0.08)] bg-white text-[#5c5c58] transition-colors hover:border-[#16a34a] hover:text-[#16a34a] disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              {feedback.rating === 1
+                                ? <RiThumbUpFill size={12} />
+                                : <RiThumbUpLine size={12} />}
+                            </motion.button>
+                            <motion.button
+                              type="button"
+                              whileTap={{ scale: 0.88 }}
+                              disabled={feedback.status === 'submitting'}
+                              aria-label="AI decision was incorrect"
+                              onClick={() => handleFeedback(-1)}
+                              className="flex size-[26px] items-center justify-center rounded-[5px] border border-[rgba(0,0,0,0.08)] bg-white text-[#5c5c58] transition-colors hover:border-[#dc2626] hover:text-[#dc2626] disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              {feedback.rating === -1
+                                ? <RiThumbDownFill size={12} />
+                                : <RiThumbDownLine size={12} />}
+                            </motion.button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {headers.slice(Q_START).map((h, j) => {
                     const i = Q_START + j;
                     const Icon = h.Icon;

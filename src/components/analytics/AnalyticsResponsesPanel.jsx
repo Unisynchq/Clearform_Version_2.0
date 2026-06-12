@@ -293,6 +293,15 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
     );
   }, [search, FORM_ROWS]);
 
+  // Parallel to `filtered` — keeps raw response objects in sync with display rows for feedback.
+  const filteredResponseItems = useMemo(() => {
+    if (!search.trim()) return responsesInRange;
+    const q = search.toLowerCase();
+    return responsesInRange.filter((_, i) =>
+      FORM_ROWS[i]?.some((cell) => String(cell).toLowerCase().includes(q)),
+    );
+  }, [search, FORM_ROWS, responsesInRange]);
+
   useEffect(() => {
     setSelectedRowIndex((i) => {
       if (filtered.length === 0) return 0;
@@ -719,6 +728,8 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
           open={drawerOpen}
           onClose={() => setDrawerOpen(false)}
           row={filtered[selectedRowIndex]}
+          responseItem={filteredResponseItems[selectedRowIndex]}
+          formId={form?.id}
           rowIndex={selectedRowIndex}
           totalRows={filtered.length}
           onPrev={() => setSelectedRowIndex((i) => Math.max(0, i - 1))}

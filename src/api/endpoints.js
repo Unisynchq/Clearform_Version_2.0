@@ -48,6 +48,10 @@ export const API_ENDPOINTS = {
     evaluate: (formId) => `/forms/${formId}/response-quality/evaluate`,
     analytics: (formId) => `/analytics/forms/${formId}/response-quality`,
   },
+  aiFeedback: {
+    create: (formId, responseId) => `/forms/${formId}/responses/${responseId}/ai-feedback`,
+    list: (formId) => `/forms/${formId}/ai-feedback`,
+  },
   notifications: {
     list: '/notifications',
     readOne: (id) => `/notifications/${id}/read`,
