@@ -81,6 +81,7 @@ export function mapRecommendedActionsFromApi(actions) {
     index: String(i + 1).padStart(2, '0'),
     title: a.title ?? '',
     tags: [priorityTag(a.priority)],
+    actionType: a.actionType ?? 'review_form',
   }));
   const expanded = actions.map((a, i) => ({
     index: String(i + 1).padStart(2, '0'),
@@ -93,6 +94,7 @@ export function mapRecommendedActionsFromApi(actions) {
     effortFilled: a.priority === 'high' ? 4 : 2,
     effortLabel: a.priority === 'high' ? 'Medium-High' : 'Medium',
     ctaHint: a.actionType === 'view_responses' ? 'Open responses' : 'Review form',
+    actionType: a.actionType ?? 'review_form',
   }));
   return { compact, expanded };
 }

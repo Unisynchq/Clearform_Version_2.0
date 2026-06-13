@@ -13,6 +13,28 @@ import {
 import { submitAiFeedback } from '@/api/services/aiFeedbackService';
 
 const Q_START = 3;
+const FEEDBACK_KEY = 'cf_ai_fb';
+
+function getStoredFeedback(responseId) {
+  try {
+    const map = JSON.parse(localStorage.getItem(FEEDBACK_KEY) ?? '{}');
+    return map[responseId] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function storeFeedback(responseId, rating) {
+  try {
+    const map = JSON.parse(localStorage.getItem(FEEDBACK_KEY) ?? '{}');
+    map[responseId] = rating;
+    const keys = Object.keys(map);
+    if (keys.length > 1000) keys.slice(0, keys.length - 1000).forEach((k) => delete map[k]);
+    localStorage.setItem(FEEDBACK_KEY, JSON.stringify(map));
+  } catch {
+    // storage unavailable — graceful no-op
+  }
+}
 
 function answerToChips(text) {
   if (text == null || text === '' || text === '—') return [];
@@ -65,7 +87,13 @@ export default function AnalyticsResponseDetailDrawer({
   const [feedback, setFeedback] = useState({ rating: null, status: 'idle' });
 
   useEffect(() => {
-    setFeedback({ rating: null, status: 'idle' });
+    if (!responseItem?.id) return;
+    const stored = getStoredFeedback(responseItem.id);
+    setFeedback(
+      stored !== null
+        ? { rating: stored, status: 'done' }
+        : { rating: null, status: 'idle' },
+    );
   }, [responseItem?.id]);
 
   useEffect(() => {
@@ -100,6 +128,7 @@ export default function AnalyticsResponseDetailDrawer({
         actualAnswer: null,
         screenId: null,
       });
+      storeFeedback(responseItem.id, rating);
       setFeedback({ rating, status: 'done' });
     } catch {
       setFeedback({ rating: null, status: 'idle' });
