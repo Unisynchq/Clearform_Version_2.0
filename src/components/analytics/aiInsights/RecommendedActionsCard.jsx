@@ -4,7 +4,7 @@ import { RiArrowRightSLine } from 'react-icons/ri';
 import MoreDetailsTrigger from './MoreDetailsTrigger';
 import EffortDots from './EffortDots';
 
-function RecommendedActionCompactCell({ action }) {
+function RecommendedActionCompactCell({ action, onTakeAction }) {
   return (
     <div className="flex min-h-[162px] flex-col bg-white p-[23px]">
       <p className="text-[12.859px] font-medium leading-[19.288px] text-[#555]">{action.index}</p>
@@ -25,6 +25,7 @@ function RecommendedActionCompactCell({ action }) {
           type="button"
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
+          onClick={() => onTakeAction?.(action.actionType)}
           className="shrink-0 rounded-[10px] border border-[rgba(152,16,250,0.2)] bg-white px-3 py-2 text-[12.5px] font-semibold text-[#15140e] cursor-pointer whitespace-nowrap"
         >
           Take action →
@@ -34,7 +35,7 @@ function RecommendedActionCompactCell({ action }) {
   );
 }
 
-function RecommendedActionsExpanded({ actions = [] }) {
+function RecommendedActionsExpanded({ actions = [], onTakeAction }) {
   return (
     <div className="rounded-[16px] border border-[#e8e8e3] bg-white p-px shadow-[0px_24px_80px_rgba(0,0,0,0.18),0px_8px_24px_rgba(0,0,0,0.08)]">
       <div className="border-b border-[#efefeb]">
@@ -123,6 +124,7 @@ function RecommendedActionsExpanded({ actions = [] }) {
               type="button"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
+              onClick={() => onTakeAction?.(a.actionType)}
               className="inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-[8px] bg-[#1a1a18] px-4 py-2 text-[12.5px] font-medium text-white"
             >
               Take action
@@ -136,7 +138,7 @@ function RecommendedActionsExpanded({ actions = [] }) {
   );
 }
 
-export default function RecommendedActionsCard({ compactActions, expandedActions }) {
+export default function RecommendedActionsCard({ compactActions, expandedActions, onTakeAction }) {
   const [expanded, setExpanded] = useState(false);
   const compact = compactActions ?? [];
   const expandedList = expandedActions ?? [];
@@ -165,7 +167,7 @@ export default function RecommendedActionsCard({ compactActions, expandedActions
           </div>
           <MoreDetailsTrigger open={expanded} onClick={() => setExpanded(false)} />
         </div>
-        <RecommendedActionsExpanded actions={expandedList} />
+        <RecommendedActionsExpanded actions={expandedList} onTakeAction={onTakeAction} />
       </div>
     );
   }
@@ -179,7 +181,7 @@ export default function RecommendedActionsCard({ compactActions, expandedActions
       <div className="overflow-hidden rounded-[12.859px] bg-[rgba(0,0,0,0.07)] p-px">
         <div className="grid grid-cols-1 gap-px md:grid-cols-3">
           {compact.map((action) => (
-            <RecommendedActionCompactCell key={action.index} action={action} />
+            <RecommendedActionCompactCell key={action.index} action={action} onTakeAction={onTakeAction} />
           ))}
         </div>
       </div>

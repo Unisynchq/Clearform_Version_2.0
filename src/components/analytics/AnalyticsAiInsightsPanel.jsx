@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   RiAlertLine,
@@ -383,7 +383,7 @@ function AiSummaryBanner({ insight, npsScore, npsTrendLabel }) {
 /*  Priority Focus — Figma 2241:18322                                         */
 /* -------------------------------------------------------------------------- */
 
-function PriorityFocusCard({ title, body, impactEstimate, confidencePercent }) {
+function PriorityFocusCard({ title, body, impactEstimate, confidencePercent, onTakeAction }) {
   const focusTitle = title || 'Review recent feedback';
   const focusBody =
     body ||
@@ -432,6 +432,7 @@ function PriorityFocusCard({ title, body, impactEstimate, confidencePercent }) {
           type="button"
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.97 }}
+          onClick={onTakeAction}
           className="bg-white border border-[rgba(152,16,250,0.2)] rounded-[10px] px-[12px] py-[8px] text-[12.5px] font-semibold text-[#15140e] cursor-pointer"
         >
           Take action →
@@ -635,6 +636,7 @@ function AnalyticsAiInsightsPanel({
   loadKey = 0,
   apiInsights,
 }) {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const patternFailUrl = searchParams.get('aiPatternFail') === '1';
   const exportErrUrl = searchParams.get('aiExportError') === '1';
@@ -736,6 +738,15 @@ function AnalyticsAiInsightsPanel({
     }
     return null;
   }, [apiInsights, apiLive]);
+
+  const handleTakeAction = (actionType) => {
+    if (!form?.id) return;
+    if (actionType === 'view_responses') {
+      navigate(`/dashboard/analytics?form=${form.id}&tab=responses`);
+    } else {
+      navigate(`/dashboard/form-builder/${form.id}`);
+    }
+  };
 
   if (showNoDataPeriod) {
     return (
@@ -844,6 +855,7 @@ function AnalyticsAiInsightsPanel({
         body={apiInsights?.priorityBody}
         impactEstimate={apiInsights?.impactEstimate}
         confidencePercent={apiInsights?.confidencePercent}
+        onTakeAction={() => handleTakeAction(apiInsights?.priorityFocus?.actionType ?? 'review_form')}
       />
       <div className="grid grid-cols-1 gap-[18px] lg:grid-cols-2">
         {patternsColumn}
@@ -852,6 +864,7 @@ function AnalyticsAiInsightsPanel({
       <RecommendedActionsCard
         compactActions={mappedActions?.compact}
         expandedActions={mappedActions?.expanded}
+        onTakeAction={handleTakeAction}
       />
           </motion.div>
         )}
