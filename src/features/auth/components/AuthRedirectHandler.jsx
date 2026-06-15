@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { setSubmitting, setError, loginSuccess } from '@/store/slices/authSlice';
 import {
   applyBackendOnboardingState,
-  resolveAuthNavigationAfterSync,
+  completeAuthNavigationAfterSync,
 } from '@/features/onboarding/utils/authOnboarding';
 import { auth } from '@/config/firebase';
 import {
@@ -36,9 +36,10 @@ const AuthRedirectHandler = () => {
     try {
       const returnTo = readAuthReturnTo();
       applyBackendOnboardingState(dispatch, user.onboardingCompleted);
-      const path = resolveAuthNavigationAfterSync(dispatch, {
+      const path = await completeAuthNavigationAfterSync(dispatch, {
         onboardingCompleted: user.onboardingCompleted,
         returnTo,
+        showToast,
       });
       dispatch(
         loginSuccess({

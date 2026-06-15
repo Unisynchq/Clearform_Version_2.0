@@ -4,6 +4,8 @@ import {
   PAID_PLANS,
 } from '@/features/profile/utils/profilePlanCatalog';
 
+import { isApiConfigured } from '@/config/env';
+
 export const GST_RATE = 0.18;
 
 export const PAYMENT_METHODS = [
@@ -167,4 +169,9 @@ export function getPayButtonLabel(summary, paymentMethod, netbankingBank) {
     return `Pay ${amount} →`;
   }
   return `Pay ${amount} / month →`;
+}
+
+/** Demo Razorpay UI is only used when the API is not configured. */
+export function isDemoBillingCheckoutEnabled() {
+  return !isApiConfigured();
 }

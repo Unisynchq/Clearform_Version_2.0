@@ -127,6 +127,88 @@ export function buildTaxInvoice(subscription, customer = {}) {
   };
 }
 
+/**
+ * Build invoice display from API billing receipt (Razorpay payment id).
+ * @param {{ paymentId: string, purchasedAt?: string, amount?: number, currency?: string }} receipt
+ * @param {{ firstName?: string, lastName?: string, email?: string }} customer
+ * @param {{ expiresAt?: string, periodEnd?: string }} billingStatus
+ */
+export function buildInvoiceFromBillingReceipt(receipt, customer = {}, billingStatus = {}) {
+  if (!receipt?.paymentId) return null;
+
+  const display = getActivePlanDisplay('pilot_35', 'pilot', {
+    expiresAt: billingStatus.expiresAt ?? billingStatus.periodEnd,
+  });
+  if (!display) return null;
+
+  const purchasedAt = receipt.purchasedAt ? new Date(receipt.purchasedAt) : new Date();
+  const expiresAt = billingStatus.expiresAt ?? billingStatus.periodEnd;
+  const expiryDate = expiresAt ? new Date(expiresAt) : null;
+  const customerName = [customer.firstName, customer.lastName].filter(Boolean).join(' ') || 'Customer';
+  const amountPaid = receipt.amount ?? 34.99;
+  const currency = receipt.currency ?? 'USD';
+  const amountLabel =
+    currency === 'USD' || currency === 'usd'
+      ? `$${Number(amountPaid).toFixed(2)}`
+      : formatInr(amountPaid);
+
+  const periodLabel =
+    expiryDate && !Number.isNaN(expiryDate.getTime())
+      ? `${formatShortDate(purchasedAt)} – ${formatShortDate(expiryDate)}`
+      : formatShortDate(purchasedAt);
+
+  return {
+    invoiceNumber: receipt.paymentId,
+    status: 'paid',
+    issueDate: formatShortDate(purchasedAt),
+    periodLabel,
+    periodEndLabel: periodLabel,
+    chargedOn: formatShortDate(purchasedAt),
+    planId: 'pilot_35',
+    planName: display.name,
+    intervalLabel: 'One-time',
+    displayTitle: display.invoiceTitle,
+    stripTitle: display.stripTitle,
+    stripSubtitle: display.stripSubtitle,
+    taxPlanName: display.taxPlanName,
+    taxPlanSubtitle: display.taxPlanSubtitle,
+    monthlyPrice: amountPaid,
+    monthlyPriceLabel: amountLabel,
+    promoCode: null,
+    promoDiscount: 0,
+    subtotalExcl: amountPaid,
+    subtotalExclLabel: amountLabel,
+    cgst: 0,
+    cgstLabel: '—',
+    sgst: 0,
+    sgstLabel: '—',
+    totalPaid: amountPaid,
+    totalPaidLabel: amountLabel,
+    totalPaidDisplay: amountLabel,
+    nextBillingDate: expiryDate ? formatShortDate(expiryDate) : '—',
+    nextBillingInclGst: '—',
+    lineItems: [
+      {
+        description: 'Clearform Pilot — One-time access',
+        subtitle: display.taxPlanSubtitle,
+        qty: '1',
+        unitPrice: amountPaid,
+        amount: amountPaid,
+      },
+      ...display.bundledLineItems,
+    ],
+    paymentMethodLabel: `Razorpay · ${receipt.paymentId}`,
+    paymentExpiry: 'Razorpay',
+    customer: {
+      company: '',
+      name: customerName,
+      email: customer.email ?? '',
+      address: '',
+      gstin: '',
+    },
+  };
+}
+
 /** @param {{ planId: string, interval: string, paymentContext?: object }} checkout */
 export function createSubscriptionFromCheckout(checkout) {
   const promoApplied =

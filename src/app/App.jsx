@@ -9,12 +9,17 @@ import NotificationCenter from '@/features/forms/components/NotificationCenter';
 import BuilderRouteTransitionOverlay from '@/components/layout/BuilderRouteTransitionOverlay';
 import AuthRedirectHandler from '@/features/auth/components/AuthRedirectHandler';
 import FirebaseSessionBridge from '@/features/auth/components/FirebaseSessionBridge';
+import { capturePendingPaymentFromUrl } from '@/features/billing/utils/pendingPaymentStorage';
 import { loadFormsFromApi, loadWorkspacesFromApi } from '@/store/slices/formsSlice';
 import { loadNotificationsFromApi } from '@/store/slices/notificationsSlice';
 
 const App = () => {
   const dispatch = useDispatch();
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
+
+  useEffect(() => {
+    capturePendingPaymentFromUrl();
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {

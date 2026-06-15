@@ -78,4 +78,9 @@ export const API_ENDPOINTS = {
     delete: (formId, webhookId) => `/forms/${formId}/webhooks/${webhookId}`,
     test: (formId, webhookId) => `/forms/${formId}/webhooks/${webhookId}/test`,
   },
+  billing: {
+    status: () => '/billing/status',
+    claimPurchase: () => '/billing/claim-purchase',
+    createCheckout: () => '/billing/create-checkout',
+  },
 };

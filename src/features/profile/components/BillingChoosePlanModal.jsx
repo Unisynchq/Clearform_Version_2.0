@@ -5,14 +5,17 @@ import {
   RiCloseLine,
   RiLockLine,
 } from 'react-icons/ri';
+import { redirectToCheckout } from '@/api/services/billingService';
+import { isApiConfigured } from '@/config/env';
 import ProfileModal from '@/components/profile/ProfileModal';
 import BillingPaymentAwaiting from '@/features/profile/components/billing/BillingPaymentAwaiting';
 import BillingPaymentFailed from '@/features/profile/components/billing/BillingPaymentFailed';
 import BillingPaymentStep from '@/features/profile/components/billing/BillingPaymentStep';
 import BillingPaymentSuccess from '@/features/profile/components/billing/BillingPaymentSuccess';
-import { resolvePaymentOutcome } from '@/features/profile/utils/profileBillingCheckout';
+import { resolvePaymentOutcome, isDemoBillingCheckoutEnabled } from '@/features/profile/utils/profileBillingCheckout';
 import { createSubscriptionFromCheckout } from '@/features/profile/utils/profileBillingInvoice';
 import { writeBillingSubscription } from '@/features/profile/utils/profileBillingStorage';
+import { useToast } from '@/hooks/useToast';
 import { CHECKOUT_STEPS } from '@/features/profile/utils/profilePlanCatalog';
 import {
   BILLING_INTERVALS,
@@ -120,7 +123,7 @@ const PlanFeature = ({ text, included, dark }) => (
   </li>
 );
 
-const StarterPlanCard = ({ plan, interval, onSelect }) => {
+const StarterPlanCard = ({ plan, interval, onSelect, checkoutLoading = false }) => {
   const price = getPlanDisplayPrice(plan, interval);
 
   return (
@@ -145,15 +148,16 @@ const StarterPlanCard = ({ plan, interval, onSelect }) => {
       <button
         type="button"
         onClick={() => onSelect(plan.id)}
-        className="w-full rounded-[8px] border border-[#e8e8e6] px-[17px] py-[9px] text-[13px] font-medium text-[#1a1a18] transition-colors hover:bg-[#f7f7f6]"
+        disabled={checkoutLoading}
+        className="w-full rounded-[8px] border border-[#e8e8e6] px-[17px] py-[9px] text-[13px] font-medium text-[#1a1a18] transition-colors hover:bg-[#f7f7f6] disabled:opacity-60"
       >
-        {plan.ctaLabel}
+        {checkoutLoading ? 'Opening checkout…' : plan.ctaLabel}
       </button>
     </article>
   );
 };
 
-const ProPlanCard = ({ plan, interval, onSelect }) => {
+const ProPlanCard = ({ plan, interval, onSelect, checkoutLoading = false }) => {
   const price = getPlanDisplayPrice(plan, interval);
 
   return (
@@ -186,11 +190,12 @@ const ProPlanCard = ({ plan, interval, onSelect }) => {
       <button
         type="button"
         onClick={() => onSelect(plan.id)}
-        className="inline-flex w-full items-center justify-center gap-1 rounded-[8px] px-4 py-2.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
+        disabled={checkoutLoading}
+        className="inline-flex w-full items-center justify-center gap-1 rounded-[8px] px-4 py-2.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
         style={{ backgroundColor: PRO_ACCENT }}
       >
-        {plan.ctaLabel}
-        <RiArrowRightLine size={14} aria-hidden />
+        {checkoutLoading ? 'Opening checkout…' : plan.ctaLabel}
+        {!checkoutLoading ? <RiArrowRightLine size={14} aria-hidden /> : null}
       </button>
     </article>
   );
@@ -203,10 +208,13 @@ const BillingChoosePlanModal = ({
   customerEmail,
   customer,
 }) => {
+  const { showToast } = useToast();
+  const demoCheckout = isDemoBillingCheckoutEnabled();
   const [step, setStep] = useState('plan');
   const [interval, setInterval] = useState('monthly');
   const [selection, setSelection] = useState(null);
   const [paymentContext, setPaymentContext] = useState(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const persistedRef = useRef(false);
 
   useEffect(() => {
@@ -231,12 +239,27 @@ const BillingChoosePlanModal = ({
     setStep('plan');
   };
 
-  const handleSelectPlan = (planId) => {
+  const handleSelectPlan = async (planId) => {
+    if (isApiConfigured()) {
+      setCheckoutLoading(true);
+      try {
+        await redirectToCheckout({ planId, interval });
+      } catch (err) {
+        showToast({
+          type: 'error',
+          message: err?.message ?? 'Could not start checkout.',
+          duration: 6000,
+        });
+        setCheckoutLoading(false);
+      }
+      return;
+    }
     setSelection({ planId, interval });
     setStep('payment');
   };
 
   const handlePay = (context) => {
+    if (!demoCheckout) return;
     setPaymentContext(context);
     const outcome = resolvePaymentOutcome(context);
     if (outcome === 'awaiting') setStep('awaiting');
@@ -249,7 +272,7 @@ const BillingChoosePlanModal = ({
   const handleBackToPayment = () => setStep('payment');
 
   const persistSubscription = () => {
-    if (!customerEmail || !selection) return;
+    if (!demoCheckout || !customerEmail || !selection) return;
     const subscription = createSubscriptionFromCheckout({
       planId: selection.planId,
       interval: selection.interval,
@@ -260,15 +283,15 @@ const BillingChoosePlanModal = ({
   };
 
   useEffect(() => {
-    if (step === 'success' && selection && !persistedRef.current) {
-      persistedRef.current = true;
-      persistSubscription();
-    }
-  }, [step, selection, customerEmail, paymentContext, onBillingUpdated]);
+    if (!demoCheckout || step !== 'success' || !selection || persistedRef.current) return;
+    persistedRef.current = true;
+    persistSubscription();
+  }, [step, selection, customerEmail, paymentContext, onBillingUpdated, demoCheckout]);
 
   const [starterPlan, proPlan] = PAID_PLANS;
 
   const renderCheckoutStep = () => {
+    if (!demoCheckout) return null;
     if (step === 'awaiting' && selection) {
       return (
         <BillingPaymentAwaiting
@@ -353,8 +376,14 @@ const BillingChoosePlanModal = ({
                 plan={starterPlan}
                 interval={interval}
                 onSelect={handleSelectPlan}
+                checkoutLoading={checkoutLoading}
               />
-              <ProPlanCard plan={proPlan} interval={interval} onSelect={handleSelectPlan} />
+              <ProPlanCard
+                plan={proPlan}
+                interval={interval}
+                onSelect={handleSelectPlan}
+                checkoutLoading={checkoutLoading}
+              />
             </div>
 
             <p className="mt-4 text-center text-[12px] text-[#888580]">

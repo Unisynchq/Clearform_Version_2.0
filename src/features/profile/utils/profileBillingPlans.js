@@ -1,6 +1,9 @@
 import { getPlanDisplayPrice, PAID_PLANS } from '@/features/profile/utils/profilePlanCatalog';
 import { formatInr } from '@/features/profile/utils/profileBillingCheckout';
 
+/** Backend plan id for Razorpay Payment Link pilot ($34.99 / 90 days). */
+export const PILOT_35_PLAN_ID = 'pilot_35';
+
 /** Default workspace tier during the pilot — no paid subscription yet. */
 export const PILOT_PLAN = {
   id: 'pilot',
@@ -18,6 +21,29 @@ export const PILOT_PLAN = {
 export const FREE_PLAN = PILOT_PLAN;
 
 const PLAN_STRIP = {
+  pilot_35: {
+    stripTitle: 'Clearform Pilot',
+    stripSubtitle: '300 responses · Unlimited forms · 1 workspace',
+    invoiceTitle: 'Clearform Pilot — One-time',
+    taxPlanName: 'Clearform Pilot',
+    taxPlanSubtitle: '300 responses · Unlimited forms · 1 workspace · 90 days',
+    limitsLabel: 'Unlimited forms · 300 responses · 1 workspace',
+    formsLimit: null,
+    responsesLimit: 300,
+    workspacesLimit: 1,
+    teamLimit: 1,
+    headerSubtext: 'Your Clearform Pilot access is active',
+    defaultUsage: { responsesThisMonth: 0, formsUsed: 0, workspacesUsed: 0 },
+    bundledLineItems: [
+      {
+        description: 'AI Response Quality Scoring — Included',
+        subtitle: 'Score every submission automatically · Bundled with Pilot',
+        qty: '1',
+        unitPrice: 0,
+        amount: 0,
+      },
+    ],
+  },
   starter: {
     stripTitle: 'Starter plan',
     stripSubtitle: '10 active forms · 1,000 responses / month',
@@ -86,7 +112,29 @@ const PLAN_STRIP = {
   },
 };
 
-export function getActivePlanDisplay(planId, interval = 'monthly') {
+function formatExpiryDate(isoOrDate) {
+  const d = isoOrDate instanceof Date ? isoOrDate : new Date(isoOrDate);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+export function getActivePlanDisplay(planId, interval = 'monthly', { expiresAt } = {}) {
+  if (planId === PILOT_35_PLAN_ID) {
+    const meta = PLAN_STRIP.pilot_35;
+    const expiryLabel = expiresAt ? formatExpiryDate(expiresAt) : null;
+    return {
+      id: PILOT_35_PLAN_ID,
+      name: 'Clearform Pilot',
+      interval: 'pilot',
+      monthlyPrice: 34.99,
+      priceLabel: '$34.99',
+      priceSubtext: 'one-time',
+      renewLabel: expiryLabel ? `Expires ${expiryLabel}` : '90-day pilot access',
+      isOneTime: true,
+      ...meta,
+    };
+  }
+
   const catalog = PAID_PLANS.find((p) => p.id === planId);
   const meta = PLAN_STRIP[planId];
   if (!catalog || !meta) return null;

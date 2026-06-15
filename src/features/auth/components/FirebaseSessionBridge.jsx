@@ -5,7 +5,7 @@ import { auth } from '@/config/firebase';
 import { loginSuccess } from '@/store/slices/authSlice';
 import {
   applyBackendOnboardingState,
-  resolveAuthNavigationAfterSync,
+  completeAuthNavigationAfterSync,
 } from '@/features/onboarding/utils/authOnboarding';
 import {
   restoreFirebaseSessionFromCurrentUser,
@@ -54,9 +54,10 @@ const FirebaseSessionBridge = () => {
         }
 
         applyBackendOnboardingState(dispatch, user.onboardingCompleted);
-        const path = resolveAuthNavigationAfterSync(dispatch, {
+        const path = await completeAuthNavigationAfterSync(dispatch, {
           onboardingCompleted: user.onboardingCompleted,
           returnTo,
+          showToast,
         });
         dispatch(
           loginSuccess({

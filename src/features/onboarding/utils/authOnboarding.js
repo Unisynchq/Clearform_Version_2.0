@@ -4,6 +4,14 @@ import {
   completeOnboarding,
 } from '@/store/slices/onboardingSlice';
 import { resetFormsForOnboarding } from '@/store/slices/formsSlice';
+import { claimPurchase } from '@/api/services/billingService';
+import { isApiConfigured } from '@/config/env';
+import {
+  clearPendingPaymentId,
+  getPendingPaymentId,
+} from '@/features/billing/utils/pendingPaymentStorage';
+
+const BILLING_CLAIM_SUPPORT = 'support@clearform.in';
 
 /** Sign-in: dashboard by default; honors deep-link return path from RequireAuth. */
 export const resolveSignInNavigation = (dispatch, { returnTo } = {}) => {
@@ -29,6 +37,38 @@ export const applyBackendOnboardingState = (dispatch, onboardingCompleted) => {
 };
 
 /**
+ * Link a Razorpay payment from the landing redirect after auth sync.
+ * Failures are non-blocking — signup/sign-in still completes.
+ */
+export async function claimPendingPurchaseIfNeeded({ showToast } = {}) {
+  const paymentId = getPendingPaymentId();
+  if (!paymentId || !isApiConfigured()) {
+    return { claimed: false };
+  }
+
+  try {
+    await claimPurchase({ paymentId });
+    clearPendingPaymentId();
+    showToast?.({
+      type: 'success',
+      message: 'Your pilot payment is linked to this account.',
+      duration: 4000,
+    });
+    return { claimed: true };
+  } catch (err) {
+    const message =
+      err?.message ??
+      `We could not link your payment. Email ${BILLING_CLAIM_SUPPORT} with your payment ID.`;
+    showToast?.({
+      type: 'error',
+      message,
+      duration: 8000,
+    });
+    return { claimed: false, error: message };
+  }
+}
+
+/**
  * After Firebase + GET /auth/me — server onboardingCompleted is source of truth.
  * Microsoft OAuth often reports isNewUser=false; do not use it for routing.
  */
@@ -41,3 +81,14 @@ export const resolveAuthNavigationAfterSync = (
   }
   return resolveSignupNavigation(dispatch);
 };
+
+/**
+ * Claim pending payment (if any), then resolve post-auth navigation.
+ */
+export async function completeAuthNavigationAfterSync(
+  dispatch,
+  { onboardingCompleted = false, returnTo, showToast } = {},
+) {
+  await claimPendingPurchaseIfNeeded({ showToast });
+  return resolveAuthNavigationAfterSync(dispatch, { onboardingCompleted, returnTo });
+}

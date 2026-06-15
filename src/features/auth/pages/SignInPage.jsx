@@ -7,7 +7,7 @@ import { RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
 import { setField, setSubmitting, setError, loginSuccess } from '@/store/slices/authSlice';
 import {
   applyBackendOnboardingState,
-  resolveAuthNavigationAfterSync,
+  completeAuthNavigationAfterSync,
 } from '@/features/onboarding/utils/authOnboarding';
 import {
   signInWithEmail,
@@ -171,9 +171,10 @@ const SignInPage = () => {
         const user = await signInFn(location.state?.from);
         if (!user) return;
         applyBackendOnboardingState(dispatch, user.onboardingCompleted);
-        const path = resolveAuthNavigationAfterSync(dispatch, {
+        const path = await completeAuthNavigationAfterSync(dispatch, {
           onboardingCompleted: user.onboardingCompleted,
           returnTo: location.state?.from,
+          showToast,
         });
         dispatch(loginSuccess({
           email: user.email,
@@ -215,9 +216,10 @@ const SignInPage = () => {
     try {
       const user = await startMicrosoftSignInPopup();
       applyBackendOnboardingState(dispatch, user.onboardingCompleted);
-      const path = resolveAuthNavigationAfterSync(dispatch, {
+      const path = await completeAuthNavigationAfterSync(dispatch, {
         onboardingCompleted: user.onboardingCompleted,
         returnTo: location.state?.from,
+        showToast,
       });
       dispatch(loginSuccess({
         email: user.email,
@@ -261,9 +263,10 @@ const SignInPage = () => {
     try {
       const user = await signInWithEmail(email.trim(), password);
       applyBackendOnboardingState(dispatch, user.onboardingCompleted);
-      const path = resolveAuthNavigationAfterSync(dispatch, {
+      const path = await completeAuthNavigationAfterSync(dispatch, {
         onboardingCompleted: user.onboardingCompleted,
         returnTo: location.state?.from,
+        showToast,
       });
       dispatch(loginSuccess({ email: user.email, firstName: user.firstName, lastName: user.lastName }));
       showToast({ type: 'success', message: 'Signed in successfully', duration: 3000 });

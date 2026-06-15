@@ -7,7 +7,7 @@ import { RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
 import { setField, setSubmitting, setError, loginSuccess } from '@/store/slices/authSlice';
 import {
   applyBackendOnboardingState,
-  resolveAuthNavigationAfterSync,
+  completeAuthNavigationAfterSync,
 } from '@/features/onboarding/utils/authOnboarding';
 import {
   signUpWithEmail,
@@ -199,8 +199,9 @@ const SignupPage = () => {
         const user = await signInFn();
         if (!user) return;
         applyBackendOnboardingState(dispatch, user.onboardingCompleted);
-        const path = resolveAuthNavigationAfterSync(dispatch, {
+        const path = await completeAuthNavigationAfterSync(dispatch, {
           onboardingCompleted: user.onboardingCompleted,
+          showToast,
         });
         dispatch(loginSuccess({
           email: user.email,
@@ -244,8 +245,9 @@ const SignupPage = () => {
     try {
       const user = await signUpWithEmail(email.trim(), password, firstName.trim(), lastName.trim());
       applyBackendOnboardingState(dispatch, user.onboardingCompleted);
-      const path = resolveAuthNavigationAfterSync(dispatch, {
+      const path = await completeAuthNavigationAfterSync(dispatch, {
         onboardingCompleted: user.onboardingCompleted,
+        showToast,
       });
       dispatch(loginSuccess({ email: user.email, firstName: user.firstName, lastName: user.lastName }));
       showToast({
