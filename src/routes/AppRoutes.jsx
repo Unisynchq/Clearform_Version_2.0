@@ -23,6 +23,8 @@ import OnboardingLayout from '@/features/onboarding/layouts/OnboardingLayout';
 import OnboardingWelcomePage from '@/features/onboarding/pages/OnboardingWelcomePage';
 import OnboardingChooseTemplatePage from '@/features/onboarding/pages/OnboardingChooseTemplatePage';
 import NotFoundPage from '@/pages/NotFoundPage';
+import PilotCheckoutRedirect from '@/features/billing/pages/PilotCheckoutRedirect';
+import PilotCheckoutSuccessPage from '@/features/billing/pages/PilotCheckoutSuccessPage';
 import RequireAuth from './RequireAuth';
 import GuestOnly from './GuestOnly';
 import PageTitle from '@/components/layout/PageTitle';
@@ -54,6 +56,24 @@ const AppRoutes = () => {
               <GuestOnly>
                 <SignInPage />
               </GuestOnly>
+            </RouteTransitionShell>
+          }
+        />
+
+        <Route
+          path="/buy/pilot"
+          element={
+            <RouteTransitionShell variant="auth">
+              <PilotCheckoutRedirect />
+            </RouteTransitionShell>
+          }
+        />
+
+        <Route
+          path="/buy/pilot/success"
+          element={
+            <RouteTransitionShell variant="auth">
+              <PilotCheckoutSuccessPage />
             </RouteTransitionShell>
           }
         />

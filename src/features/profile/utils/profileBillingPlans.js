@@ -17,7 +17,20 @@ export const PILOT_PLAN = {
   headerSubtext: "You're on the pilot program",
 };
 
-/** @deprecated Use PILOT_PLAN */
+/** Free tier when API billing is configured (matches backend FREE_PLAN). */
+export const API_FREE_PLAN = {
+  id: 'free',
+  name: 'Free',
+  priceLabel: '$0',
+  priceSubtext: 'Upgrade to pilot for more',
+  limitsLabel: 'Unlimited forms · 50 responses',
+  formsLimit: null,
+  responsesLimit: 50,
+  teamLimit: 1,
+  headerSubtext: 'Free workspace — upgrade to Clearform Pilot for AI + 300 responses',
+};
+
+/** @deprecated Use API_FREE_PLAN when VITE_API_BASE_URL is set */
 export const FREE_PLAN = PILOT_PLAN;
 
 const PLAN_STRIP = {

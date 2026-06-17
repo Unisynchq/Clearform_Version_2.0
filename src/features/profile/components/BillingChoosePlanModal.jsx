@@ -5,6 +5,11 @@ import {
   RiCloseLine,
   RiLockLine,
 } from 'react-icons/ri';
+/**
+ * Pro / Starter plan picker — not used in production (pilot-only billing).
+ * ProfileBillingPanel uses openPilotRazorpayCheckout directly.
+ * Re-enable when monthly/yearly Razorpay Subscription plans ship.
+ */
 import { redirectToCheckout } from '@/api/services/billingService';
 import { isApiConfigured } from '@/config/env';
 import ProfileModal from '@/components/profile/ProfileModal';

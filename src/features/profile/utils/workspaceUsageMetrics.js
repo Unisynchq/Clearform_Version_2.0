@@ -30,14 +30,35 @@ export function sumFormResponseCounts(forms) {
 }
 
 /**
- * Workspace usage aligned with billing meters — sourced from live Redux + localStorage, not demo constants.
- * @param {{
- *   forms: { id?: number, responses?: number }[],
- *   email?: string | null,
- *   responsesByFormId?: Record<string, { submittedAt?: string }[]>,
- * }} params
+ * Workspace usage for billing meters and notifications.
+ * When `apiBilling` is set (from GET /billing/status), server values win.
  */
-export function getWorkspaceUsageMetrics({ forms = [], email = null, responsesByFormId = {} }) {
+export function getWorkspaceUsageMetrics({
+  forms = [],
+  email = null,
+  responsesByFormId = {},
+  apiBilling = null,
+}) {
+  if (apiBilling) {
+    const planName =
+      apiBilling.planId === 'pilot_35'
+        ? 'Clearform Pilot'
+        : apiBilling.status === 'EXPIRED'
+          ? 'Free (pilot expired)'
+          : 'Free';
+    return {
+      formsUsed: apiBilling.formsUsed ?? 0,
+      responsesUsed: apiBilling.responsesUsed ?? 0,
+      teamUsed: apiBilling.workspacesUsed ?? 1,
+      formsLimit: apiBilling.formsLimit ?? null,
+      responsesLimit: apiBilling.responsesLimit ?? 50,
+      teamLimit: apiBilling.workspacesLimit ?? 1,
+      planId: apiBilling.planId ?? 'free',
+      planName,
+      responsesSource: 'api',
+    };
+  }
+
   const subscription = email ? readBillingSubscription(email) : null;
   const paidPlan = subscription
     ? getActivePlanDisplay(subscription.planId, subscription.interval)

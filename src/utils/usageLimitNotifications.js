@@ -8,7 +8,7 @@ import {
 } from '@/constants/notificationRoutes';
 
 const UPGRADE_ACTION = notificationAction({
-  label: 'Upgrade plan',
+  label: 'Start Pilot',
   style: 'primary',
   routeKey: NOTIFICATION_ROUTE_KEYS.billing,
 });

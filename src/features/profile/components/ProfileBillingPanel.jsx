@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useSearchParams } from 'react-router-dom';
 import {
   RiArrowDownSLine,
   RiArrowRightLine,
@@ -9,12 +10,14 @@ import {
 import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent (1).png';
 import { getStatus } from '@/api/services/billingService';
 import { isApiConfigured } from '@/config/env';
-import BillingChoosePlanModal from '@/features/profile/components/BillingChoosePlanModal';
+import { captureAndClaimPendingPurchase } from '@/features/billing/utils/billingReturnFlow';
+import { openPilotRazorpayCheckout } from '@/features/billing/utils/openPilotRazorpayCheckout';
 import BillingInvoiceExpanded from '@/features/profile/components/billing/BillingInvoiceExpanded';
 import TaxInvoiceModal from '@/features/profile/components/billing/TaxInvoiceModal';
 import { getUsageHint, getUsageStatus } from '@/features/profile/utils/profileBillingDefaults';
 import { getWorkspaceUsageMetrics } from '@/features/profile/utils/workspaceUsageMetrics';
 import {
+  API_FREE_PLAN,
   FREE_PLAN,
   getActivePlanDisplay,
   PILOT_35_PLAN_ID,
@@ -23,6 +26,7 @@ import { buildTaxInvoice } from '@/features/profile/utils/profileBillingInvoice'
 import { readBillingSubscription } from '@/features/profile/utils/profileBillingStorage';
 import { dispatchSyncSystemAlerts } from '@/utils/syncSystemAlertsToStore';
 import { store } from '@/store/store';
+import { useToast } from '@/hooks/useToast';
 
 const ALERT_COLOR = '#e8473f';
 
@@ -129,19 +133,22 @@ function buildReceiptFromApi(receipt, planDisplay) {
 
 const ProfileBillingPanel = () => {
   const dispatch = useDispatch();
+  const { showToast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const email = useSelector((s) => s.auth.email);
   const firstName = useSelector((s) => s.auth.firstName);
   const lastName = useSelector((s) => s.auth.lastName);
   const forms = useSelector((s) => s.forms.forms);
   const responsesByFormId = useSelector((s) => s.forms.responsesByFormId);
 
-  const [choosePlanOpen, setChoosePlanOpen] = useState(false);
   const [billingVersion, setBillingVersion] = useState(0);
   const [invoiceExpanded, setInvoiceExpanded] = useState(true);
   const [taxInvoiceOpen, setTaxInvoiceOpen] = useState(false);
   const [apiStatus, setApiStatus] = useState(null);
   const [statusLoading, setStatusLoading] = useState(isApiConfigured());
   const [statusError, setStatusError] = useState(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const upgradeStartedRef = useRef(false);
 
   const useApiBilling = isApiConfigured();
 
@@ -163,26 +170,87 @@ const ProfileBillingPanel = () => {
     loadApiStatus();
   }, [loadApiStatus, billingVersion]);
 
+  useEffect(() => {
+    if (!useApiBilling) return;
+    (async () => {
+      const result = await captureAndClaimPendingPurchase({ showToast });
+      if (result.claimed) {
+        setBillingVersion((v) => v + 1);
+      }
+    })();
+  }, [showToast, useApiBilling]);
+
+  useEffect(() => {
+    if (!apiStatus) return;
+    dispatchSyncSystemAlerts(dispatch, store.getState(), { apiBilling: apiStatus });
+  }, [apiStatus, dispatch]);
+
   const localSubscription = useMemo(
     () => (useApiBilling ? null : readBillingSubscription(email)),
     [email, billingVersion, useApiBilling],
   );
 
   const isPaid = useApiBilling
-    ? apiStatus?.planId === PILOT_35_PLAN_ID ||
-      (apiStatus?.status && apiStatus.status !== 'FREE')
+    ? apiStatus?.planId === PILOT_35_PLAN_ID && apiStatus?.status !== 'EXPIRED'
     : Boolean(localSubscription?.planId);
+
+  const isPilotExpired = useApiBilling && apiStatus?.status === 'EXPIRED';
+
+  const handleStartPilotCheckout = useCallback(async () => {
+    if (!useApiBilling || isPaid) return;
+    setCheckoutLoading(true);
+    try {
+      await openPilotRazorpayCheckout();
+    } catch (err) {
+      showToast({
+        type: 'error',
+        message: err?.message ?? 'Could not start checkout.',
+        duration: 6000,
+      });
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }, [useApiBilling, isPaid, showToast]);
+
+  useEffect(() => {
+    if (searchParams.get('upgrade') !== 'pilot' || !useApiBilling || statusLoading) return;
+    if (isPaid) return;
+    if (upgradeStartedRef.current) return;
+    upgradeStartedRef.current = true;
+
+    setCheckoutLoading(true);
+    openPilotRazorpayCheckout()
+      .catch((err) => {
+        showToast({
+          type: 'error',
+          message: err?.message ?? 'Could not start checkout.',
+          duration: 6000,
+        });
+      })
+      .finally(() => setCheckoutLoading(false));
+
+    const next = new URLSearchParams(searchParams);
+    next.delete('upgrade');
+    setSearchParams(next, { replace: true });
+  }, [
+    searchParams,
+    isPaid,
+    useApiBilling,
+    statusLoading,
+    setSearchParams,
+    showToast,
+  ]);
 
   const plan = useMemo(() => {
     if (useApiBilling && apiStatus) {
-      if (apiStatus.planId === PILOT_35_PLAN_ID || apiStatus.status === 'ACTIVE') {
+      if (apiStatus.planId === PILOT_35_PLAN_ID && apiStatus.status !== 'EXPIRED') {
         return (
-          getActivePlanDisplay(apiStatus.planId, 'monthly', {
+          getActivePlanDisplay(apiStatus.planId, 'pilot', {
             expiresAt: apiStatus.expiresAt ?? apiStatus.periodEnd,
-          }) ?? FREE_PLAN
+          }) ?? API_FREE_PLAN
         );
       }
-      return FREE_PLAN;
+      return API_FREE_PLAN;
     }
     if (localSubscription) {
       return (
@@ -195,11 +263,7 @@ const ProfileBillingPanel = () => {
 
   const usageMetrics = useMemo(() => {
     if (useApiBilling && apiStatus) {
-      return {
-        formsUsed: apiStatus.formsUsed ?? 0,
-        responsesUsed: apiStatus.responsesUsed ?? 0,
-        teamUsed: apiStatus.workspacesUsed ?? 0,
-      };
+      return getWorkspaceUsageMetrics({ forms, email, responsesByFormId, apiBilling: apiStatus });
     }
     return getWorkspaceUsageMetrics({ forms, email, responsesByFormId });
   }, [useApiBilling, apiStatus, forms, email, responsesByFormId, billingVersion]);
@@ -217,29 +281,21 @@ const ProfileBillingPanel = () => {
   }, [useApiBilling, apiStatus, localSubscription, plan, firstName, lastName, email]);
 
   const showUpgradeCta = useMemo(() => {
-    if (isPaid) return false;
+    if (!useApiBilling || isPaid) return false;
     const responsesStatus = getUsageStatus(responsesUsed, plan.responsesLimit);
-    return responsesStatus === 'near-limit' || responsesStatus === 'at-limit';
-  }, [isPaid, responsesUsed, plan.responsesLimit]);
+    return (
+      isPilotExpired ||
+      responsesStatus === 'near-limit' ||
+      responsesStatus === 'at-limit'
+    );
+  }, [useApiBilling, isPaid, isPilotExpired, responsesUsed, plan.responsesLimit]);
 
-  const handleBillingUpdated = () => {
-    setBillingVersion((v) => v + 1);
-    setInvoiceExpanded(true);
-    dispatchSyncSystemAlerts(dispatch, store.getState());
-  };
 
   const formsUnlimited = plan.formsLimit == null;
   const isPilotPlan = plan.id === PILOT_35_PLAN_ID;
 
   return (
     <>
-      <BillingChoosePlanModal
-        open={choosePlanOpen}
-        onClose={() => setChoosePlanOpen(false)}
-        onBillingUpdated={handleBillingUpdated}
-        customerEmail={email}
-        customer={{ firstName, lastName, email }}
-      />
       <TaxInvoiceModal
         open={taxInvoiceOpen}
         onClose={() => setTaxInvoiceOpen(false)}
@@ -263,15 +319,22 @@ const ProfileBillingPanel = () => {
             </div>
             <button
               type="button"
-              onClick={() => setChoosePlanOpen(true)}
-              className="rounded-[8px] bg-[#111110] px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-[#2d2d2b]"
+              onClick={isPaid ? () => setInvoiceExpanded(true) : handleStartPilotCheckout}
+              disabled={checkoutLoading}
+              className="rounded-[8px] bg-[#111110] px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-[#2d2d2b] disabled:opacity-60"
             >
-              {isPaid ? 'Manage →' : 'Upgrade plan'}
+              {checkoutLoading
+                ? 'Opening checkout…'
+                : isPaid
+                  ? 'View receipt'
+                  : isPilotExpired
+                    ? 'Renew Pilot — $34.99'
+                    : 'Start Pilot — $34.99'}
             </button>
           </div>
 
           <div className="flex flex-col gap-4 p-5">
-            {statusLoading ? (
+            {statusLoading || checkoutLoading ? (
               <p className="text-[13px] text-[#888580]">Loading billing…</p>
             ) : (
               <>
@@ -299,7 +362,7 @@ const ProfileBillingPanel = () => {
                               : 'bg-[#f0f0ee] text-[#555350]'
                           }`}
                         >
-                          {isPaid ? 'Active' : 'Free'}
+                          {isPaid ? 'Active' : isPilotExpired ? 'Expired' : 'Free'}
                         </span>
                       </div>
                       <p className="mt-0.5 text-[12px] text-[#888580]">{plan.limitsLabel}</p>
@@ -363,21 +426,23 @@ const ProfileBillingPanel = () => {
           <section className="overflow-hidden rounded-[12px] border border-[#1a1a18] bg-[#1a1a18]">
             <div className="flex flex-col gap-1 p-5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.88px] text-white/40">
-                Upgrade to Clearform Pro
+                Clearform Pilot
               </p>
               <h3 className="pt-0.5 text-[18px] font-bold text-white">
-                You&apos;re almost out of responses
+                {isPilotExpired
+                  ? 'Your pilot access has ended'
+                  : "You're almost out of responses"}
               </h3>
               <p className="pb-2 text-[13px] leading-[20.8px] text-white/50">
-                Get unlimited forms, 10,000 responses/month, AI dynamic questions, and team
-                collaboration — from ₹799/month.
+                $34.99 one-time · 90 days · 300 responses · AI quality scoring included.
               </p>
               <button
                 type="button"
-                onClick={() => setChoosePlanOpen(true)}
-                className="inline-flex w-fit items-center gap-1 rounded-[10px] bg-white px-6 py-3 text-[14px] font-medium text-[#1a1a18] transition-colors hover:bg-[#f7f7f6]"
+                onClick={handleStartPilotCheckout}
+                disabled={checkoutLoading}
+                className="inline-flex w-fit items-center gap-1 rounded-[10px] bg-white px-6 py-3 text-[14px] font-medium text-[#1a1a18] transition-colors hover:bg-[#f7f7f6] disabled:opacity-60"
               >
-                View plans &amp; upgrade
+                {checkoutLoading ? 'Opening checkout…' : 'Start Pilot — $34.99'}
                 <RiArrowRightLine size={16} aria-hidden />
               </button>
             </div>

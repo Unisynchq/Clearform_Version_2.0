@@ -10,17 +10,30 @@ export async function getStatus() {
   return apiClient(API_ENDPOINTS.billing.status());
 }
 
-export async function claimPurchase({ paymentId }) {
+export async function claimPurchase({ paymentId, orderId } = {}) {
   if (!isApiConfigured()) return null;
-  if (!paymentId?.trim()) {
-    throw new Error('Payment ID is required');
+  const body = {};
+  if (paymentId?.trim()) body.paymentId = paymentId.trim();
+  if (orderId?.trim()) body.orderId = orderId.trim();
+  if (!body.paymentId && !body.orderId) {
+    throw new Error('Payment ID or order ID is required');
   }
   return apiClient(API_ENDPOINTS.billing.claimPurchase(), {
     method: 'POST',
-    body: { paymentId: paymentId.trim() },
+    body,
   });
 }
 
+export async function createPilotCheckoutSession() {
+  if (!isApiConfigured()) {
+    throw new Error('API is not configured');
+  }
+  return apiClient(API_ENDPOINTS.billing.pilotCheckoutSession(), {
+    method: 'POST',
+  });
+}
+
+/** Legacy Payment Link checkout — prefer pilot Orders API from Profile → Billing. */
 export async function createCheckout(body = {}) {
   if (!isApiConfigured()) return null;
   return apiClient(API_ENDPOINTS.billing.createCheckout(), {
@@ -29,7 +42,7 @@ export async function createCheckout(body = {}) {
   });
 }
 
-/** Resolve checkout URL from API response and redirect. */
+/** Resolve checkout URL from API response and redirect (legacy Payment Link). */
 export async function redirectToCheckout(body = {}) {
   const data = await createCheckout(body);
   const url =

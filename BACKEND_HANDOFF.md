@@ -741,7 +741,7 @@ Integrations UI existed but connection was **local/profile storage** or demo —
 | `ProfileIntegrationsPanel.jsx` | Workspace `listWorkspaceIntegrations` + OAuth |
 | `integrationsService.js` | `mergeWorkspaceAndFormConnections`, `loadIntegrationUiState` |
 
-Razorpay billing remains placeholder (`RazorpayCheckoutPlaceholder.jsx`) — separate from form integrations.
+Pilot billing is implemented on the platform (`/buy/pilot`, `ProfileBillingPanel`, `billingService`) — separate from form integrations (Sheets/Slack).
 
 **What backend must build**
 
@@ -1631,11 +1631,11 @@ See **B.11** for full `screenDropoff` + funnel shape. Frontend today consumes: `
 
 ---
 
-## Priority 4 — Billing / profile (placeholders)
+## Priority 4 — Billing / profile
 
-- Razorpay checkout is UI placeholder (`RazorpayCheckoutPlaceholder.jsx`)
-- Profile billing tab uses computed usage from Redux + localStorage
-- **Demo toasts (expected until backend):** account deletion, password reset email, third-party integration config — see ProfilePage, ProfileSecurityPanel, ProfileIntegrationsPanel
+- **Pilot checkout:** `https://app.clearform.in/buy/pilot` → `POST /billing/checkout-sessions/pilot` → claim on signup (`claim-purchase`)
+- **Profile billing tab:** `GET /billing/status` when `VITE_API_BASE_URL` is set (usage, receipt `pay_…`)
+- **Demo toasts (expected until backend):** account deletion, password reset email — see ProfilePage, ProfileSecurityPanel
 
 ---
 

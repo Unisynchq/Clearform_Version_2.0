@@ -8,6 +8,10 @@ export const CHECKOUT_STEPS = [
   { id: 'confirm', label: 'Done', number: 3 },
 ];
 
+/**
+ * Pro / Starter monthly & yearly plans — not shipped yet.
+ * Re-enable when Razorpay Subscription plans exist in Dashboard.
+ */
 export const PAID_PLANS = [
   {
     id: 'starter',

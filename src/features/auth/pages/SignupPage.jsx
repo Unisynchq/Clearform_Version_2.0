@@ -1,6 +1,6 @@
 import { useState, useCallback, memo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { FcGoogle } from 'react-icons/fc';
 import { RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
@@ -21,6 +21,7 @@ import {
   validateSignupForm,
 } from '@/features/auth/utils/authValidation';
 import { useToast } from '@/hooks/useToast';
+import { resolvePilotReturnTo } from '@/features/billing/utils/pilotBillingRoutes';
 import clearformLogoWhite from '@/assets/clearform-logo-white.svg';
 import bgImage from '@/assets/onboarding-bg.jpg';
 
@@ -180,6 +181,8 @@ const LeftPanel = memo(() => {
 const SignupPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const pilotReturnTo = resolvePilotReturnTo(searchParams);
   const { showToast } = useToast();
   const { firstName, lastName, email, password, isSubmitting } = useSelector(
     (state) => state.auth
@@ -196,11 +199,12 @@ const SignupPage = () => {
     async (signInFn, providerLabel) => {
       dispatch(setSubmitting(true));
       try {
-        const user = await signInFn();
+        const user = await signInFn(pilotReturnTo);
         if (!user) return;
         applyBackendOnboardingState(dispatch, user.onboardingCompleted);
         const path = await completeAuthNavigationAfterSync(dispatch, {
           onboardingCompleted: user.onboardingCompleted,
+          returnTo: pilotReturnTo,
           showToast,
         });
         dispatch(loginSuccess({
@@ -216,7 +220,7 @@ const SignupPage = () => {
         dispatch(setSubmitting(false));
       }
     },
-    [dispatch, navigate, showToast],
+    [dispatch, navigate, showToast, pilotReturnTo],
   );
 
   const handleGoogleSignIn = useCallback(
@@ -228,12 +232,12 @@ const SignupPage = () => {
     dispatch(setSubmitting(true));
     dispatch(setError(null));
     try {
-      await startMicrosoftSignInRedirect();
+      await startMicrosoftSignInRedirect(pilotReturnTo);
     } catch (err) {
       dispatch(setError(err.message));
       dispatch(setSubmitting(false));
     }
-  }, [dispatch]);
+  }, [dispatch, pilotReturnTo]);
 
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
@@ -247,6 +251,7 @@ const SignupPage = () => {
       applyBackendOnboardingState(dispatch, user.onboardingCompleted);
       const path = await completeAuthNavigationAfterSync(dispatch, {
         onboardingCompleted: user.onboardingCompleted,
+        returnTo: pilotReturnTo,
         showToast,
       });
       dispatch(loginSuccess({ email: user.email, firstName: user.firstName, lastName: user.lastName }));
@@ -262,7 +267,7 @@ const SignupPage = () => {
     } finally {
       dispatch(setSubmitting(false));
     }
-  }, [dispatch, navigate, email, firstName, lastName, password, showToast]);
+  }, [dispatch, navigate, email, firstName, lastName, password, showToast, pilotReturnTo]);
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white">

@@ -4,14 +4,7 @@ import {
   completeOnboarding,
 } from '@/store/slices/onboardingSlice';
 import { resetFormsForOnboarding } from '@/store/slices/formsSlice';
-import { claimPurchase } from '@/api/services/billingService';
-import { isApiConfigured } from '@/config/env';
-import {
-  clearPendingPaymentId,
-  getPendingPaymentId,
-} from '@/features/billing/utils/pendingPaymentStorage';
-
-const BILLING_CLAIM_SUPPORT = 'support@clearform.in';
+import { claimPendingPurchaseIfPresent } from '@/features/billing/utils/claimPendingPurchase';
 
 /** Sign-in: dashboard by default; honors deep-link return path from RequireAuth. */
 export const resolveSignInNavigation = (dispatch, { returnTo } = {}) => {
@@ -41,31 +34,7 @@ export const applyBackendOnboardingState = (dispatch, onboardingCompleted) => {
  * Failures are non-blocking — signup/sign-in still completes.
  */
 export async function claimPendingPurchaseIfNeeded({ showToast } = {}) {
-  const paymentId = getPendingPaymentId();
-  if (!paymentId || !isApiConfigured()) {
-    return { claimed: false };
-  }
-
-  try {
-    await claimPurchase({ paymentId });
-    clearPendingPaymentId();
-    showToast?.({
-      type: 'success',
-      message: 'Your pilot payment is linked to this account.',
-      duration: 4000,
-    });
-    return { claimed: true };
-  } catch (err) {
-    const message =
-      err?.message ??
-      `We could not link your payment. Email ${BILLING_CLAIM_SUPPORT} with your payment ID.`;
-    showToast?.({
-      type: 'error',
-      message,
-      duration: 8000,
-    });
-    return { claimed: false, error: message };
-  }
+  return claimPendingPurchaseIfPresent({ showToast });
 }
 
 /**
@@ -76,6 +45,14 @@ export const resolveAuthNavigationAfterSync = (
   dispatch,
   { onboardingCompleted = false, returnTo } = {},
 ) => {
+  if (
+    typeof returnTo === 'string' &&
+    returnTo.startsWith('/') &&
+    !returnTo.startsWith('//')
+  ) {
+    dispatch(dismissOnboardingSession());
+    return returnTo;
+  }
   if (onboardingCompleted) {
     return resolveSignInNavigation(dispatch, { returnTo });
   }
