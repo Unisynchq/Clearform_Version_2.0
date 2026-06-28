@@ -26,6 +26,17 @@ export async function updateMe(body) {
   });
 }
 
+export async function uploadAvatar(file) {
+  if (!isApiConfigured()) return null;
+  const formData = new FormData();
+  formData.append('file', file);
+  return apiClient('/auth/me/avatar', {
+    method: 'POST',
+    body: formData,
+    isFormData: true,
+  });
+}
+
 export async function deleteAccount() {
   if (!isApiConfigured()) {
     throw new Error('Account deletion requires API configuration');

@@ -5,6 +5,7 @@ import {
   RiArrowDownSLine,
   RiArrowRightLine,
   RiArrowUpSLine,
+  RiCheckLine,
   RiLayoutGridLine,
 } from 'react-icons/ri';
 import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent (1).png';
@@ -314,7 +315,7 @@ const ProfileBillingPanel = () => {
             <div>
               <h2 className="text-[13px] font-semibold text-[#111110]">Current plan</h2>
               <p className="mt-px text-[12px] text-[#888580]">
-                {isPaid ? plan.headerSubtext : FREE_PLAN.headerSubtext}
+                {isPaid ? plan.headerSubtext : plan.headerSubtext}
               </p>
             </div>
             <button
@@ -370,13 +371,13 @@ const ProfileBillingPanel = () => {
                   </div>
                   <div className="text-right">
                     <p className="text-[20px] font-bold leading-none text-[#111110]">
-                      {isPaid ? plan.priceLabel : FREE_PLAN.priceLabel}
+                      {plan.priceLabel}
                       {isPaid && !plan.isOneTime ? (
                         <span className="text-[13px] font-normal text-[#888580]">/mo</span>
                       ) : null}
                     </p>
                     <p className="mt-0.5 text-[11px] text-[#888580]">
-                      {isPaid ? plan.renewLabel : FREE_PLAN.priceSubtext}
+                      {isPaid ? plan.renewLabel : plan.priceSubtext}
                     </p>
                   </div>
                 </div>
@@ -385,8 +386,10 @@ const ProfileBillingPanel = () => {
 
                 <div>
                   <p className="text-[12px] font-semibold text-[#111110]">
-                    {isPilotPlan ? 'Pilot usage' : 'Usage this month'}
-                    {isPaid && plan.renewLabel ? (
+                    {isPilotPlan ? 'Pilot usage' : 'Usage'}
+                    {apiStatus?.periodLabel ? (
+                      <span className="font-normal text-[#888580]"> · {apiStatus.periodLabel}</span>
+                    ) : isPaid && plan.renewLabel ? (
                       <span className="font-normal text-[#888580]"> · {plan.renewLabel}</span>
                     ) : null}
                   </p>
@@ -403,7 +406,7 @@ const ProfileBillingPanel = () => {
                       unlimited={formsUnlimited}
                     />
                     <UsageMeter
-                      label={isPilotPlan ? 'Responses' : 'Responses this month'}
+                      label={isPilotPlan ? 'Responses' : 'Responses (total)'}
                       used={responsesUsed}
                       limit={plan.responsesLimit}
                       metric="responses"
@@ -417,6 +420,31 @@ const ProfileBillingPanel = () => {
                     />
                   </div>
                 </div>
+
+                {useApiBilling && Array.isArray(apiStatus?.features) && apiStatus.features.length > 0 ? (
+                  <div>
+                    <p className="text-[12px] font-semibold text-[#111110]">
+                      Included in your plan
+                    </p>
+                    <ul className="mt-3 flex flex-col gap-2">
+                      {apiStatus.features
+                        .filter((f) => f.included)
+                        .map((feature) => (
+                          <li
+                            key={feature.id}
+                            className="flex items-start gap-2 text-[13px] text-[#444340]"
+                          >
+                            <RiCheckLine
+                              size={16}
+                              className="mt-0.5 shrink-0 text-[#2d7d32]"
+                              aria-hidden
+                            />
+                            <span>{feature.label}</span>
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+                ) : null}
               </>
             )}
           </div>

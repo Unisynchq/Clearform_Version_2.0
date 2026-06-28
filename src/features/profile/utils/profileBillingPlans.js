@@ -30,8 +30,8 @@ export const API_FREE_PLAN = {
   headerSubtext: 'Free workspace — upgrade to Clearform Pilot for AI + 300 responses',
 };
 
-/** @deprecated Use API_FREE_PLAN when VITE_API_BASE_URL is set */
-export const FREE_PLAN = PILOT_PLAN;
+/** @deprecated Offline demo only — use API_FREE_PLAN when VITE_API_BASE_URL is set */
+export const FREE_PLAN = API_FREE_PLAN;
 
 const PLAN_STRIP = {
   pilot_35: {

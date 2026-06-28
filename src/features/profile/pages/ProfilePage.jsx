@@ -16,7 +16,7 @@ import PhotoUploadErrorZone, {
   PhotoAvatarError,
 } from '@/features/profile/components/PhotoUploadErrorZone';
 import { logout, loginSuccess } from '@/store/slices/authSlice';
-import { deleteAccount as deleteAccountOnServer, updateMe } from '@/api/services/authMeService';
+import { deleteAccount as deleteAccountOnServer, updateMe, uploadAvatar, fetchMe } from '@/api/services/authMeService';
 import { isApiConfigured } from '@/config/env';
 import { signOutUser } from '@/features/auth/services/firebaseAuthService';
 import { upsertUserAccount } from '@/features/auth/utils/userAccountsStorage';
@@ -206,6 +206,7 @@ const ProfilePage = () => {
   const [profileEmail, setProfileEmail] = useState('');
   const [timezone, setTimezone] = useState('UTC');
   const [photoUrl, setPhotoUrl] = useState(null);
+  const [pendingPhotoFile, setPendingPhotoFile] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [pendingTab, setPendingTab] = useState(null);
@@ -242,6 +243,34 @@ const ProfilePage = () => {
   }, [hydrateFromStore]);
 
   useEffect(() => {
+    if (!isApiConfigured()) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchMe();
+        const avatarUrl = data?.user?.avatarUrl;
+        if (!cancelled && avatarUrl) {
+          setPhotoUrl(avatarUrl);
+          setProfileBaseline((prev) =>
+            prev ? { ...prev, photoUrl: avatarUrl } : prev,
+          );
+          if (email) {
+            writeProfileSettings(email, {
+              ...readProfileSettings(email),
+              photoUrl: avatarUrl,
+            });
+          }
+        }
+      } catch {
+        // keep localStorage fallback
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [email]);
+
+  useEffect(() => {
     if (!IMPLEMENTED_TABS.has(activeTab)) {
       setTabContentLoading(false);
       return;
@@ -268,9 +297,10 @@ const ProfilePage = () => {
       username !== profileBaseline.username ||
       profileEmail !== profileBaseline.profileEmail ||
       timezone !== profileBaseline.timezone ||
-      photoUrl !== profileBaseline.photoUrl
+      photoUrl !== profileBaseline.photoUrl ||
+      pendingPhotoFile != null
     );
-  }, [displayName, username, profileEmail, timezone, photoUrl, profileBaseline]);
+  }, [displayName, username, profileEmail, timezone, photoUrl, pendingPhotoFile, profileBaseline]);
 
   const canSave = hasChanges && displayName.trim().length > 0;
 
@@ -315,6 +345,7 @@ const ProfilePage = () => {
       return;
     }
     setPhotoUploadError(null);
+    setPendingPhotoFile(file);
     const reader = new FileReader();
     reader.onload = () => setPhotoUrl(reader.result);
     reader.readAsDataURL(file);
@@ -364,16 +395,21 @@ const ProfilePage = () => {
     const { firstName: fn, lastName: ln } = splitDisplayName(trimmedDisplayName);
 
     try {
+      let savedPhotoUrl = photoUrl;
       if (isApiConfigured()) {
+        if (pendingPhotoFile) {
+          const uploadResult = await uploadAvatar(pendingPhotoFile);
+          savedPhotoUrl = uploadResult?.user?.avatarUrl ?? savedPhotoUrl;
+        }
         await updateMe({
-          displayName: trimmedDisplayName,
-          username: trimmedUsername,
-          email: trimmedProfileEmail,
-          language: 'English',
-          timezone,
-          photoUrl: photoUrl || null,
           firstName: fn,
           lastName: ln,
+          email: trimmedProfileEmail,
+          ...(savedPhotoUrl &&
+          !savedPhotoUrl.startsWith('data:') &&
+          savedPhotoUrl.startsWith('https://')
+            ? { avatarUrl: savedPhotoUrl }
+            : {}),
         });
       }
 
@@ -383,7 +419,7 @@ const ProfilePage = () => {
         email: trimmedProfileEmail,
         language: 'English',
         timezone,
-        photoUrl,
+        photoUrl: savedPhotoUrl,
       });
       upsertUserAccount({ email, firstName: fn, lastName: ln });
 
@@ -394,8 +430,10 @@ const ProfilePage = () => {
         username: trimmedUsername,
         profileEmail: trimmedProfileEmail,
         timezone,
-        photoUrl,
+        photoUrl: savedPhotoUrl,
       };
+      setPhotoUrl(savedPhotoUrl);
+      setPendingPhotoFile(null);
       setDisplayName(trimmedDisplayName);
       setUsername(trimmedUsername);
       setProfileEmail(trimmedProfileEmail);

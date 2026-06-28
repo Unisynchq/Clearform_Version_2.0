@@ -45,6 +45,7 @@ export async function apiClient(path, {
   signal,
   timeoutMs,
   skipAuth = false,
+  isFormData = false,
 } = {}) {
   if (!env.apiBaseUrl?.trim()) {
     throw new ApiError('API base URL is not configured (VITE_API_BASE_URL)', { path });
@@ -74,8 +75,12 @@ export async function apiClient(path, {
   };
 
   if (body !== undefined) {
-    init.headers['Content-Type'] = 'application/json';
-    init.body = JSON.stringify(body);
+    if (isFormData) {
+      init.body = body;
+    } else {
+      init.headers['Content-Type'] = 'application/json';
+      init.body = JSON.stringify(body);
+    }
   }
 
   const publicRoute = isPublicApiPath(path) || skipAuth;
