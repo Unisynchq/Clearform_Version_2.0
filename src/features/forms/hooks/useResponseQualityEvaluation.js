@@ -12,6 +12,7 @@ function buildEvaluatePayload({
   helperText,
   answerText,
   options,
+  conversationHistory,
 }) {
   const fieldType = fieldKind === 'longText' ? 'Long text' : 'Short text';
   const fieldId = fieldKind === 'longText' ? 'long-text' : 'short-text';
@@ -30,6 +31,8 @@ function buildEvaluatePayload({
     fieldType,
     helperText: helperText ?? '',
     answerText,
+    informationRequirements: options?.informationRequirements ?? [],
+    conversationHistory: conversationHistory ?? [],
     options: {
       minWords: length.minWords,
       sensitivity: specificity.sensitivity,
@@ -64,12 +67,17 @@ function normalizeApiEvaluation(result) {
   const suggestions = Array.isArray(result.suggestions)
     ? result.suggestions.filter((s) => typeof s === 'string' && s.trim()).slice(0, 2)
     : [];
+  const followUpQuestion =
+    result.level !== 'green' && typeof result.followUpQuestion === 'string' && result.followUpQuestion.trim()
+      ? result.followUpQuestion.trim()
+      : null;
   return {
     level: result.level,
     failCount: failedIds.length,
     message: result.message ?? null,
     failedIds,
     suggestions,
+    followUpQuestion,
   };
 }
 
@@ -80,7 +88,8 @@ function mergeEvaluations(heuristic, apiResult) {
 }
 
 /**
- * Debounced response-quality evaluation — optimistic heuristics, API refine when configured.
+ * Debounced response-quality evaluation — waits for API result before showing feedback.
+ * Falls back to heuristics only if the API is unavailable or returns an error.
  */
 export function useResponseQualityEvaluation({
   enabled,
@@ -91,6 +100,7 @@ export function useResponseQualityEvaluation({
   answerText,
   formId,
   screenId,
+  conversationHistory,
   debounceMs = 400,
 }) {
   const [evaluation, setEvaluation] = useState(null);
@@ -113,11 +123,14 @@ export function useResponseQualityEvaluation({
     const runHeuristics = () =>
       evaluateResponseQuality(trimmed, { enabled, options, fieldKind, question });
 
-    setEvaluation(runHeuristics());
-
     if (!isApiConfigured() || formId == null || screenId == null) {
+      setEvaluation(runHeuristics());
       return undefined;
     }
+
+    // Don't show heuristic result immediately — wait for the API so we never
+    // flicker from one evaluation to another. Clear any stale result while waiting.
+    setEvaluation(null);
 
     clearTimeout(timerRef.current);
     abortRef.current?.abort();
@@ -136,12 +149,13 @@ export function useResponseQualityEvaluation({
             helperText,
             answerText: trimmed,
             options,
+            conversationHistory,
           }),
           { signal: controller.signal },
         );
         if (requestId !== requestIdRef.current) return;
         const apiEval = normalizeApiEvaluation(result);
-        setEvaluation((prev) => mergeEvaluations(prev ?? runHeuristics(), apiEval));
+        setEvaluation(mergeEvaluations(null, apiEval));
       } catch (err) {
         if (err?.name === 'AbortError') return;
         if (requestId !== requestIdRef.current) return;
@@ -162,6 +176,7 @@ export function useResponseQualityEvaluation({
     answerText,
     formId,
     screenId,
+    conversationHistory,
     debounceMs,
   ]);
 

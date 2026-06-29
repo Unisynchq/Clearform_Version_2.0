@@ -109,12 +109,14 @@ export function ResponseQualityIndicator({ level }) {
   );
 }
 
-export function ResponseQualityMessage({ level, message, suggestions = [], onDismiss }) {
+export function ResponseQualityMessage({ level, message, suggestions = [], followUpQuestion = null, onDismiss }) {
   if (!level || !message) return null;
   const s = LEVEL_STYLES[level] || LEVEL_STYLES.amber;
   const tips = Array.isArray(suggestions) ? suggestions.filter(Boolean).slice(0, 2) : [];
 
   const isGreat = level === 'green';
+  // When a follow-up question is present, show it as the primary prompt instead of bullets
+  const hasFollowUp = typeof followUpQuestion === 'string' && followUpQuestion.trim().length > 0;
 
   return (
     <motion.div
@@ -132,16 +134,24 @@ export function ResponseQualityMessage({ level, message, suggestions = [], onDis
     >
       <span className="w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ backgroundColor: s.dotInBox }} />
       <div className="flex-1 pr-5">
-        <p className="text-[13px] leading-[19px]" style={{ color: s.text, fontFamily: "'DM Sans', sans-serif" }}>
-          {message}
-        </p>
-        {tips.length > 0 ? (
-          <ul className="mt-2 space-y-1 text-[12px] leading-[17px] list-disc pl-4" style={{ color: s.text, fontFamily: "'DM Sans', sans-serif" }}>
-            {tips.map((tip) => (
-              <li key={tip}>{tip}</li>
-            ))}
-          </ul>
-        ) : null}
+        {hasFollowUp ? (
+          <p className="text-[13px] leading-[19px]" style={{ color: s.text, fontFamily: "'DM Sans', sans-serif" }}>
+            {followUpQuestion}
+          </p>
+        ) : (
+          <>
+            <p className="text-[13px] leading-[19px]" style={{ color: s.text, fontFamily: "'DM Sans', sans-serif" }}>
+              {message}
+            </p>
+            {tips.length > 0 ? (
+              <ul className="mt-2 space-y-1 text-[12px] leading-[17px] list-disc pl-4" style={{ color: s.text, fontFamily: "'DM Sans', sans-serif" }}>
+                {tips.map((tip) => (
+                  <li key={tip}>{tip}</li>
+                ))}
+              </ul>
+            ) : null}
+          </>
+        )}
       </div>
       <button
         type="button"
@@ -264,10 +274,11 @@ export default function ResponseQualityFeedback({
         <AnimatePresence mode="wait">
           {showMessage && (
             <ResponseQualityMessage
-              key={`${settledEvaluation.level}-${settledEvaluation.message}`}
+              key={`${settledEvaluation.level}-${settledEvaluation.followUpQuestion ?? settledEvaluation.message}`}
               level={settledEvaluation.level}
               message={settledEvaluation.message}
               suggestions={settledEvaluation.suggestions}
+              followUpQuestion={settledEvaluation.followUpQuestion ?? null}
               onDismiss={() => setDismissed(true)}
             />
           )}
