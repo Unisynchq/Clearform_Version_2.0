@@ -417,6 +417,17 @@ export function evaluateResponseQuality(
   const mandatory = runMandatoryQualityOverrides(trimmed, question);
   if (mandatory) return mandatory;
 
+  // Question context first: name/identity questions bypass all criteria checks.
+  // A valid short name is always green regardless of which criteria are enabled.
+  if (isIdentityStyleQuestion(question) && looksLikeShortIdentityAnswer(trimmed)) {
+    return {
+      level: 'green',
+      failCount: 0,
+      message: RESPONSE_QUALITY_PASS_MESSAGE,
+      failedIds: [],
+    };
+  }
+
   const evalContext = { fieldKind, question };
   const failedIds = active.filter((id) => {
     const fn = EVALUATORS[id];
