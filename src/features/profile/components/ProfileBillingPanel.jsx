@@ -23,7 +23,10 @@ import {
   getActivePlanDisplay,
   PILOT_35_PLAN_ID,
 } from '@/features/profile/utils/profileBillingPlans';
-import { buildTaxInvoice } from '@/features/profile/utils/profileBillingInvoice';
+import {
+  buildInvoiceFromBillingReceipt,
+  buildTaxInvoice,
+} from '@/features/profile/utils/profileBillingInvoice';
 import { readBillingSubscription } from '@/features/profile/utils/profileBillingStorage';
 import { dispatchSyncSystemAlerts } from '@/utils/syncSystemAlertsToStore';
 import { store } from '@/store/store';
@@ -88,49 +91,6 @@ const UsageMeter = ({
     </div>
   );
 };
-
-function formatReceiptDate(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('en-IN', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
-
-function buildReceiptFromApi(receipt, planDisplay) {
-  if (!receipt?.paymentId) return null;
-  const amount =
-    receipt.currency === 'INR'
-      ? `₹${Number(receipt.amount).toLocaleString('en-IN')}`
-      : receipt.currency === 'USD'
-        ? `$${Number(receipt.amount).toFixed(2)}`
-        : `${receipt.amount} ${receipt.currency}`;
-
-  return {
-    invoiceNumber: receipt.paymentId,
-    issueDate: formatReceiptDate(receipt.purchasedAt),
-    nextBillingDate: planDisplay?.renewLabel ?? '',
-    planTitle: planDisplay?.invoiceTitle ?? planDisplay?.name ?? 'Clearform Pilot',
-    lineItems: [
-      {
-        description: planDisplay?.taxPlanName ?? 'Clearform Pilot',
-        subtitle: planDisplay?.taxPlanSubtitle ?? '',
-        qty: '1',
-        unitPrice: receipt.amount,
-        amount: receipt.amount,
-      },
-    ],
-    subtotalExcl: receipt.amount,
-    cgst: 0,
-    sgst: 0,
-    total: receipt.amount,
-    totalLabel: amount,
-    paymentId: receipt.paymentId,
-  };
-}
 
 const ProfileBillingPanel = () => {
   const dispatch = useDispatch();
@@ -273,13 +233,17 @@ const ProfileBillingPanel = () => {
 
   const invoice = useMemo(() => {
     if (useApiBilling && apiStatus?.receipt) {
-      return buildReceiptFromApi(apiStatus.receipt, plan);
+      return buildInvoiceFromBillingReceipt(
+        apiStatus.receipt,
+        { firstName, lastName, email },
+        { expiresAt: apiStatus.expiresAt, periodEnd: apiStatus.periodEnd },
+      );
     }
     if (localSubscription) {
       return buildTaxInvoice(localSubscription, { firstName, lastName, email });
     }
     return null;
-  }, [useApiBilling, apiStatus, localSubscription, plan, firstName, lastName, email]);
+  }, [useApiBilling, apiStatus, localSubscription, firstName, lastName, email]);
 
   const showUpgradeCta = useMemo(() => {
     if (!useApiBilling || isPaid) return false;

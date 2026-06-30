@@ -77,7 +77,10 @@ const TaxInvoiceModal = ({ open, onClose, invoice }) => {
                     PERIOD
                   </p>
                   <p className="mt-1 text-[13.5px] font-medium text-[#111110]">
-                    {invoice.periodLabel.replace(/, \d{4}$/, '')}
+                    {(invoice.periodLabel ?? invoice.periodEndLabel ?? '—').replace(
+                      /, \d{4}$/,
+                      '',
+                    )}
                   </p>
                 </div>
               </div>

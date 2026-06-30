@@ -28,14 +28,8 @@ function timeAgoToMs(timeAgo) {
 }
 
 const savedUi = readFormsUi();
-const initialWorkspaces = readWorkspaces() ?? [];
-const initialActiveWorkspace =
-  savedUi.activeWorkspace !== 'all' &&
-  !initialWorkspaces.some((w) => w.id === savedUi.activeWorkspace)
-    ? 'all'
-    : savedUi.activeWorkspace;
-
 const apiMode = isApiConfigured();
+const bootstrapWorkspaces = apiMode ? [] : (readWorkspaces() ?? []);
 const bootstrapResponses = apiMode ? {} : readAllFormResponses();
 const bootstrapForms = apiMode
   ? []
@@ -44,9 +38,15 @@ const bootstrapForms = apiMode
       responses: (bootstrapResponses[String(form.id)] ?? []).length,
     }));
 
+const initialActiveWorkspace =
+  savedUi.activeWorkspace !== 'all' &&
+  !bootstrapWorkspaces.some((w) => w.id === savedUi.activeWorkspace)
+    ? 'all'
+    : savedUi.activeWorkspace;
+
 const initialState = {
   forms: bootstrapForms,
-  workspaces: syncWorkspaceCounts(initialWorkspaces, bootstrapForms),
+  workspaces: syncWorkspaceCounts(bootstrapWorkspaces, bootstrapForms),
   activeFilter: savedUi.activeFilter,
   activeWorkspace: initialActiveWorkspace,
   searchQuery: savedUi.searchQuery,
@@ -170,6 +170,12 @@ const formsSlice = createSlice({
     },
     setWorkspaces(state, action) {
       state.workspaces = syncWorkspaceCounts(action.payload, state.forms);
+      if (
+        state.activeWorkspace !== 'all' &&
+        !state.workspaces.some((w) => w.id === state.activeWorkspace)
+      ) {
+        state.activeWorkspace = 'all';
+      }
     },
     resetFormsForOnboarding(state) {
       state.forms = [];

@@ -74,7 +74,7 @@ function renderTaxInvoiceDocument(invoice) {
         </span>
         <div style="margin-top:16px;display:flex;gap:24px;justify-content:flex-end;">
           <div><div style="font-size:11px;color:#9e9b96;letter-spacing:0.6px;">ISSUE DATE</div><div style="font-size:13.5px;margin-top:3px;">${invoice.issueDate}</div></div>
-          <div><div style="font-size:11px;color:#9e9b96;letter-spacing:0.6px;">PERIOD</div><div style="font-size:13.5px;margin-top:3px;">${invoice.periodLabel.replace(/, \d{4}$/, '')}</div></div>
+          <div><div style="font-size:11px;color:#9e9b96;letter-spacing:0.6px;">PERIOD</div><div style="font-size:13.5px;margin-top:3px;">${(invoice.periodLabel ?? invoice.periodEndLabel ?? '—').replace(/, \d{4}$/, '')}</div></div>
         </div>
       </div>
     </div>

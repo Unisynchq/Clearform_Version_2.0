@@ -1,6 +1,10 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { readNotifications, writeNotifications } from '@/utils/notificationsStorage';
-import { listNotifications } from '@/api/services/notificationsService';
+import {
+  listNotifications,
+  markAllNotificationsReadOnServer,
+  markNotificationReadOnServer,
+} from '@/api/services/notificationsService';
 import { isApiConfigured } from '@/config/env';
 
 function dateGroupLabel(isoString) {
@@ -50,22 +54,60 @@ function mapApiNotification(item) {
   };
 }
 
+function isLocalNotificationId(id) {
+  const value = String(id ?? '');
+  return value.includes(':') || value.startsWith('n-');
+}
+
+function persistNotifications(notifications) {
+  if (!isApiConfigured()) {
+    writeNotifications(notifications);
+  }
+}
+
 export const loadNotificationsFromApi = createAsyncThunk(
   'notifications/loadFromApi',
   async () => {
     if (!isApiConfigured()) return [];
     try {
       const { items } = await listNotifications();
-      return items.map(mapApiNotification);
+      return items.filter((item) => !item.readAt).map(mapApiNotification);
     } catch {
       return [];
     }
   },
 );
 
+export const markNotificationReadThunk = createAsyncThunk(
+  'notifications/markReadThunk',
+  async (id) => {
+    if (isApiConfigured() && !isLocalNotificationId(id)) {
+      try {
+        await markNotificationReadOnServer(id);
+      } catch {
+        // Keep inbox responsive even if the API is temporarily unavailable.
+      }
+    }
+    return id;
+  },
+);
+
+export const clearAllNotificationsThunk = createAsyncThunk(
+  'notifications/clearAllThunk',
+  async () => {
+    if (isApiConfigured()) {
+      try {
+        await markAllNotificationsReadOnServer();
+      } catch {
+        // Local clear still runs so the user is not stuck with a stale inbox.
+      }
+    }
+  },
+);
+
 const initialState = {
   activeTab: 'all',
-  notifications: readNotifications(),
+  notifications: isApiConfigured() ? [] : readNotifications(),
 };
 
 const notificationsSlice = createSlice({
@@ -76,31 +118,30 @@ const notificationsSlice = createSlice({
       state.activeTab = action.payload;
     },
     markNotificationRead(state, action) {
-      const item = state.notifications.find((n) => n.id === action.payload);
-      if (item) item.unread = false;
-      writeNotifications(state.notifications);
+      state.notifications = state.notifications.filter((n) => n.id !== action.payload);
+      persistNotifications(state.notifications);
     },
     /** Clears the inbox after UI exit animation (not individual mark-read). */
     clearAllNotifications(state) {
       state.notifications = [];
-      writeNotifications(state.notifications);
+      persistNotifications(state.notifications);
     },
     markAllNotificationsRead(state) {
       state.notifications = [];
-      writeNotifications(state.notifications);
+      persistNotifications(state.notifications);
     },
     addNotification(state, action) {
       const next = { unread: true, dateGroup: 'Today', timestamp: 'Just now', ...action.payload };
       if (!next.id) next.id = `n-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       state.notifications.unshift(next);
-      writeNotifications(state.notifications);
+      persistNotifications(state.notifications);
     },
     upsertAlertNotification(state, action) {
       const { dedupeKey, notification, active } = action.payload;
       const idx = state.notifications.findIndex((n) => n.dedupeKey === dedupeKey);
       if (!active) {
         if (idx >= 0) state.notifications.splice(idx, 1);
-        writeNotifications(state.notifications);
+        persistNotifications(state.notifications);
         return;
       }
       const item = {
@@ -114,7 +155,7 @@ const notificationsSlice = createSlice({
       } else {
         state.notifications.unshift(item);
       }
-      writeNotifications(state.notifications);
+      persistNotifications(state.notifications);
     },
     syncFormAlertNotifications(state, action) {
       const { formId, items } = action.payload;
@@ -144,13 +185,13 @@ const notificationsSlice = createSlice({
         }
       });
 
-      writeNotifications(state.notifications);
+      persistNotifications(state.notifications);
     },
     clearNotificationsForForm(state, action) {
       const formId = action.payload;
       const prefix = `alert:${formId}:`;
       state.notifications = state.notifications.filter((n) => !n.dedupeKey?.startsWith(prefix));
-      writeNotifications(state.notifications);
+      persistNotifications(state.notifications);
     },
     syncSystemAlertNotifications(state, action) {
       const { items } = action.payload;
@@ -180,19 +221,29 @@ const notificationsSlice = createSlice({
         }
       });
 
-      writeNotifications(state.notifications);
+      persistNotifications(state.notifications);
     },
   },
   extraReducers(builder) {
-    builder.addCase(loadNotificationsFromApi.fulfilled, (state, action) => {
-      const apiItems = action.payload;
-      if (!apiItems.length) return;
-      const existingIds = new Set(state.notifications.map((n) => n.id));
-      const newItems = apiItems.filter((n) => !existingIds.has(n.id));
-      if (!newItems.length) return;
-      state.notifications = [...newItems, ...state.notifications];
-      writeNotifications(state.notifications);
-    });
+    builder
+      .addCase(loadNotificationsFromApi.fulfilled, (state, action) => {
+        const apiItems = action.payload;
+        const localOnly = state.notifications.filter(
+          (n) => n.dedupeKey || isLocalNotificationId(n.id),
+        );
+        const apiIds = new Set(apiItems.map((n) => n.id));
+        const mergedLocal = localOnly.filter((n) => !apiIds.has(n.id));
+        state.notifications = [...apiItems, ...mergedLocal];
+        persistNotifications(state.notifications);
+      })
+      .addCase(markNotificationReadThunk.fulfilled, (state, action) => {
+        state.notifications = state.notifications.filter((n) => n.id !== action.payload);
+        persistNotifications(state.notifications);
+      })
+      .addCase(clearAllNotificationsThunk.fulfilled, (state) => {
+        state.notifications = [];
+        persistNotifications(state.notifications);
+      });
   },
 });
 
@@ -207,6 +258,5 @@ export const {
   clearNotificationsForForm,
   syncSystemAlertNotifications,
 } = notificationsSlice.actions;
-
 
 export default notificationsSlice.reducer;

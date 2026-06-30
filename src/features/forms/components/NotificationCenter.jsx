@@ -12,13 +12,9 @@ import { RiAlertLine, RiMessage2Line, RiCheckboxCircleLine } from 'react-icons/r
 import { closeNotificationCenter } from '@/store/slices/uiSlice';
 
 import {
-
-  clearAllNotifications,
-
-  markNotificationRead,
-
+  clearAllNotificationsThunk,
+  markNotificationReadThunk,
   setNotificationTab,
-
 } from '@/store/slices/notificationsSlice';
 
 import { executeNotificationAction } from '@/utils/notificationNavigation';
@@ -220,7 +216,7 @@ const NotificationCenter = () => {
   }, [activeTab, notifications]);
 
   const { isClearing: isClearingAll, startClear, resolveDisplayList } = useAnimatedListClear({
-    onClear: () => dispatch(clearAllNotifications()),
+    onClear: () => dispatch(clearAllNotificationsThunk()),
   });
 
   const displayNotifications = resolveDisplayList(filteredNotifications);
@@ -243,7 +239,7 @@ const NotificationCenter = () => {
 
 
   const handleAction = (item) => {
-    dispatch(markNotificationRead(item.id));
+    dispatch(markNotificationReadThunk(item.id));
     executeNotificationAction({ dispatch, navigate }, item.action);
   };
 
@@ -418,7 +414,7 @@ const NotificationCenter = () => {
                         >
                           <NotificationItem
                             item={item}
-                            onRead={() => dispatch(markNotificationRead(item.id))}
+                            onRead={() => dispatch(markNotificationReadThunk(item.id))}
                             onAction={handleAction}
                           />
                         </motion.div>
