@@ -10,11 +10,15 @@ import BuilderRouteTransitionOverlay from '@/components/layout/BuilderRouteTrans
 import AuthRedirectHandler from '@/features/auth/components/AuthRedirectHandler';
 import FirebaseSessionBridge from '@/features/auth/components/FirebaseSessionBridge';
 import { capturePendingPaymentFromUrl } from '@/features/billing/utils/pendingPaymentStorage';
+import { captureAndClaimPendingPurchase } from '@/features/billing/utils/billingReturnFlow';
 import { loadFormsFromApi, loadWorkspacesFromApi } from '@/store/slices/formsSlice';
 import { loadNotificationsFromApi } from '@/store/slices/notificationsSlice';
+import { useToast } from '@/hooks/useToast';
+import { isApiConfigured } from '@/config/env';
 
 const App = () => {
   const dispatch = useDispatch();
+  const { showToast } = useToast();
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
 
   useEffect(() => {
@@ -28,6 +32,11 @@ const App = () => {
       dispatch(loadNotificationsFromApi());
     }
   }, [isAuthenticated, dispatch]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !isApiConfigured()) return;
+    void captureAndClaimPendingPurchase({ showToast });
+  }, [isAuthenticated, showToast]);
 
   return (
     <BrowserRouter>

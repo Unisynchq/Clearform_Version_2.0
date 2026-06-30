@@ -123,6 +123,12 @@ const formsSlice = createSlice({
     deleteWorkspace(state, action) {
       const workspaceId = action.payload;
       state.workspaces = state.workspaces.filter((w) => w.id !== workspaceId);
+      state.forms.forEach((form) => {
+        if (form.workspace === workspaceId) {
+          form.workspace = null;
+        }
+      });
+      applyWorkspaceCounts(state);
       if (state.activeWorkspace === workspaceId) state.activeWorkspace = 'all';
     },
     deleteForm(state, action) {

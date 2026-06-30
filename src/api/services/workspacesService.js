@@ -31,3 +31,26 @@ export async function createWorkspace({ label, color }) {
   const id = `ws-${label.trim().toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
   return { id, label: label.trim(), color, count: 0 };
 }
+
+export async function updateWorkspace(id, { label, color }) {
+  if (!isApiConfigured()) {
+    throw new Error('API is not configured');
+  }
+  const body = {};
+  if (label?.trim()) body.label = label.trim();
+  if (color) body.colour = color;
+  const updated = await apiClient(API_ENDPOINTS.workspaces.byId(id), {
+    method: 'PATCH',
+    body,
+  });
+  return mapWorkspace(updated);
+}
+
+export async function deleteWorkspace(id) {
+  if (!isApiConfigured()) {
+    throw new Error('API is not configured');
+  }
+  await apiClient(API_ENDPOINTS.workspaces.byId(id), {
+    method: 'DELETE',
+  });
+}

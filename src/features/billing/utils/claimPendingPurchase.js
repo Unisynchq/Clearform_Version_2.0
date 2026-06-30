@@ -1,5 +1,6 @@
-import { claimPurchase } from '@/api/services/billingService';
+import { claimPurchase, getStatus } from '@/api/services/billingService';
 import { isApiConfigured } from '@/config/env';
+import { PILOT_35_PLAN_ID } from '@/features/profile/utils/profileBillingPlans';
 import {
   clearPendingPaymentId,
   getPendingOrderId,
@@ -7,6 +8,7 @@ import {
 } from '@/features/billing/utils/pendingPaymentStorage';
 
 const CLAIMED_KEY = 'clearform:billing-claim-done';
+const RETRY_DELAY_MS = 2000;
 
 function markClaimed(paymentId, orderId) {
   if (typeof sessionStorage === 'undefined') return;
@@ -20,6 +22,27 @@ function wasClaimed(paymentId, orderId) {
   return key && sessionStorage.getItem(CLAIMED_KEY) === key;
 }
 
+async function statusShowsPilot() {
+  try {
+    const status = await getStatus();
+    return (
+      status?.planId === PILOT_35_PLAN_ID && status?.status !== 'EXPIRED'
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function attemptClaim({ paymentId, orderId, showToast }) {
+  await claimPurchase({ paymentId, orderId });
+  if (await statusShowsPilot()) {
+    return true;
+  }
+  await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+  await claimPurchase({ paymentId, orderId });
+  return statusShowsPilot();
+}
+
 /**
  * Claim a pending Razorpay payment after redirect or signup.
  * Idempotent per payment/order id in sessionStorage.
@@ -30,18 +53,33 @@ export async function claimPendingPurchaseIfPresent({ showToast } = {}) {
   const paymentId = getPendingPaymentId();
   const orderId = getPendingOrderId();
   if (!paymentId && !orderId) return { claimed: false };
-  if (wasClaimed(paymentId, orderId)) return { claimed: true, alreadyClaimed: true };
+  if (wasClaimed(paymentId, orderId)) {
+    if (await statusShowsPilot()) {
+      return { claimed: true, alreadyClaimed: true };
+    }
+    // Payment captured but tier not active — retry claim.
+  }
 
   try {
-    await claimPurchase({ paymentId, orderId });
-    markClaimed(paymentId, orderId);
-    clearPendingPaymentId();
+    const activated = await attemptClaim({ paymentId, orderId, showToast });
+    if (activated) {
+      markClaimed(paymentId, orderId);
+      clearPendingPaymentId();
+      showToast?.({
+        type: 'success',
+        message: 'Your Clearform Pilot is linked to this account.',
+        duration: 4000,
+      });
+      return { claimed: true };
+    }
+
     showToast?.({
-      type: 'success',
-      message: 'Your Clearform Pilot is linked to this account.',
-      duration: 4000,
+      type: 'warning',
+      message:
+        'Payment received — open Profile → Billing to finish activation.',
+      duration: 8000,
     });
-    return { claimed: true };
+    return { claimed: false, pendingActivation: true };
   } catch (err) {
     const message =
       err?.message ??

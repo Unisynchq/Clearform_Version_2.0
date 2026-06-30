@@ -1,18 +1,40 @@
+import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'motion/react';
 import { RiCloseLine, RiDeleteBinLine } from 'react-icons/ri';
 import { closeDeleteWorkspaceModal } from '@/store/slices/uiSlice';
 import { deleteWorkspace } from '@/store/slices/formsSlice';
+import { deleteWorkspace as deleteWorkspaceApi } from '@/api/services/workspacesService';
+import { isApiConfigured } from '@/config/env';
+import { useToast } from '@/hooks/useToast';
 
 const DeleteWorkspaceModal = () => {
   const dispatch = useDispatch();
+  const { showToast } = useToast();
   const { open, workspaceId, workspaceName } = useSelector((s) => s.ui.deleteWorkspaceModal);
+  const [deleting, setDeleting] = useState(false);
 
   const handleClose = () => dispatch(closeDeleteWorkspaceModal());
 
-  const handleDelete = () => {
-    dispatch(deleteWorkspace(workspaceId));
-    dispatch(closeDeleteWorkspaceModal());
+  const handleDelete = async () => {
+    if (!workspaceId || deleting) return;
+    setDeleting(true);
+    try {
+      if (isApiConfigured()) {
+        await deleteWorkspaceApi(workspaceId);
+      }
+      dispatch(deleteWorkspace(workspaceId));
+      dispatch(closeDeleteWorkspaceModal());
+      showToast({ type: 'success', message: 'Workspace deleted.', duration: 3000 });
+    } catch (err) {
+      showToast({
+        type: 'error',
+        message: err?.message ?? 'Could not delete workspace.',
+        duration: 6000,
+      });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -77,9 +99,10 @@ const DeleteWorkspaceModal = () => {
                 </button>
                 <button
                   onClick={handleDelete}
-                  className="bg-[#d4522a] text-white text-[13px] font-medium px-[15px] py-[8px] rounded-[8px] hover:bg-[#b8451f] transition-colors cursor-pointer"
+                  disabled={deleting}
+                  className="bg-[#d4522a] text-white text-[13px] font-medium px-[15px] py-[8px] rounded-[8px] hover:bg-[#b8451f] disabled:opacity-50 transition-colors cursor-pointer"
                 >
-                  Delete workspace
+                  {deleting ? 'Deleting…' : 'Delete workspace'}
                 </button>
               </div>
             </motion.div>

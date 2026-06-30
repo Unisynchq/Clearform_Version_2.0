@@ -4,21 +4,40 @@ import { motion, AnimatePresence } from 'motion/react';
 import { RiCloseLine } from 'react-icons/ri';
 import { closeRenameWorkspaceModal } from '@/store/slices/uiSlice';
 import { renameWorkspace } from '@/store/slices/formsSlice';
+import { updateWorkspace } from '@/api/services/workspacesService';
+import { isApiConfigured } from '@/config/env';
+import { useToast } from '@/hooks/useToast';
 
 /* Remount when `workspaceId` changes so the input initializes without a sync effect. */
 const RenameWorkspaceModalInner = ({ workspaceId, workspaceName }) => {
   const dispatch = useDispatch();
+  const { showToast } = useToast();
   const [name, setName] = useState(() => workspaceName);
+  const [saving, setSaving] = useState(false);
 
   const handleClose = () => {
     dispatch(closeRenameWorkspaceModal());
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const trimmed = name.trim();
-    if (!trimmed) return;
-    dispatch(renameWorkspace({ workspaceId, newName: trimmed }));
-    dispatch(closeRenameWorkspaceModal());
+    if (!trimmed || saving) return;
+    setSaving(true);
+    try {
+      if (isApiConfigured()) {
+        await updateWorkspace(workspaceId, { label: trimmed });
+      }
+      dispatch(renameWorkspace({ workspaceId, newName: trimmed }));
+      dispatch(closeRenameWorkspaceModal());
+    } catch (err) {
+      showToast({
+        type: 'error',
+        message: err?.message ?? 'Could not rename workspace.',
+        duration: 6000,
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -76,10 +95,10 @@ const RenameWorkspaceModalInner = ({ workspaceId, workspaceName }) => {
           <button
             type="button"
             onClick={handleSave}
-            disabled={!name.trim() || name.trim() === workspaceName}
+            disabled={!name.trim() || name.trim() === workspaceName || saving}
             className="bg-[#1a1a1c] text-white text-[13px] font-medium px-[15px] py-[8px] rounded-[8px] hover:bg-[#2c2c2e] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
           >
-            Save changes
+            {saving ? 'Saving…' : 'Save changes'}
           </button>
         </div>
       </motion.div>
