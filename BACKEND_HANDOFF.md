@@ -11,6 +11,30 @@ This document is for the **backend team**: what exists today, what the UI expect
 
 Use this section to see what shipped on `main` without re-reading git history. Backend work is still required where noted below; these entries are **frontend-only** unless stated otherwise.
 
+### 2026-07-01 — Fix: builder jumped to Start screen on first save of a new form (frontend)
+
+| Field | Value |
+|-------|--------|
+| **Date** | 2026-07-01 |
+| **Scope** | Frontend-only — form builder hydration / active-screen preservation |
+| **Backend changes** | **None.** No API, endpoint, or snapshot change. Context for backend: this bug only reproduced **when the API is configured** (`isApiConfigured()`), because editing a brand-new form triggers the auto-persist flow that creates the draft (`createFormAndSaveSnapshot`) and then navigates to the new form URL. That create-then-navigate flow is expected and unchanged |
+
+#### What we fixed (frontend)
+
+| Area | Fix |
+|------|-----|
+| **Builder hydration** | Creating a form and clicking into the first question snapped the canvas back to the Start/intro screen. Cause: the first-save auto-persist does `navigate(replace)` to the new form id, which changes `activeFormId` + `location.key` and resets the `builderActiveHydratedRef` guard; the follow-up re-hydration then treated it as a first load and forced the active screen to `screens[0]` (intro). Added `preserveActiveScreenOnNextHydrateRef` (set right before that self-navigation); `applyBuiltFormState` keeps the screen being edited when the flag is set (or on a normal re-hydrate) and it still exists in the hydrated screens. Genuine first loads still focus the intro |
+
+#### Files changed
+
+| File | What changed |
+|------|----------------|
+| `src/features/forms/pages/FormBuilderPage.jsx` | `preserveActiveScreenOnNextHydrateRef` set before first-save nav; `applyBuiltFormState` honors it to preserve the active screen across the id-swap re-hydration |
+
+**No snapshot/schema change.** The create-draft-then-navigate persistence flow is unchanged; this is purely a client-side active-screen preservation fix.
+
+---
+
 ### 2026-07-01 — Builder UX pass: logic canvas, inline editing, themes, dashboard polish (frontend)
 
 | Field | Value |
