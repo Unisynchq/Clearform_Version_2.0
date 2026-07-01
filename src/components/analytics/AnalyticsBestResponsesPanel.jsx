@@ -24,14 +24,15 @@ function ResponseRow({ response, index }) {
   const [expanded, setExpanded] = useState(index === 0);
   const [copied, setCopied] = useState(false);
 
-  const payload = response.payload ?? {};
-  const answers = Object.values(payload).filter(
-    (v) => typeof v === 'string' && v.trim().length > 0,
+  const answers = (Array.isArray(response.answers) ? response.answers : []).filter(
+    (a) => typeof a?.value === 'string' && a.value.trim().length > 0,
   );
 
   const handleCopy = async (e) => {
     e.stopPropagation();
-    const text = answers.join('\n\n');
+    const text = answers
+      .map((a) => (a.label ? `${a.label}\n${a.value}` : a.value))
+      .join('\n\n');
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -92,9 +93,16 @@ function ResponseRow({ response, index }) {
             <div className="flex flex-col gap-3 border-t border-[#f0f0ee] px-4 py-4">
               {answers.length > 0 ? (
                 answers.map((answer, i) => (
-                  <p key={i} className="text-[13px] leading-relaxed text-[#333330]">
-                    {answer}
-                  </p>
+                  <div key={i}>
+                    {answer.label ? (
+                      <p className="mb-0.5 text-[11px] font-medium uppercase tracking-wide text-[#9e9b96]">
+                        {answer.label}
+                      </p>
+                    ) : null}
+                    <p className="text-[13px] leading-relaxed text-[#333330]">
+                      {answer.value}
+                    </p>
+                  </div>
                 ))
               ) : (
                 <p className="text-[12px] text-[#9e9b96]">No answer text available.</p>
