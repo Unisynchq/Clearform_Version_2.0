@@ -30,6 +30,18 @@ export function normalizeResponseQualityOptions(options) {
   return next;
 }
 
+const EXPERIENCE_FEEDBACK_Q =
+  /\b(filling this form|using this form|this form|form builder|clearform|this survey|how is your|how was your|your experience|experien|feedback|improve)\b/i;
+
+/** True when question text looks like experience / form feedback (mirrors backend heuristics). */
+export function isExperienceFeedbackQuestion(questionText) {
+  const q = String(questionText ?? '')
+    .toLowerCase()
+    .replace(/\bexperiance\b/g, 'experience');
+  if (!q.trim()) return false;
+  return EXPERIENCE_FEEDBACK_Q.test(q);
+}
+
 const CRITERIA_META = [
   {
     id: 'length',
@@ -330,9 +342,13 @@ export default function ResponseQualityScoringCard({
   options,
   onOptionsChange,
   onSave,
+  questionText = '',
+  helperText = '',
 }) {
   const [justSaved, setJustSaved] = useState(false);
   const activeCount = Object.values(options).filter((o) => o.enabled).length;
+  const showExperienceHint = isExperienceFeedbackQuestion(questionText);
+  const brevityHelper = /\b(as much or as little|as little as)\b/i.test(helperText ?? '');
 
   const handleSaveClick = useCallback(() => {
     onSave?.();
@@ -431,6 +447,19 @@ export default function ResponseQualityScoringCard({
                   Pick up to <span className="font-semibold">2 criteria</span> — more means stricter filtering.
                 </p>
               </div>
+
+              {showExperienceHint ? (
+                <div className="w-full bg-[#e8f4ec] flex gap-[6px] items-start px-4 py-[7px] mb-3 mx-0">
+                  <RiInformationLine size={14} className="text-[#2d6a4f] shrink-0 mt-px" />
+                  <p className="text-[11px] text-[#2d6a4f] leading-snug" style={FONT}>
+                    Experience or feedback question — short evaluative answers (e.g. &quot;It was confusing&quot;) stay
+                    on-topic.
+                    {brevityHelper
+                      ? ' Your helper invites brevity, so length may be relaxed.'
+                      : ' Length may be relaxed for short feedback answers.'}
+                  </p>
+                </div>
+              ) : null}
 
               <span className="text-[9.5px] font-semibold tracking-[0.95px] uppercase text-[#b4b2ac] mb-[10px] px-4" style={FONT}>
                 SCORING CRITERIA

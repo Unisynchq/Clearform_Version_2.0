@@ -24,6 +24,7 @@ import {
 } from '@/features/forms/utils/respondentLayout';
 import { submitFormResponse, sendAbandonBeacon } from '@/api/services/responsesService';
 import { buildResponseFromPreview } from '@/features/forms/utils/formResponseBuilder';
+import { buildQualityConversationHistory } from '@/features/forms/utils/buildQualityConversationHistory';
 
 const emptySnap = () => ({
   previewPicks: [],
@@ -188,6 +189,16 @@ export default function FormRespondentView({ draft, formId }) {
     [theme],
   );
 
+  const qualityConversationHistory = useMemo(
+    () =>
+      buildQualityConversationHistory({
+        screens,
+        snapsByScreenId,
+        currentScreenId: activeScreenId,
+      }),
+    [screens, snapsByScreenId, activeScreenId],
+  );
+
   const previewStepNav =
     activeScreen?.type === 'content' ? (
       <PreviewCardStepNav
@@ -325,6 +336,7 @@ export default function FormRespondentView({ draft, formId }) {
             onPreviewSnapChange={handlePreviewSnapChange}
             previewScreenId={activeScreen.id}
             responseQualityFormId={formId}
+            qualityConversationHistory={qualityConversationHistory}
             compactLayout={isCompact}
           />
         </div>

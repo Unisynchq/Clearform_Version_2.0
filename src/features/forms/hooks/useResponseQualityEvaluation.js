@@ -121,7 +121,13 @@ export function useResponseQualityEvaluation({
     }
 
     const runHeuristics = () =>
-      evaluateResponseQuality(trimmed, { enabled, options, fieldKind, question });
+      evaluateResponseQuality(trimmed, {
+        enabled,
+        options,
+        fieldKind,
+        question,
+        helperText,
+      });
 
     if (!isApiConfigured() || formId == null || screenId == null) {
       setEvaluation(runHeuristics());

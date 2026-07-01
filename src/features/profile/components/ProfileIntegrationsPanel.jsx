@@ -94,7 +94,7 @@ const ProfileIntegrationsPanel = () => {
       refreshFromApi();
       showToast({
         type: 'success',
-        message: `${connected.replace(/_/g, ' ')} connected successfully.`,
+        message: `${String(connected ?? 'Integration').replace(/_/g, ' ')} connected successfully.`,
         duration: 2800,
       });
     }

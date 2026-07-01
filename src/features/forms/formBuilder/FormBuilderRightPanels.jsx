@@ -3443,6 +3443,8 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                       options={shortTextResponseQualityOptions}
                       onOptionsChange={setShortTextResponseQualityOptions}
                       onSave={handleSaveShortTextResponseQuality}
+                      questionText={shortTextQuestion}
+                      helperText={shortTextHelperText}
                     />
                   </div>
 
@@ -3581,6 +3583,8 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                       options={responseQualityOptions}
                       onOptionsChange={setResponseQualityOptions}
                       onSave={handleSaveLongTextResponseQuality}
+                      questionText={longTextQuestion}
+                      helperText={longTextHelperText}
                     />
                   </div>
 

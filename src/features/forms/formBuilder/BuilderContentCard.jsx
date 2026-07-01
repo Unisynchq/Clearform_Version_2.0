@@ -1334,6 +1334,7 @@ const ContentCardInner = ({
   onPreviewSnapChange,
   previewScreenId,
   responseQualityFormId = null,
+  qualityConversationHistory = [],
   isIntroScreen = false,
   compactLayout = false,
 }) => {
@@ -1437,6 +1438,7 @@ const ContentCardInner = ({
     answerText: longTextDraft,
     formId: responseQualityFormId,
     screenId: previewScreenId,
+    conversationHistory: qualityConversationHistory,
   });
 
   const shortTextQualityEvaluation = useResponseQualityEvaluation({
@@ -1448,6 +1450,7 @@ const ContentCardInner = ({
     answerText: shortTextDraft,
     formId: responseQualityFormId,
     screenId: previewScreenId,
+    conversationHistory: qualityConversationHistory,
   });
 
   const responseQualityEvaluation = longTextQualityEnabled

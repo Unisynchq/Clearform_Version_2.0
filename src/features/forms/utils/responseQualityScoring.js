@@ -103,11 +103,43 @@ function isIdentityStyleQuestion(question) {
   );
 }
 
-function looksLikeShortIdentityAnswer(text) {
-  const trimmed = text.trim();
-  if (!trimmed || trimmed.length > 80) return false;
-  const words = wordCount(trimmed);
-  return words >= 1 && words <= 5;
+const GREETING_NAME_PATTERN =
+  /^(hey|hi|hello|yo|sup|hola|heya|hii+|helloo+|howdy|hiya|namaste)$/i;
+
+function looksLikeGibberishName(text) {
+  const trimmed = String(text ?? '').trim();
+  if (!trimmed) return true;
+  if (hasKeyboardMashSegment(trimmed)) return true;
+  const compact = trimmed.replace(/\s+/g, '');
+  if (compact.length > 14 && !trimmed.includes(' ')) return true;
+  if (compact.length >= 10) {
+    const vowels = (compact.match(/[aeiou]/gi) ?? []).length;
+    const ratio = vowels / compact.length;
+    if (ratio < 0.12 || ratio > 0.75) return true;
+  }
+  return false;
+}
+
+function looksLikeValidName(text, question, helperText) {
+  const trimmed = String(text ?? '').trim();
+  if (!trimmed || /\d/.test(trimmed)) return false;
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length === 0 || words.length > 4) return false;
+  const needFull = /\b(full name|official document|first and last|legal name|as it appears)\b/i.test(
+    `${question ?? ''} ${helperText ?? ''}`,
+  );
+  if (needFull && words.length < 2) return false;
+  if (words.some((w) => GREETING_NAME_PATTERN.test(w))) return false;
+  if (words.length === 1) {
+    const w = words[0];
+    if (w.length < 4 || w.length > 12) return false;
+    if (/^[a-z]+$/i.test(w) && w.length <= 5) return false;
+  }
+  return !looksLikeGibberishName(trimmed);
+}
+
+function looksLikeShortIdentityAnswer(text, question, helperText) {
+  return looksLikeValidName(text, question, helperText);
 }
 
 function hasTopicKeywords(text, keywordsStr, threshold) {
@@ -344,7 +376,7 @@ function evaluateSpecificity(text, opts) {
 
 function evaluateRelevance(text, opts, context = {}) {
   if (context.fieldKind === 'shortText' && isIdentityStyleQuestion(context.question)) {
-    return looksLikeShortIdentityAnswer(text);
+    return looksLikeShortIdentityAnswer(text, context.question, context.helperText);
   }
   const keywords = (opts.keywords || '').trim();
   if (!keywords) return wordCount(text) >= 3;
@@ -384,7 +416,7 @@ export function getActiveCriteria(options = {}) {
  */
 export function evaluateResponseQuality(
   text,
-  { enabled, options, fieldKind, question } = {},
+  { enabled, options, fieldKind, question, helperText } = {},
 ) {
   if (!enabled || !options) return null;
 
@@ -404,7 +436,8 @@ export function evaluateResponseQuality(
   }
   if (
     !hasMinimumRealContent(trimmed) &&
-    !(isIdentityStyleQuestion(question) && looksLikeShortIdentityAnswer(trimmed))
+    !(isIdentityStyleQuestion(question) &&
+      looksLikeShortIdentityAnswer(trimmed, question, helperText))
   ) {
     return {
       level: 'red',
@@ -419,7 +452,10 @@ export function evaluateResponseQuality(
 
   // Question context first: name/identity questions bypass all criteria checks.
   // A valid short name is always green regardless of which criteria are enabled.
-  if (isIdentityStyleQuestion(question) && looksLikeShortIdentityAnswer(trimmed)) {
+  if (
+    isIdentityStyleQuestion(question) &&
+    looksLikeShortIdentityAnswer(trimmed, question, helperText)
+  ) {
     return {
       level: 'green',
       failCount: 0,
@@ -428,7 +464,7 @@ export function evaluateResponseQuality(
     };
   }
 
-  const evalContext = { fieldKind, question };
+  const evalContext = { fieldKind, question, helperText };
   const failedIds = active.filter((id) => {
     const fn = EVALUATORS[id];
     if (id === 'relevance') return !fn(trimmed, options[id], evalContext);
