@@ -6,6 +6,18 @@
 
 ---
 
+## 01 Jul 2026 — Fix: builder jumps to Start screen on first save of a new form
+
+**Problem:** Creating a form and clicking into the first question snapped the canvas back to the Start/intro screen. Only reproduced with the backend configured (`isApiConfigured()`).
+
+**Root cause:** Editing a brand-new (un-saved) form triggers the auto-persist effect, which calls `ensureFormPersisted` → creates the draft and `navigate(..., { replace: true })` to the new form URL. That changes `activeFormId` (null → real id) and `location.key`, firing the reset effect that clears `builderActiveHydratedRef`. The follow-up re-hydration then reads the guard as `false`, treats it as a first hydration, and forces `activeScreenId` to `screens[0]` (intro) — even though `activeScreenIdRef` still held the question being edited.
+
+**Fix (frontend only):**
+- Added `preserveActiveScreenOnNextHydrateRef`, set to `true` immediately before the first-save self-navigation in `ensureFormPersisted`.
+- `applyBuiltFormState` now keeps the current screen when either it's a normal re-hydrate **or** that forced flag is set (and `prevActive` still exists in the hydrated screens); the flag is consumed on read. Genuine first loads (where `prevActive` is null) still focus the intro as before.
+
+---
+
 ## 01 Jul 2026 — Fix: newly added screen missing from Logic (duplicate screen ids)
 
 **Problem:** After adding a screen, it wouldn't appear in the Logic view / the "Then go to" destination picker.

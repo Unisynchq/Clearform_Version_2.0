@@ -1337,6 +1337,10 @@ const FormBuilderPage = () => {
   const builderHydrationSessionRef = useRef(null);
   const activeScreenIdRef = useRef(null);
   const builderActiveHydratedRef = useRef(false);
+  // Set when we self-navigate after first-saving a brand-new form (null -> real
+  // id). That navigation resets the hydration guard, so without this the
+  // re-hydration would snap the active screen back to the intro mid-edit.
+  const preserveActiveScreenOnNextHydrateRef = useRef(false);
   const builderBaselineRef = useRef(null);
   const builderBaselineSessionRef = useRef(null);
   const [builderHydrated, setBuilderHydrated] = useState(false);
@@ -3578,7 +3582,14 @@ const FormBuilderPage = () => {
     }
     const isRehydrate = builderActiveHydratedRef.current;
     const prevActive = activeScreenIdRef.current;
-    const keepActive = isRehydrate && built.screens.some((s) => s.id === prevActive);
+    // A first-save self-navigation resets the guard; the forced flag lets us
+    // still keep the screen the user is editing instead of jumping to intro.
+    const preserveForced = preserveActiveScreenOnNextHydrateRef.current;
+    preserveActiveScreenOnNextHydrateRef.current = false;
+    const keepActive =
+      (isRehydrate || preserveForced) &&
+      prevActive != null &&
+      built.screens.some((s) => s.id === prevActive);
     setActiveScreenId(keepActive ? prevActive : built.screens[0]?.id ?? null);
     if (!keepActive) {
       closeAllRightPanels();
@@ -5204,6 +5215,8 @@ const FormBuilderPage = () => {
           iconGradient: created.iconGradient,
         }),
       );
+      // Keep the user on the screen they're editing across this id-swap nav.
+      preserveActiveScreenOnNextHydrateRef.current = true;
       navigate(getFormBuilderPath(created.id), {
         state: { ...location.state, formId: created.id, formTitle: created.title },
         replace: true,
