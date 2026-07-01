@@ -1,4 +1,5 @@
 import { TYPOGRAPHY_FONTS, hexToRgba } from '@/features/forms/formBuilder/builderConfiguratorConstants';
+import { DEFAULT_BUTTON_ACCENT } from '@/features/forms/formBuilder/buildCanvasFieldConfigs';
 
 const DEFAULTS = {
   pageBg: '#f5f4f0',
@@ -6,7 +7,7 @@ const DEFAULTS = {
   cardColor: '#f7f6f4',
   cardImage: null,
   textColor: '#18181b',
-  accentColor: '#18181b',
+  accentColor: DEFAULT_BUTTON_ACCENT,
   typography: TYPOGRAPHY_FONTS.default,
 };
 
@@ -46,7 +47,7 @@ export function resolveThemeFromSnapshot(theme) {
   const cardOpacity = typeof theme.cardOpacity === 'number' ? theme.cardOpacity : 74;
   const cardColor = cardImage ? cardColorRaw : hexToRgba(cardColorRaw, cardOpacity);
   const textColor = theme.textColor ?? DEFAULTS.textColor;
-  const accentColor = theme.accentColor ?? textColor ?? DEFAULTS.accentColor;
+  const accentColor = DEFAULT_BUTTON_ACCENT;
   const typography = resolveTypography(theme);
 
   return {

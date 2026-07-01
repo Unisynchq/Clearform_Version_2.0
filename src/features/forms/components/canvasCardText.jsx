@@ -63,6 +63,31 @@ export function CanvasHelperText({
   );
 }
 
+/** Choice option label — inline editable on builder canvas */
+export function CanvasOptionLabel({
+  value,
+  onChange,
+  isPreviewMode,
+  italic = false,
+  className = '',
+}) {
+  if (italic) {
+    return (
+      <span className={`text-[#aaa] italic min-w-0 break-words ${className}`}>{value}</span>
+    );
+  }
+
+  return (
+    <InlineEditableField
+      value={value}
+      onChange={onChange}
+      disabled={isPreviewMode || typeof onChange !== 'function'}
+      className={`text-[#111] min-w-0 break-words flex-1 ${className}`}
+      aria-label="Option label"
+    />
+  );
+}
+
 /** Section badge / uppercase label (heading sub-heading) */
 export function CanvasBadgeText({
   value,

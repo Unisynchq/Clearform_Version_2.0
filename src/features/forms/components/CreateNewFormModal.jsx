@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { RiArrowDownSLine, RiArrowRightSLine, RiCloseLine } from 'react-icons/ri';
+import { RiArrowDownSLine, RiArrowRightSLine, RiCloseLine, RiLoader4Line } from 'react-icons/ri';
 import {
   closeCreateNewFormModal,
   startBuilderRouteTransition,
@@ -13,6 +13,7 @@ import { completeOnboarding, selectIsOnboardingActive } from '@/store/slices/onb
 import { NO_WORKSPACE_ID } from '../constants/workspaces';
 import { FORM_COLOR_OPTIONS, getFormColorTheme } from '../constants/formColorThemes';
 import { navigateToFormBuilder } from '../utils/navigateToFormBuilder';
+import WorkspaceFolderIcon from '@/components/ui/WorkspaceFolderIcon';
 import { createForm } from '@/api/services/formsService';
 import { isApiConfigured } from '@/config/env';
 import { useToast } from '@/hooks/useToast';
@@ -34,22 +35,8 @@ const workspaceOptionClass = (selected) =>
     selected ? 'bg-[#f4f3ef] text-[#1a1a18]' : 'text-[#6b6966] hover:bg-[#fafaf8]'
   }`;
 
-function WorkspaceDot({ color }) {
-  if (color) {
-    return (
-      <span
-        className="size-2 shrink-0 rounded-[4px]"
-        style={{ backgroundColor: color }}
-        aria-hidden
-      />
-    );
-  }
-  return (
-    <span
-      className="size-2 shrink-0 rounded-[4px] border border-[#d1d0cb] bg-white"
-      aria-hidden
-    />
-  );
+function WorkspaceDot({ color, open = false }) {
+  return <WorkspaceFolderIcon color={color || '#c9c7bf'} open={open} size={16} />;
 }
 
 function WorkspaceDropdown({ workspaceId, onChange, workspaces }) {
@@ -92,7 +79,7 @@ function WorkspaceDropdown({ workspaceId, onChange, workspaces }) {
         className="flex w-full items-center justify-between gap-2 rounded-[8px] border border-[#e4e0da] bg-[#fafaf8] px-[13px] py-[11px] text-left text-[13px] text-[#1a1814] outline-none transition-colors focus:border-[#1a1814]"
       >
         <span className="flex min-w-0 items-center gap-2">
-          <WorkspaceDot color={selected.color} />
+          <WorkspaceDot color={selected.color} open={open} />
           <span className="truncate">{selected.label}</span>
         </span>
         <RiArrowDownSLine
@@ -127,7 +114,7 @@ function WorkspaceDropdown({ workspaceId, onChange, workspaces }) {
                   }}
                   className={workspaceOptionClass(workspaceId === opt.id)}
                 >
-                  <WorkspaceDot color={opt.color} />
+                  <WorkspaceDot color={opt.color} open={workspaceId === opt.id} />
                   <span className="truncate">{opt.label}</span>
                 </button>
               </li>
@@ -248,7 +235,8 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+          onKeyDown={(e) => e.key === 'Enter' && !creating && handleCreate()}
+          disabled={creating}
           placeholder="Untitled"
           autoFocus
           className="mt-2 w-full px-[13px] py-[11px] text-[13px] text-[#1a1814] placeholder:text-[rgba(26,24,20,0.5)] bg-[#fafaf8] border border-[#e4e0da] rounded-[8px] outline-none focus:border-[#1a1814] transition-colors leading-normal"
@@ -294,17 +282,28 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
         <button
           type="button"
           onClick={handleClose}
-          className="px-[17px] py-[9px] text-[12.5px] font-medium text-[#7a7670] border border-[#e4e0da] rounded-[8px] hover:bg-[#fafaf8] transition-colors cursor-pointer"
+          disabled={creating}
+          className="px-[17px] py-[9px] text-[12.5px] font-medium text-[#7a7670] border border-[#e4e0da] rounded-[8px] hover:bg-[#fafaf8] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Cancel
         </button>
         <button
           type="button"
           onClick={handleCreate}
-          className="flex items-center gap-0.5 bg-[#1a1814] text-white text-[12.5px] font-medium px-4 py-[9px] rounded-[8px] hover:bg-[#2c2c2c] transition-colors cursor-pointer whitespace-nowrap"
+          disabled={creating}
+          className="flex items-center gap-0.5 bg-[#1a1814] text-white text-[12.5px] font-medium px-4 py-[9px] rounded-[8px] hover:bg-[#2c2c2c] transition-colors cursor-pointer whitespace-nowrap disabled:cursor-wait disabled:hover:bg-[#1a1814]"
         >
-          Create Form
-          <RiArrowRightSLine size={16} className="-mr-0.5" />
+          {creating ? (
+            <>
+              <RiLoader4Line size={15} className="animate-spin" aria-hidden />
+              Creating…
+            </>
+          ) : (
+            <>
+              Create Form
+              <RiArrowRightSLine size={16} className="-mr-0.5" />
+            </>
+          )}
         </button>
       </div>
     </>

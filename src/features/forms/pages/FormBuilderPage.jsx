@@ -1,5 +1,7 @@
 ﻿import { Fragment, useState, useRef, useEffect, useCallback, useLayoutEffect, useMemo, lazy, Suspense } from 'react';
 import ToggleSwitch, { TOGGLE_TRACK_OFF, TOGGLE_TRACK_ON, toggleTrackClassName } from '@/components/ui/ToggleSwitch';
+import WorkspaceFolderIcon from '@/components/ui/WorkspaceFolderIcon';
+import InlineEditableField from '@/features/forms/components/InlineEditableField';
 import ResponseQualityScoringCard, {
   DEFAULT_RESPONSE_QUALITY_OPTIONS,
 } from '@/features/forms/components/ResponseQualityScoringCard';
@@ -11,6 +13,7 @@ import { selectIsOnboardingActive } from '@/store/slices/onboardingSlice';
 import { useToast } from '@/hooks/useToast';
 import { readBuilderDraft, clearBuilderDraft } from '@/features/forms/utils/builderDraftStorage';
 import { readPublishedForm } from '@/features/forms/utils/publishedFormStorage';
+import { readSavedThemes, saveTheme, deleteSavedTheme } from '@/features/forms/utils/savedThemesStorage';
 import {
   getBuilderSnapshot,
   saveBuilderSnapshot,
@@ -82,6 +85,7 @@ import {
   buildCanvasFieldConfigs,
   FIELD_LABEL_TO_CONFIG_PANEL,
   resolveBuilderTheme,
+  DEFAULT_BUTTON_ACCENT,
 } from '@/features/forms/formBuilder/buildCanvasFieldConfigs';
 import FormBuilderRightPanels from '@/features/forms/formBuilder/FormBuilderRightPanels';
 import {
@@ -109,6 +113,7 @@ import {
 } from '@/features/forms/formBuilder/builderConfiguratorConstants';
 
 import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.png';
+import clearformStartLogo from '@/assets/Clearform logo.png';
 import IfThenLogicPanel, { createEmptyRule } from '@/features/forms/components/IfThenLogicPanel';
 import FormPublishView from '@/features/forms/components/FormPublishView';
 import DeleteScreenModal from '@/features/forms/components/DeleteScreenModal';
@@ -1205,6 +1210,7 @@ const FormBuilderPage = () => {
   const formAccentColor = location.state?.formColor ?? '#3b7bf6';
   const fromOnboarding = location.state?.fromOnboarding === true;
   const showOnboardingStepper = useSelector(selectIsOnboardingActive);
+  const userEmail = useSelector((state) => state.auth?.email);
   const persistedForm = useSelector((state) =>
     activeFormId == null
       ? null
@@ -1235,6 +1241,8 @@ const FormBuilderPage = () => {
   }, []);
   const [logicCanvasZoom, setLogicCanvasZoom] = useState(1);
   const [logicCanvasPan, setLogicCanvasPan] = useState({ x: 0, y: 0 });
+  const [zoomEditing, setZoomEditing] = useState(false);
+  const [zoomDraft, setZoomDraft] = useState('');
   const logicPanDragRef = useRef(null);
   const [logicCanvasPanning, setLogicCanvasPanning] = useState(false);
   const logicViewportRef = useRef(null);
@@ -1244,6 +1252,13 @@ const FormBuilderPage = () => {
   const logicPortTapRef = useRef(null);
   const logicCanvasPanRef = useRef({ x: 0, y: 0 });
   const logicCanvasZoomRef = useRef(1);
+  /** Smooth panning: DOM node + target/velocity refs driven by a rAF lerp loop (no per-frame React state). */
+  const logicBoardTransformRef = useRef(null);
+  const panTargetRef = useRef({ x: 0, y: 0 });
+  const panVelocityRef = useRef({ x: 0, y: 0 });
+  const panRafRef = useRef(0);
+  const panDraggingRef = useRef(false);
+  const panSampleRef = useRef(null);
   const logicPrevTabRef = useRef(activeTab);
   const [logicCardDraggingId, setLogicCardDraggingId] = useState(null);
   const [logicCardDragOffset, setLogicCardDragOffset] = useState({ x: 0, y: 0 });
@@ -1320,6 +1335,8 @@ const FormBuilderPage = () => {
   const newFormHydratedRef = useRef(false);
   const builderDraftHydratedRef = useRef(false);
   const builderHydrationSessionRef = useRef(null);
+  const activeScreenIdRef = useRef(null);
+  const builderActiveHydratedRef = useRef(false);
   const builderBaselineRef = useRef(null);
   const builderBaselineSessionRef = useRef(null);
   const [builderHydrated, setBuilderHydrated] = useState(false);
@@ -1343,7 +1360,7 @@ const FormBuilderPage = () => {
     essentials: true,
     questionTemplates: false,
     fieldSettings: false,
-    appearance: false,
+    appearance: true,
   });
 
   /* ── Welcome screen field-settings state ── */
@@ -1400,6 +1417,8 @@ const FormBuilderPage = () => {
   const [designCardOpacity, setDesignCardOpacity] = useState(74);
   const [designTextColor, setDesignTextColor] = useState('#3d3d3d');
   const [designTypography, setDesignTypography] = useState('default');
+  const [savedThemes, setSavedThemes] = useState([]);
+  const [themeNameDraft, setThemeNameDraft] = useState(null);
 
   /* ── CTA configure panel state ── */
   const [showCtaConfigPanel, setShowCtaConfigPanel] = useState(false);
@@ -1419,6 +1438,7 @@ const FormBuilderPage = () => {
   const [ctaColorGridOpen, setCtaColorGridOpen] = useState(false);
   const [ctaLabelColor, setCtaLabelColor] = useState('white');
   const [ctaShowIcon, setCtaShowIcon] = useState(true);
+  const [ctaImage, setCtaImage] = useState(null);
   const [ctaHeadingSize, setCtaHeadingSize] = useState(28);
   const [ctaBodySize, setCtaBodySize] = useState(15);
   const [ctaFontWeight, setCtaFontWeight] = useState('Regular');
@@ -1496,7 +1516,7 @@ const FormBuilderPage = () => {
   const [contactFields, setContactFields] = useState({
     firstName: { visible: true, required: false },
     lastName: { visible: true, required: false },
-    email: { visible: true, required: true },
+    email: { visible: true, required: false },
     phone: { visible: true, required: false },
     company: { visible: false, required: false },
   });
@@ -1702,7 +1722,15 @@ const FormBuilderPage = () => {
   const nextIdRef = useRef(100);
   const closePanelsRef = useRef(() => {});
   const addContentScreen = (sectionKey, itemLabel) => {
-    const newId = (nextIdRef.current += 1);
+    // Never reuse an id already present on a screen — a duplicate id gets
+    // collapsed by id-keyed structures (logic canvas Map, dropdown keys),
+    // which would make the new screen invisible in Logic.
+    const maxExistingScreenId = screens.reduce(
+      (max, s) => (typeof s.id === 'number' && s.id > max ? s.id : max),
+      0
+    );
+    const newId = Math.max(nextIdRef.current + 1, maxExistingScreenId + 1);
+    nextIdRef.current = newId;
     const newScreen = {
       id: newId,
       name: itemLabel,
@@ -1839,42 +1867,52 @@ const FormBuilderPage = () => {
     logicCardDragRef.current = { startX: e.clientX, startY: e.clientY, screenId };
     setLogicCardDraggingId(screenId);
     setLogicCardDragOffset({ x: 0, y: 0 });
-    e.currentTarget.setPointerCapture(e.pointerId);
   }, []);
 
-  const onLogicCardPointerMove = useCallback((e, screenId) => {
-    const d = logicCardDragRef.current;
-    if (!d || d.screenId !== screenId) return;
-    const z = logicCanvasZoomRef.current;
-    setLogicCardDragOffset({ x: (e.clientX - d.startX) / z, y: (e.clientY - d.startY) / z });
-  }, []);
-
-  const onLogicCardPointerUp = useCallback((e, screenId) => {
-    const d = logicCardDragRef.current;
-    logicCardDragRef.current = null;
-    setLogicCardDraggingId(null);
-    setLogicCardDragOffset({ x: 0, y: 0 });
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
-
-    if (!d || d.screenId !== screenId) return;
-    const moved = Math.abs(e.clientX - d.startX) + Math.abs(e.clientY - d.startY);
-    if (moved < 10) return;
-
-    const z = logicCanvasZoomRef.current;
-    const dx = (e.clientX - d.startX) / z;
-    const dy = (e.clientY - d.startY) / z;
-    setLogicCardOffsets((prev) => ({
-      ...prev,
-      [screenId]: {
-        x: (prev[screenId]?.x ?? 0) + dx,
-        y: (prev[screenId]?.y ?? 0) + dy,
-      },
-    }));
-  }, []);
+  // Track card dragging on the window instead of the card node: pointer capture
+  // on a React element can silently drop when the board re-renders each move,
+  // which left cards "grabbable" but immovable. Window listeners are immune to that.
+  useEffect(() => {
+    if (logicCardDraggingId == null) return undefined;
+    const handleMove = (e) => {
+      const d = logicCardDragRef.current;
+      if (!d) return;
+      const z = logicCanvasZoomRef.current || 1;
+      setLogicCardDragOffset({
+        x: (e.clientX - d.startX) / z,
+        y: (e.clientY - d.startY) / z,
+      });
+    };
+    const handleUp = (e) => {
+      const d = logicCardDragRef.current;
+      logicCardDragRef.current = null;
+      setLogicCardDraggingId(null);
+      setLogicCardDragOffset({ x: 0, y: 0 });
+      if (!d) return;
+      const moved = Math.abs(e.clientX - d.startX) + Math.abs(e.clientY - d.startY);
+      if (moved < 6) return;
+      const z = logicCanvasZoomRef.current || 1;
+      const dx = (e.clientX - d.startX) / z;
+      const dy = (e.clientY - d.startY) / z;
+      setLogicCardOffsets((prev) => ({
+        ...prev,
+        [d.screenId]: {
+          x: (prev[d.screenId]?.x ?? 0) + dx,
+          y: (prev[d.screenId]?.y ?? 0) + dy,
+        },
+      }));
+      markFormTouched();
+    };
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    window.addEventListener('pointercancel', handleUp);
+    return () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('pointercancel', handleUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logicCardDraggingId]);
 
   const clientToLogicBoardLocal = useCallback((clientX, clientY) => {
     const board = logicBoardMeasureRef.current;
@@ -2397,12 +2435,12 @@ const FormBuilderPage = () => {
   introTitleRef.current = introTitle;
   const [introDescription, setIntroDescription] = useState('Add the purpose of form here');
   const [introButtonText, setIntroButtonText] = useState('Start \u2192');
-  const [logoImage, setLogoImage] = useState(null);
+  const [logoImage, setLogoImage] = useState(clearformStartLogo);
   const [isEditingContent, setIsEditingContent] = useState(false);
   const [draftTitle, setDraftTitle] = useState('Title');
   const [draftDescription, setDraftDescription] = useState('Add the purpose of form here');
   const [draftButtonText, setDraftButtonText] = useState('Start \u2192');
-  const [draftLogo, setDraftLogo] = useState(null);
+  const [draftLogo, setDraftLogo] = useState(clearformStartLogo);
   const logoInputRef = useRef(null);
   const introEditSnapshotRef = useRef(null);
   const endEditSnapshotRef = useRef(null);
@@ -2458,7 +2496,16 @@ const FormBuilderPage = () => {
 
   const handleLogoUpload = (e) => {
     const file = e.target.files[0];
-    if (file) setDraftLogo(URL.createObjectURL(file));
+    if (file) {
+      const url = URL.createObjectURL(file);
+      if (isEditingContent) {
+        setDraftLogo(url);
+      } else {
+        setLogoImage(url);
+        setDraftLogo(url);
+        markFormTouched();
+      }
+    }
     e.target.value = '';
   };
 
@@ -2586,7 +2633,13 @@ const FormBuilderPage = () => {
   closePanelsRef.current = closeAllRightPanels;
 
   const openPanelByName = (name) => {
-    if (name === 'config') setShowConfigPanel(true);
+    if (name === 'config') {
+      setShowConfigPanel(true);
+      const introScreen = screens.find((s) => s.id === activeScreenId);
+      if (introScreen?.type === 'intro') {
+        setSections((prev) => ({ ...prev, appearance: true, fieldSettings: false }));
+      }
+    }
     else if (name === 'content') setShowContentPanel(true);
     else if (name === 'ctaConfig') setShowCtaConfigPanel(true);
     else if (name === 'headingConfig') setShowHeadingConfigPanel(true);
@@ -2670,6 +2723,69 @@ const FormBuilderPage = () => {
     setShowThemeOverlay(false);
   }, []);
 
+  useEffect(() => {
+    if (showThemeOverlay) setSavedThemes(readSavedThemes(userEmail));
+  }, [showThemeOverlay, userEmail]);
+
+  const blobUrlToDataUrl = async (url) => {
+    try {
+      const blob = await fetch(url).then((r) => r.blob());
+      return await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  const handleSaveCurrentTheme = async (rawName) => {
+    if (!userEmail) {
+      showToast({ type: 'info', message: 'Sign in to save themes.', duration: 2600 });
+      return;
+    }
+    const name = (rawName || '').trim() || 'My theme';
+    let cardImage = designCardImage;
+    if (typeof cardImage === 'string' && cardImage.startsWith('blob:')) {
+      cardImage = await blobUrlToDataUrl(cardImage);
+    }
+    const theme = {
+      id: `theme-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name,
+      createdAt: Date.now(),
+      background: designBackground,
+      cardColor: designCardColor,
+      cardImage,
+      cardOpacity: designCardOpacity,
+      textColor: designTextColor,
+      typography: designTypography,
+      layoutStyle: designLayoutStyle,
+    };
+    const next = saveTheme(userEmail, theme);
+    setSavedThemes(next);
+    setThemeNameDraft(null);
+    showToast({ type: 'success', message: `Saved "${name}"`, duration: 2400 });
+  };
+
+  const handleApplySavedTheme = (theme) => {
+    if (theme.background) setDesignBackground(theme.background);
+    if (theme.cardColor) setDesignCardColor(theme.cardColor);
+    setDesignCardImage(theme.cardImage ?? null);
+    if (typeof theme.cardOpacity === 'number') setDesignCardOpacity(theme.cardOpacity);
+    if (theme.textColor) setDesignTextColor(theme.textColor);
+    if (theme.typography) setDesignTypography(theme.typography);
+    if (theme.layoutStyle) setDesignLayoutStyle(theme.layoutStyle);
+    setActiveThemeId(theme.id);
+    markFormTouched();
+    setShowThemeOverlay(false);
+  };
+
+  const handleDeleteSavedTheme = (id) => {
+    setSavedThemes(deleteSavedTheme(userEmail, id));
+  };
+
   const performDeleteIntroScreen = () => {
     setScreens([]);
     setActiveScreenId(null);
@@ -2704,11 +2820,7 @@ const FormBuilderPage = () => {
   };
 
   const toggleSection = (key) => {
-    setSections((prev) => {
-      const isAlreadyOpen = prev[key];
-      const allClosed = Object.fromEntries(Object.keys(prev).map((k) => [k, false]));
-      return { ...allClosed, [key]: !isAlreadyOpen };
-    });
+    setSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const hasScreens = screens.length > 0;
@@ -2810,6 +2922,10 @@ const FormBuilderPage = () => {
   const aiLogicGenerationFailed = aiLogicGen.status === AI_LOGIC_GEN_STATUS.failed;
   const aiLogicGenerating = aiLogicGen.status === AI_LOGIC_GEN_STATUS.generating;
   const aiLogicReady = aiLogicGen.status === AI_LOGIC_GEN_STATUS.success;
+  const [aiLogicBannerDismissed, setAiLogicBannerDismissed] = useState(false);
+  useEffect(() => {
+    if (aiLogicReady) setAiLogicBannerDismissed(false);
+  }, [aiLogicReady]);
   const hasLogicOnCanvas =
     logicConnections.length > 0 || Object.keys(logicIfRulesByEdge).length > 0;
   const showLogicCanvas = logicModeManual || aiLogicReady || hasLogicOnCanvas;
@@ -2943,6 +3059,7 @@ const FormBuilderPage = () => {
     ctaButtonStyle,
     ctaCornerRadius,
     ctaShowIcon,
+    ctaImage,
     ctaHeadingSize,
     ctaBodySize,
     ctaFontWeight,
@@ -3068,7 +3185,7 @@ const FormBuilderPage = () => {
       cardImage: designCardImage,
       cardOpacity: designCardOpacity,
       textColor: designTextColor,
-      accentColor: designTextColor || formAccentColor,
+      accentColor: DEFAULT_BUTTON_ACCENT,
       typography: designTypography,
     }),
     [
@@ -3079,7 +3196,6 @@ const FormBuilderPage = () => {
       designCardImage,
       designCardOpacity,
       designTextColor,
-      formAccentColor,
       designTypography,
     ]
   );
@@ -3270,6 +3386,7 @@ const FormBuilderPage = () => {
       setCtaButtonStyle,
       setCtaCornerRadius,
       setCtaShowIcon,
+      setCtaImage,
       setCtaHeadingSize,
       setCtaBodySize,
       setCtaFontWeight,
@@ -3398,7 +3515,16 @@ const FormBuilderPage = () => {
   const applyBuiltFormState = useCallback((built, templateIdForRef) => {
     lastHydratedTemplateIdRef.current = templateIdForRef ?? null;
     newFormHydratedRef.current = true;
-    nextIdRef.current = built.nextId;
+    // Guard against id collisions: a stored snapshot may omit `nextId` (older
+    // drafts / API payloads), falling back to a default that can overlap the
+    // ids of already-added content screens. Duplicate ids get collapsed by
+    // every id-keyed lookup (e.g. the logic canvas Map), making a freshly
+    // added screen silently vanish from Logic. Always stay above the max id.
+    const maxExistingScreenId = (built.screens ?? []).reduce(
+      (max, s) => (typeof s.id === 'number' && s.id > max ? s.id : max),
+      0
+    );
+    nextIdRef.current = Math.max(built.nextId ?? 0, maxExistingScreenId + 1, 100);
 
     setScreens(built.screens);
     setLoadedFormTitle(built.formTitle);
@@ -3411,8 +3537,8 @@ const FormBuilderPage = () => {
       setLogoImage(built.intro.logo);
       setDraftLogo(built.intro.logo);
     } else {
-      setLogoImage(null);
-      setDraftLogo(null);
+      setLogoImage(clearformStartLogo);
+      setDraftLogo(clearformStartLogo);
     }
     setIntroEssential(built.intro?.essential ?? null);
     setDraftTitle(built.intro.title);
@@ -3450,10 +3576,16 @@ const FormBuilderPage = () => {
       if (built.settings.responseLimitCount != null) setSettingsResponseLimitCount(String(built.settings.responseLimitCount));
       if (Object.prototype.hasOwnProperty.call(built.settings, 'webhook')) setSettingsWebhook(Boolean(built.settings.webhook));
     }
-    setActiveScreenId(built.screens[0]?.id ?? null);
-    closeAllRightPanels();
-    setShowConfigPanel(true);
-    setActiveTab('content');
+    const isRehydrate = builderActiveHydratedRef.current;
+    const prevActive = activeScreenIdRef.current;
+    const keepActive = isRehydrate && built.screens.some((s) => s.id === prevActive);
+    setActiveScreenId(keepActive ? prevActive : built.screens[0]?.id ?? null);
+    if (!keepActive) {
+      closeAllRightPanels();
+      setShowConfigPanel(true);
+      setActiveTab('content');
+    }
+    builderActiveHydratedRef.current = true;
   }, []);
 
   useEffect(() => {
@@ -3461,6 +3593,7 @@ const FormBuilderPage = () => {
     builderHydrationSessionRef.current = null;
     lastHydratedTemplateIdRef.current = null;
     newFormHydratedRef.current = false;
+    builderActiveHydratedRef.current = false;
     autoPreviewAppliedRef.current = false;
     overlayDeepLinkAppliedRef.current = false;
     builderBaselineRef.current = null;
@@ -3469,6 +3602,10 @@ const FormBuilderPage = () => {
     setBuilderHydrated(false);
     setIsPublishView(location.state?.startInPublishView === true);
   }, [activeFormId, location.key, location.state?.startInPublishView]);
+
+  useEffect(() => {
+    activeScreenIdRef.current = activeScreenId;
+  }, [activeScreenId]);
 
   useEffect(() => {
     if (!location.state?.startInPublishView || !isPublishView) return;
@@ -4496,9 +4633,6 @@ const FormBuilderPage = () => {
 
   const cardDragHandlers = (screenId) => ({
     onPointerDown: (e) => onLogicCardPointerDown(e, screenId),
-    onPointerMove: (e) => onLogicCardPointerMove(e, screenId),
-    onPointerUp: (e) => onLogicCardPointerUp(e, screenId),
-    onPointerCancel: (e) => onLogicCardPointerUp(e, screenId),
   });
 
   const renderLogicFlowCard = (item, flowIndex) => {
@@ -4664,22 +4798,101 @@ const FormBuilderPage = () => {
     logicCanvasZoomRef.current = logicCanvasZoom;
   }, [logicCanvasZoom]);
 
-  const applyLogicCanvasPan = useCallback((nextPan) => {
+  const clampLogicPan = useCallback((pan) => {
     const vp = logicViewportRef.current;
     const board = logicBoardMeasureRef.current;
-    if (!vp || !board) {
-      setLogicCanvasPan(nextPan);
-      return;
-    }
-    setLogicCanvasPan(
-      clampLogicCanvasPan(
-        nextPan,
-        logicCanvasZoomRef.current,
-        board.offsetWidth,
-        vp.clientWidth,
-      ),
+    if (!vp || !board) return pan;
+    return clampLogicCanvasPan(
+      pan,
+      logicCanvasZoomRef.current,
+      board.offsetWidth,
+      vp.clientWidth,
+      board.offsetHeight,
+      vp.clientHeight,
     );
   }, []);
+
+  const writeLogicBoardTransform = useCallback((x, y) => {
+    const node = logicBoardTransformRef.current;
+    if (node) {
+      node.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${logicCanvasZoomRef.current})`;
+    }
+  }, []);
+
+  // rAF lerp loop: eases the current visual pan toward the target and, once the
+  // drag ends, applies decaying velocity so the canvas glides to a stop. Runs
+  // only while interacting/settling, then commits to React state and halts.
+  const stepLogicPan = useCallback(() => {
+    const dragging = panDraggingRef.current;
+    if (!dragging) {
+      const v = panVelocityRef.current;
+      if (Math.abs(v.x) > 0.06 || Math.abs(v.y) > 0.06) {
+        panTargetRef.current = clampLogicPan({
+          x: panTargetRef.current.x + v.x,
+          y: panTargetRef.current.y + v.y,
+        });
+        panVelocityRef.current = { x: v.x * 0.9, y: v.y * 0.9 };
+      } else {
+        panVelocityRef.current = { x: 0, y: 0 };
+      }
+    }
+    const cur = logicCanvasPanRef.current;
+    const target = panTargetRef.current;
+    const follow = dragging ? 0.4 : 0.2;
+    const nx = cur.x + (target.x - cur.x) * follow;
+    const ny = cur.y + (target.y - cur.y) * follow;
+
+    const settled =
+      !dragging &&
+      Math.abs(target.x - nx) < 0.12 &&
+      Math.abs(target.y - ny) < 0.12 &&
+      Math.abs(panVelocityRef.current.x) < 0.06 &&
+      Math.abs(panVelocityRef.current.y) < 0.06;
+
+    if (settled) {
+      logicCanvasPanRef.current = { x: target.x, y: target.y };
+      writeLogicBoardTransform(target.x, target.y);
+      panRafRef.current = 0;
+      setLogicCanvasPan({ x: target.x, y: target.y });
+      return;
+    }
+
+    logicCanvasPanRef.current = { x: nx, y: ny };
+    writeLogicBoardTransform(nx, ny);
+    panRafRef.current = requestAnimationFrame(stepLogicPan);
+  }, [clampLogicPan, writeLogicBoardTransform]);
+
+  const ensureLogicPanLoop = useCallback(() => {
+    if (!panRafRef.current) panRafRef.current = requestAnimationFrame(stepLogicPan);
+  }, [stepLogicPan]);
+
+  // immediate = snap now (zoom/fit/programmatic); otherwise ease via the loop.
+  const applyLogicCanvasPan = useCallback(
+    (nextPan, immediate = true) => {
+      const clamped = clampLogicPan(nextPan);
+      panTargetRef.current = clamped;
+      panVelocityRef.current = { x: 0, y: 0 };
+      if (immediate) {
+        if (panRafRef.current) {
+          cancelAnimationFrame(panRafRef.current);
+          panRafRef.current = 0;
+        }
+        logicCanvasPanRef.current = clamped;
+        writeLogicBoardTransform(clamped.x, clamped.y);
+        setLogicCanvasPan(clamped);
+      } else {
+        ensureLogicPanLoop();
+      }
+    },
+    [clampLogicPan, writeLogicBoardTransform, ensureLogicPanLoop],
+  );
+
+  useEffect(
+    () => () => {
+      if (panRafRef.current) cancelAnimationFrame(panRafRef.current);
+    },
+    [],
+  );
 
   const fitLogicCanvasView = useCallback(() => {
     const vp = logicViewportRef.current;
@@ -4713,6 +4926,7 @@ const FormBuilderPage = () => {
     const prevPan = logicCanvasPanRef.current;
     const wx = (mx - prevPan.x) / prevZoom;
     const wy = (my - prevPan.y) / prevZoom;
+    logicCanvasZoomRef.current = newZoom;
     setLogicCanvasZoom(newZoom);
     applyLogicCanvasPan({ x: mx - wx * newZoom, y: my - wy * newZoom });
   }, [applyLogicCanvasPan]);
@@ -4736,9 +4950,38 @@ const FormBuilderPage = () => {
     const prevPan = logicCanvasPanRef.current;
     const wx = (mx - prevPan.x) / prevZoom;
     const wy = (my - prevPan.y) / prevZoom;
+    logicCanvasZoomRef.current = newZoom;
     setLogicCanvasZoom(newZoom);
     applyLogicCanvasPan({ x: mx - wx * newZoom, y: my - wy * newZoom });
   }, [applyLogicCanvasPan]);
+
+  const applyLogicZoomPercent = useCallback((percent) => {
+    const clampedPct = Math.min(250, Math.max(25, Math.round(percent)));
+    const newZoom = clampedPct / 100;
+    const prevZoom = logicCanvasZoomRef.current;
+    if (Math.abs(newZoom - prevZoom) < 0.0001) return;
+    const vp = logicViewportRef.current;
+    if (!vp) {
+      logicCanvasZoomRef.current = newZoom;
+      setLogicCanvasZoom(newZoom);
+      return;
+    }
+    const rect = vp.getBoundingClientRect();
+    const mx = (rect.width - LOGIC_CANVAS_RIGHT_INSET) / 2;
+    const my = rect.height / 2;
+    const prevPan = logicCanvasPanRef.current;
+    const wx = (mx - prevPan.x) / prevZoom;
+    const wy = (my - prevPan.y) / prevZoom;
+    logicCanvasZoomRef.current = newZoom;
+    setLogicCanvasZoom(newZoom);
+    applyLogicCanvasPan({ x: mx - wx * newZoom, y: my - wy * newZoom });
+  }, [applyLogicCanvasPan]);
+
+  const commitZoomDraft = useCallback(() => {
+    const parsed = parseFloat(String(zoomDraft).replace('%', '').trim());
+    if (!Number.isNaN(parsed)) applyLogicZoomPercent(parsed);
+    setZoomEditing(false);
+  }, [zoomDraft, applyLogicZoomPercent]);
 
   const onLogicPanSurfacePointerDown = useCallback((e) => {
     if (e.button !== 0) return;
@@ -4758,28 +5001,48 @@ const FormBuilderPage = () => {
       sy: e.clientY,
       pan: { ...logicCanvasPanRef.current },
     };
+    panDraggingRef.current = true;
+    panVelocityRef.current = { x: 0, y: 0 };
+    panSampleRef.current = { x: e.clientX, y: e.clientY };
     setLogicCanvasPanning(true);
     e.currentTarget.setPointerCapture(e.pointerId);
-  }, []);
+    ensureLogicPanLoop();
+  }, [ensureLogicPanLoop]);
 
   const onLogicPanSurfacePointerMove = useCallback((e) => {
     const d = logicPanDragRef.current;
     if (!d) return;
-    applyLogicCanvasPan({
+    // Target follows the pointer 1:1 (clamped); the rAF loop eases the visual toward it.
+    panTargetRef.current = clampLogicPan({
       x: d.pan.x + e.clientX - d.sx,
       y: d.pan.y + e.clientY - d.sy,
     });
-  }, [applyLogicCanvasPan]);
+    // Track velocity from the last sample for release inertia (capped to avoid wild flings).
+    const s = panSampleRef.current;
+    if (s) {
+      const cap = 60;
+      panVelocityRef.current = {
+        x: Math.max(-cap, Math.min(cap, e.clientX - s.x)),
+        y: Math.max(-cap, Math.min(cap, e.clientY - s.y)),
+      };
+    }
+    panSampleRef.current = { x: e.clientX, y: e.clientY };
+    ensureLogicPanLoop();
+  }, [clampLogicPan, ensureLogicPanLoop]);
 
   const onLogicPanSurfacePointerUp = useCallback((e) => {
     logicPanDragRef.current = null;
+    panDraggingRef.current = false;
+    panSampleRef.current = null;
     setLogicCanvasPanning(false);
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {
       /* already released */
     }
-  }, []);
+    // Let the loop carry the remaining velocity as inertia, then settle + commit.
+    ensureLogicPanLoop();
+  }, [ensureLogicPanLoop]);
 
   useLayoutEffect(() => {
     const prev = logicPrevTabRef.current;
@@ -5186,7 +5449,6 @@ const FormBuilderPage = () => {
       resolveBuilderTheme({
         designBackground,
         designTextColor,
-        formAccentColor,
         designCardColor,
         designCardOpacity,
         designCardImage,
@@ -5196,7 +5458,6 @@ const FormBuilderPage = () => {
     [
       designBackground,
       designTextColor,
-      formAccentColor,
       designCardColor,
       designCardOpacity,
       designCardImage,
@@ -5222,6 +5483,7 @@ const FormBuilderPage = () => {
         ctaButtonStyle,
         ctaCornerRadius,
         ctaShowIcon,
+        ctaImage,
         ctaHeadingSize,
         ctaBodySize,
         ctaFontWeight,
@@ -5236,6 +5498,7 @@ const FormBuilderPage = () => {
         setCtaHeadingText,
         setCtaHelperText,
         setCtaDurationText,
+        setCtaImage,
         headingText,
         subHeading,
         headingRequired,
@@ -5353,6 +5616,7 @@ const FormBuilderPage = () => {
         singleShowKeyboardHints,
         setSingleQuestion,
         setSingleHelperText,
+        setSingleOptions,
         multipleQuestion,
         multipleHelperText,
         multipleOptions,
@@ -5367,6 +5631,7 @@ const FormBuilderPage = () => {
         multipleOptionHeight,
         setMultipleQuestion,
         setMultipleHelperText,
+        setMultipleOptions,
         mediaQuestion,
         mediaHelperText,
         mediaOptions,
@@ -6466,7 +6731,8 @@ const FormBuilderPage = () => {
 
         {/* ── Main content area ── */}
         <div
-          className={`flex-1 flex flex-col overflow-hidden min-w-0 relative ${isPreview ? 'bg-[#f5f4f0]' : 'bg-white'}`}
+          className="flex-1 flex flex-col overflow-hidden min-w-0 relative"
+          style={{ backgroundColor: builderTheme.canvasBackground }}
         >
           {/* Tab bar */}
           {!isPreview && (
@@ -6530,11 +6796,8 @@ const FormBuilderPage = () => {
                     : 'border-[rgba(0,0,0,0.1)]'
                 }`}
               >
-                <span
-                  className="w-[10px] h-[10px] rounded-full shrink-0"
-                  style={{ backgroundColor: formAccentColor }}
-                  aria-hidden
-                />
+                <WorkspaceFolderIcon color={formAccentColor} open={isEditingFormTitle} size={14} />
+
                 {isEditingFormTitle ? (
                   <input
                     ref={formTitleInputRef}
@@ -6604,7 +6867,7 @@ const FormBuilderPage = () => {
             {/* Empty state */}
             <div
               className="flex-1 flex items-center justify-center overflow-hidden transition-colors duration-300"
-              style={{ backgroundColor: isPreview ? '#f5f4f0' : builderTheme.canvasBackground }}
+              style={{ backgroundColor: builderTheme.canvasBackground }}
             >
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
@@ -6676,11 +6939,19 @@ const FormBuilderPage = () => {
                     onGenerate={handleGenerateAiLogic}
                     disabled={aiLogicGenerating}
                   />
-                  {aiLogicReady ? (
-                    <div className="shrink-0 border-b border-[#e5e5e2] bg-[#f0fdf4] px-5 py-2">
-                      <p className="text-[12px] font-medium text-[#166534]">
+                  {aiLogicReady && !aiLogicBannerDismissed ? (
+                    <div className="shrink-0 flex items-center gap-3 border-b border-[#e5e5e2] bg-[#f0fdf4] px-5 py-2">
+                      <p className="flex-1 text-[12px] font-medium text-[#166534]">
                         AI logic applied — edit on the canvas below or switch to Manual Logic anytime.
                       </p>
+                      <button
+                        type="button"
+                        onClick={() => setAiLogicBannerDismissed(true)}
+                        aria-label="Dismiss AI logic notice"
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[#166534] hover:bg-[#dcfce7] cursor-pointer transition-colors"
+                      >
+                        <RiCloseLine size={14} aria-hidden />
+                      </button>
                     </div>
                   ) : null}
                 </>
@@ -6901,9 +7172,33 @@ const FormBuilderPage = () => {
                     >
                       <RiSubtractLine size={16} />
                     </button>
-                    <span className="min-w-[3rem] text-center text-[11px] tabular-nums text-[#4a4a48]">
-                      {Math.round(logicCanvasZoom * 100)}%
-                    </span>
+                    {zoomEditing ? (
+                      <input
+                        type="text"
+                        autoFocus
+                        value={zoomDraft}
+                        onChange={(e) => setZoomDraft(e.target.value)}
+                        onBlur={commitZoomDraft}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') commitZoomDraft();
+                          else if (e.key === 'Escape') setZoomEditing(false);
+                        }}
+                        aria-label="Zoom percentage"
+                        className="w-[3rem] text-center text-[11px] tabular-nums text-[#1a1a1a] bg-[#f4f3ef] border border-[#c6c3ba] rounded-[4px] outline-none focus:border-[#1a1a1a] px-0.5 py-0.5"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setZoomDraft(String(Math.round(logicCanvasZoom * 100)));
+                          setZoomEditing(true);
+                        }}
+                        title="Set zoom level"
+                        className="min-w-[3rem] text-center text-[11px] tabular-nums text-[#4a4a48] rounded-[4px] hover:bg-[#f0eeea] cursor-text py-0.5 transition-colors"
+                      >
+                        {Math.round(logicCanvasZoom * 100)}%
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => nudgeLogicZoom(1.15)}
@@ -6930,9 +7225,11 @@ const FormBuilderPage = () => {
                     onPointerCancel={onLogicPanSurfacePointerUp}
                   >
                     <div
+                      ref={logicBoardTransformRef}
                       style={{
-                        transform: `translate(${logicCanvasPan.x}px, ${logicCanvasPan.y}px) scale(${logicCanvasZoom})`,
+                        transform: `translate3d(${logicCanvasPanRef.current.x}px, ${logicCanvasPanRef.current.y}px, 0) scale(${logicCanvasZoom})`,
                         transformOrigin: '0 0',
+                        willChange: 'transform',
                       }}
                       className="w-max"
                     >
@@ -7189,7 +7486,7 @@ const FormBuilderPage = () => {
             <div
               ref={canvasContainerRef}
               className="flex-1 overflow-hidden relative flex items-center justify-center transition-colors duration-300 p-10 min-h-0"
-              style={{ backgroundColor: isPreview ? '#f5f4f0' : builderTheme.canvasBackground }}
+              style={{ backgroundColor: builderTheme.canvasBackground }}
             >
               {/* Scaled form frame — page indicator + card + powered-by (Figma 2521:8332) */}
               <div
@@ -7312,37 +7609,63 @@ const FormBuilderPage = () => {
                             {/* Card body */}
                             <div className={`flex-1 flex flex-col ${welcomeItemsAlignClass} justify-center gap-4 ${introInnerPadClass(deviceView === 'mobile')}`}>
                               {/* Logo upload */}
-                              <button
-                                onClick={() => !isPreview && isEditingContent && logoInputRef.current?.click()}
-                                title={!isPreview && isEditingContent ? 'Click to upload logo' : ''}
-                                className={`${deviceView === 'mobile' ? 'w-[50px] h-[50px]' : 'w-[42px] h-[42px]'} rounded-[10px] flex items-center justify-center shrink-0 transition-colors overflow-hidden ${
-                                  !isPreview && isEditingContent ? 'cursor-pointer hover:bg-[#2c2c2c]' : 'cursor-default'
-                                } ${!draftLogo && !logoImage ? 'bg-[#18181a]' : ''}`}
-                                style={(isEditingContent ? draftLogo : logoImage) ? { padding: 0 } : {}}
-                              >
-                                {(isEditingContent ? draftLogo : logoImage) ? (
-                                  <img src={isEditingContent ? draftLogo : logoImage} alt="Logo" className="w-full h-full object-cover" />
-                                ) : (
-                                  <RiAddLine size={deviceView === 'mobile' ? 24 : 20} className="text-white" />
-                                )}
-                              </button>
+                              {(() => {
+                                const activeLogo = isEditingContent ? draftLogo : logoImage;
+                                const canEditLogo = !isPreview;
+                                return (
+                                  <button
+                                    onClick={() => canEditLogo && logoInputRef.current?.click()}
+                                    title={canEditLogo ? 'Click to change logo' : ''}
+                                    className={`group relative w-16 h-16 rounded-[12px] flex items-center justify-center shrink-0 transition-colors overflow-hidden ${
+                                      canEditLogo ? 'cursor-pointer' : 'cursor-default'
+                                    } ${!activeLogo ? 'bg-[#18181a]' : ''}`}
+                                    style={activeLogo ? { padding: 0 } : {}}
+                                  >
+                                    {activeLogo ? (
+                                      <img src={activeLogo} alt="Logo" className="w-full h-full object-cover" />
+                                    ) : (
+                                      <RiAddLine size={24} className="text-white" />
+                                    )}
+                                    {canEditLogo && activeLogo && (
+                                      <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/35 transition-colors">
+                                        <RiPencilLine size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })()}
 
                               {isEditingContent ? (
                                 <input
                                   type="text"
                                   value={draftTitle}
                                   onChange={(e) => setDraftTitle(e.target.value)}
-                                  className={`text-[#18181a] font-bold bg-transparent border-b border-[#c8c6c0] outline-none w-full max-w-[320px] pb-[2px] focus:border-[#18181a] transition-colors ${welcomeTextAlignClass}`}
-                                  style={{ fontSize: welcomeSize.title, lineHeight: welcomeSize.titleLeading }}
+                                  className={`font-bold bg-transparent border-b border-[#c8c6c0] outline-none w-full max-w-[320px] pb-[2px] focus:border-[#18181a] transition-colors ${welcomeTextAlignClass}`}
+                                  style={{
+                                    fontSize: welcomeSize.title,
+                                    lineHeight: welcomeSize.titleLeading,
+                                    color: builderTheme.textColor,
+                                  }}
                                   placeholder="Title"
                                 />
                               ) : (
-                                <p
-                                  className={`text-[#18181a] font-bold ${welcomeTextAlignClass}`}
-                                  style={{ fontSize: welcomeSize.title, lineHeight: welcomeSize.titleLeading }}
-                                >
-                                  {introTitle}
-                                </p>
+                                <InlineEditableField
+                                  as="p"
+                                  value={introTitle}
+                                  onChange={(v) => {
+                                    setIntroTitle(v);
+                                    markFormTouched();
+                                  }}
+                                  disabled={isPreview}
+                                  aria-label="Form title"
+                                  placeholder="Title"
+                                  className={`font-bold w-full max-w-[320px] ${welcomeTextAlignClass}`}
+                                  style={{
+                                    fontSize: welcomeSize.title,
+                                    lineHeight: welcomeSize.titleLeading,
+                                    color: builderTheme.textColor,
+                                  }}
+                                />
                               )}
 
                               {isEditingContent ? (
@@ -7350,14 +7673,20 @@ const FormBuilderPage = () => {
                                   value={draftDescription}
                                   onChange={(e) => setDraftDescription(e.target.value)}
                                   rows={2}
-                                  className={`text-[#8c8a84] font-normal bg-transparent border-b border-[#c8c6c0] outline-none w-full max-w-[360px] resize-none pb-[2px] focus:border-[#18181a] transition-colors leading-normal ${welcomeTextAlignClass}`}
-                                  style={{ fontSize: welcomeSize.desc }}
+                                  className={`font-normal bg-transparent border-b border-[#c8c6c0] outline-none w-full max-w-[360px] resize-none pb-[2px] focus:border-[#18181a] transition-colors leading-normal ${welcomeTextAlignClass}`}
+                                  style={{
+                                    fontSize: welcomeSize.desc,
+                                    color: hexToRgba(builderTheme.textColor, 0.65),
+                                  }}
                                   placeholder="Add the purpose of form here"
                                 />
                               ) : (
                                 <p
-                                  className={`text-[#8c8a84] font-normal ${welcomeTextAlignClass}`}
-                                  style={{ fontSize: welcomeSize.desc }}
+                                  className={`font-normal ${welcomeTextAlignClass}`}
+                                  style={{
+                                    fontSize: welcomeSize.desc,
+                                    color: hexToRgba(builderTheme.textColor, 0.65),
+                                  }}
                                 >
                                   {introDescription}
                                 </p>
@@ -7369,7 +7698,8 @@ const FormBuilderPage = () => {
                                     type="text"
                                     value={draftButtonText}
                                     onChange={(e) => setDraftButtonText(e.target.value)}
-                                    className={`bg-[#18181a] text-white ${deviceView === 'mobile' ? 'text-[16px] px-[28px] py-[12px]' : 'text-[14px] px-[24px] py-[10px]'} font-bold rounded-[8px] outline-none text-center w-full opacity-80`}
+                                    className={`text-white ${deviceView === 'mobile' ? 'text-[16px] px-[28px] py-[12px]' : 'text-[14px] px-[24px] py-[10px]'} font-bold rounded-[8px] outline-none text-center w-full opacity-80`}
+                                    style={{ backgroundColor: builderTheme.accentColor }}
                                     placeholder="Button label"
                                   />
                                 </div>
@@ -7377,7 +7707,8 @@ const FormBuilderPage = () => {
                                 <button
                                   type="button"
                                   onClick={isPreview ? goPreviewNext : undefined}
-                                  className={`bg-[#18181a] text-white ${deviceView === 'mobile' ? 'text-[16px] px-[40px] py-[13px]' : 'text-[14px] px-[36px] py-[11px]'} font-bold rounded-[8px] cursor-pointer hover:bg-[#2c2c2c] transition-colors whitespace-nowrap`}
+                                  className={`text-white ${deviceView === 'mobile' ? 'text-[16px] px-[40px] py-[13px]' : 'text-[14px] px-[36px] py-[11px]'} font-bold rounded-[8px] cursor-pointer hover:opacity-90 transition-opacity whitespace-nowrap`}
+                                  style={{ backgroundColor: builderTheme.accentColor }}
                                 >
                                   {introButtonText}
                                 </button>
@@ -7487,7 +7818,10 @@ const FormBuilderPage = () => {
 
                             {/* Title */}
                             {isEditingEndScreen ? (
-                              <input
+                              <motion.input
+                                initial={{ opacity: 0, y: -4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
                                 type="text"
                                 value={draftEndTitle}
                                 onChange={(e) => setDraftEndTitle(e.target.value)}
@@ -7495,12 +7829,26 @@ const FormBuilderPage = () => {
                                 placeholder="Thank you title"
                               />
                             ) : (
-                              <p className={`text-[#111] ${deviceView === 'mobile' ? 'text-[28px] leading-[33.6px]' : 'text-[24px] leading-[28.8px]'} font-bold text-center tracking-[-0.56px]`}>{endScreenTitle}</p>
+                              <InlineEditableField
+                                as="p"
+                                value={endScreenTitle}
+                                onChange={(v) => {
+                                  setEndScreenTitle(v);
+                                  markFormTouched();
+                                }}
+                                disabled={isPreview}
+                                aria-label="End screen title"
+                                placeholder="Thank you title"
+                                className={`text-[#111] ${deviceView === 'mobile' ? 'text-[28px] leading-[33.6px]' : 'text-[24px] leading-[28.8px]'} font-bold text-center tracking-[-0.56px] w-full max-w-[360px]`}
+                              />
                             )}
 
                             {/* Description */}
                             {isEditingEndScreen ? (
-                              <textarea
+                              <motion.textarea
+                                initial={{ opacity: 0, y: -4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1], delay: 0.03 }}
                                 value={draftEndDescription}
                                 onChange={(e) => setDraftEndDescription(e.target.value)}
                                 rows={3}
@@ -7508,12 +7856,28 @@ const FormBuilderPage = () => {
                                 placeholder="Thank you description"
                               />
                             ) : (
-                              <p className="text-[#888] text-[15px] font-light text-center max-w-[320px] leading-[1.65]">{endScreenDescription}</p>
+                              <InlineEditableField
+                                as="p"
+                                multiline
+                                rows={3}
+                                value={endScreenDescription}
+                                onChange={(v) => {
+                                  setEndScreenDescription(v);
+                                  markFormTouched();
+                                }}
+                                disabled={isPreview}
+                                aria-label="End screen description"
+                                placeholder="Thank you description"
+                                className="text-[#888] text-[15px] font-light text-center max-w-[320px] leading-[1.65] w-full"
+                              />
                             )}
 
                             {/* Done button */}
                             {isEditingEndScreen ? (
-                              <input
+                              <motion.input
+                                initial={{ opacity: 0, y: -4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1], delay: 0.06 }}
                                 type="text"
                                 value={draftEndButtonText}
                                 onChange={(e) => setDraftEndButtonText(e.target.value)}
@@ -7705,17 +8069,143 @@ const FormBuilderPage = () => {
                     <span className="text-[14px] font-normal text-[#4c414e]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
                       Theme
                     </span>
-                    <button
-                      onClick={() => setShowThemeOverlay(false)}
-                      className="w-[24px] h-[24px] flex items-center justify-center rounded-[6px] text-[#7a7a72] text-[16px] cursor-pointer hover:bg-[#f4f3ef] transition-colors"
-                    >
-                      ×
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <motion.button
+                        onClick={() => setThemeNameDraft((v) => (v === null ? '' : null))}
+                        whileTap={{ scale: 0.96 }}
+                        transition={{ duration: 0.12, ease: [0.32, 0.72, 0, 1] }}
+                        className="flex items-center gap-[5px] px-[10px] h-[26px] rounded-[6px] border border-[rgba(0,0,0,0.14)] bg-white text-[12px] font-medium text-[#4c414e] cursor-pointer hover:bg-[#f4f3ef] transition-colors"
+                        style={{ fontFamily: "'DM Sans', sans-serif" }}
+                      >
+                        <motion.span
+                          animate={{ rotate: themeNameDraft !== null ? 45 : 0 }}
+                          transition={{ duration: 0.18, ease: [0.32, 0.72, 0, 1] }}
+                          className="flex shrink-0"
+                        >
+                          <RiAddLine size={13} />
+                        </motion.span>
+                        Save current theme
+                      </motion.button>
+                      <button
+                        onClick={() => setShowThemeOverlay(false)}
+                        className="w-[24px] h-[24px] flex items-center justify-center rounded-[6px] text-[#7a7a72] text-[16px] cursor-pointer hover:bg-[#f4f3ef] transition-colors"
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Inline "name your theme" row */}
+                  <AnimatePresence initial={false}>
+                    {themeNameDraft !== null && (
+                      <motion.div
+                        key="theme-name-row"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.24, ease: [0.32, 0.72, 0, 1] }}
+                        className="overflow-hidden shrink-0"
+                      >
+                        <div className="flex items-center gap-2 px-4 py-[10px] border-b border-[rgba(0,0,0,0.08)] bg-[#fafaf8]">
+                          <input
+                            type="text"
+                            autoFocus
+                            value={themeNameDraft}
+                            onChange={(e) => setThemeNameDraft(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveCurrentTheme(themeNameDraft);
+                              if (e.key === 'Escape') setThemeNameDraft(null);
+                            }}
+                            placeholder="Name your theme…"
+                            className="flex-1 min-w-0 px-[11px] h-[30px] text-[12.5px] text-[#1a1814] placeholder:text-[#b3b0a8] bg-white border border-[#e4e0da] rounded-[7px] outline-none focus:border-[#1a1814] transition-colors"
+                            style={{ fontFamily: "'DM Sans', sans-serif" }}
+                          />
+                          <button
+                            onClick={() => handleSaveCurrentTheme(themeNameDraft)}
+                            className="px-[13px] h-[30px] rounded-[7px] bg-[#1a1814] text-white text-[12.5px] font-medium cursor-pointer hover:bg-[#2c2c2c] transition-colors shrink-0"
+                            style={{ fontFamily: "'DM Sans', sans-serif" }}
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={() => setThemeNameDraft(null)}
+                            className="px-[11px] h-[30px] rounded-[7px] border border-[rgba(0,0,0,0.14)] bg-white text-[12.5px] font-medium text-[#6b6966] cursor-pointer hover:bg-[#f4f3ef] transition-colors shrink-0"
+                            style={{ fontFamily: "'DM Sans', sans-serif" }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
                   {/* Theme grid */}
                   <div className="overflow-y-auto">
-                    <div className="p-5 grid grid-cols-2 gap-5">
+                    {savedThemes.length > 0 && (
+                      <div className="px-4 pt-4">
+                        <span className="text-[10px] font-bold tracking-[0.7px] uppercase text-[#a8a6a0]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                          Your themes
+                        </span>
+                        <div className="mt-2 grid grid-cols-2 gap-4">
+                          {savedThemes.map((theme) => {
+                            const isActive = activeThemeId === theme.id;
+                            return (
+                              <div
+                                key={theme.id}
+                                className="relative text-left cursor-pointer group"
+                                onClick={() => handleApplySavedTheme(theme)}
+                                style={{
+                                  background: 'white',
+                                  border: isActive ? '2px solid #1a1a1a' : '1px solid #d4d4d4',
+                                  borderRadius: 16,
+                                  overflow: 'hidden',
+                                  transition: 'border-color 0.15s ease',
+                                }}
+                              >
+                                {/* Swatch preview */}
+                                <div
+                                  className="h-[120px] flex items-center justify-center"
+                                  style={{ background: theme.background, borderRadius: '14px 14px 0 0' }}
+                                >
+                                  {theme.cardImage ? (
+                                    <img src={theme.cardImage} alt={theme.name} className="w-[64%] h-[64%] object-cover rounded-[10px]" />
+                                  ) : (
+                                    <div
+                                      className="w-[64%] h-[64%] rounded-[10px] flex items-center justify-center"
+                                      style={{ background: theme.cardColor }}
+                                    >
+                                      <span className="text-[13px] font-semibold" style={{ color: theme.textColor }}>Aa</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Name row */}
+                                <div className="px-3 py-2.5 flex items-center justify-between bg-white">
+                                  <span className="text-[10.5px] font-medium text-black truncate" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                                    {theme.name}
+                                  </span>
+                                  {isActive && <RiCheckLine size={13} className="text-[#1a1a1a] shrink-0" />}
+                                </div>
+
+                                {/* Delete */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteSavedTheme(theme.id);
+                                  }}
+                                  title="Delete theme"
+                                  className="absolute top-2 right-2 w-[22px] h-[22px] flex items-center justify-center rounded-full bg-white/90 text-[#6b6966] shadow-[0_1px_3px_rgba(0,0,0,0.18)] opacity-0 group-hover:opacity-100 hover:text-[#d4522a] transition-opacity cursor-pointer"
+                                >
+                                  <RiDeleteBin6Line size={12} className="shrink-0" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-4 h-px bg-[rgba(0,0,0,0.08)]" />
+                      </div>
+                    )}
+                    <div className="p-4 grid grid-cols-2 gap-4">
                       {THEMES.map((theme) => {
                         const isActive = activeThemeId === theme.id;
                         return (
@@ -7732,7 +8222,7 @@ const FormBuilderPage = () => {
                             }}
                           >
                             {/* Preview area */}
-                            <div className="h-[160px] overflow-hidden" style={{ borderRadius: '14px 14px 0 0' }}>
+                            <div className="h-[120px] overflow-hidden" style={{ borderRadius: '14px 14px 0 0' }}>
                               <img
                                 src={theme.previewImg}
                                 alt={theme.name}
@@ -7741,7 +8231,7 @@ const FormBuilderPage = () => {
                             </div>
 
                             {/* Name row */}
-                            <div className="px-4 py-3 flex items-center justify-between bg-white">
+                            <div className="px-3 py-2.5 flex items-center justify-between bg-white">
                               <span className="text-[10.5px] font-medium text-black" style={{ fontFamily: "'DM Sans', sans-serif" }}>
                                 {theme.name}
                               </span>

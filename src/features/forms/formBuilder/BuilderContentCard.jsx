@@ -40,7 +40,7 @@ import {
 import { PiCaretCircleUp } from 'react-icons/pi';
 import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.png';
 import InlineEditableField from '@/features/forms/components/InlineEditableField';
-import { CanvasBadgeText, CanvasHelperText, CanvasQuestionText } from '@/features/forms/components/canvasCardText';
+import { CanvasBadgeText, CanvasHelperText, CanvasOptionLabel, CanvasQuestionText } from '@/features/forms/components/canvasCardText';
 import { BoxesIcon, ImagesCardIcon, VideoCardIcon } from '@/features/forms/formBuilder/builderFieldIcons';
 import ResponseQualityScoringCard, {
   DEFAULT_RESPONSE_QUALITY_OPTIONS,
@@ -123,6 +123,13 @@ const choiceMarkStyle = (accent, picked) => {
 const accentButtonStyle = (accent) => ({
   backgroundColor: accent || DEFAULT_ACCENT,
 });
+
+const choiceOptionChangeHandler = (options, setOptions, opt) => (next) => {
+  if (!setOptions) return;
+  const idx = (options || []).indexOf(opt);
+  if (idx === -1) return;
+  setOptions((prev) => prev.map((o, j) => (j === idx ? next : o)));
+};
 
 /** Preview viewport chrome heights — Figma Clearform-Changes 2521:8332 */
 const PREVIEW_PAGE_INDICATOR_H = 34;
@@ -1374,6 +1381,15 @@ const ContentCardInner = ({
   const previewAutoAdvanceRef = useRef(previewAutoAdvance);
   previewAutoAdvanceRef.current = previewAutoAdvance;
 
+  const ctaImageInputRef = useRef(null);
+  const handleCtaImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file && typeof ctaConfig?.setCtaImage === 'function') {
+      ctaConfig.setCtaImage(URL.createObjectURL(file));
+    }
+    e.target.value = '';
+  };
+
   const togglePreviewPick = (optLabel, allowMultiple, maxChoices = null) => {
     setPreviewPicks((prev) => {
       let next;
@@ -1570,9 +1586,50 @@ const ContentCardInner = ({
           className={`flex-1 flex flex-col items-center justify-center gap-[9px] ${cardBodyPadXClass(compactLayout)} ${textAlignClass}`}
           style={{ paddingTop: padding, paddingBottom: padding }}
         >
-          <div className="bg-[#111] w-9 h-9 rounded-[10px] flex items-center justify-center shrink-0">
-            <BoxesIcon size={18} className="text-white" />
-          </div>
+          {isPreviewMode ? (
+            cc.ctaImage ? (
+              <img
+                src={cc.ctaImage}
+                alt=""
+                className="w-16 h-16 rounded-[12px] object-cover shrink-0"
+              />
+            ) : (
+              <div className="bg-[#111] w-9 h-9 rounded-[10px] flex items-center justify-center shrink-0">
+                <BoxesIcon size={18} className="text-white" />
+              </div>
+            )
+          ) : (
+            <>
+              <input
+                ref={ctaImageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleCtaImageUpload}
+              />
+              <button
+                type="button"
+                onClick={() => ctaImageInputRef.current?.click()}
+                title="Click to upload an image"
+                className={`group relative shrink-0 overflow-hidden flex items-center justify-center cursor-pointer transition-colors ${
+                  cc.ctaImage
+                    ? 'w-16 h-16 rounded-[12px]'
+                    : 'w-9 h-9 rounded-[10px] bg-[#111] hover:bg-[#2c2c2c]'
+                }`}
+              >
+                {cc.ctaImage ? (
+                  <img src={cc.ctaImage} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <BoxesIcon size={18} className="text-white" />
+                )}
+                {cc.ctaImage && (
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/35 transition-colors">
+                    <RiPencilLine size={16} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </span>
+                )}
+              </button>
+            </>
+          )}
           <div className="pt-[11px] w-full mx-auto" style={{ maxWidth: contentMaxWidth }}>
             <InlineEditableField
               value={cc.ctaHeadingText ?? ''}
@@ -1988,25 +2045,13 @@ const ContentCardInner = ({
           <span className="text-[11px] text-black">{isPreviewMode ? `${pf('imgAns').length}` : '0'} / 200</span>
         </div>
         {!isPreviewMode && (
-          <>
-            <div className={`border-t border-[rgba(0,0,0,0.1)] flex gap-[7px] items-center pt-[12px] ${cardBodyPadXClass(compactLayout)}`}>
-              <button
-                type="button"
-                onClick={() => imageFileInputRef && imageFileInputRef.current && imageFileInputRef.current.click()}
-                className="flex items-center gap-[5px] px-[14px] py-[8px] rounded-[8px] bg-white/70 border border-[rgba(0,0,0,0.16)] text-[#444] text-[12px] cursor-pointer hover:bg-[rgba(245,245,245,0.9)] transition-colors whitespace-nowrap"
-              >
-                <ImagesCardIcon size={12} className="shrink-0" />
-                Change image
-              </button>
-            </div>
-            <ContentCardFooter
-              onDelete={onDelete}
-              onConfigure={onConfigure ? () => onConfigure(label) : undefined}
-              variant="field"
-              accentColor={accent}
-              compactLayout={compactLayout}
-            />
-          </>
+          <ContentCardFooter
+            onDelete={onDelete}
+            onConfigure={onConfigure ? () => onConfigure(label) : undefined}
+            variant="field"
+            accentColor={accent}
+            compactLayout={compactLayout}
+          />
         )}
       </CardBody>
     );
@@ -2742,7 +2787,13 @@ const ContentCardInner = ({
                   >
                     {hint && <span className="text-[10px] font-semibold text-[#bbb] w-4 shrink-0">{hint}</span>}
                     <div className="w-[22px] h-[22px] rounded-full flex items-center justify-center border-2 shrink-0 border-[rgba(0,0,0,0.2)]" />
-                    <span className={`text-[14px] ${isOther ? 'text-[#aaa] italic' : 'text-[#111]'}`}>{opt}</span>
+                    <CanvasOptionLabel
+                      value={opt}
+                      onChange={isOther ? undefined : choiceOptionChangeHandler(sc.singleOptions, sc.setSingleOptions, opt)}
+                      isPreviewMode={isPreviewMode}
+                      italic={isOther}
+                      className="text-[14px]"
+                    />
                   </div>
                 );
               }
@@ -2773,7 +2824,13 @@ const ContentCardInner = ({
                   className={tileCls}
                 >
                   <div className="w-[20px] h-[20px] rounded-full flex items-center justify-center border-2 shrink-0 border-[rgba(0,0,0,0.2)]" />
-                  <span className={`text-[13px] ${isOther ? 'text-[#aaa] italic' : 'text-[#111]'}`}>{opt}</span>
+                  <CanvasOptionLabel
+                    value={opt}
+                    onChange={isOther ? undefined : choiceOptionChangeHandler(sc.singleOptions, sc.setSingleOptions, opt)}
+                    isPreviewMode={isPreviewMode}
+                    italic={isOther}
+                    className="text-[13px]"
+                  />
                 </div>
               );
             })}
@@ -2885,7 +2942,13 @@ const ContentCardInner = ({
                   >
                     {mHint && <span className="text-[10px] font-semibold text-[#bbb] w-4 shrink-0">{mHint}</span>}
                     <div className={`flex items-center justify-center shrink-0 border-2 border-[rgba(0,0,0,0.2)] ${mMultipleSelect ? 'w-[20px] h-[20px] rounded-[4px]' : 'w-[22px] h-[22px] rounded-full'}`} />
-                    <span className={`text-[14px] ${isOther ? 'text-[#aaa] italic' : 'text-[#111]'}`}>{opt}</span>
+                    <CanvasOptionLabel
+                      value={opt}
+                      onChange={isOther ? undefined : choiceOptionChangeHandler(mc.multipleOptions, mc.setMultipleOptions, opt)}
+                      isPreviewMode={isPreviewMode}
+                      italic={isOther}
+                      className="text-[14px]"
+                    />
                   </div>
                 );
               }
@@ -2911,7 +2974,13 @@ const ContentCardInner = ({
                   className={tileCls}
                 >
                   <div className={`flex items-center justify-center shrink-0 border-2 border-[rgba(0,0,0,0.2)] ${mMultipleSelect ? 'w-[18px] h-[18px] rounded-[4px]' : 'w-[20px] h-[20px] rounded-full'}`} />
-                  <span className={`text-[13px] ${isOther ? 'text-[#aaa] italic' : 'text-[#111]'}`}>{opt}</span>
+                  <CanvasOptionLabel
+                    value={opt}
+                    onChange={isOther ? undefined : choiceOptionChangeHandler(mc.multipleOptions, mc.setMultipleOptions, opt)}
+                    isPreviewMode={isPreviewMode}
+                    italic={isOther}
+                    className="text-[13px]"
+                  />
                 </div>
               );
             })}

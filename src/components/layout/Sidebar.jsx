@@ -7,14 +7,17 @@ import {
   RiAddLine,
   RiLayoutMasonryLine,
   RiBarChartLine,
-  RiQuestionLine,
   RiArrowLeftSLine,
+  RiLogoutBoxRLine,
 } from 'react-icons/ri';
+import WorkspaceFolderIcon from '@/components/ui/WorkspaceFolderIcon';
 import {
   setActiveWorkspace,
   selectNavWorkspaces,
   selectTotalFormCount,
 } from '@/store/slices/formsSlice';
+import { logout } from '@/store/slices/authSlice';
+import { signOutUser } from '@/features/auth/services/firebaseAuthService';
 import { readProfileSettings } from '@/features/profile/utils/profileSettingsStorage';
 import { openCreateWorkspaceModal, openWorkspaceContextMenu } from '@/store/slices/uiSlice';
 import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.png';
@@ -108,20 +111,20 @@ const NavItem = ({ icon: Icon, label, badge, active, onClick }) => (
   </motion.button>
 );
 
-const WorkspaceItem = ({ workspace, active, onClick, onContextMenu }) => (
+const WorkspaceItem = ({ workspace, active, onClick, onContextMenu }) => {
+  const color = workspace.color || '#6b6966';
+  return (
   <motion.button
-    whileHover={{ backgroundColor: '#f4f3ef' }}
+    whileHover={{ backgroundColor: active ? `${color}2E` : `${color}14` }}
+    style={active ? { backgroundColor: `${color}1F` } : undefined}
     onClick={onClick}
     onContextMenu={onContextMenu}
     className={`w-full flex items-center justify-between px-4 py-2 rounded-lg cursor-pointer transition-colors ${
-      active ? 'bg-[#f4f3ef] shadow-[0_1px_3px_rgba(0,0,0,0.08)]' : ''
+      active ? 'shadow-[0_1px_3px_rgba(0,0,0,0.08)]' : ''
     }`}
   >
     <div className="flex items-center gap-2">
-      <div
-        className="w-2 h-2 rounded-[4px] shrink-0"
-        style={{ backgroundColor: workspace.color }}
-      />
+      <WorkspaceFolderIcon color={color} open={active} size={18} />
       <span className={`text-[13px] font-medium leading-[19.5px] ${
         active ? 'text-[#1a1a1c]' : 'text-[#6b6966]'
       }`}>
@@ -134,7 +137,8 @@ const WorkspaceItem = ({ workspace, active, onClick, onContextMenu }) => (
       </span>
     ) : null}
   </motion.button>
-);
+  );
+};
 
 const CollapsedIconBtn = ({ icon: Icon, active, onClick, title }) => (
   <motion.button
@@ -149,14 +153,13 @@ const CollapsedIconBtn = ({ icon: Icon, active, onClick, title }) => (
   </motion.button>
 );
 
-/** Help & Support — matches Figma footer row: muted label, full-width pill when active. */
-const HelpSupportNavButton = ({ expanded, active, onClick }) => {
+/** Log out — muted footer row, full-width pill on hover; collapsed shows icon only. */
+const LogoutNavButton = ({ expanded, onClick }) => {
   if (!expanded) {
     return (
       <CollapsedIconBtn
-        icon={RiQuestionLine}
-        active={active}
-        title="Help & Support"
+        icon={RiLogoutBoxRLine}
+        title="Log out"
         onClick={onClick}
       />
     );
@@ -165,15 +168,13 @@ const HelpSupportNavButton = ({ expanded, active, onClick }) => {
   return (
     <motion.button
       type="button"
-      whileHover={{ backgroundColor: active ? '#ebe8e0' : '#f4f3ef' }}
+      whileHover={{ backgroundColor: '#f4f3ef' }}
       onClick={onClick}
-      className={`w-full flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer transition-colors ${
-        active ? 'bg-[#f4f3ef]' : ''
-      }`}
+      className="w-full flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer transition-colors"
     >
-      <RiQuestionLine size={16} className="text-[#6b6966] shrink-0" />
+      <RiLogoutBoxRLine size={16} className="text-[#6b6966] shrink-0" />
       <span className="text-[13px] font-medium text-[#6b6966] leading-[19.5px]">
-        Help & Support
+        Log out
       </span>
     </motion.button>
   );
@@ -197,6 +198,12 @@ const Sidebar = ({ hideLogo = false, exit }) => {
   const handleWorkspaceContextMenu = (e, wsId) => {
     e.preventDefault();
     dispatch(openWorkspaceContextMenu({ workspaceId: wsId, x: e.clientX, y: e.clientY }));
+  };
+
+  const handleLogout = () => {
+    dispatch(logout());
+    signOutUser();
+    navigate('/signin');
   };
   const totalFormCount = useSelector(selectTotalFormCount);
   const showFormCounts = !formsLoading;
@@ -309,10 +316,9 @@ const Sidebar = ({ hideLogo = false, exit }) => {
 
               {/* Footer */}
               <div className="border-t border-[rgba(0,0,0,0.08)] px-[10px] pb-[14px] pt-[11px] flex flex-col gap-[2px] shrink-0">
-                <HelpSupportNavButton
+                <LogoutNavButton
                   expanded={false}
-                  active={isHelpSupportActive}
-                  onClick={() => navigate('/dashboard/help')}
+                  onClick={handleLogout}
                 />
                 <ProfileFooter
                   expanded={false}
@@ -421,10 +427,9 @@ const Sidebar = ({ hideLogo = false, exit }) => {
 
             {/* Utility corner */}
             <div className="border-t border-[#e5e3dc] px-2 py-[14px] flex flex-col gap-px shrink-0">
-              <HelpSupportNavButton
+              <LogoutNavButton
                 expanded
-                active={isHelpSupportActive}
-                onClick={() => navigate('/dashboard/help')}
+                onClick={handleLogout}
               />
               <ProfileFooter
                 expanded

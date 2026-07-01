@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useHydrationFrame } from '@/hooks/useHydrationFrame';
 import { useAnalyticsPageState } from '@/hooks/useAnalyticsPageState';
 import { fadeUp, fadeUpTransition } from '@/motion/presets';
-import { RiDownloadLine, RiArrowDownSLine, RiPencilLine } from 'react-icons/ri';
+import { RiDownloadLine, RiArrowDownSLine, RiPencilLine, RiFileList2Line } from 'react-icons/ri';
 import AnalyticsDateRangeControl from '@/components/analytics/AnalyticsDateRangeControl';
 import { openFormOverlay, openShareModal } from '@/store/slices/uiSlice';
 import AnalyticsExportModal from '@/components/analytics/AnalyticsExportModal';
@@ -539,18 +539,29 @@ const AnalyticsPage = () => {
             <span className="text-[#656462] text-[10px] shrink-0">›</span>
             <span className="text-[#646464] shrink-0 hidden sm:inline">Forms</span>
             <span className="text-[#656462] text-[10px] shrink-0 hidden sm:inline">›</span>
-            <div className="relative min-w-0 max-w-[240px]" ref={formMenuRef}>
+            <div className="relative min-w-0 max-w-[268px]" ref={formMenuRef}>
               <button
                 type="button"
                 onClick={() => setFormMenuOpen((o) => !o)}
-                className="flex w-full items-center gap-1.5 rounded-lg border border-[rgba(0,0,0,0.1)] px-3 py-1.5 text-left hover:bg-[#f4f3ef] cursor-pointer"
+                aria-haspopup="listbox"
+                aria-expanded={formMenuOpen}
+                title="Switch form"
+                className={`group flex w-full items-center gap-2 rounded-lg border px-3 py-1.5 text-left cursor-pointer transition-colors shadow-[0_1px_2px_rgba(0,0,0,0.04)] ${
+                  formMenuOpen
+                    ? 'border-[#c6c3ba] bg-[#efeee8]'
+                    : 'border-[rgba(0,0,0,0.16)] bg-[#faf9f7] hover:border-[#c6c3ba] hover:bg-[#f1efe9]'
+                }`}
               >
-                <span className="min-w-0 flex-1 truncate font-medium text-[#17160e]">
+                <RiFileList2Line
+                  size={15}
+                  className="shrink-0 text-[#8a8880] group-hover:text-[#5f5d57] transition-colors"
+                />
+                <span className="min-w-0 flex-1 truncate font-semibold text-[#17160e]">
                   {selectedForm?.title ?? 'Select a form'}
                 </span>
                 <RiArrowDownSLine
                   className={`text-[#656462] shrink-0 transition-transform ${formMenuOpen ? 'rotate-180' : ''}`}
-                  size={14}
+                  size={15}
                 />
               </button>
               {formMenuOpen && (

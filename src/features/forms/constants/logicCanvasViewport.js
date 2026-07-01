@@ -17,14 +17,38 @@ export const LOGIC_CANVAS_RIGHT_INSET =
   LOGIC_CANVAS_ACTIONS_PANEL_OFFSET_RIGHT +
   LOGIC_CANVAS_ACTIONS_PANEL_MARGIN;
 
-/** Prevent panning workflow nodes behind the fixed actions panel. */
-export function clampLogicCanvasPan(pan, zoom, boardWidth, viewportWidth) {
+/**
+ * Bound panning on both axes so the board can always be dragged fluidly
+ * (left/right/up/down/diagonal) while keeping at least a margin of it in view.
+ *
+ * The previous version only clamped X against a zero minimum, which pinned the
+ * translation to a single value whenever the board was wider than the viewport —
+ * making horizontal panning feel locked while vertical stayed free.
+ */
+export function clampLogicCanvasPan(
+  pan,
+  zoom,
+  boardWidth,
+  viewportWidth,
+  boardHeight = 0,
+  viewportHeight = 0,
+) {
+  // Keep min <= max so we never invert the range and pin the pan to one point.
+  const bound = (value, lo, hi) => (hi < lo ? value : Math.min(hi, Math.max(lo, value)));
+
   const usableWidth = Math.max(0, viewportWidth - LOGIC_CANVAS_RIGHT_INSET);
   const scaledW = boardWidth * zoom;
-  const maxX = usableWidth - scaledW;
-  const minX = 0;
-  return {
-    x: Math.min(maxX, Math.max(minX, pan.x)),
-    y: pan.y,
-  };
+  // Always leave at least this much of the board reachable on each edge.
+  const marginX = Math.min(140, usableWidth * 0.5);
+  const x = bound(pan.x, marginX - scaledW, usableWidth - marginX);
+
+  // Y is only clamped when the viewport height is known; otherwise stay free.
+  let y = pan.y;
+  if (viewportHeight > 0) {
+    const scaledH = boardHeight * zoom;
+    const marginY = Math.min(140, viewportHeight * 0.5);
+    y = bound(pan.y, marginY - scaledH, viewportHeight - marginY);
+  }
+
+  return { x, y };
 }

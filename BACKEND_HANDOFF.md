@@ -11,6 +11,194 @@ This document is for the **backend team**: what exists today, what the UI expect
 
 Use this section to see what shipped on `main` without re-reading git history. Backend work is still required where noted below; these entries are **frontend-only** unless stated otherwise.
 
+### 2026-07-01 — Builder UX pass: logic canvas, inline editing, themes, dashboard polish (frontend)
+
+| Field | Value |
+|-------|--------|
+| **Date** | 2026-07-01 |
+| **Scope** | Frontend-only — form builder canvas/logic, inline editing, theme picker, sidebar, dashboard/analytics |
+| **Backend changes** | **None required.** All items are frontend-only. Two persistence notes: (1) **Saved custom themes** are stored in `localStorage` keyed per account email (`clearform_saved_themes`) — this is a client-only convenience, no API/snapshot field yet; if theme sync across devices is wanted later, that becomes a backend task. (2) **Screen-id integrity fix** hardens the frontend id generator so restored snapshots that omit `nextId` can no longer produce duplicate screen ids — the snapshot schema is unchanged, but backends persisting builder snapshots **should round-trip `nextId`** (already documented in the snapshot schema) to keep ids stable |
+
+#### What we fixed (frontend)
+
+| Area | Fix |
+|------|-----|
+| **Logic canvas — screen ids** | Newly added screens could get a duplicate id when a restored snapshot omitted `nextId` (fell back to `100`, colliding with existing content ids `≥101`). Id-keyed lookups (e.g. the logic reorder `Map`) collapsed the pair, so the new screen vanished from Logic. `applyBuiltFormState` now sets the id counter to `max(built.nextId, maxExistingScreenId + 1, 100)`; `addContentScreen` also guards against reusing a live id |
+| **Logic canvas — panning** | Fixed locked/jerky horizontal panning (`clampLogicCanvasPan` was pinning X); then refactored to momentum/inertia panning via a single `requestAnimationFrame` loop with direct `translate3d` DOM writes (decoupled from React state), and made the zoom `%` readout click-to-edit (25–250%) |
+| **Logic canvas — drag + banner** | Fixed screen cards not being draggable (moved drag tracking to window-level pointer listeners so `setPointerCapture` survives re-renders); added a dismiss (×) button to the "AI logic applied" banner |
+| **Inline editing** | Intro title, End-screen title + description are now editable directly on the canvas; End "Edit" enters edit mode with a fade/slide animation |
+| **Required master toggle** | Contact + Address configure panels have a master "Required" toggle that cascades to all sub-fields, with per-field override preserved |
+| **Theme picker** | Save/apply/delete custom themes (account-scoped by email); smaller preset cards; smooth animation for the "save current theme" inline row |
+| **Content blocks** | Captcha shows a "coming soon" badge in the content-creation grid; removed the stray "Change image" button from the Image block footer |
+| **Dashboard / Analytics** | Right-click on a form card/row opens the same context menu as the "···" button; Create-Form button shows a "Creating…" spinner + disabled state; Analytics header form-selector made more prominent |
+| **Sidebar** | Workspace items use an animated color-filled folder tile; "Help & Support" replaced with a wired "Log out" button; session-location label now derives city + `GMT±HH:MM` from the same timezone source (fixes mismatched city/country) |
+
+#### Files changed (this pass)
+
+| File | What changed |
+|------|----------------|
+| `src/features/forms/pages/FormBuilderPage.jsx` | Screen-id collision guard; logic momentum panning + editable zoom; window-level card drag; dismissible AI banner; intro/end inline editing; master required toggles; theme save/apply/delete |
+| `src/features/forms/formBuilder/FormBuilderRightPanels.jsx` | Master required toggles; captcha "coming soon"; panel wiring |
+| `src/features/forms/constants/logicCanvasViewport.js` | `clampLogicCanvasPan` 2D bounding fix |
+| `src/features/forms/formBuilder/BuilderContentCard.jsx` | Removed "Change image" button; CTA/logo hover affordance |
+| `src/features/forms/formBuilder/builderConfiguratorConstants.js` | Captcha `comingSoon` flag |
+| `src/features/forms/utils/savedThemesStorage.js` *(new)* | Per-email localStorage read/save/delete for custom themes |
+| `src/components/ui/WorkspaceFolderIcon.jsx` *(new)* | Reusable animated folder icon |
+| `src/components/layout/Sidebar.jsx` | Folder tile for workspaces; Log out button |
+| `src/features/profile/utils/currentDeviceSession.js` | Timezone-derived city + GMT offset label |
+| `src/features/forms/components/CreateNewFormModal.jsx` | Creating spinner + disabled state; folder icon |
+| `src/features/forms/components/FormCard.jsx`, `FormListRow.jsx` | Right-click opens context menu |
+| `src/pages/AnalyticsPage.jsx` | More prominent form selector |
+
+**Snapshot note (no schema change):** duplicate-id fix is client-side only; backends persisting builder snapshots should continue to round-trip `nextId`.
+
+---
+
+### 2026-07-01 — Start screen logo default + heading/panel polish (frontend)
+
+| Field | Value |
+|-------|--------|
+| **Date** | 2026-07-01 |
+| **Scope** | Frontend-only — intro Configure panel, Start-screen logo, conditional-logic gating, Heading Appearance controls |
+| **Backend changes** | **`intro.logo` now defaults to a bundled static asset URL** (the Clearform logo shipped in the frontend bundle) instead of `null`. New forms — and any snapshot with no saved `intro.logo` — resolve to this asset path on the frontend. User-uploaded logos are still `blob:` object URLs (ephemeral, same caveat as before): real image upload/hosting remains a backend task. No new snapshot fields |
+
+#### What we fixed (frontend)
+
+| Area | Fix |
+|------|-----|
+| **Intro Appearance** | `toggleSection` (intro panel only) is non-exclusive; `sections.appearance` defaults open so it no longer collapses when Essentials is opened |
+| **Start-screen logo** | Defaults to bundled Clearform logo, rendered 1:1 edge-to-edge (`object-cover`, no black box). Clickable in builder even outside edit mode with a subtle hover/pencil-badge affordance; preview/published stays read-only |
+| **Conditional Logic** | Section (Heading/Description/Image/Media/Captcha panels) is hidden when there are no prior answerable screens (`priorScreensForActive.length === 0`); `BlockVisibilityConditions` returns `null` in that case (placeholder card removed) |
+| **Heading Appearance** | Text size + Alignment restyled as segmented pills, consistent with Heading level / Font weight |
+
+#### Files changed
+
+| File | What changed |
+|------|----------------|
+| `src/features/forms/pages/FormBuilderPage.jsx` | Non-exclusive `toggleSection`; `appearance` default open; `clearformStartLogo` import + `logoImage`/`draftLogo` default + hydrate fallback; direct logo upload; logo affordance |
+| `src/features/forms/formBuilder/FormBuilderRightPanels.jsx` | Gate 5 Conditional Logic sections on `priorScreensForActive.length`; restyle Heading Text size + Alignment as pills |
+| `src/features/forms/components/BlockVisibilityConditions.jsx` | `return null` when no prior screens (removed placeholder) |
+
+**Snapshot change (backend must preserve behavior):** `intro.logo` default is now a bundled asset URL rather than `null`; treat a missing/empty `intro.logo` as "use default".
+
+---
+
+### 2026-07-01 — CTA panel cleanup + CTA image + contact defaults (frontend)
+
+| Field | Value |
+|-------|--------|
+| **Date** | 2026-07-01 |
+| **Scope** | Frontend-only — CTA configure panel, CTA card canvas, contact field defaults |
+| **Backend changes** | **New optional snapshot field `ctaImage`** on CTA screen config — must be round-tripped like other `cta*` fields. Currently a `blob:` object URL (ephemeral, same as intro `logo`); real image upload/hosting is still a backend task |
+
+#### What we fixed (frontend)
+
+| Area | Fix |
+|------|-----|
+| **CTA panel** | Removed redundant “Label color” control (and its dead `+`); removed “Show icon” toggle. TEXT COLOR is the single button-label color control; button arrow stays on by default |
+| **CTA card image** | Top icon box is click-to-upload in builder; renders uploaded image as 1:1 rounded square (`object-cover`), else the default black icon box |
+| **Contact defaults** | All contact fields default to `required: false` (Email was `true`) |
+
+#### Files changed
+
+| File | What changed |
+|------|----------------|
+| `src/features/forms/formBuilder/FormBuilderRightPanels.jsx` | Removed Label color block + Show icon row |
+| `src/features/forms/formBuilder/BuilderContentCard.jsx` | CTA image render + click-to-upload |
+| `src/features/forms/pages/FormBuilderPage.jsx` | `ctaImage` state/wiring; contact Email default `false` |
+| `src/features/forms/formBuilder/buildCanvasFieldConfigs.js` | Expose `ctaImage` / `setCtaImage` in `ctaConfig` |
+| `src/features/forms/utils/screenConfigSync.js` | Persist `ctaImage` (extract + apply) |
+| `src/features/forms/utils/previewCanvasConfigsFromScreen.js` | Include `ctaImage` |
+
+**Snapshot field added (backend must preserve):** `ctaImage` on CTA screen config.
+
+---
+
+### 2026-06-30 — Start screen & configure panel UX (frontend)
+
+| Field | Value |
+|-------|--------|
+| **Date** | 2026-06-30 |
+| **Scope** | Frontend-only — builder configure panels, theme accents, canvas inline edit |
+| **Backend changes** | **None** — `theme.accentColor` may still be stored but frontend now defaults interactive accents to `#18181a` |
+
+#### What we fixed (frontend)
+
+| Area | Fix |
+|------|-----|
+| **Button accent** | `builderTheme.accentColor` / published runner use `#18181a`; form header dot still uses `formAccentColor` |
+| **Intro configure** | Hide Field Settings + Question Templates on Start screen; Appearance opens by default |
+| **Essentials grid** | Removed Text Box; Captcha “Soon” (disabled); taller tiles (`CONFIGURE_TILE_*`) |
+| **CTA panel** | Shell `#f7f7f8`; custom `+` swatch first for BUTTON COLOR and TEXT COLOR |
+| **Choice options** | Inline edit option labels on canvas (`CanvasOptionLabel`) for Single/Multiple |
+
+#### Files changed
+
+| File | What changed |
+|------|----------------|
+| `src/features/forms/formBuilder/buildCanvasFieldConfigs.js` | Export `DEFAULT_BUTTON_ACCENT`; theme accent black; pass `setSingleOptions` / `setMultipleOptions` |
+| `src/features/forms/pages/FormBuilderPage.jsx` | Theme snapshot accent black; intro config opens Appearance |
+| `src/features/forms/utils/respondentThemeStyles.js` | Published accent defaults to black |
+| `src/features/forms/formBuilder/builderConfiguratorConstants.js` | Essentials cleanup; larger tile tokens |
+| `src/features/forms/formBuilder/FormBuilderRightPanels.jsx` | Intro panel filter; essentials/captcha; CTA swatches |
+| `src/features/forms/components/canvasCardText.jsx` | `CanvasOptionLabel` |
+| `src/features/forms/formBuilder/BuilderContentCard.jsx` | Inline choice option editing |
+
+---
+
+### 2026-06-30 — Design theme parity: preview + swatch UX (frontend)
+
+| Field | Value |
+|-------|--------|
+| **Date** | 2026-06-30 |
+| **Scope** | Frontend-only — design panel, builder preview, published respondent view |
+| **Backend changes** | **None** — existing `theme.*` snapshot fields unchanged; backend must continue round-tripping them on publish/published |
+
+#### Problem (before)
+
+- Builder **Preview** hardcoded canvas background `#f5f4f0` instead of `designBackground`.
+- Custom color **+** swatches were **last** in each row and stayed white/dashed after picking a color (background, card color, text color).
+- Default **intro welcome** screen used hardcoded `#18181a` text/button colors in builder and on live `/f/:formId` — design text color did not apply.
+
+#### What we fixed (frontend)
+
+| Area | Fix |
+|------|-----|
+| **Preview canvas** | Uses `builderTheme.canvasBackground` in preview and edit (no `#f5f4f0` override) |
+| **Design swatches** | Custom `+` tile is **first** (leftmost); shows active custom color when not a preset |
+| **Intro welcome** | Title, description, Start button use `textColor` / `accentColor` in builder and `FormRespondentView` |
+| **End screen** | Title/description use theme text color on published runner |
+
+#### Files changed
+
+| File | What changed |
+|------|----------------|
+| `src/features/forms/pages/FormBuilderPage.jsx` | Preview background from theme; intro welcome uses `builderTheme.textColor` / `accentColor` |
+| `src/features/forms/formBuilder/FormBuilderRightPanels.jsx` | Custom swatch first + color fill for background, card, text pickers |
+| `src/features/forms/components/FormRespondentView.jsx` | Intro/end screens respect `theme.textColor` / `theme.accentColor` |
+
+**Snapshot fields (unchanged — backend must preserve):** `theme.background`, `theme.cardColor`, `theme.cardOpacity`, `theme.textColor`, `theme.accentColor`, `theme.typography`, `theme.fullCanvas`, `theme.layoutStyle`, `theme.cardImage`.
+
+#### How to verify
+
+1. Design tab → pick custom green background → **Preview** shows green (not beige).
+2. Card opacity slider → card transparency visible in preview and after publish.
+3. Custom text color → intro title + Start button update in preview and `/f/:formId`.
+4. Publish → incognito `/f/:formId` matches builder Preview for theme.
+
+**Republish note:** Forms published before 2026-06-30 should be **republished once** so live snapshots include latest intro text-color wiring if owners changed design since last publish.
+
+#### Follow-up (same day) — button accent + swatch `+`
+
+| Issue | Fix |
+|-------|-----|
+| **Save / Start** buttons turned white when Text Color was `#ffffff` | `accentColor` decoupled from `textColor` via `resolveButtonAccentColor()` — buttons use dark `#18181a` fill; text color applies to copy only |
+| Custom swatch lost `+` after picking a color | Custom tiles always show centered `+` with optional color fill behind |
+
+**Additional files:** `buildCanvasFieldConfigs.js` (`resolveButtonAccentColor`), `respondentThemeStyles.js` (safe published accent fallback).
+
+---
+
 ### 2026-06-04 11:38 — Published form matches builder Preview (frontend)
 
 | Field | Value |

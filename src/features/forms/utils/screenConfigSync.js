@@ -478,6 +478,8 @@ export function extractScreenConfig(screen, globals) {
 
         ctaShowIcon: globals.ctaShowIcon,
 
+        ctaImage: globals.ctaImage,
+
         ctaHeadingSize: globals.ctaHeadingSize,
 
         ctaBodySize: globals.ctaBodySize,
@@ -928,6 +930,8 @@ export function applyScreenConfig(screen, config, setters) {
       if (config.ctaCornerRadius != null) setters.setCtaCornerRadius(config.ctaCornerRadius);
 
       if (config.ctaShowIcon != null) setters.setCtaShowIcon(config.ctaShowIcon);
+
+      if (config.ctaImage != null) setters.setCtaImage(config.ctaImage);
 
       if (config.ctaHeadingSize != null) setters.setCtaHeadingSize(config.ctaHeadingSize);
 

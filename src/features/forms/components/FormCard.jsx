@@ -61,6 +61,13 @@ const FormCard = ({ form }) => {
     dispatch(openContextMenu({ formId: form.id, x: rect.left, y: rect.bottom + 4 }));
   };
 
+  const handleContextMenu = (e) => {
+    if (compareModeActive) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dispatch(openContextMenu({ formId: form.id, x: e.clientX, y: e.clientY }));
+  };
+
   const handleClick = () => {
     if (compareModeActive) {
       if (isDisabled) return;
@@ -77,6 +84,7 @@ const FormCard = ({ form }) => {
       whileHover={!isDisabled ? { y: -2, boxShadow: isSelected ? '0 8px 24px rgba(0,0,0,0.18)' : '0 8px 24px rgba(0,0,0,0.10)' } : {}}
       transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
       onClick={handleClick}
+      onContextMenu={handleContextMenu}
       className={`bg-white rounded-[14px] overflow-hidden flex flex-col group relative transition-all duration-150 ${
         isDisabled
           ? 'opacity-40 cursor-not-allowed'

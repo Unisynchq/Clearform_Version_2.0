@@ -50,18 +50,30 @@ function parseDevice(ua) {
   return 'Unknown device';
 }
 
+/** Current UTC offset for the device, formatted like "GMT+5:30". */
+function getGmtOffsetLabel() {
+  const offsetMinutes = -new Date().getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? '+' : '-';
+  const abs = Math.abs(offsetMinutes);
+  const hours = Math.floor(abs / 60);
+  const minutes = abs % 60;
+  return `GMT${sign}${hours}${minutes ? `:${String(minutes).padStart(2, '0')}` : ''}`;
+}
+
+/**
+ * Location label derived from the device's real IANA timezone.
+ * We intentionally do NOT use navigator.language for the region — the browser
+ * locale (e.g. en-US) does not track the timezone, which produced mismatches
+ * like "Calcutta, United States". City + UTC offset always stays consistent.
+ */
 function getSessionLocationLabel() {
   try {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (!tz) return 'Unknown location';
     const city = tz.split('/').pop()?.replace(/_/g, ' ');
-    const locale = navigator.language || 'en';
-    const regionCode = locale.split('-')[1]?.toUpperCase();
-    const country = regionCode
-      ? new Intl.DisplayNames([locale], { type: 'region' }).of(regionCode)
-      : null;
-    if (city && country) return `${city}, ${country}`;
-    if (country) return country;
-    return tz;
+    const offset = getGmtOffsetLabel();
+    if (city) return `${city} · ${offset}`;
+    return `${tz} · ${offset}`;
   } catch {
     return 'Unknown location';
   }

@@ -80,16 +80,7 @@ export default function BlockVisibilityConditions({
   };
 
   if (!canAdd) {
-    return (
-      <div className="bg-[#f8f8f8] rounded-[8px] px-3 py-[10px]">
-        <span className="text-[10px] font-bold tracking-[0.55px] uppercase text-[#aaa]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-          SHOW THIS BLOCK IF
-        </span>
-        <p className="text-[11px] text-[#888] mt-2 leading-snug" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-          Add a question screen before this one to set visibility rules.
-        </p>
-      </div>
-    );
+    return null;
   }
 
   return (

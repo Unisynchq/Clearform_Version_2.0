@@ -46,6 +46,16 @@ import {
 import { BoxesIcon, ImagesCardIcon, LongTextIcon, ShortTextIcon, TextAlignLeftIcon, TextHIcon, VideoCardIcon } from '@/features/forms/formBuilder/builderFieldIcons';
 import { PiCaretCircleUp } from 'react-icons/pi';
 
+const DESIGN_BG_PRESETS = ['#f7edfc', '#f0eee8'];
+const DESIGN_CARD_PRESETS = ['#f9f9fa', '#1a1a2e', '#4a5568'];
+const DESIGN_TEXT_PRESETS = ['#3d3d3d', '#198eea', '#ffffff'];
+
+const CTA_BTN_QUICK_PRESETS = ['#1a1a1a', '#3b82f6', '#ffffff'];
+const CTA_TEXT_QUICK_PRESETS = ['#3b82f6', '#1a1a1a', '#ffffff'];
+
+const isPresetColor = (color, presets) =>
+  presets.map((c) => c.toLowerCase()).includes((color ?? '').toLowerCase());
+
 export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
   addContentScreen,
   CONFIGURE_TILE_BASE,
@@ -753,7 +763,7 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                         initial="hidden"
                         animate="show"
                       >
-                        {ESSENTIALS.map(({ label, Icon }) => {
+                        {ESSENTIALS.map(({ label, Icon, comingSoon }) => {
                           const isActive = activeScreen?.type === 'intro' && introEssential === label;
                           return (
                             <motion.button
@@ -763,17 +773,23 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                                 show: { opacity: 1, y: 0 },
                               }}
                               transition={{ duration: 0.15, ease: 'easeOut' }}
-                              onClick={() => handleIntroEssentialSelect(label)}
+                              onClick={() => !comingSoon && handleIntroEssentialSelect(label)}
+                              disabled={comingSoon}
                               className={`${CONFIGURE_TILE_BASE} ${
-                                isActive
-                                  ? 'bg-[#eef2ff] border-indigo-300'
-                                  : 'bg-white border-[#e5e3dc] hover:bg-[#f9f8f6]'
+                                comingSoon
+                                  ? 'opacity-50 cursor-not-allowed border-[#e5e3dc] bg-white'
+                                  : isActive
+                                    ? 'bg-[#ebeaff] border-[#a39eff]'
+                                    : 'bg-white border-[#e5e3dc] hover:bg-[#f9f8f6]'
                               }`}
                             >
-                              <Icon size={12} className={`shrink-0 ${isActive ? 'text-indigo-500' : 'text-[#6a6a6a]'}`} />
-                              <span className={`text-[9px] leading-[10px] text-center ${isActive ? 'text-indigo-600 font-medium' : 'text-[#6a6a6a]'}`}>
+                              <Icon size={14} className={`shrink-0 ${isActive && !comingSoon ? 'text-[#5b55e8]' : 'text-[#6a6a6a]'}`} />
+                              <span className={`text-[10px] leading-[11px] text-center ${isActive && !comingSoon ? 'text-black font-medium' : 'text-[#6a6a6a] font-normal'}`}>
                                 {label}
                               </span>
+                              {comingSoon && (
+                                <span className="text-[8px] leading-none text-[#9a9a9a] font-medium -mt-1">Soon</span>
+                              )}
                             </motion.button>
                           );
                         })}
@@ -785,7 +801,7 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
 
               {/* Accordion sections */}
               {ACCORDION_SECTIONS.filter(({ key }) =>
-                !(activeScreen?.type === 'intro' && key === 'questionTemplates')
+                !(activeScreen?.type === 'intro' && (key === 'questionTemplates' || key === 'fieldSettings'))
               ).map(({ key, label }) => (
                 <div key={key} className="border-t border-[rgba(0,0,0,0.09)]">
                   <button
@@ -849,11 +865,11 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                                         }`}
                                       >
                                         <Icon
-                                          size={12}
+                                          size={14}
                                           className={`shrink-0 ${isSelected ? 'text-[#5b55e8]' : 'text-[#6a6a6a]'}`}
                                         />
                                         <span
-                                          className={`text-[9px] leading-[10px] text-center ${
+                                          className={`text-[10px] leading-[11px] text-center ${
                                             isSelected ? 'text-black font-medium' : 'text-[#6a6a6a] font-normal'
                                           }`}
                                         >
@@ -1149,7 +1165,7 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                               initial="hidden"
                               animate="show"
                             >
-                              {items.map(({ label: itemLabel, Icon }) => (
+                              {items.map(({ label: itemLabel, Icon, comingSoon }) => (
                                 <motion.button
                                   key={itemLabel}
                                   variants={{
@@ -1157,8 +1173,13 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                                     show: { opacity: 1, y: 0 },
                                   }}
                                   transition={{ duration: 0.15, ease: 'easeOut' }}
-                                  onClick={() => addContentScreen(key, itemLabel)}
-                                  className={`${CONFIGURE_TILE_BASE} bg-white border-[#e5e3dc] hover:bg-[#f4f3ef] active:bg-[#ebeaff] active:border-[#a39eff]`}
+                                  onClick={() => !comingSoon && addContentScreen(key, itemLabel)}
+                                  disabled={comingSoon}
+                                  className={`${CONFIGURE_TILE_BASE} ${
+                                    comingSoon
+                                      ? 'opacity-50 cursor-not-allowed bg-white border-[#e5e3dc]'
+                                      : 'bg-white border-[#e5e3dc] hover:bg-[#f4f3ef] active:bg-[#ebeaff] active:border-[#a39eff]'
+                                  }`}
                                 >
                                   <Icon size={12} className="shrink-0 text-[#6a6a6a]" />
                                   {itemLabel.length > 13 ? (
@@ -1175,6 +1196,9 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                                     >
                                       {itemLabel}
                                     </span>
+                                  )}
+                                  {comingSoon && (
+                                    <span className="text-[8px] leading-none text-[#9a9a9a] font-medium -mt-1">Soon</span>
                                   )}
                                 </motion.button>
                               ))}
@@ -1196,22 +1220,22 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
           {showCtaConfigPanel && (
             <BuilderRightPanelShell panelKey="cta-config-panel" width={280}>
               <div
-                className="w-[280px] h-full bg-[#f7f6f4] border-l border-[#e5e3dc] flex flex-col"
+                className="w-[280px] h-full bg-[#f7f7f8] border-l border-[#e5e3dc] flex flex-col"
                 style={{ boxShadow: '-2px 2px 10px 0px rgba(0,0,0,0.08)' }}
               >
                 {/* Header */}
-                <div className="border-b border-[rgba(0,0,0,0.09)] flex items-center justify-between py-[13px] px-4 shrink-0">
+                <div className="h-[41px] border-b border-[#e5e3dc] flex items-center justify-between px-4 shrink-0">
                   <span
-                    className="text-[13px] font-semibold text-[#111] tracking-[-0.13px]"
+                    className="text-[14px] font-semibold text-black"
                     style={{ fontFamily: "'DM Sans', sans-serif" }}
                   >
                     Configure
                   </span>
                   <button
                     onClick={() => setShowCtaConfigPanel(false)}
-                    className="w-[20px] h-[20px] bg-[#f0eeea] rounded-[5px] flex items-center justify-center cursor-pointer hover:bg-[#e5e3dc] transition-colors"
+                    className="w-[22px] h-[22px] bg-[#f4f3ef] rounded-[11px] flex items-center justify-center cursor-pointer hover:bg-[#e9e7e0] transition-colors"
                   >
-                    <RiCloseLine size={10} className="text-[#6a6a6a] shrink-0" aria-hidden />
+                    <RiCloseLine size={14} className="text-[#6a6a6a] shrink-0" aria-hidden />
                   </button>
                 </div>
 
@@ -1394,9 +1418,27 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                                 </span>
                                 {/* Quick swatches */}
                                 <div className="flex items-center gap-2 pt-[2px]">
-                                  {['#1a1a1a', '#3b82f6', '#ffffff'].map((color) => (
+                                  <button
+                                    type="button"
+                                    onClick={() => setCtaBtnColorGridOpen((v) => !v)}
+                                    className="w-[28px] h-[28px] rounded-full border border-dashed border-[#c0c0be] flex items-center justify-center cursor-pointer hover:bg-white/50 shrink-0"
+                                    style={{
+                                      backgroundColor: !isPresetColor(ctaBtnColor, CTA_BTN_QUICK_PRESETS)
+                                        ? ctaBtnColor
+                                        : undefined,
+                                      outline: !isPresetColor(ctaBtnColor, CTA_BTN_QUICK_PRESETS)
+                                        ? '2px solid rgba(26,26,26,0.2)'
+                                        : 'none',
+                                      outlineOffset: 2,
+                                    }}
+                                    aria-label="Choose custom button color"
+                                  >
+                                    <span className="text-[#9a9a9a] text-[14px] leading-none pointer-events-none">+</span>
+                                  </button>
+                                  {CTA_BTN_QUICK_PRESETS.map((color) => (
                                     <button
                                       key={color}
+                                      type="button"
                                       onClick={() => setCtaBtnColor(color)}
                                       className="rounded-full shrink-0 cursor-pointer"
                                       style={{
@@ -1409,12 +1451,6 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                                       }}
                                     />
                                   ))}
-                                  <button
-                                    onClick={() => setCtaBtnColorGridOpen((v) => !v)}
-                                    className="w-[28px] h-[28px] rounded-full border border-dashed border-[#c0c0be] flex items-center justify-center text-[#9a9a9a] text-[14px] leading-none cursor-pointer hover:bg-white/50"
-                                  >
-                                    +
-                                  </button>
                                 </div>
                                 {/* Color grid – shown only after clicking + */}
                                 <AnimatePresence initial={false}>
@@ -1496,9 +1532,27 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                                 </span>
                                 {/* Quick swatches */}
                                 <div className="flex items-center gap-2 pt-[2px]">
-                                  {['#3b82f6', '#1a1a1a', '#ffffff'].map((color) => (
+                                  <button
+                                    type="button"
+                                    onClick={() => setCtaColorGridOpen((v) => !v)}
+                                    className="w-[28px] h-[28px] rounded-full border border-dashed border-[#c0c0be] flex items-center justify-center cursor-pointer hover:bg-white/50 shrink-0"
+                                    style={{
+                                      backgroundColor: !isPresetColor(ctaTextColor, CTA_TEXT_QUICK_PRESETS)
+                                        ? ctaTextColor
+                                        : undefined,
+                                      outline: !isPresetColor(ctaTextColor, CTA_TEXT_QUICK_PRESETS)
+                                        ? '2px solid rgba(26,26,26,0.2)'
+                                        : 'none',
+                                      outlineOffset: 2,
+                                    }}
+                                    aria-label="Choose custom text color"
+                                  >
+                                    <span className="text-[#9a9a9a] text-[14px] leading-none pointer-events-none">+</span>
+                                  </button>
+                                  {CTA_TEXT_QUICK_PRESETS.map((color) => (
                                     <button
                                       key={color}
+                                      type="button"
                                       onClick={() => setCtaTextColor(color)}
                                       className="rounded-full shrink-0 cursor-pointer"
                                       style={{
@@ -1511,12 +1565,6 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                                       }}
                                     />
                                   ))}
-                                  <button
-                                    onClick={() => setCtaColorGridOpen((v) => !v)}
-                                    className="w-[28px] h-[28px] rounded-full border border-dashed border-[#c0c0be] flex items-center justify-center text-[#9a9a9a] text-[14px] leading-none cursor-pointer hover:bg-white/50"
-                                  >
-                                    +
-                                  </button>
                                 </div>
                                 {/* Color grid – shown only after clicking + */}
                                 <AnimatePresence initial={false}>
@@ -1585,69 +1633,6 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                                   )}
                                 </AnimatePresence>
                               </div>
-                            </div>
-
-                            {/* Label color */}
-                            <div className="flex flex-col gap-[8px]">
-                              <span
-                                className="text-[12px] font-normal text-[#444]"
-                                style={{ fontFamily: "'DM Sans', sans-serif" }}
-                              >
-                                Label color
-                              </span>
-                              <div className="flex items-center gap-[6px]">
-                                {[
-                                  { id: 'white', bg: '#ffffff', shadow: 'inset 0 0 0 2px rgba(0,0,0,0.12)' },
-                                  { id: 'black', bg: '#111111', shadow: 'none' },
-                                ].map(({ id, bg, shadow }) => (
-                                  <button
-                                    key={id}
-                                    onClick={() => setCtaLabelColor(id)}
-                                    className="rounded-full shrink-0 cursor-pointer"
-                                    style={{
-                                      width: 22,
-                                      height: 22,
-                                      background: bg,
-                                      boxShadow: shadow,
-                                      outline: ctaLabelColor === id ? '1.5px solid #111' : 'none',
-                                      outlineOffset: 3,
-                                    }}
-                                  />
-                                ))}
-                                <button className="w-[22px] h-[22px] rounded-full border border-dashed border-[rgba(0,0,0,0.15)] flex items-center justify-center text-[#bbb] text-[14px] leading-none cursor-pointer hover:bg-[#f0eeea]">
-                                  +
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Show icon */}
-                            <div className="flex items-center justify-between">
-                              <span
-                                className="text-[12px] font-normal text-[#444]"
-                                style={{ fontFamily: "'DM Sans', sans-serif" }}
-                              >
-                                Show icon
-                              </span>
-                              <button
-                                onClick={() => setCtaShowIcon((v) => !v)}
-                                className="relative shrink-0 cursor-pointer transition-colors"
-                                style={{
-                                  width: 34,
-                                  height: 20,
-                                  borderRadius: 10,
-                                  background: ctaShowIcon ? TOGGLE_TRACK_ON : TOGGLE_TRACK_OFF,
-                                }}
-                              >
-                                <div
-                                  className="absolute top-[3px] bg-white rounded-[7px]"
-                                  style={{
-                                    width: 14,
-                                    height: 14,
-                                    left: ctaShowIcon ? 17 : 3,
-                                    transition: 'left 0.15s ease',
-                                  }}
-                                />
-                              </button>
                             </div>
 
                           </div>
@@ -2079,6 +2064,7 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                   </div>
 
                   {/* ── CONDITIONAL LOGIC ── */}
+                  {priorScreensForActive.length > 0 && (
                   <div className="border-t border-[rgba(0,0,0,0.06)]">
                     <button
                       onClick={() => setHeadingSections((p) => ({ ...p, conditionalLogic: !p.conditionalLogic }))}
@@ -2117,6 +2103,7 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                       )}
                     </AnimatePresence>
                   </div>
+                  )}
 
                   {/* ── APPEARANCE ── */}
                   <div className="border-t border-[rgba(0,0,0,0.06)]">
@@ -2151,15 +2138,15 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                             {/* Text size */}
                             <div className="flex flex-col gap-[5px]">
                               <span className="text-[12px] text-[#444]" style={{ fontFamily: "'DM Sans', sans-serif" }}>Text size</span>
-                              <div className="flex items-center gap-[6px]">
+                              <div className="bg-[rgba(0,0,0,0.04)] grid grid-cols-4 gap-[2px] p-[3px] rounded-[8px]">
                                 {['S', 'M', 'L', 'XL'].map((sz) => (
                                   <button
                                     key={sz}
                                     onClick={() => setHeadingTextSize(sz)}
-                                    className={`w-8 h-7 flex items-center justify-center rounded-[6px] border text-[12px] transition-colors cursor-pointer ${
+                                    className={`flex items-center justify-center py-[5px] rounded-[6px] text-[11.5px] transition-colors cursor-pointer ${
                                       headingTextSize === sz
-                                        ? 'bg-white border-[#111] text-[#111] font-medium'
-                                        : 'bg-white border-[#e0e0e0] text-[#777] hover:border-[#bbb]'
+                                        ? 'bg-white shadow-[0px_1px_1px_rgba(0,0,0,0.1)] text-[#111] font-medium'
+                                        : 'text-[#777] font-normal hover:text-[#444]'
                                     }`}
                                     style={{ fontFamily: "'DM Sans', sans-serif" }}
                                   >
@@ -2172,7 +2159,7 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                             {/* Alignment */}
                             <div className="flex flex-col gap-[5px]">
                               <span className="text-[12px] text-[#444]" style={{ fontFamily: "'DM Sans', sans-serif" }}>Alignment</span>
-                              <div className="flex items-center gap-[6px]">
+                              <div className="bg-[rgba(0,0,0,0.04)] grid grid-cols-3 gap-[2px] p-[3px] rounded-[8px]">
                                 {[
                                   { id: 'left', Icon: RiAlignLeft },
                                   { id: 'center', Icon: RiAlignCenter },
@@ -2181,10 +2168,10 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                                   <button
                                     key={id}
                                     onClick={() => setHeadingAlignment(id)}
-                                    className={`w-8 h-7 flex items-center justify-center rounded-[6px] border transition-colors cursor-pointer ${
+                                    className={`flex items-center justify-center py-[6px] rounded-[6px] transition-colors cursor-pointer ${
                                       headingAlignment === id
-                                        ? 'bg-white border-[#111]'
-                                        : 'bg-white border-[#e0e0e0] hover:border-[#bbb]'
+                                        ? 'bg-white shadow-[0px_1px_1px_rgba(0,0,0,0.1)]'
+                                        : 'hover:text-[#444]'
                                     }`}
                                   >
                                     <Icon size={14} className={headingAlignment === id ? 'text-[#111]' : 'text-[#777]'} />
@@ -2394,6 +2381,7 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                   </div>
 
                   {/* ── CONDITIONAL LOGIC ── */}
+                  {priorScreensForActive.length > 0 && (
                   <div className="border-t border-[rgba(0,0,0,0.06)]">
                     <button
                       onClick={() => setDescriptionSections((p) => ({ ...p, conditionalLogic: !p.conditionalLogic }))}
@@ -2432,6 +2420,7 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                       )}
                     </AnimatePresence>
                   </div>
+                  )}
 
                   {/* ── APPEARANCE ── */}
                   <div className="border-t border-[rgba(0,0,0,0.06)]">
@@ -2775,6 +2764,7 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                   </div>
 
                   {/* ── CONDITIONAL LOGIC ── */}
+                  {priorScreensForActive.length > 0 && (
                   <div className="border-t border-[rgba(0,0,0,0.06)]">
                     <button
                       onClick={() => setImageSections((p) => ({ ...p, conditionalLogic: !p.conditionalLogic }))}
@@ -2813,6 +2803,7 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                       )}
                     </AnimatePresence>
                   </div>
+                  )}
 
                   {/* ── APPEARANCE ── */}
                   <div className="border-t border-[rgba(0,0,0,0.06)]">
@@ -3098,7 +3089,13 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                             </div>
                             <div className="flex items-center justify-between">
                               <span className="text-[12px] text-[#444]">Required</span>
-                              <button onClick={() => setContactRequired(!contactRequired)} className={`w-8 h-[18px] rounded-full transition-colors relative appearance-none border-0 p-0 ${contactRequired ? 'bg-[#2a9d6e]' : 'bg-[#e4e2dc]'}`}>
+                              <button
+                                onClick={() => {
+                                  const next = !contactRequired;
+                                  setContactRequired(next);
+                                  setContactFields((p) => Object.fromEntries(Object.entries(p).map(([k, v]) => [k, { ...v, required: next }])));
+                                }}
+                                className={`w-8 h-[18px] rounded-full transition-colors relative appearance-none border-0 p-0 ${contactRequired ? 'bg-[#2a9d6e]' : 'bg-[#e4e2dc]'}`}>
                                 <span className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white transition-all ${contactRequired ? 'left-[18px]' : 'left-[2px]'}`} />
                               </button>
                             </div>
@@ -3194,7 +3191,13 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                             </div>
                             <div className="flex items-center justify-between">
                               <span className="text-[12px] text-[#444]">Required</span>
-                              <button onClick={() => setAddressRequired(!addressRequired)} className={`w-8 h-[18px] rounded-full transition-colors relative appearance-none border-0 p-0 ${addressRequired ? 'bg-[#2a9d6e]' : 'bg-[#e4e2dc]'}`}>
+                              <button
+                                onClick={() => {
+                                  const next = !addressRequired;
+                                  setAddressRequired(next);
+                                  setAddressFields((p) => Object.fromEntries(Object.entries(p).map(([k, v]) => [k, { ...v, required: next }])));
+                                }}
+                                className={`w-8 h-[18px] rounded-full transition-colors relative appearance-none border-0 p-0 ${addressRequired ? 'bg-[#2a9d6e]' : 'bg-[#e4e2dc]'}`}>
                                 <span className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white transition-all ${addressRequired ? 'left-[18px]' : 'left-[2px]'}`} />
                               </button>
                             </div>
@@ -4318,6 +4321,7 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                   </div>
 
                   {/* ── CONDITIONAL LOGIC ── */}
+                  {priorScreensForActive.length > 0 && (
                   <div className="border-t border-[#f0f0f0]">
                     <button onClick={() => setMediaSections((p) => ({ ...p, conditionalLogic: !p.conditionalLogic }))} className="flex items-center justify-between w-full px-4 py-[10px] cursor-pointer">
                       <span className="text-[10px] font-bold tracking-[0.7px] uppercase text-[#999]" style={{ fontFamily: 'Arial, sans-serif' }}>CONDITIONAL LOGIC</span>
@@ -4339,6 +4343,7 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                       )}
                     </AnimatePresence>
                   </div>
+                  )}
 
                   {/* ── APPEARANCE ── */}
                   <div className="border-t border-[#f0f0f0]">
@@ -4621,6 +4626,7 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                   </div>
 
                   {/* ── CONDITIONAL LOGIC ── */}
+                  {priorScreensForActive.length > 0 && (
                   <div className="border-b border-[rgba(0,0,0,0.09)]">
                     <button
                       onClick={() => setCaptchaSections((p) => ({ ...p, conditionalLogic: !p.conditionalLogic }))}
@@ -4645,6 +4651,7 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                       )}
                     </AnimatePresence>
                   </div>
+                  )}
 
                 </div>
               </div>
@@ -5167,6 +5174,23 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                   Background
                 </span>
                 <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDesignBackgroundColorGridOpen((v) => !v)}
+                    className="h-[48px] rounded-[8px] border border-dashed border-[#c0c0be] flex items-center justify-center text-[#9a9a9a] text-[18px] leading-none cursor-pointer hover:bg-white/50 transition-colors"
+                    style={{
+                      backgroundColor: isPresetColor(designBackground, DESIGN_BG_PRESETS)
+                        ? undefined
+                        : designBackground,
+                      outline: !isPresetColor(designBackground, DESIGN_BG_PRESETS)
+                        ? '2px solid rgba(26,26,26,0.2)'
+                        : 'none',
+                      outlineOffset: '2px',
+                    }}
+                    aria-label="Choose custom background color"
+                  >
+                    <span className="text-[#9a9a9a] text-[18px] leading-none pointer-events-none">+</span>
+                  </button>
                   {[
                     { color: '#f7edfc', border: '#111', isOutline: true },
                     { color: '#f0eee8', border: '#e3e1da', isOutline: false },
@@ -5189,20 +5213,6 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                       }}
                     />
                   ))}
-                  <button
-                    type="button"
-                    onClick={() => setDesignBackgroundColorGridOpen((v) => !v)}
-                    className="h-[48px] rounded-[8px] border border-dashed border-[#c0c0be] flex items-center justify-center text-[#9a9a9a] text-[18px] leading-none cursor-pointer hover:bg-white/50 transition-colors"
-                    style={{
-                      outline: !['#f7edfc', '#f0eee8'].includes(designBackground.toLowerCase())
-                        ? '2px solid rgba(26,26,26,0.2)'
-                        : 'none',
-                      outlineOffset: '2px',
-                    }}
-                    aria-label="Choose custom background color"
-                  >
-                    +
-                  </button>
                 </div>
                 <AnimatePresence initial={false}>
                   {designBackgroundColorGridOpen && (
@@ -5270,9 +5280,27 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                   Card Color
                 </span>
                 <div className="flex items-center gap-[6px]">
-                  {['#f9f9fa', '#1a1a2e', '#4a5568'].map((color) => (
+                  <button
+                    type="button"
+                    onClick={() => setDesignCardColorGridOpen((v) => !v)}
+                    className="w-[28px] h-[28px] rounded-full border border-dashed border-[#c0c0be] flex items-center justify-center text-[#9a9a9a] text-[14px] leading-none cursor-pointer hover:bg-white/50"
+                    style={{
+                      background: isPresetColor(designCardColor, DESIGN_CARD_PRESETS)
+                        ? undefined
+                        : designCardColor,
+                      outline: !isPresetColor(designCardColor, DESIGN_CARD_PRESETS)
+                        ? '2px solid #111'
+                        : 'none',
+                      outlineOffset: 2,
+                    }}
+                    aria-label="Choose custom card color"
+                  >
+                    <span className="text-[#9a9a9a] text-[14px] leading-none pointer-events-none">+</span>
+                  </button>
+                  {DESIGN_CARD_PRESETS.map((color) => (
                     <button
                       key={color}
+                      type="button"
                       onClick={() => { setDesignCardColor(color); setDesignCardImage(null); setActiveThemeId(null); }}
                       className="w-[28px] h-[28px] rounded-full cursor-pointer transition-transform hover:scale-110"
                       style={{
@@ -5283,12 +5311,6 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                       }}
                     />
                   ))}
-                  <button
-                    onClick={() => setDesignCardColorGridOpen((v) => !v)}
-                    className="w-[28px] h-[28px] rounded-full border border-dashed border-[#c0c0be] flex items-center justify-center text-[#9a9a9a] text-[14px] leading-none cursor-pointer hover:bg-white/50"
-                  >
-                    +
-                  </button>
                 </div>
                 {/* Color grid */}
                 <AnimatePresence initial={false}>
@@ -5389,6 +5411,23 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                   Text Color
                 </span>
                 <div className="flex items-center gap-[6px]">
+                  <button
+                    type="button"
+                    onClick={() => setDesignTextColorGridOpen((v) => !v)}
+                    className="w-[32px] h-[32px] rounded-full border border-dashed border-[#e4e2dc] flex items-center justify-center cursor-pointer hover:bg-[#f5f4f0] transition-colors"
+                    style={{
+                      backgroundColor: isPresetColor(designTextColor, DESIGN_TEXT_PRESETS)
+                        ? undefined
+                        : designTextColor,
+                      outline: !isPresetColor(designTextColor, DESIGN_TEXT_PRESETS)
+                        ? '2px solid rgba(0,0,0,0.3)'
+                        : 'none',
+                      outlineOffset: '1.5px',
+                    }}
+                    aria-label="Choose custom text color"
+                  >
+                    <span className="text-[#1a1a1a] text-[16px] leading-none font-light pointer-events-none">+</span>
+                  </button>
                   {[
                     { color: '#3d3d3d' },
                     { color: '#198eea' },
@@ -5396,6 +5435,7 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                   ].map(({ color, border }) => (
                     <button
                       key={color}
+                      type="button"
                       onClick={() => setDesignTextColor(color)}
                       className="w-[32px] h-[32px] rounded-full cursor-pointer transition-all"
                       style={{
@@ -5408,12 +5448,6 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                       }}
                     />
                   ))}
-                  <button
-                    onClick={() => setDesignTextColorGridOpen((v) => !v)}
-                    className="w-[32px] h-[32px] rounded-full bg-white border border-dashed border-[#e4e2dc] flex items-center justify-center cursor-pointer hover:bg-[#f5f4f0] transition-colors"
-                  >
-                    <span className="text-[#1a1a1a] text-[16px] leading-none font-light">+</span>
-                  </button>
                 </div>
                 <AnimatePresence initial={false}>
                   {designTextColorGridOpen && (

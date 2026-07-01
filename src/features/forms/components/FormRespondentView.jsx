@@ -265,15 +265,23 @@ export default function FormRespondentView({ draft, formId }) {
                 <div className="w-[42px] h-[42px] rounded-[10px] bg-[#18181a] shrink-0" />
               )}
               <p
-                className={`text-[#18181a] font-bold ${welcomeTextAlignClass}`}
-                style={{ fontSize: welcomeSize.title, lineHeight: welcomeSize.titleLeading }}
+                className={`font-bold ${welcomeTextAlignClass}`}
+                style={{
+                  fontSize: welcomeSize.title,
+                  lineHeight: welcomeSize.titleLeading,
+                  color: theme.textColor,
+                }}
               >
                 {draft?.intro?.title || draft?.formTitle || 'Form'}
               </p>
               {draft?.intro?.description ? (
                 <p
-                  className={`text-[#8c8a84] font-normal ${welcomeTextAlignClass}`}
-                  style={{ fontSize: welcomeSize.desc }}
+                  className={`font-normal ${welcomeTextAlignClass}`}
+                  style={{
+                    fontSize: welcomeSize.desc,
+                    color: theme.textColor,
+                    opacity: 0.65,
+                  }}
                 >
                   {draft.intro.description}
                 </p>
@@ -282,7 +290,8 @@ export default function FormRespondentView({ draft, formId }) {
                 <button
                   type="button"
                   onClick={recordAndAdvance}
-                  className={`bg-[#18181a] text-white font-bold rounded-[8px] cursor-pointer hover:bg-[#2c2c2c] transition-colors whitespace-nowrap ${isCompact ? 'text-[16px] px-[40px] py-[13px]' : 'text-[14px] px-[36px] py-[11px]'}`}
+                  className={`text-white font-bold rounded-[8px] cursor-pointer hover:opacity-90 transition-opacity whitespace-nowrap ${isCompact ? 'text-[16px] px-[40px] py-[13px]' : 'text-[14px] px-[36px] py-[11px]'}`}
+                  style={{ backgroundColor: theme.accentColor }}
                 >
                   {draft?.intro?.buttonText || 'Start'}
                 </button>
@@ -303,11 +312,19 @@ export default function FormRespondentView({ draft, formId }) {
             <div className="w-[36px] h-[36px] rounded-[10px] bg-[#1a9e4a] flex items-center justify-center shrink-0">
               <RiCheckLine size={18} className="text-white" />
             </div>
-            <p className={`text-[#111] font-bold text-center tracking-[-0.56px] ${isCompact ? 'text-[28px] leading-[33.6px]' : 'text-[24px] leading-[28.8px]'}`}>
+            <p
+              className={`font-bold text-center tracking-[-0.56px] ${isCompact ? 'text-[28px] leading-[33.6px]' : 'text-[24px] leading-[28.8px]'}`}
+              style={{ color: theme.textColor }}
+            >
               {draft?.end?.title || 'Thank you'}
             </p>
             {draft?.end?.description ? (
-              <p className="text-[#8c8a84] text-[15px] font-normal text-center">{draft.end.description}</p>
+              <p
+                className="text-[15px] font-normal text-center"
+                style={{ color: theme.textColor, opacity: 0.65 }}
+              >
+                {draft.end.description}
+              </p>
             ) : null}
           </div>
         </div>

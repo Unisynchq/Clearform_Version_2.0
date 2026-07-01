@@ -24,6 +24,7 @@ export function previewCanvasConfigsFromScreen(screen) {
           ctaButtonStyle: c.ctaButtonStyle,
           ctaCornerRadius: c.ctaCornerRadius,
           ctaShowIcon: c.ctaShowIcon,
+          ctaImage: c.ctaImage,
           ctaHeadingSize: c.ctaHeadingSize,
           ctaBodySize: c.ctaBodySize,
           ctaFontWeight: c.ctaFontWeight,

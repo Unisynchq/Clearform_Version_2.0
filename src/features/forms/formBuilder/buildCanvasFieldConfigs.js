@@ -1,4 +1,15 @@
 /** Resolved builder theme tokens with safe fallbacks. */
+export const DEFAULT_BUTTON_ACCENT = '#18181a';
+
+/** Button / CTA fill — not tied to typography text color (avoids white-on-white when text is #fff). */
+export function resolveButtonAccentColor(formAccentColor) {
+  const trimmed = formAccentColor?.trim();
+  if (!trimmed) return DEFAULT_BUTTON_ACCENT;
+  const lower = trimmed.toLowerCase();
+  if (lower === '#fff' || lower === '#ffffff' || lower === 'white') return DEFAULT_BUTTON_ACCENT;
+  return trimmed;
+}
+
 export function resolveBuilderTheme({
   designBackground = '#f0eee8',
   designTextColor = '#198eea',
@@ -13,7 +24,7 @@ export function resolveBuilderTheme({
   return {
     canvasBackground: designBackground ?? '#f0eee8',
     textColor: designTextColor || '#111111',
-    accentColor: designTextColor || formAccentColor || '#111111',
+    accentColor: DEFAULT_BUTTON_ACCENT,
     cardColor: rgba(designCardColor ?? '#f9f9fa', designCardOpacity ?? 74),
     cardImage: designCardImage ?? null,
     fullCanvas: designLayoutStyle === 'fullCanvas',
@@ -33,6 +44,7 @@ export function buildCanvasFieldConfigs({
   ctaButtonStyle,
   ctaCornerRadius,
   ctaShowIcon,
+  ctaImage,
   ctaHeadingSize,
   ctaBodySize,
   ctaFontWeight,
@@ -47,6 +59,7 @@ export function buildCanvasFieldConfigs({
   setCtaHeadingText,
   setCtaHelperText,
   setCtaDurationText,
+  setCtaImage,
   // Heading
   headingText,
   subHeading,
@@ -173,6 +186,7 @@ export function buildCanvasFieldConfigs({
   singleShowKeyboardHints,
   setSingleQuestion,
   setSingleHelperText,
+  setSingleOptions,
   multipleQuestion,
   multipleHelperText,
   multipleOptions,
@@ -187,6 +201,7 @@ export function buildCanvasFieldConfigs({
   multipleOptionHeight,
   setMultipleQuestion,
   setMultipleHelperText,
+  setMultipleOptions,
   mediaQuestion,
   mediaHelperText,
   mediaOptions,
@@ -257,6 +272,7 @@ export function buildCanvasFieldConfigs({
       ctaButtonStyle,
       ctaCornerRadius,
       ctaShowIcon,
+      ctaImage,
       ctaHeadingSize,
       ctaBodySize,
       ctaFontWeight,
@@ -271,6 +287,7 @@ export function buildCanvasFieldConfigs({
       setCtaHeadingText,
       setCtaHelperText,
       setCtaDurationText,
+      setCtaImage,
     },
     headingConfig: {
       headingText,
@@ -414,6 +431,7 @@ export function buildCanvasFieldConfigs({
       singleShowKeyboardHints,
       setSingleQuestion,
       setSingleHelperText,
+      setSingleOptions,
       onOpenPanel: openSingleConfigPanel,
     },
     multipleConfig: {
@@ -431,6 +449,7 @@ export function buildCanvasFieldConfigs({
       multipleOptionHeight,
       setMultipleQuestion,
       setMultipleHelperText,
+      setMultipleOptions,
       onOpenPanel: openMultipleConfigPanel,
     },
     mediaConfig: {

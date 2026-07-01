@@ -32,15 +32,14 @@ export const ESSENTIALS = [
   { label: 'CTA', Icon: BoxesIcon },
   { label: 'Heading', Icon: TextHIcon },
   { label: 'Description', Icon: TextAlignLeftIcon },
-  { label: 'Text Box', Icon: ShortTextIcon },
   { label: 'Images', Icon: ImagesCardIcon },
   { label: 'Video', Icon: VideoCardIcon },
-  { label: 'Captcha', Icon: RiRobot2Line },
+  { label: 'Captcha', Icon: RiRobot2Line, comingSoon: true },
 ];
 
 export const CONFIGURE_TILE_GRID = 'grid grid-cols-3 gap-1.5 items-start pb-[2px]';
 export const CONFIGURE_TILE_BASE =
-  'flex flex-col items-center justify-center gap-[4px] h-[42px] w-full px-1 rounded-[6px] border cursor-pointer transition-colors';
+  'flex flex-col items-center justify-center gap-[6px] h-[52px] w-full px-1 rounded-[6px] border cursor-pointer transition-colors';
 
 /* ── Configure panel: collapsible sections ── */
 export const ACCORDION_SECTIONS = [
@@ -147,7 +146,7 @@ export const CONTENT_SECTIONS = [
     items: [
       { label: 'Upload', Icon: RiFileUploadLine },
       { label: 'Multi-image upload', Icon: RiImageLine },
-      { label: 'Captcha', Icon: RiRobot2Line },
+      { label: 'Captcha', Icon: RiRobot2Line, comingSoon: true },
     ],
   },
   {
