@@ -6,6 +6,7 @@ const MAIN_TABS = [
   { id: 'responses', label: 'Responses' },
   { id: 'compare', label: 'Compare' },
   { id: 'ai', label: 'AI Insights' },
+  { id: 'best', label: 'Best Responses' },
   { id: 'settings', label: 'Settings' },
 ];
 

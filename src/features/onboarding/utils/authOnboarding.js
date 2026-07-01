@@ -40,19 +40,12 @@ export async function claimPendingPurchaseIfNeeded({ showToast } = {}) {
 /**
  * After Firebase + GET /auth/me — server onboardingCompleted is source of truth.
  * Microsoft OAuth often reports isNewUser=false; do not use it for routing.
+ * returnTo is only honoured for existing users — new users always go to /onboarding.
  */
 export const resolveAuthNavigationAfterSync = (
   dispatch,
   { onboardingCompleted = false, returnTo } = {},
 ) => {
-  if (
-    typeof returnTo === 'string' &&
-    returnTo.startsWith('/') &&
-    !returnTo.startsWith('//')
-  ) {
-    dispatch(dismissOnboardingSession());
-    return returnTo;
-  }
   if (onboardingCompleted) {
     return resolveSignInNavigation(dispatch, { returnTo });
   }

@@ -49,6 +49,13 @@ export async function fetchFormOverview(formId) {
   return apiClient(API_ENDPOINTS.analytics.overview(formId));
 }
 
+export async function fetchTopResponses(formId, { limit = 10, minScore = 75 } = {}) {
+  if (!isApiConfigured() || !formId) return [];
+  return apiClient(API_ENDPOINTS.analytics.topResponses(formId), {
+    query: { limit, minScore },
+  });
+}
+
 /** Map B.13 overview API shape to FormOverlayModal fields. */
 export function mapOverviewApiToUi(api) {
   if (!api) return null;

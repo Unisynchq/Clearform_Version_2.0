@@ -455,9 +455,9 @@ const ProfilePage = () => {
     }
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    await signOutUser();
     dispatch(logout());
-    signOutUser();
     navigate('/signin');
   };
 

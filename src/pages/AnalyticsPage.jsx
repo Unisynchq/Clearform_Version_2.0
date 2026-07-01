@@ -30,6 +30,7 @@ import AnalyticsResponsesPanel from '@/components/analytics/AnalyticsResponsesPa
 import AnalyticsComparePanel from '@/components/analytics/AnalyticsComparePanel';
 import AnalyticsSettingsPanel from '@/components/analytics/AnalyticsSettingsPanel';
 import AnalyticsAiInsightsPanel from '@/components/analytics/AnalyticsAiInsightsPanel';
+import AnalyticsBestResponsesPanel from '@/components/analytics/AnalyticsBestResponsesPanel';
 import Topbar from '@/components/layout/Topbar';
 
 function useClickOutside(ref, open, onClose) {
@@ -333,6 +334,7 @@ const AnalyticsPage = () => {
     if (activeTab === 'responses') return <AnalyticsPanelSkeleton blocks={4} />;
     if (activeTab === 'compare') return <AnalyticsPanelSkeleton blocks={3} />;
     if (activeTab === 'ai') return <AnalyticsPanelSkeleton blocks={4} />;
+    if (activeTab === 'best') return <AnalyticsPanelSkeleton blocks={3} />;
     return <AnalyticsPanelSkeleton blocks={2} />;
   };
 
@@ -445,6 +447,13 @@ const AnalyticsPage = () => {
             onClearDateFilter={() => setRangeLabel('All time')}
             onShareForm={handleShareSurvey}
             onRetryInsights={retryAiInsights}
+          />
+        );
+      case 'best':
+        return (
+          <AnalyticsBestResponsesPanel
+            form={selectedForm}
+            responseCount={perfApiStats?.responses ?? selectedForm?.responses ?? 0}
           />
         );
       default:

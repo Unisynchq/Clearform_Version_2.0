@@ -24,9 +24,9 @@ onIdTokenChanged(auth, async (user) => {
 });
 
 // Sign out and clear Redux state when any API call returns 401
-window.addEventListener('clearform:auth-expired', () => {
+window.addEventListener('clearform:auth-expired', async () => {
+  await signOutUser();
   store.dispatch(logout());
-  signOutUser();
 });
 
 const appTree = (

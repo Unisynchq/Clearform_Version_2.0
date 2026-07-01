@@ -4,6 +4,7 @@ import { RiCloseLine } from 'react-icons/ri';
 import Select from '../ui/Select';
 import { getFreshAuthToken } from '@/features/auth/utils/authTokenRefresh';
 import { env } from '@/config/env';
+import { useToast } from '@/hooks/useToast';
 
 const FORMAT_OPTIONS = [
   { value: 'PDF', label: 'PDF' },
@@ -35,6 +36,7 @@ const AnalyticsExportModal = ({
   defaultFormat = 'PDF',
   formId,
 }) => {
+  const { showToast } = useToast();
   const [format, setFormat] = useState(defaultFormat);
   const [range, setRange] = useState(rangeLabel ?? 'All time');
   const [isExporting, setIsExporting] = useState(false);
@@ -78,8 +80,12 @@ const AnalyticsExportModal = ({
       document.body.removeChild(a);
       URL.revokeObjectURL(a.href);
       onClose();
-    } catch {
-      // Stay open so the user can try again; browser console has the error detail
+    } catch (err) {
+      showToast({
+        type: 'error',
+        message: err?.message ?? 'Export failed. Please try again.',
+        duration: 3500,
+      });
     } finally {
       setIsExporting(false);
     }

@@ -40,6 +40,7 @@ export const API_ENDPOINTS = {
     compare: (formId) => `/analytics/forms/${formId}/compare`,
     aiInsights: (formId) => `/analytics/forms/${formId}/ai-insights`,
     overview: (formId) => `/analytics/forms/${formId}/overview`,
+    topResponses: (formId) => `/analytics/forms/${formId}/top-responses`,
   },
   logic: {
     generate: (formId) => `/forms/${formId}/logic/generate`,
