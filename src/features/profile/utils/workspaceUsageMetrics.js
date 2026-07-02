@@ -40,21 +40,24 @@ export function getWorkspaceUsageMetrics({
   apiBilling = null,
 }) {
   if (apiBilling) {
+    // Server values are the single source of truth — no local limit fallbacks.
     const planName =
-      apiBilling.planId === 'pilot_35'
+      apiBilling.planName ??
+      (apiBilling.planId === 'pilot_35'
         ? 'Clearform Pilot'
         : apiBilling.status === 'EXPIRED'
           ? 'Free (pilot expired)'
-          : 'Free';
+          : 'Free');
     return {
       formsUsed: apiBilling.formsUsed ?? 0,
       responsesUsed: apiBilling.responsesUsed ?? 0,
       teamUsed: apiBilling.workspacesUsed ?? 1,
       formsLimit: apiBilling.formsLimit ?? null,
-      responsesLimit: apiBilling.responsesLimit ?? 50,
-      teamLimit: apiBilling.workspacesLimit ?? 1,
+      responsesLimit: apiBilling.responsesLimit ?? null,
+      teamLimit: apiBilling.workspacesLimit ?? null,
       planId: apiBilling.planId ?? 'free',
       planName,
+      aiTier: apiBilling.aiTier === 'pro' ? 'pro' : 'free',
       responsesSource: 'api',
     };
   }

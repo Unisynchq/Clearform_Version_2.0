@@ -1,4 +1,4 @@
-export { FREE_PLAN, PILOT_PLAN } from '@/features/profile/utils/profileBillingPlans';
+export { FREE_PLAN } from '@/features/profile/utils/profileBillingPlans';
 
 /** @deprecated Use getWorkspaceUsageMetrics — kept for legacy imports only. */
 export const DEFAULT_BILLING_USAGE = {

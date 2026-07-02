@@ -112,9 +112,14 @@ export function ResponseQualityIndicator({ level }) {
 export function ResponseQualityMessage({ level, message, suggestions = [], followUpQuestion = null, onDismiss }) {
   if (!level || !message) return null;
   const s = LEVEL_STYLES[level] || LEVEL_STYLES.amber;
-  const tips = Array.isArray(suggestions) ? suggestions.filter(Boolean).slice(0, 2) : [];
-
   const isGreat = level === 'green';
+  // Green = the answer already passes; render affirmation only, never
+  // improvement bullets (also guards the offline heuristic path).
+  const tips = isGreat
+    ? []
+    : Array.isArray(suggestions)
+      ? suggestions.filter(Boolean).slice(0, 2)
+      : [];
   // When a follow-up question is present, show it as the primary prompt instead of bullets
   const hasFollowUp = typeof followUpQuestion === 'string' && followUpQuestion.trim().length > 0;
 

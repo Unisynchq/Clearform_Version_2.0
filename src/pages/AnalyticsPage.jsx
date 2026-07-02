@@ -7,6 +7,7 @@ import {
   generateAiInsights,
 } from '@/api/services/analyticsService';
 import { isApiConfigured } from '@/config/env';
+import { useSmartPolling } from '@/hooks/useSmartPolling';
 import { motion, AnimatePresence } from 'motion/react';
 import { useHydrationFrame } from '@/hooks/useHydrationFrame';
 import { useAnalyticsPageState } from '@/hooks/useAnalyticsPageState';
@@ -30,8 +31,30 @@ import AnalyticsResponsesPanel from '@/components/analytics/AnalyticsResponsesPa
 import AnalyticsComparePanel from '@/components/analytics/AnalyticsComparePanel';
 import AnalyticsSettingsPanel from '@/components/analytics/AnalyticsSettingsPanel';
 import AnalyticsAiInsightsPanel from '@/components/analytics/AnalyticsAiInsightsPanel';
+import AiTierTeaser from '@/features/billing/components/AiTierTeaser';
 import AnalyticsBestResponsesPanel from '@/components/analytics/AnalyticsBestResponsesPanel';
 import Topbar from '@/components/layout/Topbar';
+
+function LiveUpdatedStamp({ updatedAt }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((t) => t + 1), 10_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const seconds = Math.max(0, Math.round((Date.now() - updatedAt) / 1000));
+  const label =
+    seconds < 15
+      ? 'Updated just now'
+      : seconds < 60
+        ? `Updated ${seconds}s ago`
+        : `Updated ${Math.round(seconds / 60)}m ago`;
+  return (
+    <span className="flex items-center gap-1.5 text-[11px] text-[#9e9b96] whitespace-nowrap">
+      <span className="size-1.5 rounded-full bg-[#22c55e]" aria-hidden />
+      {label}
+    </span>
+  );
+}
 
 function useClickOutside(ref, open, onClose) {
   useEffect(() => {
@@ -124,6 +147,34 @@ const AnalyticsPage = () => {
       screenDropoff: perfApiStats.screenDropoff,
     };
   }, [selectedForm, perfApiStats]);
+
+  // Silent background refresh — no spinner, keeps last data rendered so the
+  // dashboard stays near-real-time while the tab is visible.
+  const refreshPerformanceSilently = useCallback(async () => {
+    if (!selectedFormId) return;
+    const data = await fetchPerformanceAnalytics(selectedFormId, {
+      range: rangeLabelToParam(rangeLabel),
+    });
+    if (data && !data.source) setPerfApiStats(data);
+  }, [selectedFormId, rangeLabel, rangeLabelToParam]);
+
+  const { lastUpdatedAt: perfLastUpdatedAt } = useSmartPolling(refreshPerformanceSilently, {
+    intervalMs: 30_000,
+    enabled: Boolean(selectedFormId) && isApiConfigured(),
+  });
+
+  const refreshCompareSilently = useCallback(async () => {
+    if (!selectedFormId) return;
+    const data = await fetchCompareAnalytics(selectedFormId, {
+      range: rangeLabelToParam(rangeLabel),
+    });
+    if (data && !data.source) setCompareApiData(data);
+  }, [selectedFormId, rangeLabel, rangeLabelToParam]);
+
+  useSmartPolling(refreshCompareSilently, {
+    intervalMs: 30_000,
+    enabled: Boolean(selectedFormId) && activeTab === 'compare' && isApiConfigured(),
+  });
 
   useEffect(() => {
     if (!selectedFormId || activeTab !== 'compare') return;
@@ -435,19 +486,22 @@ const AnalyticsPage = () => {
         return <AnalyticsSettingsPanel form={selectedForm} />;
       case 'ai':
         return (
-          <AnalyticsAiInsightsPanel
-            key={`ai-insights-${aiInsightsVisit}-${aiPollTick}`}
-            loadKey={aiInsightsVisit}
-            form={selectedForm}
-            rangeLabel={rangeLabel}
-            responseCount={perfApiStats?.responses ?? selectedForm?.responses ?? 0}
-            apiInsights={aiApiInsights}
-            insightsError={aiInsightsError}
-            insightsNoDataInRange={aiApiInsights?.status === 'insufficient_data'}
-            onClearDateFilter={() => setRangeLabel('All time')}
-            onShareForm={handleShareSurvey}
-            onRetryInsights={retryAiInsights}
-          />
+          <>
+            <AiTierTeaser />
+            <AnalyticsAiInsightsPanel
+              key={`ai-insights-${aiInsightsVisit}-${aiPollTick}`}
+              loadKey={aiInsightsVisit}
+              form={selectedForm}
+              rangeLabel={rangeLabel}
+              responseCount={perfApiStats?.responses ?? selectedForm?.responses ?? 0}
+              apiInsights={aiApiInsights}
+              insightsError={aiInsightsError}
+              insightsNoDataInRange={aiApiInsights?.status === 'insufficient_data'}
+              onClearDateFilter={() => setRangeLabel('All time')}
+              onShareForm={handleShareSurvey}
+              onRetryInsights={retryAiInsights}
+            />
+          </>
         );
       case 'best':
         return (
@@ -624,15 +678,20 @@ const AnalyticsPage = () => {
               );
             })}
           </nav>
-          {showDateFilter ? (
-            <AnalyticsDateRangeControl
-              value={rangeLabel}
-              onChange={setRangeLabel}
-              align="right"
-            />
-          ) : (
-            <span className="w-[100px] shrink-0" aria-hidden />
-          )}
+          <div className="flex items-center gap-3">
+            {perfLastUpdatedAt ? (
+              <LiveUpdatedStamp updatedAt={perfLastUpdatedAt} />
+            ) : null}
+            {showDateFilter ? (
+              <AnalyticsDateRangeControl
+                value={rangeLabel}
+                onChange={setRangeLabel}
+                align="right"
+              />
+            ) : (
+              <span className="w-[100px] shrink-0" aria-hidden />
+            )}
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5 pb-12">

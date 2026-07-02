@@ -9,8 +9,8 @@ import {
   RiLayoutGridLine,
 } from 'react-icons/ri';
 import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent (1).png';
-import { getStatus } from '@/api/services/billingService';
 import { isApiConfigured } from '@/config/env';
+import { useBillingStatus } from '@/features/billing/utils/useBillingStatus';
 import { captureAndClaimPendingPurchase } from '@/features/billing/utils/billingReturnFlow';
 import { openPilotRazorpayCheckout } from '@/features/billing/utils/openPilotRazorpayCheckout';
 import BillingInvoiceExpanded from '@/features/profile/components/billing/BillingInvoiceExpanded';
@@ -105,31 +105,21 @@ const ProfileBillingPanel = () => {
   const [billingVersion, setBillingVersion] = useState(0);
   const [invoiceExpanded, setInvoiceExpanded] = useState(true);
   const [taxInvoiceOpen, setTaxInvoiceOpen] = useState(false);
-  const [apiStatus, setApiStatus] = useState(null);
-  const [statusLoading, setStatusLoading] = useState(isApiConfigured());
-  const [statusError, setStatusError] = useState(null);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const upgradeStartedRef = useRef(false);
 
   const useApiBilling = isApiConfigured();
-
-  const loadApiStatus = useCallback(async () => {
-    if (!useApiBilling) return;
-    setStatusLoading(true);
-    setStatusError(null);
-    try {
-      const data = await getStatus();
-      setApiStatus(data);
-    } catch (err) {
-      setStatusError(err?.message ?? 'Could not load billing status');
-    } finally {
-      setStatusLoading(false);
-    }
-  }, [useApiBilling]);
+  const {
+    status: apiStatus,
+    loading: statusLoading,
+    error: statusError,
+    refresh: refreshBillingStatus,
+  } = useBillingStatus();
 
   useEffect(() => {
-    loadApiStatus();
-  }, [loadApiStatus, billingVersion]);
+    if (billingVersion === 0) return;
+    refreshBillingStatus().catch(() => {});
+  }, [billingVersion, refreshBillingStatus]);
 
   useEffect(() => {
     if (!useApiBilling) return;

@@ -4,19 +4,6 @@ import { formatInr } from '@/features/profile/utils/profileBillingCheckout';
 /** Backend plan id for Razorpay Payment Link pilot ($34.99 / 90 days). */
 export const PILOT_35_PLAN_ID = 'pilot_35';
 
-/** Default workspace tier during the pilot — no paid subscription yet. */
-export const PILOT_PLAN = {
-  id: 'pilot',
-  name: 'Pilot',
-  priceLabel: '₹0',
-  priceSubtext: 'Pilot access',
-  limitsLabel: '3 forms · 100 responses / month',
-  formsLimit: 3,
-  responsesLimit: 100,
-  teamLimit: 1,
-  headerSubtext: "You're on the pilot program",
-};
-
 /** Free tier when API billing is configured (matches backend FREE_PLAN). */
 export const API_FREE_PLAN = {
   id: 'free',

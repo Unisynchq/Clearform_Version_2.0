@@ -12,7 +12,13 @@ export const AI_LOGIC_GEN_STATUS = {
   failed: 'failed',
 };
 
-const DEFAULT_FAILURE_MESSAGE = 'Server error (API 429) — please retry.';
+const DEFAULT_FAILURE_MESSAGE = 'AI logic generation failed — please retry.';
+
+const RATE_LIMIT_MESSAGE =
+  "You've reached your plan's AI logic limit for now. Upgrade to Pilot for a higher limit, or retry later.";
+
+/** HTTP statuses meaning the plan/rate limit blocked the call (not a server fault). */
+const LIMIT_STATUSES = new Set([402, 403, 429]);
 
 /** Simulated latency for stub generation (ms). */
 const STUB_GENERATION_DELAY_MS = 700;
@@ -46,11 +52,11 @@ export function resetAiLogicGeneration(setAiLogicGen) {
  *
  * @param {object} context - screens, contentScreens, question builders, etc.
  * @param {(patch: object) => void} setAiLogicGen
- * @param {(applied: { logicConnections: object[], logicIfRulesByEdge: object, screens?: object[] }) => void} onApply
- * @param {{ fetchAiLogic?: (context: object) => Promise<object> }} [options]
+ * @param {(applied: { logicConnections: object[], logicIfRulesByEdge: object, screens?: object[], meta?: object }) => void} onApply
+ * @param {{ fetchAiLogic?: (context: object) => Promise<object>, onLimitReached?: (err: Error) => void }} [options]
  */
 export async function runAiLogicGeneration(context, setAiLogicGen, onApply, options = {}) {
-  const { fetchAiLogic } = options;
+  const { fetchAiLogic, onLimitReached } = options;
 
   try {
     let payload;
@@ -69,10 +75,18 @@ export async function runAiLogicGeneration(context, setAiLogicGen, onApply, opti
     }
 
     const applied = applyAiLogicPayload(context, payload);
+    if (payload.meta && typeof payload.meta === 'object') {
+      applied.meta = payload.meta;
+    }
     onApply?.(applied);
     setAiLogicGen({ status: AI_LOGIC_GEN_STATUS.success, errorMessage: '' });
     return applied;
   } catch (err) {
+    if (LIMIT_STATUSES.has(err?.status)) {
+      onLimitReached?.(err);
+      markAiLogicGenerationFailed(setAiLogicGen, { message: RATE_LIMIT_MESSAGE });
+      return;
+    }
     const message =
       err?.message && typeof err.message === 'string'
         ? err.message

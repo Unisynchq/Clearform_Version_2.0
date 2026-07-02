@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { fetchFormResponses } from '@/api/services/analyticsService';
 import { getBuilderSnapshot } from '@/api/services/formsService';
 import { isApiConfigured } from '@/config/env';
+import { useSmartPolling } from '@/hooks/useSmartPolling';
 import {
   RiSearchLine,
   RiTimeLine,
@@ -109,24 +110,19 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
     };
   }, [form?.id, form?.builderSnapshot, form?.publishedSnapshot]);
 
-  useEffect(() => {
-    if (!isApiConfigured() || !form?.id) {
-      setApiResponses(null);
-      setApiTotal(null);
-      return;
-    }
-    let cancelled = false;
-    const rangeParam =
-      rangeLabel === 'Last 7 days'
-        ? '7d'
-        : rangeLabel === 'Last 30 days'
-          ? '30d'
-          : rangeLabel === 'Last 90 days'
-            ? '90d'
-            : 'all';
-    fetchFormResponses(form.id, { range: rangeParam })
-      .then((data) => {
-        if (cancelled) return;
+  const loadApiResponses = useCallback(
+    async ({ silent = false } = {}) => {
+      if (!isApiConfigured() || !form?.id) return;
+      const rangeParam =
+        rangeLabel === 'Last 7 days'
+          ? '7d'
+          : rangeLabel === 'Last 30 days'
+            ? '30d'
+            : rangeLabel === 'Last 90 days'
+              ? '90d'
+              : 'all';
+      try {
+        const data = await fetchFormResponses(form.id, { range: rangeParam });
         if (Array.isArray(data?.items)) {
           setApiResponses(data.items);
           const total =
@@ -136,17 +132,35 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
             dispatch(updateForm({ id: form.id, changes: { responses: total } }));
           }
         }
-      })
-      .catch(() => {
-        if (!cancelled) {
+      } catch (err) {
+        if (!silent) {
           setApiResponses([]);
           setApiTotal(0);
         }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [form?.id, rangeLabel]);
+        throw err;
+      }
+    },
+    [form?.id, rangeLabel, dispatch],
+  );
+
+  useEffect(() => {
+    if (!isApiConfigured() || !form?.id) {
+      setApiResponses(null);
+      setApiTotal(null);
+      return;
+    }
+    loadApiResponses().catch(() => {});
+  }, [form?.id, rangeLabel, loadApiResponses]);
+
+  // Background refresh so new submissions appear without a manual reload.
+  const pollApiResponses = useCallback(
+    () => loadApiResponses({ silent: true }),
+    [loadApiResponses],
+  );
+  useSmartPolling(pollApiResponses, {
+    intervalMs: 20_000,
+    enabled: isApiConfigured() && Boolean(form?.id),
+  });
 
   const [search, setSearch] = useState('');
   const [localRangeOpen, setLocalRangeOpen] = useState(false);

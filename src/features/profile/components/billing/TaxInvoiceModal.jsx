@@ -2,11 +2,21 @@ import { RiDownloadLine } from 'react-icons/ri';
 import ProfileModal from '@/components/profile/ProfileModal';
 import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent (1).png';
 import { downloadTaxInvoicePdf } from '@/features/profile/utils/downloadTaxInvoice';
-import { formatInr } from '@/features/profile/utils/profileBillingCheckout';
+import { getInvoiceSellerDetails } from '@/features/profile/utils/invoiceSellerDetails';
 
-const TaxBadge = () => (
+function makeAmountFormatter(currency) {
+  if (currency && currency !== 'INR') {
+    return (amount) => `$${Number(amount).toFixed(2)}`;
+  }
+  return (amount) =>
+    amount === 0
+      ? '₹0.00'
+      : `₹${Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+const TaxBadge = ({ isTax }) => (
   <span className="rounded-full bg-[#111110] px-3.5 py-1.5 text-[12px] font-medium tracking-[0.5px] text-white">
-    TAX INVOICE
+    {isTax ? 'TAX INVOICE' : 'INVOICE'}
   </span>
 );
 
@@ -17,7 +27,7 @@ const PaidBadge = () => (
   </span>
 );
 
-const LineItemRow = ({ row }) => (
+const LineItemRow = ({ row, formatAmount }) => (
   <tr className="border-b border-[#e8e6e0]">
     <td className="py-3 pr-4">
       <p className="text-[13px] font-medium text-[#111110]">{row.description}</p>
@@ -25,16 +35,20 @@ const LineItemRow = ({ row }) => (
     </td>
     <td className="py-3 px-2 text-center text-[13px] text-[#6b6860]">{row.qty}</td>
     <td className="py-3 px-2 text-right text-[13px] text-[#111110]">
-      {row.unitPrice === 0 ? '₹0.00' : formatInr(row.unitPrice)}
+      {formatAmount(row.unitPrice)}
     </td>
     <td className="py-3 pl-2 text-right text-[13px] font-medium text-[#111110]">
-      {row.amount === 0 ? '₹0.00' : formatInr(row.amount)}
+      {formatAmount(row.amount)}
     </td>
   </tr>
 );
 
 const TaxInvoiceModal = ({ open, onClose, invoice }) => {
   if (!invoice) return null;
+
+  const seller = invoice.seller ?? getInvoiceSellerDetails();
+  const gstApplies = invoice.gstApplies !== false;
+  const formatAmount = makeAmountFormatter(invoice.currency);
 
   return (
     <ProfileModal
@@ -50,7 +64,7 @@ const TaxInvoiceModal = ({ open, onClose, invoice }) => {
             alt="Clearform"
             className="h-7 w-auto max-w-[118px] object-contain"
           />
-          <TaxBadge />
+          <TaxBadge isTax={gstApplies} />
         </div>
 
         <div className="overflow-hidden rounded-[16px] border border-[#e8e6e0] bg-white shadow-[0_1px_4px_rgba(0,0,0,0.04),0_4px_24px_rgba(0,0,0,0.04)]">
@@ -91,34 +105,45 @@ const TaxInvoiceModal = ({ open, onClose, invoice }) => {
             <div>
               <p className="text-[11px] font-semibold tracking-[0.8px] text-[#9e9b96]">BILLED BY</p>
               <p className="mt-2.5 text-[15px] font-semibold tracking-[-0.2px] text-[#111110]">
-                Clearform Technologies Pvt. Ltd.
+                {seller.name}
               </p>
-              <p className="mt-2 text-[13px] leading-[20.8px] text-[#6b6860]">
-                12th Floor, Prestige Tech Park
-                <br />
-                Outer Ring Road, Bangalore – 560103
-                <br />
-                Karnataka, India
-              </p>
-              <code className="mt-2 inline-block rounded bg-[#e8e6e0] px-2 py-0.5 font-mono text-[11px] text-[#6b6860]">
-                GSTIN: 29AABCT1332L1ZR
-              </code>
+              {seller.addressLines.length ? (
+                <p className="mt-2 text-[13px] leading-[20.8px] text-[#6b6860]">
+                  {seller.addressLines.map((line) => (
+                    <span key={line}>
+                      {line}
+                      <br />
+                    </span>
+                  ))}
+                </p>
+              ) : null}
+              {seller.gstin ? (
+                <code className="mt-2 inline-block rounded bg-[#e8e6e0] px-2 py-0.5 font-mono text-[11px] text-[#6b6860]">
+                  GSTIN: {seller.gstin}
+                </code>
+              ) : null}
             </div>
             <div>
               <p className="text-[11px] font-semibold tracking-[0.8px] text-[#9e9b96]">BILLED TO</p>
               <p className="mt-2.5 text-[15px] font-semibold tracking-[-0.2px] text-[#111110]">
-                {invoice.customer.company}
+                {invoice.customer.company || invoice.customer.name}
               </p>
               <p className="mt-2 text-[13px] leading-[20.8px] text-[#6b6860]">
                 {invoice.customer.name}
                 <br />
                 {invoice.customer.email}
-                <br />
-                {invoice.customer.address}
+                {invoice.customer.address ? (
+                  <>
+                    <br />
+                    {invoice.customer.address}
+                  </>
+                ) : null}
               </p>
-              <code className="mt-2 inline-block rounded bg-[#e8e6e0] px-2 py-0.5 font-mono text-[11px] text-[#6b6860]">
-                GSTIN: {invoice.customer.gstin}
-              </code>
+              {invoice.customer.gstin ? (
+                <code className="mt-2 inline-block rounded bg-[#e8e6e0] px-2 py-0.5 font-mono text-[11px] text-[#6b6860]">
+                  GSTIN: {invoice.customer.gstin}
+                </code>
+              ) : null}
             </div>
           </div>
 
@@ -133,7 +158,7 @@ const TaxInvoiceModal = ({ open, onClose, invoice }) => {
               <p className="text-[15px] font-bold tracking-[-0.4px] text-white">
                 {invoice.monthlyPriceLabel}
               </p>
-              <p className="text-[12px] text-white/45">per month</p>
+              <p className="text-[12px] text-white/45">{invoice.isOneTime ? 'one-time' : 'per month'}</p>
             </div>
           </div>
 
@@ -149,7 +174,7 @@ const TaxInvoiceModal = ({ open, onClose, invoice }) => {
               </thead>
               <tbody>
                 {invoice.lineItems.map((row) => (
-                  <LineItemRow key={row.description} row={row} />
+                  <LineItemRow key={row.description} row={row} formatAmount={formatAmount} />
                 ))}
               </tbody>
             </table>
@@ -160,31 +185,35 @@ const TaxInvoiceModal = ({ open, onClose, invoice }) => {
               {invoice.promoDiscount > 0 ? (
                 <div className="flex justify-between text-[#1a7f4f]">
                   <span>Discount ({invoice.promoCode})</span>
-                  <span>−{formatInr(invoice.promoDiscount)}</span>
+                  <span>−{formatAmount(invoice.promoDiscount)}</span>
                 </div>
               ) : null}
               <div className="flex justify-between text-[#6b6860]">
-                <span>Subtotal (excl. tax)</span>
+                <span>Subtotal{gstApplies ? ' (excl. tax)' : ''}</span>
                 <span className="text-[#111110]">{invoice.subtotalExclLabel}</span>
               </div>
-              <div className="flex justify-between text-[#6b6860]">
-                <span className="flex items-center gap-1.5">
-                  CGST
-                  <span className="rounded bg-[#f0f0ed] px-1.5 py-0.5 text-[10px] font-semibold text-[#9e9b96]">
-                    9%
-                  </span>
-                </span>
-                <span className="text-[#111110]">{invoice.cgstLabel}</span>
-              </div>
-              <div className="flex justify-between text-[#6b6860]">
-                <span className="flex items-center gap-1.5">
-                  SGST
-                  <span className="rounded bg-[#f0f0ed] px-1.5 py-0.5 text-[10px] font-semibold text-[#9e9b96]">
-                    9%
-                  </span>
-                </span>
-                <span className="text-[#111110]">{invoice.sgstLabel}</span>
-              </div>
+              {gstApplies ? (
+                <>
+                  <div className="flex justify-between text-[#6b6860]">
+                    <span className="flex items-center gap-1.5">
+                      CGST
+                      <span className="rounded bg-[#f0f0ed] px-1.5 py-0.5 text-[10px] font-semibold text-[#9e9b96]">
+                        9%
+                      </span>
+                    </span>
+                    <span className="text-[#111110]">{invoice.cgstLabel}</span>
+                  </div>
+                  <div className="flex justify-between text-[#6b6860]">
+                    <span className="flex items-center gap-1.5">
+                      SGST
+                      <span className="rounded bg-[#f0f0ed] px-1.5 py-0.5 text-[10px] font-semibold text-[#9e9b96]">
+                        9%
+                      </span>
+                    </span>
+                    <span className="text-[#111110]">{invoice.sgstLabel}</span>
+                  </div>
+                </>
+              ) : null}
               <div className="flex justify-between border-t border-[#e8e6e0] pt-3 font-semibold text-[#111110]">
                 <span>Total</span>
                 <span className="text-[20px] font-bold tracking-[-0.6px]">
@@ -197,7 +226,7 @@ const TaxInvoiceModal = ({ open, onClose, invoice }) => {
               </div>
               <div className="flex justify-between border-t border-[#e8e6e0] pt-3 font-semibold">
                 <span>Balance due</span>
-                <span>₹0.00</span>
+                <span>{formatAmount(0)}</span>
               </div>
             </div>
           </div>
@@ -214,20 +243,24 @@ const TaxInvoiceModal = ({ open, onClose, invoice }) => {
             </div>
             <div className="sm:text-right">
               <p className="text-[11px] font-semibold tracking-[0.6px] text-[#9e9b96]">
-                NEXT BILLING DATE
+                {invoice.isOneTime ? 'PILOT EXPIRES' : 'NEXT BILLING DATE'}
               </p>
               <p className="mt-2 text-[13.5px] font-semibold text-[#111110]">
-                {invoice.nextBillingDate}
+                {invoice.isOneTime
+                  ? (invoice.pilotExpiresLabel ?? invoice.nextBillingDate)
+                  : invoice.nextBillingDate}
               </p>
               <p className="text-[12px] text-[#9e9b96]">
-                {invoice.nextBillingInclGst} incl. GST
+                {invoice.isOneTime
+                  ? 'One-time purchase — no auto-renewal'
+                  : `${invoice.nextBillingInclGst} incl. GST`}
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[#e8e6e0] bg-[#fafaf8] px-6 py-4 sm:px-12">
             <p className="max-w-lg text-[12px] leading-relaxed text-[#9e9b96]">
-              Thank you for being a Clearform {invoice.planName} subscriber. This is a
+              Thank you for choosing {invoice.planName}. This is a
               computer-generated invoice and does not require a signature.
             </p>
             <button

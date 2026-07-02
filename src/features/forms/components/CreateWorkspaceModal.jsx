@@ -7,6 +7,7 @@ import { addWorkspace } from '@/store/slices/formsSlice';
 import { createWorkspace } from '@/api/services/workspacesService';
 import { isApiConfigured } from '@/config/env';
 import { useToast } from '@/hooks/useToast';
+import UpgradeGateModal from '@/features/billing/components/UpgradeGateModal';
 
 const COLOR_OPTIONS = [
   { id: 'blue',   value: '#3b82f6' },
@@ -24,6 +25,7 @@ const CreateWorkspaceModal = () => {
   const [name, setName]   = useState('');
   const [color, setColor] = useState(COLOR_OPTIONS[0].value);
   const [creating, setCreating] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   const handleClose = () => {
     dispatch(closeCreateWorkspaceModal());
@@ -47,8 +49,10 @@ const CreateWorkspaceModal = () => {
       dispatch(closeCreateWorkspaceModal());
       setName('');
       setColor(COLOR_OPTIONS[0].value);
-    } catch {
-      if (isApiConfigured()) {
+    } catch (err) {
+      if (err?.status === 402 || err?.status === 403) {
+        setUpgradeOpen(true);
+      } else if (isApiConfigured()) {
         showToast({ type: 'error', message: 'Could not create workspace. Please try again.' });
       }
     } finally {
@@ -160,6 +164,13 @@ const CreateWorkspaceModal = () => {
                 </button>
               </div>
             </motion.div>
+
+          <UpgradeGateModal
+            open={upgradeOpen}
+            onClose={() => setUpgradeOpen(false)}
+            title="Workspace limit reached"
+            reason="Your plan includes 1 workspace. Upgrade to Pilot to add more."
+          />
         </>
       )}
     </AnimatePresence>
