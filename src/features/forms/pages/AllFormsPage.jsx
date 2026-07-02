@@ -25,6 +25,7 @@ import FormCard from '../components/FormCard';
 import FormListRow from '../components/FormListRow';
 import { SkeletonGrid, SkeletonList } from '../components/SkeletonCard';
 import Topbar from '@/components/layout/Topbar';
+import ResponsesLimitBanner from '@/features/billing/components/ResponsesLimitBanner';
 import NewWorkspaceEmpty from '../components/NewWorkspaceEmpty';
 import { useToast } from '@/hooks/useToast';
 import { dispatchSyncFormAlerts } from '@/utils/syncFormAlertsToStore';
@@ -184,6 +185,7 @@ const AllFormsPage = () => {
     <>
       <div className="flex flex-col h-full overflow-hidden relative">
         <Topbar />
+        <ResponsesLimitBanner />
         {/* Page heading + CTA */}
         <div className="flex items-end justify-between px-6 py-4">
           {isLoading ? (

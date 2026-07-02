@@ -5,6 +5,7 @@ import {
   getPaidPlan,
 } from '@/features/profile/utils/profileBillingCheckout';
 import { getActivePlanDisplay } from '@/features/profile/utils/profileBillingPlans';
+import { getInvoiceSellerDetails } from '@/features/profile/utils/invoiceSellerDetails';
 
 function formatInrDecimal(amount) {
   return `₹${Number(amount).toLocaleString('en-IN', {
@@ -114,6 +115,11 @@ export function buildTaxInvoice(subscription, customer = {}) {
     totalPaidDisplay: formatInr(Math.round(summary.totalToday)),
     nextBillingDate: formatNextBillingDate(),
     nextBillingInclGst: formatInr(summary.renewMonthly),
+    gstApplies: true,
+    currency: 'INR',
+    isOneTime: false,
+    pilotExpiresLabel: null,
+    seller: getInvoiceSellerDetails(),
     lineItems,
     paymentMethodLabel: cardMask,
     paymentExpiry: paymentMethod === 'card' ? 'Visa · Expires 09/28' : 'Razorpay',
@@ -146,16 +152,21 @@ export function buildInvoiceFromBillingReceipt(receipt, customer = {}, billingSt
   const expiryDate = expiresAt ? new Date(expiresAt) : null;
   const customerName = [customer.firstName, customer.lastName].filter(Boolean).join(' ') || 'Customer';
   const amountPaid = receipt.amount ?? 34.99;
-  const currency = receipt.currency ?? 'USD';
+  const currency = (receipt.currency ?? 'USD').toUpperCase();
+  const seller = getInvoiceSellerDetails();
+  // GST applies only to INR charges from a GST-registered seller.
+  const gstApplies = currency === 'INR' && Boolean(seller.gstin);
   const amountLabel =
-    currency === 'USD' || currency === 'usd'
-      ? `$${Number(amountPaid).toFixed(2)}`
-      : formatInr(amountPaid);
+    currency === 'INR' ? formatInr(amountPaid) : `$${Number(amountPaid).toFixed(2)}`;
 
   const periodLabel =
     expiryDate && !Number.isNaN(expiryDate.getTime())
       ? `${formatShortDate(purchasedAt)} – ${formatShortDate(expiryDate)}`
       : formatShortDate(purchasedAt);
+
+  const gst = gstApplies ? splitGstInclusive(amountPaid) : null;
+  const formatAmount = (value) =>
+    currency === 'INR' ? formatInrDecimal(value) : `$${Number(value).toFixed(2)}`;
 
   return {
     invoiceNumber: receipt.paymentId,
@@ -176,17 +187,22 @@ export function buildInvoiceFromBillingReceipt(receipt, customer = {}, billingSt
     monthlyPriceLabel: amountLabel,
     promoCode: null,
     promoDiscount: 0,
-    subtotalExcl: amountPaid,
-    subtotalExclLabel: amountLabel,
-    cgst: 0,
-    cgstLabel: '—',
-    sgst: 0,
-    sgstLabel: '—',
+    subtotalExcl: gst ? gst.subtotalExcl : amountPaid,
+    subtotalExclLabel: gst ? formatAmount(gst.subtotalExcl) : amountLabel,
+    cgst: gst?.cgst ?? 0,
+    cgstLabel: gst ? formatAmount(gst.cgst) : '—',
+    sgst: gst?.sgst ?? 0,
+    sgstLabel: gst ? formatAmount(gst.sgst) : '—',
+    gstApplies,
+    currency,
+    isOneTime: true,
     totalPaid: amountPaid,
     totalPaidLabel: amountLabel,
     totalPaidDisplay: amountLabel,
     nextBillingDate: expiryDate ? formatShortDate(expiryDate) : '—',
     nextBillingInclGst: '—',
+    pilotExpiresLabel: expiryDate ? formatShortDate(expiryDate) : null,
+    seller,
     lineItems: [
       {
         description: 'Clearform Pilot — One-time access',

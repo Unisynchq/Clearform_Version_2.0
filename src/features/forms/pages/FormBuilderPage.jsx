@@ -119,6 +119,7 @@ import FormPublishView from '@/features/forms/components/FormPublishView';
 import DeleteScreenModal from '@/features/forms/components/DeleteScreenModal';
 import UnsavedChangesModal from '@/features/forms/components/UnsavedChangesModal';
 import PublishFormModal from '@/features/forms/components/PublishFormModal';
+import UpgradeGateModal from '@/features/billing/components/UpgradeGateModal';
 
 import TimeConfigurePanel from '@/features/forms/components/TimeConfigurePanel';
 import {
@@ -2888,10 +2889,21 @@ const FormBuilderPage = () => {
       if (Array.isArray(applied.screens)) {
         setScreens(applied.screens);
       }
-      showToast({ type: 'success', message: 'AI logic applied to your form.' });
+      const source = applied.meta?.source;
+      const usedFallbackRules =
+        source === 'heuristic' || source === 'linear' || source === 'rules';
+      showToast({
+        type: 'success',
+        message: usedFallbackRules
+          ? 'Logic applied using smart rules (AI was unavailable).'
+          : 'AI logic applied to your form.',
+      });
     },
     [showToast]
   );
+
+  const [aiLogicUpgradeOpen, setAiLogicUpgradeOpen] = useState(false);
+  const handleAiLogicLimitReached = useCallback(() => setAiLogicUpgradeOpen(true), []);
 
   const handleAiLogicRetry = useCallback(async () => {
     patchAiLogicGen({ status: AI_LOGIC_GEN_STATUS.generating, errorMessage: '' });
@@ -2906,8 +2918,9 @@ const FormBuilderPage = () => {
         : undefined;
     runAiLogicGeneration(aiLogicGenerationContext, patchAiLogicGen, applyAiLogicToBuilder, {
       fetchAiLogic,
+      onLimitReached: handleAiLogicLimitReached,
     });
-  }, [patchAiLogicGen, aiLogicGenerationContext, applyAiLogicToBuilder, showToast, activeFormId]);
+  }, [patchAiLogicGen, aiLogicGenerationContext, applyAiLogicToBuilder, showToast, activeFormId, handleAiLogicLimitReached]);
   const handleGenerateAiLogic = useCallback(async () => {
     patchAiLogicGen({ status: AI_LOGIC_GEN_STATUS.generating, errorMessage: '' });
     showToast({ type: 'info', message: 'Generating AI logic from your form…' });
@@ -2921,8 +2934,9 @@ const FormBuilderPage = () => {
         : undefined;
     runAiLogicGeneration(aiLogicGenerationContext, patchAiLogicGen, applyAiLogicToBuilder, {
       fetchAiLogic,
+      onLimitReached: handleAiLogicLimitReached,
     });
-  }, [patchAiLogicGen, aiLogicGenerationContext, applyAiLogicToBuilder, showToast, activeFormId]);
+  }, [patchAiLogicGen, aiLogicGenerationContext, applyAiLogicToBuilder, showToast, activeFormId, handleAiLogicLimitReached]);
   const aiLogicGenerationFailed = aiLogicGen.status === AI_LOGIC_GEN_STATUS.failed;
   const aiLogicGenerating = aiLogicGen.status === AI_LOGIC_GEN_STATUS.generating;
   const aiLogicReady = aiLogicGen.status === AI_LOGIC_GEN_STATUS.success;
@@ -8286,6 +8300,13 @@ const FormBuilderPage = () => {
         open={publishModalOpen}
         onCancel={() => setPublishModalOpen(false)}
         onConfirm={handlePublishForm}
+      />
+
+      <UpgradeGateModal
+        open={aiLogicUpgradeOpen}
+        onClose={() => setAiLogicUpgradeOpen(false)}
+        title="AI logic limit reached"
+        reason="Your current plan's AI logic generation limit is used up for now. Pilot raises the limit and unlocks premium AI models."
       />
     </div>
   );

@@ -5,7 +5,10 @@ import { RiRobot2Line, RiInformationLine, RiArrowDownSLine } from 'react-icons/r
 const MAX_CRITERIA = 2;
 const FONT = { fontFamily: "'DM Sans', sans-serif" };
 
-export const DEFAULT_RESPONSE_QUALITY_OPTIONS = {
+/** Max length for the owner's free-text AI guidance (keeps prompts fast). */
+export const AI_GUIDANCE_MAX_LENGTH = 600;
+
+const CRITERIA_DEFAULTS = {
   length: { enabled: false, expanded: false, minWords: 10 },
   specificity: {
     enabled: false,
@@ -17,16 +20,25 @@ export const DEFAULT_RESPONSE_QUALITY_OPTIONS = {
   completeness: { enabled: false, expanded: false, detectTrailing: true, requiredSentences: 1 },
 };
 
+export const DEFAULT_RESPONSE_QUALITY_OPTIONS = {
+  ...CRITERIA_DEFAULTS,
+  customInstructions: '',
+};
+
 /** Merge saved options and force every criterion row collapsed in the UI. */
 export function normalizeResponseQualityOptions(options) {
   const next = {};
-  for (const id of Object.keys(DEFAULT_RESPONSE_QUALITY_OPTIONS)) {
+  for (const id of Object.keys(CRITERIA_DEFAULTS)) {
     next[id] = {
-      ...DEFAULT_RESPONSE_QUALITY_OPTIONS[id],
+      ...CRITERIA_DEFAULTS[id],
       ...(options?.[id] || {}),
       expanded: false,
     };
   }
+  next.customInstructions =
+    typeof options?.customInstructions === 'string'
+      ? options.customInstructions.slice(0, AI_GUIDANCE_MAX_LENGTH)
+      : '';
   return next;
 }
 
@@ -460,6 +472,28 @@ export default function ResponseQualityScoringCard({
                   </p>
                 </div>
               ) : null}
+
+              <div className="px-4 mb-3 flex flex-col gap-[6px]">
+                <span className="text-[9.5px] font-semibold tracking-[0.95px] uppercase text-[#b4b2ac]" style={FONT}>
+                  AI GUIDANCE
+                </span>
+                <textarea
+                  value={options.customInstructions ?? ''}
+                  onChange={(e) =>
+                    onOptionsChange((prev) => ({
+                      ...prev,
+                      customInstructions: e.target.value.slice(0, AI_GUIDANCE_MAX_LENGTH),
+                    }))
+                  }
+                  placeholder="Describe what a great answer looks like — e.g. “One-word colour answers are fine” or “Must mention which feature they used”. This overrides the criteria below when they conflict."
+                  rows={3}
+                  className="w-full bg-white border border-[#e4e2dc] rounded-[8px] px-3 py-2 text-[12.5px] text-[#1a1a18] placeholder:text-[#b4b2ac] outline-none focus:border-[#999] resize-none leading-[18.75px]"
+                  style={FONT}
+                />
+                <span className="text-[11px] text-[#b4b2ac] self-end" style={FONT}>
+                  {(options.customInstructions ?? '').length}/{AI_GUIDANCE_MAX_LENGTH}
+                </span>
+              </div>
 
               <span className="text-[9.5px] font-semibold tracking-[0.95px] uppercase text-[#b4b2ac] mb-[10px] px-4" style={FONT}>
                 SCORING CRITERIA
