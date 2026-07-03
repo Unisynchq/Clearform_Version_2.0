@@ -1584,8 +1584,8 @@ const FormBuilderPage = () => {
   const [shortTextSize, setShortTextSize] = useState('M');
   const [shortTextAlign, setShortTextAlign] = useState('left');
   const [shortTextSections, setShortTextSections] = useState({
-    fieldSettings: true,
-    appearance: true,
+    fieldSettings: false,
+    appearance: false,
     conditionalLogic: false,
     responseQuality: false,
   });
@@ -1602,7 +1602,7 @@ const FormBuilderPage = () => {
   const [longTextValidation, setLongTextValidation] = useState('None');
   const [longTextSize, setLongTextSize] = useState('M');
   const [longTextAlign, setLongTextAlign] = useState('left');
-  const [longTextSections, setLongTextSections] = useState({ fieldSettings: true, appearance: true, conditionalLogic: false, responseQuality: false });
+  const [longTextSections, setLongTextSections] = useState({ fieldSettings: false, appearance: false, conditionalLogic: false, responseQuality: false });
 
   /* ── Multiple choice configure panel state ── */
   const [showMultipleConfigPanel, setShowMultipleConfigPanel] = useState(false);
@@ -3536,15 +3536,13 @@ const FormBuilderPage = () => {
     if (activeScreenId == null) return;
     persistScreenConfigById(activeScreenId);
     markFormTouched();
-    showToast({ type: 'success', message: 'Response quality settings saved.' });
-  }, [activeScreenId, persistScreenConfigById, showToast]);
+  }, [activeScreenId, persistScreenConfigById]);
 
   const handleSaveLongTextResponseQuality = useCallback(() => {
     if (activeScreenId == null) return;
     persistScreenConfigById(activeScreenId);
     markFormTouched();
-    showToast({ type: 'success', message: 'Response quality settings saved.' });
-  }, [activeScreenId, persistScreenConfigById, showToast]);
+  }, [activeScreenId, persistScreenConfigById]);
 
   useEffect(() => {
     const formTitle = location.state?.formTitle;
@@ -3835,6 +3833,10 @@ const FormBuilderPage = () => {
     }
 
     if (templateId) {
+      if (builderActiveHydratedRef.current && activeScreenIdRef.current != null) {
+        setBuilderHydrated(true);
+        return;
+      }
       const built = buildFormFromTemplate(templateId);
       if (!built) {
         setBuilderHydrated(true);

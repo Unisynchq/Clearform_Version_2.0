@@ -1,13 +1,47 @@
-import { describe, expect, it } from 'vitest';
+import React, { useState } from 'react';
+import { describe, expect, it, vi, beforeAll } from 'vitest';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import {
   AI_GUIDANCE_MAX_LENGTH,
   DEFAULT_RESPONSE_QUALITY_OPTIONS,
+  default as ResponseQualityScoringCard,
   normalizeResponseQualityOptions,
 } from './ResponseQualityScoringCard';
+
+vi.mock('@/features/billing/utils/useBillingStatus', () => ({
+  useBillingStatus: () => ({
+    entitlements: null,
+    isPaid: false,
+  }),
+}));
 
 function criterionEntries(options) {
   return Object.entries(options).filter(([key]) => key !== 'customInstructions');
 }
+
+function CardHarness({
+  initialEnabled = true,
+  initialOptions = DEFAULT_RESPONSE_QUALITY_OPTIONS,
+  onSave = vi.fn(),
+}) {
+  const [enabled, setEnabled] = useState(initialEnabled);
+  const [options, setOptions] = useState(initialOptions);
+
+  return React.createElement(ResponseQualityScoringCard, {
+    enabled,
+    onEnabledChange: setEnabled,
+    options,
+    onOptionsChange: (next) =>
+      setOptions((prev) => (typeof next === 'function' ? next(prev) : next)),
+    onSave,
+    questionText: 'How was your experience?',
+    helperText: '',
+  });
+}
+
+beforeAll(() => {
+  window.scrollTo = vi.fn();
+});
 
 describe('DEFAULT_RESPONSE_QUALITY_OPTIONS', () => {
   it('defaults all criteria to collapsed', () => {
@@ -46,5 +80,63 @@ describe('normalizeResponseQualityOptions', () => {
 
     const missing = normalizeResponseQualityOptions({});
     expect(missing.customInstructions).toBe('');
+  });
+});
+
+describe('ResponseQualityScoringCard', () => {
+  it('shows saved preference state and allows returning to edit mode', async () => {
+    render(
+      React.createElement(CardHarness, {
+        initialOptions: {
+          ...DEFAULT_RESPONSE_QUALITY_OPTIONS,
+          customInstructions: 'Rate each response on specificity (1-5).',
+        },
+      }),
+    );
+
+    expect(screen.getByText('Preference Saved!')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByDisplayValue('Rate each response on specificity (1-5).'),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it('keeps criteria inside advanced options and shows saving state before saved', async () => {
+    const onSave = vi.fn();
+
+    render(React.createElement(CardHarness, { onSave }));
+
+    expect(screen.queryByText('Length')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /advanced options/i }));
+    expect(screen.getByText('Length')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'Focus on specificity and relevance.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Improve with AI' }));
+
+    expect(screen.getByRole('button', { name: 'Improving...' })).toBeInTheDocument();
+    expect(onSave).toHaveBeenCalledTimes(1);
+
+    await waitFor(() =>
+      expect(screen.getByText('Preference Saved!')).toBeInTheDocument(),
+    );
+  });
+
+  it('greys out expanded criterion details when the criterion is disabled', () => {
+    render(React.createElement(CardHarness));
+
+    fireEvent.click(screen.getByRole('button', { name: /advanced options/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Completeness options' }));
+
+    const disabledDetails = screen.getByText('Detect trailing sentences').closest('fieldset');
+    expect(disabledDetails).toHaveAttribute('disabled');
+    expect(disabledDetails).toHaveClass('opacity-45');
   });
 });

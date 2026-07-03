@@ -51,6 +51,19 @@ export async function createFormFromTemplateAndOpenBuilder({
     formId = created.id;
   }
 
+  const builderSnapshot = {
+    screens: built.screens,
+    formId,
+    formTitle: title,
+    templateId: template.id,
+    intro: built.intro,
+    end: built.end,
+    nextId: built.nextId,
+    theme: built.theme,
+    settings: built.settings,
+    savedAt: Date.now(),
+  };
+
   dispatch(
     addForm({
       ...meta,
@@ -58,6 +71,7 @@ export async function createFormFromTemplateAndOpenBuilder({
       title,
       templateId: template.id,
       workspace: workspaceId ?? '',
+      builderSnapshot,
     }),
   );
 
