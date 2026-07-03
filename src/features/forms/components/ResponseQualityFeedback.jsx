@@ -239,26 +239,27 @@ function useResponseQualityDisplay(evaluation, charCount, isLoading) {
   }, [charCount]);
 
   useEffect(() => {
-    if (charCount === 0) return;
-    if (!isTyping) {
+    if (charCount === 0) {
+      setSettledEvaluation(null);
+      return;
+    }
+    if (!isLoading) {
       setSettledEvaluation(evaluation);
     }
-  }, [charCount, evaluation, isTyping]);
+  }, [charCount, evaluation, isLoading]);
 
   useEffect(() => {
     setDismissed(false);
   }, [settledEvaluation?.level, settledEvaluation?.message, settledEvaluation?.followUpQuestion]);
 
-  const showSettled = !isTyping && (settledEvaluation || isLoading);
   const showLiveFeedback =
-    showSettled && settledEvaluation?.message && !dismissed && !isLoading;
+    settledEvaluation?.message && !dismissed && !isLoading;
 
   return {
     dismissed,
     setDismissed,
     isTyping,
     settledEvaluation,
-    showSettled,
     showLiveFeedback,
   };
 }

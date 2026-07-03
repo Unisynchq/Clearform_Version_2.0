@@ -119,6 +119,7 @@ export function useResponseQualityEvaluation({
   screenId,
   conversationHistory,
   debounceMs = 400,
+  previewMode = false,
 }) {
   const [evaluation, setEvaluation] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -191,7 +192,7 @@ export function useResponseQualityEvaluation({
           setIsLoading(false);
         }
       }
-    }, debounceMs);
+    }, previewMode ? Math.max(debounceMs, 900) : debounceMs);
 
     return () => {
       clearTimeout(timerRef.current);
@@ -208,6 +209,7 @@ export function useResponseQualityEvaluation({
     screenId,
     conversationHistory,
     debounceMs,
+    previewMode,
   ]);
 
   return { evaluation, isLoading };
