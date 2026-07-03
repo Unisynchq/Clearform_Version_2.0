@@ -1445,7 +1445,7 @@ const ContentCardInner = ({
   const shortTextQualityEnabled =
     isPreviewMode && cardKey === 'qualitative:Short text' && shortTextResponseQualityConfig?.enabled;
 
-  const longTextQualityEvaluation = useResponseQualityEvaluation({
+  const longTextQuality = useResponseQualityEvaluation({
     enabled: longTextQualityEnabled,
     options: longTextResponseQualityConfig?.options,
     fieldKind: 'longText',
@@ -1457,7 +1457,7 @@ const ContentCardInner = ({
     conversationHistory: qualityConversationHistory,
   });
 
-  const shortTextQualityEvaluation = useResponseQualityEvaluation({
+  const shortTextQuality = useResponseQualityEvaluation({
     enabled: shortTextQualityEnabled,
     options: shortTextResponseQualityConfig?.options,
     fieldKind: 'shortText',
@@ -1470,10 +1470,18 @@ const ContentCardInner = ({
   });
 
   const responseQualityEvaluation = longTextQualityEnabled
-    ? longTextQualityEvaluation
+    ? longTextQuality.evaluation
     : shortTextQualityEnabled
-      ? shortTextQualityEvaluation
+      ? shortTextQuality.evaluation
       : null;
+  const responseQualityLoading = longTextQualityEnabled
+    ? longTextQuality.isLoading
+    : shortTextQualityEnabled
+      ? shortTextQuality.isLoading
+      : false;
+  const responseQualityHelperText = longTextQualityEnabled
+    ? longTextConfig?.longTextHelperText
+    : shortTextConfig?.shortTextHelperText;
 
   const snapRef = useRef({});
   snapRef.current = {
@@ -2513,7 +2521,10 @@ const ContentCardInner = ({
                 {shortTextResponseQualityConfig?.enabled ? (
                   <ResponseQualityFeedback
                     embedded
+                    coachingEnabled
                     evaluation={responseQualityEvaluation}
+                    isLoading={responseQualityLoading}
+                    helperText={responseQualityHelperText}
                     charCount={shortTextDraft.length}
                     maxChars={stMaxChars}
                     answerLabel="Short answer"
@@ -2639,9 +2650,13 @@ const ContentCardInner = ({
                 {longTextResponseQualityConfig?.enabled ? (
                   <ResponseQualityFeedback
                     embedded
+                    coachingEnabled
                     evaluation={responseQualityEvaluation}
+                    isLoading={responseQualityLoading}
+                    helperText={responseQualityHelperText}
                     charCount={longTextDraft.length}
                     maxChars={ltMaxChars}
+                    answerLabel="Long answer"
                   >
                     <textarea
                       value={longTextDraft}
