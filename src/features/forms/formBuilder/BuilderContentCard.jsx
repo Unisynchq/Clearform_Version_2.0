@@ -1455,6 +1455,7 @@ const ContentCardInner = ({
     formId: responseQualityFormId,
     screenId: previewScreenId,
     conversationHistory: qualityConversationHistory,
+    previewMode: true,
   });
 
   const shortTextQuality = useResponseQualityEvaluation({
@@ -1467,6 +1468,7 @@ const ContentCardInner = ({
     formId: responseQualityFormId,
     screenId: previewScreenId,
     conversationHistory: qualityConversationHistory,
+    previewMode: true,
   });
 
   const responseQualityEvaluation = longTextQualityEnabled

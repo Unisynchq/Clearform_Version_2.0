@@ -86,14 +86,14 @@ export async function apiClient(path, {
   const publicRoute = isPublicApiPath(path) || skipAuth;
   let token =
     typeof window !== 'undefined' ? sessionStorage.getItem('clearform:auth-token') : null;
-  if (!publicRoute && typeof window !== 'undefined' && auth?.currentUser) {
+  if (typeof window !== 'undefined' && auth?.currentUser) {
     try {
       token = await getFreshAuthToken();
     } catch {
       // use cached token
     }
   }
-  if (token && !publicRoute) init.headers.Authorization = `Bearer ${token}`;
+  if (token) init.headers.Authorization = `Bearer ${token}`;
 
   let res = await fetch(buildUrl(path, query), init);
   const text = await res.text();
