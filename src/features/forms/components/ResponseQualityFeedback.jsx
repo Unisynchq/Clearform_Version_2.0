@@ -8,6 +8,10 @@ const TYPING_SETTLE_MS = 750;
 export const DEFAULT_QUALITY_COACHING =
   "Share a clear, specific answer — we'll help you improve it as you type.";
 
+/** Builder preview on free tier — no API calls; respondents still get coaching on the live form. */
+export const PREVIEW_QUALITY_UPGRADE_COACHING =
+  'Respondents get AI coaching on your published form. Upgrade to Pilot to preview that feedback here before you publish.';
+
 const COACHING_NEUTRAL = {
   dot: '#c9c5bc',
   boxBg: '#faf9f7',
@@ -149,6 +153,8 @@ export function ResponseQualityMessage({
   helperText,
   onDismiss,
   dismissible = true,
+  actionLabel = null,
+  onAction = null,
 }) {
   const displayMessage = resolveQualityDisplayMessage({ message, followUpQuestion, helperText });
   if (!displayMessage) return null;
@@ -200,6 +206,16 @@ export function ResponseQualityMessage({
                   <li key={tip}>{tip}</li>
                 ))}
               </ul>
+            ) : null}
+            {actionLabel && onAction ? (
+              <button
+                type="button"
+                onClick={onAction}
+                className="mt-2.5 inline-flex items-center rounded-[7px] border border-[#1a1a18] px-3 py-1 text-[12px] font-medium text-[#1a1a18] transition-colors hover:bg-[#1a1a18] hover:text-white"
+                style={{ fontFamily: "'DM Sans', sans-serif" }}
+              >
+                {actionLabel}
+              </button>
             ) : null}
           </>
         )}
@@ -264,7 +280,14 @@ function useResponseQualityDisplay(evaluation, charCount, isLoading) {
   };
 }
 
-function renderIndicator({ isTyping, settledEvaluation, isLoading, answerLabel }) {
+function renderIndicator({ isTyping, settledEvaluation, isLoading, answerLabel, previewUpgradeHint }) {
+  if (previewUpgradeHint) {
+    return (
+      <p className="text-[#bbb] text-[11px]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+        {answerLabel}
+      </p>
+    );
+  }
   if (isTyping || isLoading) return <ResponseQualityWaveDots />;
   if (settledEvaluation?.level) return <ResponseQualityIndicator level={settledEvaluation.level} />;
   return (
@@ -283,6 +306,8 @@ export default function ResponseQualityFeedback({
   answerLabel = 'Long answer',
   embedded = false,
   coachingEnabled = false,
+  previewUpgradeHint = false,
+  onUpgradeClick = null,
   helperText = '',
   children = null,
 }) {
@@ -303,9 +328,20 @@ export default function ResponseQualityFeedback({
     settledEvaluation,
     isLoading,
     answerLabel,
+    previewUpgradeHint,
   });
 
-  const coachingBox = coachingEnabled ? (
+  const coachingBox = previewUpgradeHint ? (
+    <ResponseQualityMessage
+      key="preview-upgrade"
+      level={null}
+      message={PREVIEW_QUALITY_UPGRADE_COACHING}
+      helperText={helperText}
+      dismissible={false}
+      actionLabel={onUpgradeClick ? 'Upgrade to Pilot' : null}
+      onAction={onUpgradeClick}
+    />
+  ) : coachingEnabled ? (
     <AnimatePresence mode="wait">
       {showLiveFeedback ? (
         <ResponseQualityMessage
