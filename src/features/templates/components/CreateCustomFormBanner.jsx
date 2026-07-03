@@ -15,8 +15,8 @@ import { RiAlertLine } from 'react-icons/ri';
    when transitioning. */
 
 const SURFACES = {
-  default: { bg: '#ffffff', border: '#e5e3dc' },
-  loading: { bg: '#ffffff', border: '#a0a0a0' },
+  default: { bg: '#f7f6f3', border: '#e8e7e2' },
+  loading: { bg: '#f7f6f3', border: '#a0a0a0' },
   error:   { bg: '#fef2f2', border: '#fecaca' },
   limit:   { bg: '#fffbeb', border: '#fde68a' },
 };
@@ -37,18 +37,21 @@ const Spinner = () => (
 
 const DefaultBody = ({ onCreate }) => (
   <div className="flex items-center justify-between gap-4 w-full">
-    <div className="flex flex-col gap-[3px] min-w-0">
-      <p className="text-[13px] font-semibold text-[#1a1a1c] leading-[19.5px] truncate">
+    <div className="flex flex-col gap-1 min-w-0">
+      <p
+        className="text-[16px] font-bold text-[#111110] leading-[24px] truncate"
+        style={{ fontFamily: 'Arimo, sans-serif' }}
+      >
         Can&apos;t find what you need?
       </p>
-      <p className="text-[12px] font-normal text-[#6b6966] leading-[18px] truncate">
+      <p className="text-[14px] font-normal text-[#656565] leading-[21px] truncate">
         Start from scratch or request a custom template
       </p>
     </div>
     <button
       type="button"
       onClick={onCreate}
-      className="shrink-0 h-[36px] inline-flex items-center justify-center px-[17px] rounded-[8px] bg-[#1a1a1c] border border-[#1a1a1c] text-white text-[13px] font-medium leading-none hover:bg-[#2c2c2e] transition-colors cursor-pointer whitespace-nowrap"
+      className="shrink-0 h-[43.5px] inline-flex items-center justify-center px-6 rounded-[7px] bg-[#111110] border border-[#111110] text-white text-[13px] font-medium leading-[19.5px] hover:bg-[#2c2c2e] transition-colors cursor-pointer whitespace-nowrap"
     >
       Create Custom Form
     </button>
@@ -146,7 +149,7 @@ const CreateCustomFormBanner = ({
         borderColor:     surface.border,
       }}
       transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
-      className={`border rounded-[12px] px-[21px] py-[17px] w-full ${className}`}
+      className={`border rounded-[12px] px-[25px] py-[25px] w-full ${className}`}
     >
       <AnimatePresence mode="wait" initial={false}>
         <motion.div

@@ -3,6 +3,8 @@ export const selectIsGlobalOverlayActive = (state) => {
   const ui = state.ui;
   return (
     ui.createNewFormModal.open ||
+    ui.templatePreviewModal.open ||
+    ui.startWithTemplateModal.open ||
     ui.createWorkspaceModal.open ||
     ui.deleteModal.open ||
     ui.duplicateModal.open ||

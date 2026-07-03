@@ -48,6 +48,12 @@ const initialState = {
   createNewFormModal: {
     open: false,
   },
+  templatePreviewModal: {
+    open: false,
+  },
+  startWithTemplateModal: {
+    open: false,
+  },
   builderRouteTransition: {
     pending: false,
   },
@@ -164,6 +170,18 @@ const uiSlice = createSlice({
     },
     closeCreateNewFormModal(state) {
       state.createNewFormModal.open = false;
+    },
+    openTemplatePreviewModal(state) {
+      state.templatePreviewModal.open = true;
+    },
+    closeTemplatePreviewModal(state) {
+      state.templatePreviewModal.open = false;
+    },
+    openStartWithTemplateModal(state) {
+      state.startWithTemplateModal.open = true;
+    },
+    closeStartWithTemplateModal(state) {
+      state.startWithTemplateModal.open = false;
     },
     startBuilderRouteTransition(state) {
       state.builderRouteTransition.pending = true;
@@ -306,6 +324,10 @@ export const {
   closeCreateWorkspaceModal,
   openCreateNewFormModal,
   closeCreateNewFormModal,
+  openTemplatePreviewModal,
+  closeTemplatePreviewModal,
+  openStartWithTemplateModal,
+  closeStartWithTemplateModal,
   startBuilderRouteTransition,
   finishBuilderRouteTransition,
   openArchiveModal,
