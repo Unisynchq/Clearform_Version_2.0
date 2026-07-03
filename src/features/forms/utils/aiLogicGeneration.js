@@ -84,7 +84,11 @@ export async function runAiLogicGeneration(context, setAiLogicGen, onApply, opti
   } catch (err) {
     if (LIMIT_STATUSES.has(err?.status)) {
       onLimitReached?.(err);
-      markAiLogicGenerationFailed(setAiLogicGen, { message: RATE_LIMIT_MESSAGE });
+      const serverMessage =
+        err?.body?.code === 'UPGRADE_REQUIRED' ? err.body.message : null;
+      markAiLogicGenerationFailed(setAiLogicGen, {
+        message: serverMessage ?? RATE_LIMIT_MESSAGE,
+      });
       return;
     }
     const message =

@@ -172,8 +172,13 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
           iconGradient: theme.iconGradient,
         });
         formId = created.id;
-      } catch {
-        showToast({ type: 'error', message: 'Could not create form. Please try again.' });
+      } catch (err) {
+        const body = err?.body ?? {};
+        if (err?.status === 403 && body.code === 'UPGRADE_REQUIRED') {
+          showToast({ type: 'error', message: body.message, duration: 8000 });
+        } else {
+          showToast({ type: 'error', message: 'Could not create form. Please try again.' });
+        }
         setCreating(false);
         return;
       }
