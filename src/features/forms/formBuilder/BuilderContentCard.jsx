@@ -47,6 +47,7 @@ import ResponseQualityScoringCard, {
 } from '@/features/forms/components/ResponseQualityScoringCard';
 import ResponseQualityFeedback from '@/features/forms/components/ResponseQualityFeedback';
 import { useResponseQualityEvaluation } from '@/features/forms/hooks/useResponseQualityEvaluation';
+import UpgradeGateModal from '@/features/billing/components/UpgradeGateModal';
 import {
   cardBodyPadClass,
   cardBodyPadXClass,
@@ -1341,6 +1342,7 @@ const ContentCardInner = ({
   onPreviewSnapChange,
   previewScreenId,
   responseQualityFormId = null,
+  responseQualityEvaluateLive = true,
   qualityConversationHistory = [],
   isIntroScreen = false,
   compactLayout = false,
@@ -1367,6 +1369,7 @@ const ContentCardInner = ({
   const [longTextDraft, setLongTextDraft] = useState('');
   const [previewRequiredHint, setPreviewRequiredHint] = useState(false);
   const [timeSelection, setTimeSelection] = useState(null);
+  const [qualityUpgradeOpen, setQualityUpgradeOpen] = useState(false);
 
   const shortTextMaxCap = shortTextConfig?.shortTextMaxChars ?? 100;
   const shortTextCapRef = useRef(shortTextMaxCap);
@@ -1440,13 +1443,17 @@ const ContentCardInner = ({
     return mediaConfig?.mediaRandomiseOrder ? shuffleArray([...opts]) : opts;
   }, [mediaOptsKey, mediaConfig?.mediaRandomiseOrder]);
 
-  const longTextQualityEnabled =
+  const longTextQualityUiEnabled =
     isPreviewMode && cardKey === 'qualitative:Long text' && longTextResponseQualityConfig?.enabled;
-  const shortTextQualityEnabled =
+  const shortTextQualityUiEnabled =
     isPreviewMode && cardKey === 'qualitative:Short text' && shortTextResponseQualityConfig?.enabled;
+  const longTextQualityApiEnabled = longTextQualityUiEnabled && responseQualityEvaluateLive;
+  const shortTextQualityApiEnabled = shortTextQualityUiEnabled && responseQualityEvaluateLive;
+  const longTextPreviewUpgrade = longTextQualityUiEnabled && !responseQualityEvaluateLive;
+  const shortTextPreviewUpgrade = shortTextQualityUiEnabled && !responseQualityEvaluateLive;
 
   const longTextQuality = useResponseQualityEvaluation({
-    enabled: longTextQualityEnabled,
+    enabled: longTextQualityApiEnabled,
     options: longTextResponseQualityConfig?.options,
     fieldKind: 'longText',
     question: longTextConfig?.longTextQuestion,
@@ -1459,7 +1466,7 @@ const ContentCardInner = ({
   });
 
   const shortTextQuality = useResponseQualityEvaluation({
-    enabled: shortTextQualityEnabled,
+    enabled: shortTextQualityApiEnabled,
     options: shortTextResponseQualityConfig?.options,
     fieldKind: 'shortText',
     question: shortTextConfig?.shortTextQuestion,
@@ -1471,19 +1478,20 @@ const ContentCardInner = ({
     previewMode: true,
   });
 
-  const responseQualityEvaluation = longTextQualityEnabled
+  const responseQualityEvaluation = longTextQualityApiEnabled
     ? longTextQuality.evaluation
-    : shortTextQualityEnabled
+    : shortTextQualityApiEnabled
       ? shortTextQuality.evaluation
       : null;
-  const responseQualityLoading = longTextQualityEnabled
+  const responseQualityLoading = longTextQualityApiEnabled
     ? longTextQuality.isLoading
-    : shortTextQualityEnabled
+    : shortTextQualityApiEnabled
       ? shortTextQuality.isLoading
       : false;
-  const responseQualityHelperText = longTextQualityEnabled
+  const responseQualityHelperText = longTextQualityUiEnabled
     ? longTextConfig?.longTextHelperText
     : shortTextConfig?.shortTextHelperText;
+  const openQualityUpgrade = () => setQualityUpgradeOpen(true);
 
   const snapRef = useRef({});
   snapRef.current = {
@@ -2524,6 +2532,8 @@ const ContentCardInner = ({
                   <ResponseQualityFeedback
                     embedded
                     coachingEnabled
+                    previewUpgradeHint={shortTextPreviewUpgrade}
+                    onUpgradeClick={shortTextPreviewUpgrade ? openQualityUpgrade : null}
                     evaluation={responseQualityEvaluation}
                     isLoading={responseQualityLoading}
                     helperText={responseQualityHelperText}
@@ -2653,6 +2663,8 @@ const ContentCardInner = ({
                   <ResponseQualityFeedback
                     embedded
                     coachingEnabled
+                    previewUpgradeHint={longTextPreviewUpgrade}
+                    onUpgradeClick={longTextPreviewUpgrade ? openQualityUpgrade : null}
                     evaluation={responseQualityEvaluation}
                     isLoading={responseQualityLoading}
                     helperText={responseQualityHelperText}
@@ -3467,28 +3479,36 @@ const ContentCardInner = ({
     isPreviewMode && previewStepNav ? cloneElement(previewStepNav, { compactLayout }) : null;
 
   return (
-    <motion.div
-      className="h-full min-h-0 flex flex-col"
-      style={cardTextStyle}
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.97 }}
-      transition={{ duration: 0.22, ease: 'easeOut' }}
-    >
-      {isScrollableCard ? (
-        <div className="flex-1 min-h-0 flex flex-col gap-[6px]">
-          <div className="flex gap-[14px] items-center pb-[8px] pt-[6px]">
-            <span className="text-[15px] font-semibold tracking-[1.52px] uppercase text-black whitespace-nowrap" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-              {scrollableLabel}
-            </span>
-            <div className="flex-1 h-px bg-[rgba(0,0,0,0.1)]" />
+    <>
+      <motion.div
+        className="h-full min-h-0 flex flex-col"
+        style={cardTextStyle}
+        initial={{ opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.97 }}
+        transition={{ duration: 0.22, ease: 'easeOut' }}
+      >
+        {isScrollableCard ? (
+          <div className="flex-1 min-h-0 flex flex-col gap-[6px]">
+            <div className="flex gap-[14px] items-center pb-[8px] pt-[6px]">
+              <span className="text-[15px] font-semibold tracking-[1.52px] uppercase text-black whitespace-nowrap" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+                {scrollableLabel}
+              </span>
+              <div className="flex-1 h-px bg-[rgba(0,0,0,0.1)]" />
+            </div>
+            <CardShell fullCanvas={fullCanvas} cardColor={cardColor} cardImage={cardImage} scrollable footer={inCardPreviewNav}>{content}</CardShell>
           </div>
-          <CardShell fullCanvas={fullCanvas} cardColor={cardColor} cardImage={cardImage} scrollable footer={inCardPreviewNav}>{content}</CardShell>
-        </div>
-      ) : (
-        <CardShell fullCanvas={fullCanvas} cardColor={cardColor} cardImage={cardImage} footer={inCardPreviewNav}>{content}</CardShell>
-      )}
-    </motion.div>
+        ) : (
+          <CardShell fullCanvas={fullCanvas} cardColor={cardColor} cardImage={cardImage} footer={inCardPreviewNav}>{content}</CardShell>
+        )}
+      </motion.div>
+      <UpgradeGateModal
+        open={qualityUpgradeOpen}
+        onClose={() => setQualityUpgradeOpen(false)}
+        title="Preview AI coaching in the builder"
+        reason="Pilot lets you test response-quality feedback in preview before you publish. Your live form already coaches respondents on the free tier."
+      />
+    </>
   );
 };
 
