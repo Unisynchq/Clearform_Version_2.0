@@ -46,8 +46,7 @@ function buildEvaluatePayload({
   const keywordThreshold = relevance.matchThreshold ?? relevance.keywordThreshold ?? 1;
 
   return {
-    formId: Number(formId),
-    screenId: Number(screenId),
+    screenId: screenId != null ? String(screenId) : undefined,
     fieldId,
     sessionId: getQualitySessionId(formId),
     questionText: question ?? '',
@@ -103,15 +102,11 @@ function normalizeApiEvaluation(result) {
   };
 }
 
-function mergeEvaluations(heuristic, apiResult) {
-  if (!apiResult) return heuristic;
-  if (!heuristic) return apiResult;
-  return apiResult;
-}
-
 /**
  * Debounced response-quality evaluation — waits for API result before showing feedback.
  * Falls back to heuristics only if the API is unavailable or returns an error.
+ *
+ * @returns {{ evaluation: object|null, isLoading: boolean }}
  */
 export function useResponseQualityEvaluation({
   enabled,
@@ -126,6 +121,7 @@ export function useResponseQualityEvaluation({
   debounceMs = 400,
 }) {
   const [evaluation, setEvaluation] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
   const timerRef = useRef(null);
   const requestIdRef = useRef(0);
   const abortRef = useRef(null);
@@ -133,12 +129,14 @@ export function useResponseQualityEvaluation({
   useEffect(() => {
     if (!enabled || !options) {
       setEvaluation(null);
+      setIsLoading(false);
       return undefined;
     }
 
     const trimmed = String(answerText ?? '').trim();
     if (!trimmed) {
       setEvaluation(null);
+      setIsLoading(false);
       return undefined;
     }
 
@@ -151,14 +149,14 @@ export function useResponseQualityEvaluation({
         helperText,
       });
 
-    if (!isApiConfigured() || formId == null || screenId == null) {
+    const formIdReady = formId != null && String(formId).length > 0;
+    if (!isApiConfigured() || !formIdReady || screenId == null) {
       setEvaluation(runHeuristics());
+      setIsLoading(false);
       return undefined;
     }
 
-    // Don't show heuristic result immediately — wait for the API so we never
-    // flicker from one evaluation to another. Clear any stale result while waiting.
-    setEvaluation(null);
+    setIsLoading(true);
 
     clearTimeout(timerRef.current);
     abortRef.current?.abort();
@@ -183,11 +181,15 @@ export function useResponseQualityEvaluation({
         );
         if (requestId !== requestIdRef.current) return;
         const apiEval = normalizeApiEvaluation(result);
-        setEvaluation(mergeEvaluations(null, apiEval));
+        setEvaluation(apiEval ?? runHeuristics());
       } catch (err) {
         if (err?.name === 'AbortError') return;
         if (requestId !== requestIdRef.current) return;
         setEvaluation(runHeuristics());
+      } finally {
+        if (requestId === requestIdRef.current) {
+          setIsLoading(false);
+        }
       }
     }, debounceMs);
 
@@ -208,5 +210,5 @@ export function useResponseQualityEvaluation({
     debounceMs,
   ]);
 
-  return evaluation;
+  return { evaluation, isLoading };
 }

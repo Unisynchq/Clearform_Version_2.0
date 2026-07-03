@@ -4,6 +4,17 @@ import { RiCloseLine } from 'react-icons/ri';
 
 const TYPING_SETTLE_MS = 750;
 
+/** Always-on coaching line — shown until live AI feedback replaces it. */
+export const DEFAULT_QUALITY_COACHING =
+  "Share a clear, specific answer — we'll help you improve it as you type.";
+
+const COACHING_NEUTRAL = {
+  dot: '#c9c5bc',
+  boxBg: '#faf9f7',
+  boxBorder: '#ebe8e2',
+  text: '#6b6966',
+};
+
 const LEVEL_STYLES = {
   red: {
     dot: '#c94040',
@@ -29,6 +40,26 @@ const LEVEL_STYLES = {
 };
 
 const DOT_KEYS = [0, 1, 2];
+
+function normalizeForCompare(text) {
+  return String(text ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+/** Never echo helperText verbatim — fall back to the default coaching line. */
+export function resolveQualityDisplayMessage({ message, followUpQuestion, helperText }) {
+  const followUp =
+    typeof followUpQuestion === 'string' && followUpQuestion.trim()
+      ? followUpQuestion.trim()
+      : null;
+  const raw = followUp ?? (typeof message === 'string' ? message.trim() : '');
+  if (!raw) return DEFAULT_QUALITY_COACHING;
+  const helper = normalizeForCompare(helperText);
+  if (helper && normalizeForCompare(raw) === helper) return DEFAULT_QUALITY_COACHING;
+  return raw;
+}
 
 function ResponseQualityWaveDots() {
   return (
@@ -78,7 +109,8 @@ function QualityDot({ color, index = 0, pop = false }) {
   );
 }
 
-export function ResponseQualityIndicator({ level }) {
+export function ResponseQualityIndicator({ level, isLoading = false }) {
+  if (isLoading) return <ResponseQualityWaveDots />;
   if (!level) return null;
   const color = LEVEL_STYLES[level]?.dot ?? '#e4e2dc';
   const labels = { red: 'Poor response quality', amber: 'Fair response quality', green: 'Great response quality' };
@@ -109,19 +141,30 @@ export function ResponseQualityIndicator({ level }) {
   );
 }
 
-export function ResponseQualityMessage({ level, message, suggestions = [], followUpQuestion = null, onDismiss }) {
-  if (!level || !message) return null;
-  const s = LEVEL_STYLES[level] || LEVEL_STYLES.amber;
+export function ResponseQualityMessage({
+  level,
+  message,
+  suggestions = [],
+  followUpQuestion = null,
+  helperText,
+  onDismiss,
+  dismissible = true,
+}) {
+  const displayMessage = resolveQualityDisplayMessage({ message, followUpQuestion, helperText });
+  if (!displayMessage) return null;
+
+  const s = level ? LEVEL_STYLES[level] || LEVEL_STYLES.amber : COACHING_NEUTRAL;
   const isGreat = level === 'green';
-  // Green = the answer already passes; render affirmation only, never
-  // improvement bullets (also guards the offline heuristic path).
   const tips = isGreat
     ? []
     : Array.isArray(suggestions)
       ? suggestions.filter(Boolean).slice(0, 2)
       : [];
-  // When a follow-up question is present, show it as the primary prompt instead of bullets
-  const hasFollowUp = typeof followUpQuestion === 'string' && followUpQuestion.trim().length > 0;
+  const hasFollowUp =
+    level &&
+    typeof followUpQuestion === 'string' &&
+    followUpQuestion.trim().length > 0 &&
+    normalizeForCompare(followUpQuestion) !== normalizeForCompare(helperText);
 
   return (
     <motion.div
@@ -137,7 +180,7 @@ export function ResponseQualityMessage({ level, message, suggestions = [], follo
       style={{ backgroundColor: s.boxBg, borderColor: s.boxBorder }}
       role="status"
     >
-      <span className="w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ backgroundColor: s.dotInBox }} />
+      <span className="w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ backgroundColor: s.dotInBox ?? s.dot }} />
       <div className="flex-1 pr-5">
         {hasFollowUp ? (
           <p className="text-[13px] leading-[19px]" style={{ color: s.text, fontFamily: "'DM Sans', sans-serif" }}>
@@ -146,10 +189,13 @@ export function ResponseQualityMessage({ level, message, suggestions = [], follo
         ) : (
           <>
             <p className="text-[13px] leading-[19px]" style={{ color: s.text, fontFamily: "'DM Sans', sans-serif" }}>
-              {message}
+              {displayMessage}
             </p>
             {tips.length > 0 ? (
-              <ul className="mt-2 space-y-1 text-[12px] leading-[17px] list-disc pl-4" style={{ color: s.text, fontFamily: "'DM Sans', sans-serif" }}>
+              <ul
+                className="mt-2 space-y-1 text-[12px] leading-[17px] list-disc pl-4"
+                style={{ color: s.text, fontFamily: "'DM Sans', sans-serif" }}
+              >
                 {tips.map((tip) => (
                   <li key={tip}>{tip}</li>
                 ))}
@@ -158,19 +204,21 @@ export function ResponseQualityMessage({ level, message, suggestions = [], follo
           </>
         )}
       </div>
-      <button
-        type="button"
-        onClick={onDismiss}
-        aria-label="Dismiss feedback"
-        className="absolute top-2 right-2 p-0 border-0 bg-transparent cursor-pointer text-[#b4b2ac] hover:text-[#666]"
-      >
-        <RiCloseLine size={14} />
-      </button>
+      {dismissible && onDismiss ? (
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Dismiss feedback"
+          className="absolute top-2 right-2 p-0 border-0 bg-transparent cursor-pointer text-[#b4b2ac] hover:text-[#666]"
+        >
+          <RiCloseLine size={14} />
+        </button>
+      ) : null}
     </motion.div>
   );
 }
 
-function useResponseQualityDisplay(evaluation, charCount) {
+function useResponseQualityDisplay(evaluation, charCount, isLoading) {
   const [dismissed, setDismissed] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [settledEvaluation, setSettledEvaluation] = useState(null);
@@ -199,10 +247,11 @@ function useResponseQualityDisplay(evaluation, charCount) {
 
   useEffect(() => {
     setDismissed(false);
-  }, [settledEvaluation?.level, settledEvaluation?.message]);
+  }, [settledEvaluation?.level, settledEvaluation?.message, settledEvaluation?.followUpQuestion]);
 
-  const showSettled = !isTyping && settledEvaluation;
-  const showMessage = showSettled && settledEvaluation.message && !dismissed;
+  const showSettled = !isTyping && (settledEvaluation || isLoading);
+  const showLiveFeedback =
+    showSettled && settledEvaluation?.message && !dismissed && !isLoading;
 
   return {
     dismissed,
@@ -210,13 +259,13 @@ function useResponseQualityDisplay(evaluation, charCount) {
     isTyping,
     settledEvaluation,
     showSettled,
-    showMessage,
+    showLiveFeedback,
   };
 }
 
-function renderIndicator({ isTyping, settledEvaluation, answerLabel }) {
-  if (isTyping) return <ResponseQualityWaveDots />;
-  if (settledEvaluation) return <ResponseQualityIndicator level={settledEvaluation.level} />;
+function renderIndicator({ isTyping, settledEvaluation, isLoading, answerLabel }) {
+  if (isTyping || isLoading) return <ResponseQualityWaveDots />;
+  if (settledEvaluation?.level) return <ResponseQualityIndicator level={settledEvaluation.level} />;
   return (
     <p className="text-[#bbb] text-[11px]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
       {answerLabel}
@@ -224,18 +273,22 @@ function renderIndicator({ isTyping, settledEvaluation, answerLabel }) {
   );
 }
 
-/** Indicator row + optional dismissible message; wave while typing, quality after idle. */
+/** Indicator row + coaching box; wave while typing/loading, quality after idle. */
 export default function ResponseQualityFeedback({
   evaluation,
+  isLoading = false,
   charCount,
   maxChars,
   answerLabel = 'Long answer',
   embedded = false,
+  coachingEnabled = false,
+  helperText = '',
   children = null,
 }) {
-  const { setDismissed, isTyping, settledEvaluation, showMessage } = useResponseQualityDisplay(
+  const { setDismissed, isTyping, settledEvaluation, showLiveFeedback } = useResponseQualityDisplay(
     evaluation,
     charCount,
+    isLoading,
   );
 
   const charCountLabel = (
@@ -244,31 +297,74 @@ export default function ResponseQualityFeedback({
     </p>
   );
 
-  const indicator = renderIndicator({ isTyping, settledEvaluation, answerLabel });
+  const indicator = renderIndicator({
+    isTyping,
+    settledEvaluation,
+    isLoading,
+    answerLabel,
+  });
+
+  const coachingBox = coachingEnabled ? (
+    <AnimatePresence mode="wait">
+      {showLiveFeedback ? (
+        <ResponseQualityMessage
+          key={`live-${settledEvaluation.level}-${settledEvaluation.followUpQuestion ?? settledEvaluation.message}`}
+          level={settledEvaluation.level}
+          message={settledEvaluation.message}
+          suggestions={settledEvaluation.suggestions}
+          followUpQuestion={settledEvaluation.followUpQuestion ?? null}
+          helperText={helperText}
+          onDismiss={() => setDismissed(true)}
+        />
+      ) : (
+        <ResponseQualityMessage
+          key="coaching-default"
+          level={null}
+          message={isLoading ? 'Taking a quick look at your answer…' : DEFAULT_QUALITY_COACHING}
+          helperText={helperText}
+          dismissible={false}
+        />
+      )}
+    </AnimatePresence>
+  ) : (
+    <AnimatePresence mode="wait">
+      {showLiveFeedback && (
+        <ResponseQualityMessage
+          key={`${settledEvaluation.level}-${settledEvaluation.message}`}
+          level={settledEvaluation.level}
+          message={settledEvaluation.message}
+          suggestions={settledEvaluation.suggestions}
+          followUpQuestion={settledEvaluation.followUpQuestion ?? null}
+          helperText={helperText}
+          onDismiss={() => setDismissed(true)}
+        />
+      )}
+    </AnimatePresence>
+  );
 
   if (embedded && children) {
     return (
       <>
         <div className="relative w-full">
           {children}
-          {charCount > 0 ? (
+          {charCount > 0 || coachingEnabled ? (
             <>
               <div
                 className="absolute bottom-[10px] left-[12px] z-10 pointer-events-none flex items-center"
                 aria-live="polite"
               >
-                {charCountLabel}
+                {charCount > 0 ? charCountLabel : null}
               </div>
               <div
                 className="absolute bottom-[10px] right-[12px] z-10 pointer-events-none flex items-center"
                 aria-live="polite"
               >
-                {indicator}
+                {charCount > 0 ? indicator : null}
               </div>
             </>
           ) : null}
         </div>
-        {charCount === 0 ? (
+        {charCount === 0 && !coachingEnabled ? (
           <div className="flex justify-between items-center pt-[11px] pb-[9px]">
             <p className="text-[#bbb] text-[11px]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
               {answerLabel}
@@ -276,23 +372,12 @@ export default function ResponseQualityFeedback({
             {charCountLabel}
           </div>
         ) : null}
-        <AnimatePresence mode="wait">
-          {showMessage && (
-            <ResponseQualityMessage
-              key={`${settledEvaluation.level}-${settledEvaluation.followUpQuestion ?? settledEvaluation.message}`}
-              level={settledEvaluation.level}
-              message={settledEvaluation.message}
-              suggestions={settledEvaluation.suggestions}
-              followUpQuestion={settledEvaluation.followUpQuestion ?? null}
-              onDismiss={() => setDismissed(true)}
-            />
-          )}
-        </AnimatePresence>
+        {coachingBox}
       </>
     );
   }
 
-  if (charCount === 0) {
+  if (charCount === 0 && !coachingEnabled) {
     return (
       <div className="flex justify-between items-center pt-[11px] pb-[9px]">
         <p className="text-[#bbb] text-[11px]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -306,20 +391,10 @@ export default function ResponseQualityFeedback({
   return (
     <>
       <div className="flex justify-between items-center pt-[11px] pb-[9px]">
-        {indicator}
+        {charCount > 0 ? indicator : <span />}
         {charCountLabel}
       </div>
-      <AnimatePresence mode="wait">
-        {showMessage && (
-          <ResponseQualityMessage
-            key={`${settledEvaluation.level}-${settledEvaluation.message}`}
-            level={settledEvaluation.level}
-            message={settledEvaluation.message}
-            suggestions={settledEvaluation.suggestions}
-            onDismiss={() => setDismissed(true)}
-          />
-        )}
-      </AnimatePresence>
+      {coachingBox}
     </>
   );
 }

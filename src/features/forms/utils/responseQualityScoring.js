@@ -124,11 +124,12 @@ function looksLikeValidName(text, question, helperText) {
   const trimmed = String(text ?? '').trim();
   if (!trimmed || /\d/.test(trimmed)) return false;
   const words = trimmed.split(/\s+/).filter(Boolean);
-  if (words.length === 0 || words.length > 4) return false;
+  if (words.length === 0 || words.length > 5) return false;
+  const substantive = words.filter((w) => !/^(mr|mrs|ms|miss|dr|prof|sir|md|m\.d|phd|ph\.d)\.?$/i.test(w));
   const needFull = /\b(full name|official document|first and last|legal name|as it appears)\b/i.test(
     `${question ?? ''} ${helperText ?? ''}`,
   );
-  if (needFull && words.length < 2) return false;
+  if (needFull && substantive.length < 2) return false;
   if (words.some((w) => GREETING_NAME_PATTERN.test(w))) return false;
   if (words.length === 1) {
     const w = words[0];
