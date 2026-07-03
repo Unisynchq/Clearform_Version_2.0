@@ -3,6 +3,28 @@ import { evaluateResponseQualityApi } from '@/api/services/responseQualityServic
 import { isApiConfigured } from '@/config/env';
 import { evaluateResponseQuality } from '@/features/forms/utils/responseQualityScoring';
 
+/**
+ * Stable per-tab, per-form respondent session id — lets the backend track
+ * shown suggestions / trial usage across keystrokes without any auth.
+ */
+export function getQualitySessionId(formId) {
+  if (typeof window === 'undefined' || !window.sessionStorage) return undefined;
+  const key = `cf_qsession_${formId}`;
+  try {
+    let id = window.sessionStorage.getItem(key);
+    if (!id) {
+      id =
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+      window.sessionStorage.setItem(key, id);
+    }
+    return id;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Build handoff B.3 evaluate body — flat aliases + nested criteria.enabled blocks. */
 function buildEvaluatePayload({
   formId,
@@ -27,11 +49,11 @@ function buildEvaluatePayload({
     formId: Number(formId),
     screenId: Number(screenId),
     fieldId,
+    sessionId: getQualitySessionId(formId),
     questionText: question ?? '',
     fieldType,
     helperText: helperText ?? '',
     answerText,
-    informationRequirements: options?.informationRequirements ?? [],
     conversationHistory: conversationHistory ?? [],
     options: {
       minWords: length.minWords,

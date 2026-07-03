@@ -60,7 +60,7 @@ export function invalidateBillingStatus() {
  * Billing status with plan, usage, and `aiTier` ('free' | 'pro') from
  * GET /billing/status. Refetches on window focus (throttled).
  *
- * @returns {{ status: object|null, aiTier: 'free'|'pro', isPaid: boolean, loading: boolean, error: string|null, refresh: () => Promise<object|null> }}
+ * @returns {{ status: object|null, aiTier: 'free'|'pro', isPaid: boolean, entitlements: object|null, loading: boolean, error: string|null, refresh: () => Promise<object|null> }}
  */
 export function useBillingStatus() {
   const [, setVersion] = useState(0);
@@ -93,6 +93,7 @@ export function useBillingStatus() {
     status,
     aiTier: status?.aiTier === 'pro' ? 'pro' : 'free',
     isPaid: status?.aiTier === 'pro',
+    entitlements: status?.entitlements ?? null,
     loading: store.loading,
     error: store.error,
     refresh,

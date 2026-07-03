@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/useToast';
 
 const PILOT_POINTS = [
   '300 responses · 90 days',
+  '3 workspaces',
   'AI response quality (live nudges + scoring)',
   'AI logic generation & insights',
   'Premium AI models',
@@ -13,11 +14,14 @@ const PILOT_POINTS = [
 
 /**
  * Reusable paywall modal shown when a free-tier user hits a hard limit
- * (responses cap, AI rate limit, workspace limit). Opens Razorpay checkout.
+ * (responses cap, AI quota, workspace limit). Opens Razorpay checkout.
  *
- * @param {{ open: boolean, onClose: () => void, title?: string, reason?: string }} props
+ * Pass the server's UPGRADE_REQUIRED 403 body fields directly: `reason` takes
+ * `message` and `quota` takes `{ used, limit }` for the usage line.
+ *
+ * @param {{ open: boolean, onClose: () => void, title?: string, reason?: string, quota?: { used: number, limit: number } }} props
  */
-export default function UpgradeGateModal({ open, onClose, title, reason }) {
+export default function UpgradeGateModal({ open, onClose, title, reason, quota }) {
   const { showToast } = useToast();
   const [checkoutLoading, setCheckoutLoading] = useState(false);
 
@@ -52,6 +56,11 @@ export default function UpgradeGateModal({ open, onClose, title, reason }) {
         </h3>
         {reason ? (
           <p className="text-[13px] leading-[20.8px] text-white/60">{reason}</p>
+        ) : null}
+        {quota && Number.isFinite(quota.limit) ? (
+          <p className="text-[12px] font-medium text-white/40">
+            {Math.min(quota.used, quota.limit)} of {quota.limit} used
+          </p>
         ) : null}
         <ul className="flex flex-col gap-1.5 py-3">
           {PILOT_POINTS.map((point) => (

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RiRobot2Line, RiInformationLine, RiArrowDownSLine } from 'react-icons/ri';
+import { useBillingStatus } from '@/features/billing/utils/useBillingStatus';
 
 const MAX_CRITERIA = 2;
 const FONT = { fontFamily: "'DM Sans', sans-serif" };
@@ -361,6 +362,12 @@ export default function ResponseQualityScoringCard({
   const activeCount = Object.values(options).filter((o) => o.enabled).length;
   const showExperienceHint = isExperienceFeedbackQuestion(questionText);
   const brevityHelper = /\b(as much or as little|as little as)\b/i.test(helperText ?? '');
+  const { entitlements, isPaid } = useBillingStatus();
+  const qualityTrial = entitlements?.aiTrial?.qualitySessions;
+  const aiTrialExhausted =
+    !isPaid &&
+    qualityTrial?.limit != null &&
+    qualityTrial.used >= qualityTrial.limit;
 
   const handleSaveClick = useCallback(() => {
     onSave?.();
@@ -459,6 +466,16 @@ export default function ResponseQualityScoringCard({
                   Pick up to <span className="font-semibold">2 criteria</span> — more means stricter filtering.
                 </p>
               </div>
+
+              {aiTrialExhausted ? (
+                <div className="w-full bg-[#f4ede2] flex gap-[6px] items-start px-4 py-[7px] mb-3">
+                  <RiInformationLine size={14} className="text-[#a3702a] shrink-0 mt-px" />
+                  <p className="text-[11px] text-[#a3702a] leading-snug" style={FONT}>
+                    AI trial used — respondents now get rule-based checks. Upgrade to
+                    Clearform Pilot for AI quality on every response.
+                  </p>
+                </div>
+              ) : null}
 
               {showExperienceHint ? (
                 <div className="w-full bg-[#e8f4ec] flex gap-[6px] items-start px-4 py-[7px] mb-3 mx-0">

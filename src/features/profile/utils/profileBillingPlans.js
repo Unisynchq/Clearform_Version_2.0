@@ -23,14 +23,14 @@ export const FREE_PLAN = API_FREE_PLAN;
 const PLAN_STRIP = {
   pilot_35: {
     stripTitle: 'Clearform Pilot',
-    stripSubtitle: '300 responses · Unlimited forms · 1 workspace',
+    stripSubtitle: '300 responses · Unlimited forms · 3 workspaces',
     invoiceTitle: 'Clearform Pilot — One-time',
     taxPlanName: 'Clearform Pilot',
-    taxPlanSubtitle: '300 responses · Unlimited forms · 1 workspace · 90 days',
-    limitsLabel: 'Unlimited forms · 300 responses · 1 workspace',
+    taxPlanSubtitle: '300 responses · Unlimited forms · 3 workspaces · 90 days',
+    limitsLabel: 'Unlimited forms · 300 responses · 3 workspaces',
     formsLimit: null,
     responsesLimit: 300,
-    workspacesLimit: 1,
+    workspacesLimit: 3,
     teamLimit: 1,
     headerSubtext: 'Your Clearform Pilot access is active',
     defaultUsage: { responsesThisMonth: 0, formsUsed: 0, workspacesUsed: 0 },
@@ -44,72 +44,8 @@ const PLAN_STRIP = {
       },
     ],
   },
-  starter: {
-    stripTitle: 'Starter plan',
-    stripSubtitle: '10 active forms · 1,000 responses / month',
-    invoiceTitle: 'Clearform Starter — Monthly',
-    taxPlanName: 'Clearform Starter',
-    taxPlanSubtitle: '10 active forms · 1,000 responses/mo · AI quality scoring',
-    limitsLabel: '10 active forms · 1,000 responses / month',
-    formsLimit: 10,
-    responsesLimit: 1000,
-    teamLimit: 1,
-    headerSubtext: 'Your Starter plan is active',
-    defaultUsage: { formsUsed: 4, responsesThisMonth: 240 },
-    bundledLineItems: [
-      {
-        description: 'AI Response Quality Scoring — Included',
-        subtitle: 'Score every submission automatically · Bundled with Starter',
-        qty: '1',
-        unitPrice: 0,
-        amount: 0,
-      },
-      {
-        description: 'Remove Clearform Branding — Included',
-        subtitle: 'White-label your published forms · Bundled with Starter',
-        qty: '1',
-        unitPrice: 0,
-        amount: 0,
-      },
-    ],
-  },
-  pro: {
-    stripTitle: 'Pro plan',
-    stripSubtitle: 'Unlimited forms · 10,000 responses/mo · 5 members',
-    invoiceTitle: 'Clearform Pro — Monthly',
-    taxPlanName: 'Clearform Pro',
-    taxPlanSubtitle:
-      'Unlimited forms · 10,000 responses/mo · 5 members · AI dynamic Qs',
-    limitsLabel: 'Unlimited forms · 10,000 responses / month · 5 members',
-    formsLimit: null,
-    responsesLimit: 10000,
-    teamLimit: 5,
-    headerSubtext: 'Your Pro plan is active',
-    defaultUsage: { responsesThisMonth: 6240 },
-    bundledLineItems: [
-      {
-        description: 'AI Dynamic Questions — Included',
-        subtitle: 'Adaptive form logic powered by AI · Bundled with Pro',
-        qty: '1',
-        unitPrice: 0,
-        amount: 0,
-      },
-      {
-        description: 'Team Collaboration (up to 5 members)',
-        subtitle: 'Role-based access · Workspace sharing · Bundled with Pro',
-        qty: '5 seats',
-        unitPrice: 0,
-        amount: 0,
-      },
-      {
-        description: 'Priority Support',
-        subtitle: 'Dedicated email & chat support · Bundled with Pro',
-        qty: '1',
-        unitPrice: 0,
-        amount: 0,
-      },
-    ],
-  },
+  // Starter/Pro recurring plans are not shipped — the backend rejects them
+  // (501 from createSubscription). Keep only plans the backend can honour.
 };
 
 function formatExpiryDate(isoOrDate) {

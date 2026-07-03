@@ -2902,8 +2902,15 @@ const FormBuilderPage = () => {
     [showToast]
   );
 
-  const [aiLogicUpgradeOpen, setAiLogicUpgradeOpen] = useState(false);
-  const handleAiLogicLimitReached = useCallback(() => setAiLogicUpgradeOpen(true), []);
+  const [aiLogicUpgradeGate, setAiLogicUpgradeGate] = useState(null);
+  const handleAiLogicLimitReached = useCallback((err) => {
+    const body = err?.body ?? {};
+    setAiLogicUpgradeGate(
+      body.code === 'UPGRADE_REQUIRED'
+        ? { reason: body.message, quota: body.quota }
+        : {},
+    );
+  }, []);
 
   const handleAiLogicRetry = useCallback(async () => {
     patchAiLogicGen({ status: AI_LOGIC_GEN_STATUS.generating, errorMessage: '' });
@@ -8303,10 +8310,14 @@ const FormBuilderPage = () => {
       />
 
       <UpgradeGateModal
-        open={aiLogicUpgradeOpen}
-        onClose={() => setAiLogicUpgradeOpen(false)}
+        open={Boolean(aiLogicUpgradeGate)}
+        onClose={() => setAiLogicUpgradeGate(null)}
         title="AI logic limit reached"
-        reason="Your current plan's AI logic generation limit is used up for now. Pilot raises the limit and unlocks premium AI models."
+        reason={
+          aiLogicUpgradeGate?.reason ??
+          "Your current plan's AI logic generation limit is used up for now. Pilot raises the limit and unlocks premium AI models."
+        }
+        quota={aiLogicUpgradeGate?.quota}
       />
     </div>
   );

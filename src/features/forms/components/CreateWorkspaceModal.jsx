@@ -25,7 +25,7 @@ const CreateWorkspaceModal = () => {
   const [name, setName]   = useState('');
   const [color, setColor] = useState(COLOR_OPTIONS[0].value);
   const [creating, setCreating] = useState(false);
-  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [upgradeGate, setUpgradeGate] = useState(null);
 
   const handleClose = () => {
     dispatch(closeCreateWorkspaceModal());
@@ -51,7 +51,14 @@ const CreateWorkspaceModal = () => {
       setColor(COLOR_OPTIONS[0].value);
     } catch (err) {
       if (err?.status === 402 || err?.status === 403) {
-        setUpgradeOpen(true);
+        const body = err?.data ?? err?.body ?? {};
+        setUpgradeGate({
+          reason:
+            body.code === 'UPGRADE_REQUIRED' && body.message
+              ? body.message
+              : 'Free includes 1 workspace. Clearform Pilot includes 3.',
+          quota: body.quota,
+        });
       } else if (isApiConfigured()) {
         showToast({ type: 'error', message: 'Could not create workspace. Please try again.' });
       }
@@ -166,10 +173,11 @@ const CreateWorkspaceModal = () => {
             </motion.div>
 
           <UpgradeGateModal
-            open={upgradeOpen}
-            onClose={() => setUpgradeOpen(false)}
+            open={Boolean(upgradeGate)}
+            onClose={() => setUpgradeGate(null)}
             title="Workspace limit reached"
-            reason="Your plan includes 1 workspace. Upgrade to Pilot to add more."
+            reason={upgradeGate?.reason}
+            quota={upgradeGate?.quota}
           />
         </>
       )}

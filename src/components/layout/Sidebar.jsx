@@ -23,6 +23,7 @@ import { openCreateWorkspaceModal, openWorkspaceContextMenu } from '@/store/slic
 import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.png';
 import clearformLogoIcon from '@/assets/clearform-high-resolution-logo-transparent (1).png';
 import SidebarSkeleton from './SidebarSkeleton';
+import { useBillingStatus } from '@/features/billing/utils/useBillingStatus';
 
 const getProfileDisplay = ({ firstName, lastName, email, displayName: savedName }) => {
   const saved = savedName?.trim();
@@ -111,7 +112,7 @@ const NavItem = ({ icon: Icon, label, badge, active, onClick }) => (
   </motion.button>
 );
 
-const WorkspaceItem = ({ workspace, active, onClick, onContextMenu }) => {
+const WorkspaceItem = ({ workspace, active, frozen, onClick, onContextMenu }) => {
   const color = workspace.color || '#6b6966';
   return (
   <motion.button
@@ -119,6 +120,7 @@ const WorkspaceItem = ({ workspace, active, onClick, onContextMenu }) => {
     style={active ? { backgroundColor: `${color}1F` } : undefined}
     onClick={onClick}
     onContextMenu={onContextMenu}
+    title={frozen ? 'Over your plan’s workspace limit — existing forms keep working, upgrade to add new ones here.' : undefined}
     className={`w-full flex items-center justify-between px-4 py-2 rounded-lg cursor-pointer transition-colors ${
       active ? 'shadow-[0_1px_3px_rgba(0,0,0,0.08)]' : ''
     }`}
@@ -130,6 +132,11 @@ const WorkspaceItem = ({ workspace, active, onClick, onContextMenu }) => {
       }`}>
         {workspace.label}
       </span>
+      {frozen ? (
+        <span className="rounded-full bg-[#f4ede2] px-[7px] py-[1px] text-[10px] font-semibold uppercase tracking-[0.4px] text-[#a3702a]">
+          Limit
+        </span>
+      ) : null}
     </div>
     {typeof workspace.count === 'number' && workspace.count > 0 ? (
       <span className="text-[12px] font-medium text-[#a8a6a0] leading-[18px]">
@@ -194,6 +201,8 @@ const Sidebar = ({ hideLogo = false, exit }) => {
   });
   const { activeWorkspace, isLoading: formsLoading } = useSelector((state) => state.forms);
   const workspaces = useSelector(selectNavWorkspaces);
+  const { entitlements } = useBillingStatus();
+  const frozenWorkspaceIds = entitlements?.workspaces?.frozenWorkspaceIds ?? [];
 
   const handleWorkspaceContextMenu = (e, wsId) => {
     e.preventDefault();
@@ -377,6 +386,7 @@ const Sidebar = ({ hideLogo = false, exit }) => {
                   workspace={
                     showFormCounts ? ws : { ...ws, count: 0 }
                   }
+                  frozen={frozenWorkspaceIds.includes(ws.id)}
                   active={isDashboardActive && activeWorkspace === ws.id}
                   onClick={() => {
                     navigate('/dashboard');
