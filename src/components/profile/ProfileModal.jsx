@@ -14,6 +14,8 @@ export default function ProfileModal({
   className = '',
   widthClass = 'w-[min(100%,440px)]',
 }) {
+  const hasCustomSurface = /\bbg-/.test(className);
+
   if (typeof document === 'undefined') return null;
 
   return createPortal(
@@ -43,7 +45,7 @@ export default function ProfileModal({
               exit={modalExit}
               transition={createFormModalTransition}
               style={{ transformOrigin: 'center center' }}
-              className={`pointer-events-auto max-h-[min(92vh,720px)] overflow-y-auto rounded-[14px] bg-white shadow-[0_24px_60px_rgba(0,0,0,0.18)] ${widthClass} ${className}`}
+              className={`pointer-events-auto max-h-[min(92vh,720px)] overflow-y-auto rounded-[14px] shadow-[0_24px_60px_rgba(0,0,0,0.18)] ${hasCustomSurface ? '' : 'bg-white'} ${widthClass} ${className}`}
             >
               {children}
             </motion.div>
