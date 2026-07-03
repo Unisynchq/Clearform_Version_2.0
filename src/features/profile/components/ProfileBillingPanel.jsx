@@ -219,7 +219,7 @@ const ProfileBillingPanel = () => {
     return getWorkspaceUsageMetrics({ forms, email, responsesByFormId });
   }, [useApiBilling, apiStatus, forms, email, responsesByFormId, billingVersion]);
 
-  const { formsUsed, responsesUsed, teamUsed } = usageMetrics;
+  const { formsUsed, responsesUsed, teamUsed, teamLimit: workspacesLimit } = usageMetrics;
 
   const invoice = useMemo(() => {
     if (useApiBilling && apiStatus?.receipt) {
@@ -369,7 +369,7 @@ const ProfileBillingPanel = () => {
                     <UsageMeter
                       label="Workspaces"
                       used={teamUsed}
-                      limit={plan.workspacesLimit ?? plan.teamLimit ?? 1}
+                      limit={workspacesLimit ?? plan.workspacesLimit ?? plan.teamLimit ?? 1}
                       metric="team"
                     />
                   </div>
