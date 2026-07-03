@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { RiRobot2Line, RiInformationLine, RiArrowDownSLine } from 'react-icons/ri';
+import {
+  RiRobot2Line,
+  RiInformationLine,
+  RiArrowDownSLine,
+  RiSparklingLine,
+  RiLoader4Line,
+  RiPencilLine,
+} from 'react-icons/ri';
 import { useBillingStatus } from '@/features/billing/utils/useBillingStatus';
 
 const MAX_CRITERIA = 2;
 const FONT = { fontFamily: "'DM Sans', sans-serif" };
+const SAVE_TRANSITION_MS = 450;
 
 /** Max length for the owner's free-text AI guidance (keeps prompts fast). */
 export const AI_GUIDANCE_MAX_LENGTH = 600;
@@ -82,17 +90,9 @@ const CRITERIA_META = [
   },
 ];
 
-const BADGE_DOT = {
-  green: '#22c55e',
-  yellow: '#eab308',
-  red: '#ef4444',
-};
-
-const BADGE_LOGIC = [
-  { color: BADGE_DOT.green, label: 'All pass', badge: 'Green' },
-  { color: BADGE_DOT.yellow, label: 'One fails', badge: 'Yellow' },
-  { color: BADGE_DOT.red, label: 'Two+ fail', badge: 'Red' },
-];
+function criterionEntries(options) {
+  return Object.keys(CRITERIA_DEFAULTS).map((id) => [id, options?.[id] ?? CRITERIA_DEFAULTS[id]]);
+}
 
 function MainToggle({ checked, onChange }) {
   return (
@@ -134,7 +134,7 @@ function CriterionToggle({ checked, onChange, disabled }) {
 
 function CriterionHint({ children }) {
   return (
-    <p className="bg-[#f7f5f0] rounded-[6px] px-3 py-2 text-[11px] text-[#8a8880] leading-snug" style={FONT}>
+    <p className="text-[11.25px] font-medium leading-snug text-[#6f6b63]" style={FONT}>
       {children}
     </p>
   );
@@ -143,11 +143,11 @@ function CriterionHint({ children }) {
 function FieldLabel({ children, optional }) {
   return (
     <div className="flex items-end gap-1">
-      <span className="text-[11px] font-medium text-[#8a8880] tracking-[0.11px]" style={FONT}>
+      <span className="text-[11px] font-medium tracking-[0.05px] text-[#5f5a52]" style={FONT}>
         {children}
       </span>
       {optional && (
-        <span className="text-[10px] text-[#b4b2ac]" style={FONT}>
+        <span className="text-[10px] text-[#969189]" style={FONT}>
           optional
         </span>
       )}
@@ -155,16 +155,23 @@ function FieldLabel({ children, optional }) {
   );
 }
 
-function SegmentedControl({ options, value, onChange }) {
+function SegmentedControl({ options, value, onChange, disabled = false }) {
   return (
-    <div className="flex w-full border border-[#e4e2dc] rounded-[6px] overflow-hidden">
+    <div
+      className={`flex w-full overflow-hidden rounded-[6px] border border-[#e4e2dc] transition-opacity ${
+        disabled ? 'opacity-60' : ''
+      }`}
+    >
       {options.map((opt, i) => (
         <button
           key={String(opt.value)}
           type="button"
+          disabled={disabled}
           onClick={() => onChange(opt.value)}
           className={`flex-1 min-w-0 px-2 py-[7px] text-[11px] font-medium transition-colors ${
             value === opt.value ? 'bg-[#1a1a18] text-white' : 'bg-white text-[#8a8880] hover:text-[#555]'
+          } ${
+            disabled ? 'cursor-not-allowed' : ''
           } ${i < options.length - 1 ? 'border-r border-[#e4e2dc]' : ''}`}
           style={FONT}
         >
@@ -175,25 +182,80 @@ function SegmentedControl({ options, value, onChange }) {
   );
 }
 
-function NumberWithUnit({ value, onChange, unit, min = 0 }) {
+function NumberWithUnit({ value, onChange, unit, min = 0, disabled = false }) {
   return (
-    <div className="flex w-full border border-[#e4e2dc] rounded-[6px] overflow-hidden">
+    <div
+      className={`flex w-full overflow-hidden rounded-[6px] border border-[#e4e2dc] transition-opacity ${
+        disabled ? 'opacity-60' : ''
+      }`}
+    >
       <input
         type="number"
         min={min}
+        disabled={disabled}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="flex-1 min-w-0 px-2 py-[7px] text-[14px] font-medium text-[#1a1a18] text-center bg-white outline-none"
+        className={`flex-1 min-w-0 bg-white px-2 py-[7px] text-center text-[14px] font-medium text-[#1a1a18] outline-none ${
+          disabled ? 'cursor-not-allowed' : ''
+        }`}
         style={FONT}
       />
-      <span className="border-l border-[#e4e2dc] px-2.5 py-[7px] text-[12px] text-[#8a8880] bg-white shrink-0" style={FONT}>
+      <span
+        className="shrink-0 border-l border-[#e4e2dc] bg-white px-2.5 py-[7px] text-[12px] text-[#8a8880]"
+        style={FONT}
+      >
         {unit}
       </span>
     </div>
   );
 }
 
-function CriterionOptions({ id, options, onUpdate }) {
+function PreferenceFrame({ title, children, footer }) {
+  return (
+    <div className="mx-4 px-0 pt-1 pb-2">
+      <p
+        className="mb-4 text-center text-[13.5px] font-semibold tracking-[-0.01em] text-[#111827]"
+        style={FONT}
+      >
+        {title}
+      </p>
+      {children}
+      <div className="mt-6 flex items-center justify-end gap-2">{footer}</div>
+    </div>
+  );
+}
+
+function PreferenceButton({
+  children,
+  variant = 'primary',
+  disabled = false,
+  icon = null,
+  onClick,
+  className = '',
+}) {
+  const baseClassName =
+    'inline-flex h-7 items-center justify-center gap-1 rounded-[6px] px-3 text-[12.5px] font-medium transition-colors';
+  const toneClassName =
+    variant === 'primary'
+      ? 'bg-[#1a1a18] text-white hover:bg-[#2c2c2c] disabled:bg-[#6f6f6c] disabled:cursor-not-allowed'
+      : variant === 'danger'
+        ? 'border border-[rgba(214,48,48,0.58)] bg-white text-[#2c2a27] hover:bg-[#fff7f7]'
+        : 'border border-[#9e9a93] bg-white text-[#2c2a27] hover:bg-[#faf9f7]';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`${baseClassName} ${toneClassName} ${className}`.trim()}
+      style={FONT}
+    >
+      {icon}
+      <span>{children}</span>
+    </button>
+  );
+}
+
+function CriterionOptions({ id, options, onUpdate, disabled = false }) {
   switch (id) {
     case 'length':
       return (
@@ -204,6 +266,7 @@ function CriterionOptions({ id, options, onUpdate }) {
             onChange={(v) => onUpdate({ minWords: v })}
             unit="words"
             min={1}
+            disabled={disabled}
           />
         </div>
       );
@@ -220,15 +283,19 @@ function CriterionOptions({ id, options, onUpdate }) {
               ]}
               value={options.sensitivity}
               onChange={(v) => onUpdate({ sensitivity: v })}
+              disabled={disabled}
             />
           </div>
           <div className="flex flex-col gap-[6px]">
             <FieldLabel optional>Vague words to watch</FieldLabel>
             <textarea
+              disabled={disabled}
               value={options.vagueWords}
               onChange={(e) => onUpdate({ vagueWords: e.target.value })}
               rows={2}
-              className="w-full bg-[#f2f0eb] border border-[#e4e2dc] rounded-[6px] px-3 py-2 text-[13px] text-[#1a1a18] outline-none focus:border-[#999] resize-none leading-[19.5px]"
+              className={`w-full resize-none rounded-[8px] border border-[#e4e2dc] bg-white px-3 py-2 text-[13px] leading-[19.5px] text-[#1a1a18] outline-none focus:border-[#999] ${
+                disabled ? 'cursor-not-allowed opacity-60' : ''
+              }`}
               style={FONT}
             />
             <span className="text-[11px] text-[#b4b2ac]" style={FONT}>
@@ -243,11 +310,14 @@ function CriterionOptions({ id, options, onUpdate }) {
           <div className="flex flex-col gap-[6px]">
             <FieldLabel optional>Expected topic keywords</FieldLabel>
             <textarea
+              disabled={disabled}
               value={options.keywords}
               onChange={(e) => onUpdate({ keywords: e.target.value })}
               placeholder="experience, product, feedback…"
               rows={2}
-              className="w-full bg-[#f2f0eb] border border-[#e4e2dc] rounded-[6px] px-3 py-2 text-[12.5px] text-[#1a1a18] placeholder:text-[#b4b2ac] outline-none focus:border-[#999] resize-none leading-[18.75px]"
+              className={`w-full resize-none rounded-[8px] border border-[#e4e2dc] bg-white px-3 py-2 text-[12.5px] leading-[18.75px] text-[#1a1a18] placeholder:text-[#b4b2ac] outline-none focus:border-[#999] ${
+                disabled ? 'cursor-not-allowed opacity-60' : ''
+              }`}
               style={FONT}
             />
             <span className="text-[11px] text-[#b4b2ac]" style={FONT}>
@@ -261,6 +331,7 @@ function CriterionOptions({ id, options, onUpdate }) {
               onChange={(v) => onUpdate({ matchThreshold: v })}
               unit="keywords"
               min={1}
+            disabled={disabled}
             />
           </div>
         </>
@@ -277,6 +348,7 @@ function CriterionOptions({ id, options, onUpdate }) {
               ]}
               value={options.detectTrailing}
               onChange={(v) => onUpdate({ detectTrailing: v })}
+              disabled={disabled}
             />
           </div>
           <div className="flex flex-col gap-[6px]">
@@ -286,6 +358,7 @@ function CriterionOptions({ id, options, onUpdate }) {
               onChange={(v) => onUpdate({ requiredSentences: v })}
               unit="sentences"
               min={1}
+              disabled={disabled}
             />
           </div>
         </>
@@ -301,18 +374,28 @@ function CriterionCard({ meta, options, atLimit, onToggleEnabled, onToggleExpand
   const isExpanded = options.expanded;
 
   return (
-    <div className="w-full bg-white border-b border-[#e4e2dc] overflow-hidden">
-      <div className="flex items-center gap-[10px] px-4 py-[13px]">
+    <div className="w-full overflow-hidden rounded-[14px] bg-[#f1eee7]">
+      <div className="flex items-center gap-[10px] px-4 py-[14px]">
         <CriterionToggle
           checked={isOn}
           disabled={atLimit && !isOn}
           onChange={onToggleEnabled}
         />
         <div className="flex-1 min-w-0">
-          <p className="text-[13.5px] font-semibold text-[#1a1a18] leading-[16.2px]" style={FONT}>
+          <p
+            className={`text-[13.5px] font-semibold leading-[16.2px] ${
+              isOn ? 'text-[#111827]' : 'text-[#7f7a71]'
+            }`}
+            style={FONT}
+          >
             {title}
           </p>
-          <p className="text-[11.5px] text-[#8a8880] leading-[16.1px]" style={FONT}>
+          <p
+            className={`text-[11.5px] leading-[16.1px] ${
+              isOn ? 'text-[#69645c]' : 'text-[#aaa59b]'
+            }`}
+            style={FONT}
+          >
             {description}
           </p>
         </div>
@@ -321,7 +404,7 @@ function CriterionCard({ meta, options, atLimit, onToggleEnabled, onToggleExpand
           onClick={onToggleExpanded}
           aria-expanded={isExpanded}
           aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${title} options`}
-          className="shrink-0 p-0 border-0 bg-transparent cursor-pointer"
+          className="shrink-0 rounded-full border-0 bg-transparent p-1 cursor-pointer hover:bg-[#f7f6f4]"
         >
           <motion.span animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
             <RiArrowDownSLine size={16} className="text-[#8a8880]" />
@@ -338,9 +421,21 @@ function CriterionCard({ meta, options, atLimit, onToggleEnabled, onToggleExpand
             transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
             className="overflow-hidden"
           >
-            <div className="border-t border-[#e4e2dc] px-4 pt-[13px] pb-[26px] flex flex-col gap-3">
-              <CriterionHint>{hint}</CriterionHint>
-              <CriterionOptions id={id} options={options} onUpdate={onUpdate} />
+            <div
+              className={`border-t border-[rgba(0,0,0,0.05)] px-4 pt-[13px] pb-4 transition-colors ${
+                isOn ? 'bg-[#f7f4ee]' : 'bg-[#ebe7de]'
+              }`}
+              aria-disabled={!isOn}
+            >
+              <fieldset
+                disabled={!isOn}
+                className={`m-0 flex min-w-0 flex-col gap-3 border-0 p-0 transition-opacity ${
+                  isOn ? 'opacity-100' : 'pointer-events-none opacity-45'
+                }`}
+              >
+                <CriterionHint>{hint}</CriterionHint>
+                <CriterionOptions id={id} options={options} onUpdate={onUpdate} disabled={!isOn} />
+              </fieldset>
             </div>
           </motion.div>
         )}
@@ -358,8 +453,12 @@ export default function ResponseQualityScoringCard({
   questionText = '',
   helperText = '',
 }) {
-  const [justSaved, setJustSaved] = useState(false);
-  const activeCount = Object.values(options).filter((o) => o.enabled).length;
+  const [draftInstructions, setDraftInstructions] = useState(options.customInstructions ?? '');
+  const [isEditingPreference, setIsEditingPreference] = useState(!(options.customInstructions ?? '').trim());
+  const [saveState, setSaveState] = useState('idle');
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+  const syncingPreferenceRef = useRef(false);
+  const activeCount = criterionEntries(options).filter(([, criterion]) => criterion.enabled).length;
   const showExperienceHint = isExperienceFeedbackQuestion(questionText);
   const brevityHelper = /\b(as much or as little|as little as)\b/i.test(helperText ?? '');
   const { entitlements, isPaid } = useBillingStatus();
@@ -369,16 +468,13 @@ export default function ResponseQualityScoringCard({
     qualityTrial?.limit != null &&
     qualityTrial.used >= qualityTrial.limit;
 
-  const handleSaveClick = useCallback(() => {
-    onSave?.();
-    setJustSaved(true);
-  }, [onSave]);
-
   useEffect(() => {
-    if (!justSaved) return undefined;
-    const timer = window.setTimeout(() => setJustSaved(false), 2000);
-    return () => window.clearTimeout(timer);
-  }, [justSaved]);
+    const savedInstructions = options.customInstructions ?? '';
+    if (syncingPreferenceRef.current) return;
+    setDraftInstructions(savedInstructions);
+    setIsEditingPreference(!savedInstructions.trim());
+    setSaveState('idle');
+  }, [options.customInstructions]);
 
   const updateCriterion = useCallback(
     (id, patch) => {
@@ -412,6 +508,13 @@ export default function ResponseQualityScoringCard({
   }, [enabled, onOptionsChange]);
 
   useEffect(() => {
+    if (!enabled) {
+      setIsEditingPreference(!(options.customInstructions ?? '').trim());
+      setSaveState('idle');
+    }
+  }, [enabled, options.customInstructions]);
+
+  useEffect(() => {
     const anyExpanded = Object.values(options).some((o) => o.expanded);
     if (anyExpanded) {
       onOptionsChange((prev) => normalizeResponseQualityOptions(prev));
@@ -430,18 +533,77 @@ export default function ResponseQualityScoringCard({
     [onEnabledChange, onOptionsChange],
   );
 
+  const savePreference = useCallback(
+    async (nextInstructions) => {
+      const trimmed = nextInstructions.trim().slice(0, AI_GUIDANCE_MAX_LENGTH);
+      setSaveState('saving');
+      syncingPreferenceRef.current = true;
+      onOptionsChange((prev) => ({
+        ...prev,
+        customInstructions: trimmed,
+      }));
+      try {
+        await Promise.all([
+          Promise.resolve(onSave?.()),
+          new Promise((resolve) => window.setTimeout(resolve, SAVE_TRANSITION_MS)),
+        ]);
+        setSaveState('saved');
+      } catch {
+        setSaveState('idle');
+      } finally {
+        syncingPreferenceRef.current = false;
+      }
+      return trimmed;
+    },
+    [onOptionsChange, onSave],
+  );
+
+  const handleSaveClick = useCallback(async () => {
+    const trimmed = await savePreference(draftInstructions);
+    if (!trimmed) {
+      setIsEditingPreference(true);
+      setSaveState('idle');
+      return;
+    }
+    setDraftInstructions(trimmed);
+    setIsEditingPreference(false);
+  }, [draftInstructions, savePreference]);
+
+  const handleCancelClick = useCallback(() => {
+    const savedInstructions = options.customInstructions ?? '';
+    setDraftInstructions(savedInstructions);
+    setIsEditingPreference(!savedInstructions.trim());
+    setSaveState('idle');
+  }, [options.customInstructions]);
+
+  const handleDeleteClick = useCallback(async () => {
+    setDraftInstructions('');
+    await savePreference('');
+    setSaveState('idle');
+    setIsEditingPreference(true);
+  }, [savePreference]);
+
+  const savedInstructions = (options.customInstructions ?? '').trim();
+  const hasSavedPreference = savedInstructions.length > 0;
+  const activeCriteria = criterionEntries(options)
+    .filter(([, criterion]) => criterion.enabled)
+    .map(([id]) => CRITERIA_META.find((meta) => meta.id === id)?.title)
+    .filter(Boolean);
+  const advancedSummary =
+    activeCriteria.length > 0 ? `${activeCriteria.join(', ')} selected` : 'Length, specificity, relevance, completeness';
+
   return (
-    <div className="w-full bg-[#f2f0eb] overflow-hidden rounded-[10px] border border-[#e4e2dc]">
-      <div className={`bg-white flex items-center justify-between px-4 py-[12px] w-full ${enabled ? 'border-b border-[#e4e3de]' : ''}`}>
+    <div className="w-full overflow-hidden bg-[#f7f6f4]">
+      <div className={`flex w-full items-center justify-between px-4 py-[12px] ${enabled ? 'border-b border-[#e4e3de]' : ''}`}>
         <div className="flex items-center gap-2">
           <div className="w-[28px] h-[28px] bg-[#1a1a18] rounded-[7px] flex items-center justify-center shrink-0">
             <RiRobot2Line size={14} className="text-white" />
           </div>
           <div className="flex flex-col gap-px min-w-0">
-            <span className="text-[13px] font-semibold text-[#1a1a18] leading-normal" style={FONT}>
+            <span className="text-[13px] font-semibold tracking-[-0.01em] text-[#111827] leading-normal" style={FONT}>
               Response quality
             </span>
-            <span className="text-[11px] text-[#717171] font-normal leading-tight" style={FONT}>
+            <span className="text-[11.25px] font-medium leading-tight text-[#67645d]" style={FONT}>
               Nudges better answers; flags weak ones before you review.
             </span>
           </div>
@@ -459,107 +621,206 @@ export default function ResponseQualityScoringCard({
             transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
             className="overflow-hidden"
           >
-            <div className="w-full bg-[#f2f0eb] pt-[10px] pb-4 flex flex-col">
-              <div className="w-full bg-[#edeae3] flex gap-[6px] items-start px-4 py-[7px] mb-3">
-                <RiInformationLine size={14} className="text-[#8a8880] shrink-0 mt-px" />
-                <p className="text-[11px] text-[#8a8880] leading-snug" style={FONT}>
-                  Pick up to <span className="font-semibold">2 criteria</span> — more means stricter filtering.
+            <div className="w-full bg-[#f7f6f4] pt-[10px] pb-4 flex flex-col">
+              <div className="mb-3 flex items-center gap-2 px-[15px]">
+                <RiSparklingLine size={18} className="shrink-0 text-[#111827]" aria-hidden />
+                <p className="text-[12.75px] font-semibold tracking-[-0.01em] text-[#111827]" style={FONT}>
+                  Improve Responses with AI
                 </p>
               </div>
 
-              {aiTrialExhausted ? (
-                <div className="w-full bg-[#f4ede2] flex gap-[6px] items-start px-4 py-[7px] mb-3">
-                  <RiInformationLine size={14} className="text-[#a3702a] shrink-0 mt-px" />
-                  <p className="text-[11px] text-[#a3702a] leading-snug" style={FONT}>
-                    AI trial used — respondents now get rule-based checks. Upgrade to
-                    Clearform Pilot for AI quality on every response.
-                  </p>
-                </div>
-              ) : null}
-
-              {showExperienceHint ? (
-                <div className="w-full bg-[#e8f4ec] flex gap-[6px] items-start px-4 py-[7px] mb-3 mx-0">
-                  <RiInformationLine size={14} className="text-[#2d6a4f] shrink-0 mt-px" />
-                  <p className="text-[11px] text-[#2d6a4f] leading-snug" style={FONT}>
-                    Experience or feedback question — short evaluative answers (e.g. &quot;It was confusing&quot;) stay
-                    on-topic.
-                    {brevityHelper
-                      ? ' Your helper invites brevity, so length may be relaxed.'
-                      : ' Length may be relaxed for short feedback answers.'}
-                  </p>
-                </div>
-              ) : null}
-
-              <div className="px-4 mb-3 flex flex-col gap-[6px]">
-                <span className="text-[9.5px] font-semibold tracking-[0.95px] uppercase text-[#b4b2ac]" style={FONT}>
-                  AI GUIDANCE
-                </span>
-                <textarea
-                  value={options.customInstructions ?? ''}
-                  onChange={(e) =>
-                    onOptionsChange((prev) => ({
-                      ...prev,
-                      customInstructions: e.target.value.slice(0, AI_GUIDANCE_MAX_LENGTH),
-                    }))
-                  }
-                  placeholder="Describe what a great answer looks like — e.g. “One-word colour answers are fine” or “Must mention which feature they used”. This overrides the criteria below when they conflict."
-                  rows={3}
-                  className="w-full bg-white border border-[#e4e2dc] rounded-[8px] px-3 py-2 text-[12.5px] text-[#1a1a18] placeholder:text-[#b4b2ac] outline-none focus:border-[#999] resize-none leading-[18.75px]"
-                  style={FONT}
-                />
-                <span className="text-[11px] text-[#b4b2ac] self-end" style={FONT}>
-                  {(options.customInstructions ?? '').length}/{AI_GUIDANCE_MAX_LENGTH}
-                </span>
+              <div className="mx-[15px] mb-4">
+                <p className="text-[11.5px] font-medium leading-[16.5px] text-[#64615b]" style={FONT}>
+                  Describe the kind of answer you want for this question only. AI will use it
+                  when nudging and scoring responses here.
+                </p>
               </div>
 
-              <span className="text-[9.5px] font-semibold tracking-[0.95px] uppercase text-[#b4b2ac] mb-[10px] px-4" style={FONT}>
-                SCORING CRITERIA
-              </span>
+              <AnimatePresence initial={false} mode="wait">
+                {isEditingPreference || !hasSavedPreference ? (
+                  <motion.div
+                    key="preference-edit"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
+                  >
+                    <PreferenceFrame
+                      title="What preference do you have?"
+                      footer={
+                        <>
+                          <PreferenceButton variant="secondary" onClick={handleCancelClick}>
+                            Cancel
+                          </PreferenceButton>
+                          <PreferenceButton
+                            variant="primary"
+                            onClick={handleSaveClick}
+                            disabled={!draftInstructions.trim() || saveState === 'saving'}
+                            className={
+                              saveState === 'saving'
+                                ? 'min-w-[136px] animate-pulse bg-[#2a2a27]'
+                                : 'min-w-[136px]'
+                            }
+                            icon={
+                              saveState === 'saving' ? (
+                                <RiLoader4Line size={16} className="animate-spin" aria-hidden />
+                              ) : (
+                                <RiSparklingLine size={14} aria-hidden />
+                              )
+                            }
+                          >
+                            {saveState === 'saving' ? 'Improving...' : 'Improve with AI'}
+                          </PreferenceButton>
+                        </>
+                      }
+                    >
+                      <textarea
+                        value={draftInstructions}
+                        onChange={(e) =>
+                          setDraftInstructions(e.target.value.slice(0, AI_GUIDANCE_MAX_LENGTH))
+                        }
+                        placeholder="e.g. I want to focus more on specificity and relevance of the responses to this question."
+                        rows={6}
+                        className="w-full min-h-[132px] rounded-[10px] border border-[rgba(140,138,132,0.24)] bg-[#fcfbf8] px-4 py-3 text-[12px] leading-[17px] text-[#000000] outline-none transition-colors placeholder:text-[rgba(0,0,0,0.38)]"
+                        style={FONT}
+                      />
+                    </PreferenceFrame>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="preference-saved"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
+                  >
+                    <PreferenceFrame
+                      title="Preference Saved!"
+                      footer={
+                        <>
+                          <PreferenceButton
+                            variant="secondary"
+                            onClick={() => {
+                              setDraftInstructions(savedInstructions);
+                              setSaveState('idle');
+                              setIsEditingPreference(true);
+                            }}
+                            icon={<RiPencilLine size={12} aria-hidden />}
+                          >
+                            Edit
+                          </PreferenceButton>
+                          <PreferenceButton variant="danger" onClick={handleDeleteClick}>
+                            Delete
+                          </PreferenceButton>
+                        </>
+                      }
+                    >
+                      <div
+                        className="rounded-[10px] border border-[rgba(140,138,132,0.18)] bg-[#fcfbf8] px-4 py-3 text-[12px] leading-[17px] text-[rgba(0,0,0,0.8)]"
+                        style={FONT}
+                      >
+                        {savedInstructions}
+                      </div>
+                    </PreferenceFrame>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-              <div className="w-full flex flex-col border-t border-[#e4e2dc] mb-3">
-                {CRITERIA_META.map((meta) => (
-                  <CriterionCard
-                    key={meta.id}
-                    meta={meta}
-                    options={options[meta.id]}
-                    atLimit={activeCount >= MAX_CRITERIA}
-                    onToggleEnabled={() => toggleCriterionEnabled(meta.id)}
-                    onToggleExpanded={() => updateCriterion(meta.id, { expanded: !options[meta.id].expanded })}
-                    onUpdate={(patch) => updateCriterion(meta.id, patch)}
-                  />
-                ))}
-              </div>
-
-              <div className="mx-4 bg-white border border-[#e4e2dc] rounded-[8px] p-4 flex flex-col gap-[8px] mb-3">
-                <span className="text-[9.5px] font-semibold tracking-[0.95px] uppercase text-[#b4b2ac]" style={FONT}>
-                  BADGE LOGIC PREVIEW
-                </span>
-                {BADGE_LOGIC.map(({ color, label, badge }) => (
-                  <div key={badge} className="flex items-center gap-[10px]">
-                    <span
-                      className="w-[10px] h-[10px] rounded-full shrink-0 ring-1 ring-black/5"
-                      style={{ backgroundColor: color }}
-                      aria-hidden
-                    />
-                    <span className="text-[12px] text-[#8a8880] leading-[16.8px] flex-1" style={FONT}>
-                      {label}
-                    </span>
-                    <span className="text-[12px] font-semibold text-[#1a1a18] leading-[16.8px]" style={FONT}>
-                      {badge}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="px-4">
+              <div className="mx-4 mt-5 border-t border-[#ece9e2] pt-4">
                 <button
                   type="button"
-                  onClick={handleSaveClick}
-                  className="w-full bg-[#1a1a18] text-white text-[14px] font-semibold tracking-[-0.1px] py-[11px] rounded-[10px] cursor-pointer hover:bg-[#2c2c2c] transition-colors shadow-[0_1px_3px_rgba(0,0,0,0.12)]"
-                  style={FONT}
+                  onClick={() => setShowAdvancedOptions((prev) => !prev)}
+                  className="flex w-full items-center justify-between gap-3 px-0 py-0 text-left"
                 >
-                  {justSaved ? 'Saved' : 'Save'}
+                  <div className="min-w-0">
+                    <p className="text-[12.25px] font-semibold tracking-[-0.01em] text-[#4b5563]" style={FONT}>
+                      Advanced options
+                    </p>
+                    <p className="mt-1 truncate text-[11.25px] font-medium text-[#6f6b63]" style={FONT}>
+                      {advancedSummary}
+                    </p>
+                  </div>
+                  <motion.span
+                    animate={{ rotate: showAdvancedOptions ? 180 : 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="shrink-0 text-[#8a8880]"
+                  >
+                    <RiArrowDownSLine size={16} aria-hidden />
+                  </motion.span>
                 </button>
+
+                <AnimatePresence initial={false}>
+                  {showAdvancedOptions ? (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+                      className="overflow-hidden"
+                    >
+                      <div className="py-3">
+                        <div className="mb-4 rounded-[10px] bg-[#faf9f7] px-4 py-[10px]">
+                          <div className="flex gap-[6px] items-start">
+                            <RiInformationLine size={14} className="mt-px shrink-0 text-[#8a8880]" />
+                            <p className="text-[11.25px] font-medium leading-snug text-[#6f6b63]" style={FONT}>
+                              Pick up to <span className="font-semibold">2 criteria</span> — more means stricter filtering.
+                            </p>
+                          </div>
+                        </div>
+
+                        {aiTrialExhausted ? (
+                          <div className="mb-4 rounded-[10px] bg-[#fbf3e8] px-4 py-[10px]">
+                            <p className="text-[11.25px] font-medium leading-snug text-[#9b6522]" style={FONT}>
+                              AI trial used — respondents now get rule-based checks. Upgrade to
+                              Clearform Pilot for AI quality on every response.
+                            </p>
+                          </div>
+                        ) : null}
+
+                        {showExperienceHint ? (
+                          <div className="mb-4 rounded-[10px] bg-[#eef8f1] px-4 py-[10px]">
+                            <p className="text-[11.25px] font-medium leading-snug text-[#275b45]" style={FONT}>
+                              Experience or feedback question — short evaluative answers stay
+                              on-topic.
+                              {brevityHelper
+                                ? ' Your helper invites brevity, so length may be relaxed.'
+                                : ' Length may be relaxed for short feedback answers.'}
+                            </p>
+                          </div>
+                        ) : null}
+
+                        <span
+                          className="mb-[10px] block text-[9.75px] font-semibold uppercase tracking-[0.72px] text-[#98938b]"
+                          style={FONT}
+                        >
+                          Scoring criteria
+                        </span>
+
+                        <div className="mb-4 flex flex-col gap-3">
+                          {CRITERIA_META.map((meta) => (
+                            <CriterionCard
+                              key={meta.id}
+                              meta={meta}
+                              options={options[meta.id]}
+                              atLimit={activeCount >= MAX_CRITERIA}
+                              onToggleEnabled={() => toggleCriterionEnabled(meta.id)}
+                              onToggleExpanded={() =>
+                                updateCriterion(meta.id, { expanded: !options[meta.id].expanded })
+                              }
+                              onUpdate={(patch) => updateCriterion(meta.id, patch)}
+                            />
+                          ))}
+                        </div>
+
+                        <div className="pt-1">
+                          <p className="text-[11.25px] font-medium leading-[16px] text-[#7c776f]" style={FONT}>
+                            More customizability coming soon.
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ) : null}
+                </AnimatePresence>
               </div>
             </div>
           </motion.div>
