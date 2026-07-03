@@ -16,6 +16,7 @@ import useSystemNotificationsSync from '@/hooks/useSystemNotificationsSync';
 const MainLayout = () => {
   const location = useLocation();
   const isGlobalOverlayActive = useSelector(selectIsGlobalOverlayActive);
+  const isTemplatesRoute = location.pathname.startsWith('/dashboard/templates');
   useSystemNotificationsSync();
 
   return (
@@ -30,7 +31,11 @@ const MainLayout = () => {
         <Sidebar key="dashboard-sidebar" exit={DASHBOARD_ROUTE_EXIT} />
       </AnimatePresence>
       <main className="flex min-h-0 flex-1 min-w-0 flex-col overflow-hidden">
-        <div className="flex h-full min-h-0 flex-col overflow-y-auto">
+        <div
+          className={`flex h-full min-h-0 flex-col overflow-y-auto${
+            isTemplatesRoute ? ' bg-white' : ''
+          }`}
+        >
           <RouteErrorBoundary
             fallback={DashboardErrorFallback}
             resetKey={location.pathname}

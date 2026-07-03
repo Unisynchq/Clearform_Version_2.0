@@ -1,4 +1,5 @@
 ﻿import { Fragment, useState, useRef, useEffect, useCallback, useLayoutEffect, useMemo, lazy, Suspense } from 'react';
+import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import ToggleSwitch, { TOGGLE_TRACK_OFF, TOGGLE_TRACK_ON, toggleTrackClassName } from '@/components/ui/ToggleSwitch';
 import WorkspaceFolderIcon from '@/components/ui/WorkspaceFolderIcon';
 import InlineEditableField from '@/features/forms/components/InlineEditableField';
@@ -20,6 +21,13 @@ import {
   publishForm as publishFormToApi,
   patchForm,
 } from '@/api/services/formsService';
+import {
+  dashboardPushBackActive,
+  dashboardPushBackIdle,
+  premiumTransition,
+} from '@/constants/premiumTransition';
+import SaveAsTemplateModal from '@/features/forms/components/SaveAsTemplateModal';
+import { saveUserTemplate } from '@/features/templates/utils/savedTemplatesStorage';
 import { resolveApiWorkspaceId } from '@/features/forms/utils/createFormFromTemplateFlow';
 import { buildPublishSnapshot, buildLogicMeta } from '@/features/forms/utils/buildPublishSnapshot';
 import { canPublishForm, getPublishBlockers } from '@/features/forms/utils/formPublishReadiness';
@@ -29,7 +37,6 @@ import {
   extractScreenConfig,
   getBuilderScreenPreviewText,
 } from '@/features/forms/utils/screenConfigSync';
-import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import {
   RiAddLine,
   RiFileTextLine,
@@ -60,6 +67,7 @@ import {
   RiCheckLine,
   RiLinkedinBoxLine,
   RiArrowRightLine,
+  RiBookmarkLine,
   RiComputerLine,
   RiSmartphoneLine,
   RiEyeLine,
@@ -1229,6 +1237,13 @@ const FormBuilderPage = () => {
   const [isPublishView, setIsPublishView] = useState(false);
   const [publishedPublicUrl, setPublishedPublicUrl] = useState(null);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
+  const [saveTemplateModal, setSaveTemplateModal] = useState({
+    open: false,
+    phase: 'form',
+    savedName: '',
+  });
+  const [saveTemplateSaving, setSaveTemplateSaving] = useState(false);
+  const [templateSaveStatus, setTemplateSaveStatus] = useState('idle');
   const [activeTab, setActiveTab] = useState('content');
   const [screens, setScreens] = useState([]);
   const [activeScreenId, setActiveScreenId] = useState(null);
@@ -1346,7 +1361,6 @@ const FormBuilderPage = () => {
   const builderBaselineSessionRef = useRef(null);
   const [builderHydrated, setBuilderHydrated] = useState(false);
   const [builderSaveStatus, setBuilderSaveStatus] = useState('idle');
-  const lastSaveToastAtRef = useRef(0);
   const lastPersistedSnapshotRef = useRef(null);
   const ensureFormPersistedRef = useRef(async () => null);
   const ensureFormInFlightRef = useRef(false);
@@ -4092,11 +4106,6 @@ const FormBuilderPage = () => {
           formTouchedRef.current = false;
           setIsFormDirty(false);
           setBuilderSaveStatus('saved');
-          const now = Date.now();
-          if (now - lastSaveToastAtRef.current > 8000) {
-            lastSaveToastAtRef.current = now;
-            showToast({ type: 'success', message: 'Draft saved', duration: 2500 });
-          }
         })
         .catch((err) => {
           if (err?.status === 429) {
@@ -5243,7 +5252,6 @@ const FormBuilderPage = () => {
         replace: true,
       });
       setBuilderSaveStatus('saved');
-      showToast({ type: 'success', message: 'Draft saved', duration: 2500 });
       return created.id;
     } catch {
       showToast({ type: 'error', message: 'Could not save form draft. Please try again.' });
@@ -5344,6 +5352,51 @@ const FormBuilderPage = () => {
     }
     setPublishModalOpen(true);
   }, [screens, showToast]);
+
+  const openSaveTemplateModal = useCallback(() => {
+    setSaveTemplateModal({ open: true, phase: 'form', savedName: '' });
+  }, []);
+
+  const closeSaveTemplateModal = useCallback(() => {
+    if (saveTemplateSaving) return;
+    setSaveTemplateModal({ open: false, phase: 'form', savedName: '' });
+  }, [saveTemplateSaving]);
+
+  useEffect(() => {
+    setTemplateSaveStatus('idle');
+  }, [activeFormId]);
+
+  useEffect(() => {
+    if (templateSaveStatus !== 'saved') return undefined;
+    const t = setTimeout(() => setTemplateSaveStatus('idle'), 4000);
+    return () => clearTimeout(t);
+  }, [templateSaveStatus]);
+
+  const handleSaveAsTemplate = useCallback(
+    async ({ name, description }) => {
+      const snapshot = buildCurrentPublishSnapshot();
+      if (!snapshot) {
+        showToast({ type: 'error', message: 'Add at least one screen before saving as a template.' });
+        return;
+      }
+      setSaveTemplateSaving(true);
+      try {
+        saveUserTemplate(userEmail, {
+          title: name,
+          description,
+          sourceFormId: activeFormId,
+          snapshot,
+        });
+        setTemplateSaveStatus('saved');
+        setSaveTemplateModal({ open: true, phase: 'success', savedName: name });
+      } catch {
+        showToast({ type: 'error', message: 'Could not save template. Please try again.' });
+      } finally {
+        setSaveTemplateSaving(false);
+      }
+    },
+    [activeFormId, buildCurrentPublishSnapshot, showToast, userEmail]
+  );
 
   const restoreFromBuilderBaseline = useCallback(() => {
     if (!builderBaselineRef.current) return;
@@ -6407,7 +6460,11 @@ const FormBuilderPage = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-white">
+    <motion.div
+      className="flex flex-col h-screen overflow-hidden bg-white origin-center"
+      animate={saveTemplateModal.open ? dashboardPushBackActive : dashboardPushBackIdle}
+      transition={premiumTransition}
+    >
       {/* ── Topbar ── */}
       {!isPreview && (
       <header className="h-[48px] shrink-0 bg-white border-b border-[#e4e2dc] flex items-center px-6 z-10 gap-4">
@@ -6424,7 +6481,7 @@ const FormBuilderPage = () => {
         <div
           className={`flex items-center gap-3 shrink-0${showOnboardingStepper ? '' : ' ml-auto'}`}
         >
-          {isApiConfigured() && activeFormId && builderSaveStatus !== 'idle' ? (
+          {(isApiConfigured() && activeFormId && builderSaveStatus !== 'idle') ? (
             <span className="text-[11px] font-medium text-[#6b6b68] whitespace-nowrap" aria-live="polite">
               {builderSaveStatus === 'saving' && 'Saving…'}
               {builderSaveStatus === 'saved' && 'All changes saved'}
@@ -6823,45 +6880,72 @@ const FormBuilderPage = () => {
             </div>
 
             <div className="flex items-center gap-2 shrink-0 ml-2">
-              <div
-                className={`flex items-center gap-[6px] h-[25px] max-w-[min(280px,32vw)] px-3 border rounded-[6px] bg-white ${
-                  isEditingFormTitle
-                    ? 'border-[#17160e] ring-1 ring-[#17160e]/10'
-                    : 'border-[rgba(0,0,0,0.1)]'
-                }`}
-              >
+              <div className="flex items-center gap-[6px] h-[25px] max-w-[min(300px,36vw)] min-w-0">
                 <WorkspaceFolderIcon color={formAccentColor} open={isEditingFormTitle} size={14} />
 
-                {isEditingFormTitle ? (
-                  <input
-                    ref={formTitleInputRef}
-                    type="text"
-                    value={draftFormTitle}
-                    onChange={(e) => setDraftFormTitle(e.target.value)}
-                    onBlur={commitFormTitleEdit}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        commitFormTitleEdit();
-                      } else if (e.key === 'Escape') {
-                        e.preventDefault();
-                        cancelFormTitleEdit();
-                      }
-                    }}
-                    className="min-w-0 flex-1 text-[12.5px] font-medium text-[#17160e] bg-transparent border-0 outline-none p-0"
-                    aria-label="Form name"
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={startFormTitleEdit}
-                    className="min-w-0 flex-1 text-left text-[12.5px] font-medium text-[#17160e] truncate cursor-text hover:text-[#000000] focus:outline-none focus-visible:underline"
-                    title="Click to rename form"
-                  >
-                    {publishFormTitle}
-                  </button>
-                )}
+                <AnimatePresence mode="wait" initial={false}>
+                  {isEditingFormTitle ? (
+                    <motion.input
+                      key="form-title-edit"
+                      ref={formTitleInputRef}
+                      type="text"
+                      value={draftFormTitle}
+                      onChange={(e) => setDraftFormTitle(e.target.value)}
+                      onBlur={commitFormTitleEdit}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          commitFormTitleEdit();
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault();
+                          cancelFormTitleEdit();
+                        }
+                      }}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.12, ease: 'easeOut' }}
+                      className="min-w-0 w-[min(240px,30vw)] text-[12.5px] font-medium text-[#17160e] bg-transparent border-0 outline-none p-0 border-b border-[#17160e]/30 focus:border-[#17160e]"
+                      aria-label="Form name"
+                    />
+                  ) : (
+                    <motion.button
+                      key="form-title-display"
+                      type="button"
+                      onClick={startFormTitleEdit}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.12, ease: 'easeOut' }}
+                      className="min-w-0 max-w-[min(240px,30vw)] rounded-[4px] px-1 -mx-1 text-left cursor-text focus:outline-none transition-[background-color,box-shadow] hover:bg-[rgba(0,0,0,0.03)] hover:shadow-[inset_0_-1px_0_0_rgba(0,0,0,0.12)]"
+                      title="Click to rename form"
+                    >
+                      <span className="block truncate text-[12.5px] font-medium text-[#17160e]">
+                        {publishFormTitle}
+                      </span>
+                    </motion.button>
+                  )}
+                </AnimatePresence>
               </div>
+
+              <span className="h-3 w-px bg-[rgba(0,0,0,0.08)] shrink-0" aria-hidden />
+
+              <button
+                type="button"
+                onClick={openSaveTemplateModal}
+                title="Save as template"
+                aria-label="Save as template"
+                className={`flex items-center gap-1.5 h-7 pl-2 pr-2.5 rounded-[6px] transition-colors cursor-pointer shrink-0 ${
+                  templateSaveStatus === 'saved'
+                    ? 'text-[#1a6b3c] bg-[#e8f8ef] hover:bg-[#dcf5e6]'
+                    : 'text-[#6b6b68] hover:text-[#1a1a1a] hover:bg-[rgba(0,0,0,0.04)]'
+                }`}
+              >
+                <RiBookmarkLine size={14} aria-hidden className="shrink-0" />
+                <span className="text-[11.5px] font-medium whitespace-nowrap">
+                  {templateSaveStatus === 'saved' ? 'Saved' : 'Save template'}
+                </span>
+              </button>
             </div>
           </div>
           )}
@@ -8309,6 +8393,19 @@ const FormBuilderPage = () => {
         onConfirm={handlePublishForm}
       />
 
+      <SaveAsTemplateModal
+        open={saveTemplateModal.open}
+        phase={saveTemplateModal.phase}
+        defaultName={publishFormTitle}
+        savedName={saveTemplateModal.savedName}
+        saving={saveTemplateSaving}
+        onClose={closeSaveTemplateModal}
+        onSave={handleSaveAsTemplate}
+        onExitComplete={() => {
+          setSaveTemplateModal({ open: false, phase: 'form', savedName: '' });
+        }}
+      />
+
       <UpgradeGateModal
         open={Boolean(aiLogicUpgradeGate)}
         onClose={() => setAiLogicUpgradeGate(null)}
@@ -8319,7 +8416,7 @@ const FormBuilderPage = () => {
         }
         quota={aiLogicUpgradeGate?.quota}
       />
-    </div>
+    </motion.div>
   );
 };
 

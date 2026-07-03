@@ -72,7 +72,10 @@ const Toast = ({ id, type = 'info', message, duration = 3000, action }) => {
       initial={{ opacity: 0, y: 16, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 16, scale: 0.96 }}
-      transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+      transition={{
+        duration: 0.2,
+        ease: [0.25, 0.1, 0.25, 1],
+      }}
       role="alert"
       className="flex items-center gap-3 h-[48px] pl-[11px] pr-[11px] rounded-[12px] min-w-[300px] max-w-[520px]"
       style={{ backgroundColor: v.bg, color: v.text, boxShadow: v.shadow }}

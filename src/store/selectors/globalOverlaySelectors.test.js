@@ -3,10 +3,13 @@ import { selectIsGlobalOverlayActive } from './globalOverlaySelectors';
 
 const closedUi = {
   createNewFormModal: { open: false },
+  templatePreviewModal: { open: false },
+  startWithTemplateModal: { open: false },
   createWorkspaceModal: { open: false },
   deleteModal: { open: false },
   duplicateModal: { open: false },
   archiveModal: { open: false },
+  assignFormWorkspaceModal: { open: false },
   pauseModal: { open: false },
   formOverlay: { open: false },
   shareModal: { open: false },
@@ -27,6 +30,8 @@ describe('selectIsGlobalOverlayActive', () => {
 
   it.each([
     ['createNewFormModal', { createNewFormModal: { open: true } }],
+    ['templatePreviewModal', { templatePreviewModal: { open: true } }],
+    ['startWithTemplateModal', { startWithTemplateModal: { open: true } }],
     ['createWorkspaceModal', { createWorkspaceModal: { open: true } }],
     ['deleteModal', { deleteModal: { open: true } }],
     ['duplicateModal', { duplicateModal: { open: true } }],

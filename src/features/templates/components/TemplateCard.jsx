@@ -1,9 +1,38 @@
-import { useState } from 'react';
+import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { getTemplateCardPreview } from '@/features/templates/utils/templateCardPreview';
 
-const TAG_SURFACES = {
-  light: 'bg-white',
-  muted: 'bg-[#f0efe9]',
+const TemplateCardPreview = ({ templateId, snapshot }) => {
+  const preview = useMemo(
+    () => getTemplateCardPreview(templateId, snapshot),
+    [templateId, snapshot]
+  );
+
+  return (
+    <div className="bg-white border border-[rgba(0,0,0,0.07)] rounded-[11px] overflow-hidden h-[151px] shrink-0">
+      <div className="flex flex-col gap-[5px] px-[31px] pt-[20px] pb-[18px]">
+        <p
+          className="text-[10px] font-semibold uppercase tracking-[0.78px] text-black leading-none"
+          style={{ fontFamily: "'DM Sans', sans-serif" }}
+        >
+          {preview.sectionLabel}
+        </p>
+        <p
+          className="text-[15px] font-semibold text-[#111] tracking-[-0.36px] leading-[21px] pt-0.5 line-clamp-2"
+          style={{ fontFamily: "'DM Sans', sans-serif" }}
+        >
+          {preview.title}
+        </p>
+        <p
+          className="text-[10px] font-light text-[#888] leading-[13px] pt-0.5 line-clamp-3"
+          style={{ fontFamily: "'DM Sans', sans-serif" }}
+        >
+          {preview.description}
+        </p>
+        <div className="h-px bg-[rgba(0,0,0,0.1)] mt-2 w-full" />
+      </div>
+    </div>
+  );
 };
 
 const TemplateCard = ({
@@ -15,10 +44,11 @@ const TemplateCard = ({
   selected = false,
   onSelect,
 }) => {
-  const [isHovered, setIsHovered] = useState(false);
-  const { Icon } = template;
-  const showActionRow = isHovered && !isLoading && !anyLoading;
-  const tagSurface = TAG_SURFACES[template.tagVariant] || TAG_SURFACES.light;
+  const tagSurface = 'bg-[#f0efe9]';
+  const formMeta = useMemo(
+    () => getTemplateCardPreview(template.id, template.snapshot).formMeta,
+    [template.id, template.snapshot]
+  );
 
   return (
     <motion.div
@@ -26,69 +56,60 @@ const TemplateCard = ({
       animate={{
         opacity: 1,
         y: 0,
-        borderColor: selected ? '#1a1a1a' : showActionRow ? '#d4d2cb' : '#e8e7e2',
+        borderColor: selected ? '#1a1a1a' : '#e8e7e2',
       }}
-      onHoverStart={() => setIsHovered(true)}
-      onHoverEnd={() => setIsHovered(false)}
       onClick={() => !isLoading && !anyLoading && onSelect?.(template)}
       transition={{ duration: 0.15 }}
-      className={`relative bg-[#edeae3] border rounded-[12px] p-[26px] flex flex-col ${
+      className={`relative bg-[#fbfaf8] border rounded-[12px] px-[19px] pt-[17px] pb-[19px] flex flex-col min-h-[402px] ${
         isLoading ? 'cursor-default' : 'cursor-pointer'
       } ${selected ? 'ring-2 ring-[#1a1a1a]/15' : ''}`}
     >
-      <div className="flex gap-4 items-start">
-        <div className="w-[48px] h-[48px] shrink-0 bg-[#f7f6f3] rounded-[8px] flex items-center justify-center">
-          <motion.div layout className="bg-[#f6f5f3] rounded-[8px] p-2 flex items-center justify-center">
-            <Icon size={16} className="text-[#6b6966]" />
-          </motion.div>
-        </div>
+      <div className="flex items-start justify-between gap-3 mb-[14px]">
+        <p className="text-[12px] font-normal text-[#656565] leading-[20px] whitespace-nowrap">
+          {formMeta}
+        </p>
+        <span
+          className={`inline-flex shrink-0 items-center rounded-[4px] px-3 py-[4px] text-[11px] font-medium text-[#656565] tracking-[0.5px] leading-[16.5px] uppercase whitespace-nowrap ${tagSurface}`}
+        >
+          {template.category}
+        </span>
+      </div>
 
-        <div className="flex flex-col flex-1 min-w-0">
-          <h3
-            className="text-[16px] font-bold text-[#111110] leading-[22.4px] tracking-[-0.1px] mb-2"
-            style={{ fontFamily: 'Arimo, sans-serif' }}
-          >
-            {template.title}
-          </h3>
-          <p className="text-[14px] font-normal text-[#656565] leading-[22.4px] mb-4">
-            {template.description}
-          </p>
-          <span
-            className={`inline-flex self-start items-center rounded-[4px] px-3 py-1 text-[11px] font-medium text-[#656565] tracking-[0.5px] leading-[16.5px] whitespace-nowrap ${tagSurface}`}
-          >
-            {template.category}
-          </span>
+      <TemplateCardPreview templateId={template.id} snapshot={template.snapshot} />
 
-          <AnimatePresence initial={false}>
-            {showActionRow && (
-              <motion.div
-                key="action-row"
-                initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                animate={{ opacity: 1, height: 36, marginTop: 16 }}
-                exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                transition={{ duration: 0.18 }}
-                className="overflow-hidden"
-              >
-                <div className="flex gap-2 h-9">
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onPreview?.(template); }}
-                    className="flex-1 h-9 bg-white border border-[#e5e3dc] rounded-lg text-[11px] font-medium text-[#1a1a1c] hover:bg-[#fafaf7] cursor-pointer"
-                  >
-                    Preview
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onUseTemplate?.(template); }}
-                    className="flex-1 h-9 bg-[#1a1a1c] text-white rounded-lg text-[11px] font-medium hover:bg-[#2c2c2e] cursor-pointer"
-                  >
-                    Use template
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+      <h3
+        className="mt-[15px] text-[16px] font-bold text-[#111110] leading-[22.4px] tracking-[-0.1px]"
+        style={{ fontFamily: 'Arimo, sans-serif' }}
+      >
+        {template.title}
+      </h3>
+      <p className="mt-[11px] text-[12.5px] font-normal text-[#656565] leading-[20px] flex-1">
+        {template.description}
+      </p>
+
+      <div className="mt-5 flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPreview?.(template);
+          }}
+          disabled={isLoading || anyLoading}
+          className="h-8 min-w-[88px] px-[13px] bg-white border border-[#e5e3dc] rounded-[6px] text-[13.5px] font-medium text-[#1a1a1c] hover:bg-[#fafaf7] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Preview
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onUseTemplate?.(template);
+          }}
+          disabled={isLoading || anyLoading}
+          className="h-8 min-w-[112px] px-[13px] bg-[#1a1a1c] border border-[#1a1a1c] rounded-[6px] text-[13.5px] font-medium text-white hover:bg-[#2c2c2e] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Use template
+        </button>
       </div>
 
       <AnimatePresence>

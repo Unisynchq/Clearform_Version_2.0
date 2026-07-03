@@ -43,7 +43,7 @@ const SkeletonCardCell = ({ Icon, borderRight, borderBottom }) => (
    only the template card grid shows shimmer placeholders with their icons.
    Matches Figma frame "Templates Loading" (1139:43910). */
 const TemplatesPartialSkeleton = () => (
-  <div className="bg-white min-h-full w-full">
+  <div className="flex min-h-full flex-1 w-full flex-col bg-white">
     <div className="max-w-[1200px] w-full px-[32px] py-[32px]">
 
       {/* Header */}

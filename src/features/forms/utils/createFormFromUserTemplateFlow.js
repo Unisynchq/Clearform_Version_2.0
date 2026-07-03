@@ -1,22 +1,17 @@
 import { isApiConfigured } from '@/config/env';
 import { createForm } from '@/api/services/formsService';
 import { addForm } from '@/store/slices/formsSlice';
-import { buildFormFromTemplate as buildTemplateScreens } from '@/features/templates/utils/buildFormFromTemplate';
 import { buildFormFromTemplate as buildFormMeta } from '@/features/onboarding/utils/createFormFromTemplate';
 import { navigateToFormBuilder } from '@/features/forms/utils/navigateToFormBuilder';
-
-/** @returns {string|undefined} API workspace id when a workspace is selected in the dashboard */
-export function resolveApiWorkspaceId(activeWorkspace) {
-  if (!activeWorkspace || activeWorkspace === 'all') return undefined;
-  return String(activeWorkspace);
-}
+import { findSavedTemplate } from '@/features/templates/utils/savedTemplatesStorage';
+import { resolveApiWorkspaceId } from '@/features/forms/utils/createFormFromTemplateFlow';
 
 /**
- * Create API/local form from catalog template and open the builder.
- * Assigns the active dashboard workspace when one is selected.
+ * Create a new form from a user-saved template snapshot and open the builder.
  */
-export async function createFormFromTemplateAndOpenBuilder({
+export async function createFormFromUserTemplateAndOpenBuilder({
   template,
+  userEmail,
   activeWorkspace,
   workspaceId: workspaceIdOverride,
   formTitle: formTitleOverride,
@@ -24,19 +19,22 @@ export async function createFormFromTemplateAndOpenBuilder({
   navigate,
   showToast,
 }) {
-  const built = buildTemplateScreens(template.id);
-  if (!built) {
-    showToast?.({ type: 'error', message: 'This template is not available yet.' });
+  const saved = template.isUserTemplate
+    ? findSavedTemplate(userEmail, template.id)
+    : null;
+
+  if (!saved?.snapshot) {
+    showToast?.({ type: 'error', message: 'This template is not available.' });
     return null;
   }
 
-  const title =
-    formTitleOverride?.trim() || built.formTitle || template.title || 'Untitled Form';
-  const meta = buildFormMeta({ id: template.id, title: template.title ?? title });
+  const title = formTitleOverride?.trim() || saved.title || template.title || 'Untitled Form';
   const workspaceId =
     workspaceIdOverride !== undefined
       ? workspaceIdOverride
       : resolveApiWorkspaceId(activeWorkspace);
+
+  const meta = buildFormMeta({ id: template.id, title: template.title ?? title });
   let formId = meta.id;
 
   if (isApiConfigured()) {
@@ -51,6 +49,14 @@ export async function createFormFromTemplateAndOpenBuilder({
     formId = created.id;
   }
 
+  const builderSnapshot = {
+    ...saved.snapshot,
+    formId,
+    formTitle: title,
+    templateId: template.id,
+    savedAt: Date.now(),
+  };
+
   dispatch(
     addForm({
       ...meta,
@@ -58,7 +64,9 @@ export async function createFormFromTemplateAndOpenBuilder({
       title,
       templateId: template.id,
       workspace: workspaceId ?? '',
-    }),
+      builderSnapshot,
+      isUserTemplate: true,
+    })
   );
 
   navigateToFormBuilder(
@@ -71,7 +79,7 @@ export async function createFormFromTemplateAndOpenBuilder({
       formId,
       workspaceId,
     },
-    { minDelayMs: 0 },
+    { minDelayMs: 0 }
   );
 
   return formId;

@@ -33,7 +33,7 @@ const CardCell = ({ titleRight, midRight, shortRight, tagWidth, borderRight, bor
 
 /* ── Full templates-page content skeleton ── */
 const TemplatesSkeleton = () => (
-  <div className="bg-white min-h-full w-full flex flex-col">
+  <div className="flex min-h-full flex-1 w-full flex-col bg-white">
 
     {/* Page title */}
     <div className="border-b border-[#e5e3dc] px-[32px] py-[20px] flex flex-col gap-[8px] shrink-0">

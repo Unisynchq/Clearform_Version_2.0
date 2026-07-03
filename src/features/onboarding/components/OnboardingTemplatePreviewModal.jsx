@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   RiCloseLine,
@@ -10,8 +11,16 @@ import {
   RiListCheck2,
 } from 'react-icons/ri';
 import { getTemplatePreviewBlocks } from '../utils/templatePreviewBlocks';
+import { getUserTemplatePreviewBlocks } from '@/features/templates/utils/userTemplatePreview';
+import {
+  createFormModalTransition,
+  modalEnter,
+  modalExit,
+  modalInitial,
+} from '@/constants/premiumTransition';
 
-const ease = [0.25, 0.1, 0.25, 1];
+const BACKDROP_KEY = 'template-preview-backdrop';
+const DIALOG_KEY = 'template-preview-dialog';
 
 const PreviewMetaTag = ({ icon: Icon, children }) => (
   <span className="inline-flex items-center gap-1.5 rounded-full border border-[#e4e2dc] bg-white px-2.5 py-1 text-[11px] text-[#3d3c38]">
@@ -26,7 +35,7 @@ const PreviewBlock = ({ block }) => {
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.18, ease }}
+        transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
         className="flex shrink-0 flex-col gap-2 rounded-[10px] border border-[#e8e7e2] bg-[#f7f6f4] p-4"
       >
         <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.5px] text-[#9c9a94]">
@@ -45,7 +54,7 @@ const PreviewBlock = ({ block }) => {
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.18, ease }}
+      transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
       className="flex shrink-0 flex-col gap-3 rounded-[10px] border border-[#e8e7e2] bg-white p-4"
     >
       <div className="flex items-center gap-2">
@@ -79,11 +88,14 @@ export default function OnboardingTemplatePreviewModal({
   template,
   onClose,
   onUseTemplate,
+  onExitComplete,
 }) {
-  const { blocks, meta } = useMemo(
-    () => getTemplatePreviewBlocks(template?.id),
-    [template?.id]
-  );
+  const { blocks, meta } = useMemo(() => {
+    if (template?.isUserTemplate && template.snapshot) {
+      return getUserTemplatePreviewBlocks(template.snapshot);
+    }
+    return getTemplatePreviewBlocks(template?.id);
+  }, [template?.id, template?.isUserTemplate, template?.snapshot]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -94,33 +106,36 @@ export default function OnboardingTemplatePreviewModal({
     };
   }, [open]);
 
-  if (!template) return null;
+  if (typeof document === 'undefined') return null;
 
-  return (
-    <AnimatePresence>
-      {open && (
+  return createPortal(
+    <AnimatePresence onExitComplete={onExitComplete}>
+      {open && template ? (
         <>
-          <motion.button
-            type="button"
-            aria-label="Close preview"
+          <motion.div
+            key={BACKDROP_KEY}
+            aria-hidden
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
+            transition={createFormModalTransition}
             onClick={onClose}
-            className="fixed inset-0 z-[300] cursor-default border-0 bg-black/30 backdrop-blur-[2px]"
+            className="fixed inset-0 z-[300] bg-black/20"
           />
 
-          <motion.div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="onboarding-preview-title"
-            initial={{ opacity: 0, scale: 0.96, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 12 }}
-            transition={{ duration: 0.22, ease }}
-            className="fixed top-1/2 left-1/2 z-[301] flex w-[min(100%,640px)] max-h-[min(88vh,760px)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[14px] border border-[#e4e2dc] bg-white shadow-[0_24px_60px_rgba(0,0,0,0.18)]"
-          >
+          <div className="fixed inset-0 z-[301] flex items-center justify-center p-4 pointer-events-none">
+            <motion.div
+              key={DIALOG_KEY}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="onboarding-preview-title"
+              initial={modalInitial}
+              animate={modalEnter}
+              exit={modalExit}
+              transition={createFormModalTransition}
+              style={{ transformOrigin: 'center center' }}
+              className="pointer-events-auto flex w-[min(100%,640px)] max-h-[min(88vh,760px)] flex-col overflow-hidden rounded-[14px] border border-[#e4e2dc] bg-white shadow-[0_24px_60px_rgba(0,0,0,0.18)]"
+            >
             <div className="relative shrink-0 border-b border-[#e8e7e2] p-6 pb-4">
               <button
                 type="button"
@@ -182,8 +197,10 @@ export default function OnboardingTemplatePreviewModal({
               </button>
             </div>
           </motion.div>
+          </div>
         </>
-      )}
-    </AnimatePresence>
+      ) : null}
+    </AnimatePresence>,
+    document.body,
   );
 }

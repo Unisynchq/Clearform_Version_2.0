@@ -25,6 +25,16 @@ import clearformLogoIcon from '@/assets/clearform-high-resolution-logo-transpare
 import SidebarSkeleton from './SidebarSkeleton';
 import { useBillingStatus } from '@/features/billing/utils/useBillingStatus';
 
+const SIDEBAR_NAV_BG = '#f7f7f8';
+const SIDEBAR_ITEM_ACTIVE_BG = '#eceae4';
+const SIDEBAR_ITEM_HOVER_BG = '#e5e3dc';
+const SIDEBAR_ITEM_IDLE_HOVER_BG = '#f0efeb';
+
+const navItemSurface = (active) => ({
+  animate: { backgroundColor: active ? SIDEBAR_ITEM_ACTIVE_BG : 'transparent' },
+  whileHover: { backgroundColor: active ? SIDEBAR_ITEM_HOVER_BG : SIDEBAR_ITEM_IDLE_HOVER_BG },
+});
+
 const getProfileDisplay = ({ firstName, lastName, email, displayName: savedName }) => {
   const saved = savedName?.trim();
   if (saved) return { displayName: saved, initials: saved.slice(0, 2).toUpperCase() };
@@ -47,10 +57,9 @@ const ProfileFooter = ({ expanded, active, displayName, initials, email, onClick
         type="button"
         title={displayName}
         onClick={onClick}
-        whileHover={{ backgroundColor: '#eceae4' }}
-        className={`flex w-full items-center justify-center rounded-[6px] px-2 py-[7px] transition-colors ${
-          active ? 'bg-[#eceae4]' : ''
-        }`}
+        whileHover={{ backgroundColor: active ? SIDEBAR_ITEM_HOVER_BG : SIDEBAR_ITEM_IDLE_HOVER_BG }}
+        animate={{ backgroundColor: active ? SIDEBAR_ITEM_ACTIVE_BG : 'transparent' }}
+        className="flex w-full items-center justify-center rounded-[6px] px-2 py-[7px] transition-colors"
       >
         <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#e5e3dc]">
           <span className="text-[10px] font-semibold text-[#1a1a1c]">{initials}</span>
@@ -63,10 +72,9 @@ const ProfileFooter = ({ expanded, active, displayName, initials, email, onClick
     <motion.button
       type="button"
       onClick={onClick}
-      whileHover={{ backgroundColor: active ? '#ebe8e0' : '#f4f3ef' }}
-      className={`mb-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors ${
-        active ? 'bg-[#f4f3ef]' : ''
-      }`}
+      whileHover={{ backgroundColor: active ? SIDEBAR_ITEM_HOVER_BG : SIDEBAR_ITEM_IDLE_HOVER_BG }}
+      animate={{ backgroundColor: active ? SIDEBAR_ITEM_ACTIVE_BG : 'transparent' }}
+      className="mb-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors"
       title={email}
     >
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#e5e3dc]">
@@ -88,11 +96,9 @@ const ProfileFooter = ({ expanded, active, displayName, initials, email, onClick
 
 const NavItem = ({ icon: Icon, label, badge, active, onClick }) => (
   <motion.button
-    whileHover={{ backgroundColor: '#f4f3ef' }}
+    {...navItemSurface(active)}
     onClick={onClick}
-    className={`w-full flex items-center justify-between px-4 py-2 rounded-lg cursor-pointer transition-colors ${
-      active ? 'bg-[#f4f3ef] shadow-[0_1px_3px_rgba(0,0,0,0.08)]' : ''
-    }`}
+    className="w-full flex items-center justify-between px-4 py-2 rounded-lg cursor-pointer transition-colors"
   >
     <div className="flex items-center gap-2">
       {Icon && <Icon size={16} className="text-[#6b6966] shrink-0" />}
@@ -117,13 +123,11 @@ const WorkspaceItem = ({ workspace, active, frozen, onClick, onContextMenu }) =>
   return (
   <motion.button
     whileHover={{ backgroundColor: active ? `${color}2E` : `${color}14` }}
-    style={active ? { backgroundColor: `${color}1F` } : undefined}
+    animate={{ backgroundColor: active ? `${color}1F` : 'transparent' }}
     onClick={onClick}
     onContextMenu={onContextMenu}
     title={frozen ? 'Over your plan’s workspace limit — existing forms keep working, upgrade to add new ones here.' : undefined}
-    className={`w-full flex items-center justify-between px-4 py-2 rounded-lg cursor-pointer transition-colors ${
-      active ? 'shadow-[0_1px_3px_rgba(0,0,0,0.08)]' : ''
-    }`}
+    className="w-full flex items-center justify-between px-4 py-2 rounded-lg cursor-pointer transition-colors"
   >
     <div className="flex items-center gap-2">
       <WorkspaceFolderIcon color={color} open={active} size={18} />
@@ -149,13 +153,14 @@ const WorkspaceItem = ({ workspace, active, frozen, onClick, onContextMenu }) =>
 
 const CollapsedIconBtn = ({ icon: Icon, active, onClick, title }) => (
   <motion.button
-    whileHover={{ backgroundColor: '#eceae4' }}
+    whileHover={{ backgroundColor: active ? SIDEBAR_ITEM_HOVER_BG : SIDEBAR_ITEM_IDLE_HOVER_BG }}
+    animate={{ backgroundColor: active ? SIDEBAR_ITEM_ACTIVE_BG : 'transparent' }}
     onClick={onClick}
     title={title}
     className="w-full flex items-center justify-center px-2 py-[7px] rounded-[6px] transition-colors"
   >
-    <div className={`p-[3px] rounded-[4px] transition-colors ${active ? 'bg-[#d8d8d8]' : ''}`}>
-      <Icon size={16} className="text-[#6b6966]" />
+    <div className="p-[3px] rounded-[4px]">
+      <Icon size={16} className={active ? 'text-[#1a1a1c]' : 'text-[#6b6966]'} />
     </div>
   </motion.button>
 );
@@ -361,7 +366,10 @@ const Sidebar = ({ hideLogo = false, exit }) => {
             )}
 
             {/* Nav items */}
-            <div className="flex-1 overflow-y-auto py-[13px] pl-2 pr-4 flex flex-col gap-0">
+            <div
+              className="flex-1 overflow-y-auto py-[13px] pl-2 pr-4 flex flex-col gap-0"
+              style={{ backgroundColor: SIDEBAR_NAV_BG }}
+            >
               {/* All Forms */}
               <NavItem
                 icon={RiLayoutGridLine}

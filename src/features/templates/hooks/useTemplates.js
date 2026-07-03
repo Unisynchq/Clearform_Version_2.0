@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useSelector } from 'react-redux';
 import { fetchTemplates } from '../api/templatesApi';
+import { readSavedTemplates } from '../utils/savedTemplatesStorage';
+import { toUserTemplateCatalogItem } from '../utils/userTemplateCatalog';
 import {
   MAX_RECENT_SEARCHES,
   RECENT_SEARCHES_STORAGE_KEY,
@@ -27,12 +30,38 @@ function writeRecentSearches(terms) {
  * @param {{ forceStatus?: 'empty' | 'error' | null }} options
  */
 export function useTemplates({ forceStatus = null } = {}) {
+  const userEmail = useSelector((s) => s.auth.email);
   const [status, setStatus] = useState('loading');
   const [templates, setTemplates] = useState([]);
+  const [userTemplates, setUserTemplates] = useState([]);
   const [recentSearches, setRecentSearches] = useState(readRecentSearches);
   const [retryCount, setRetryCount] = useState(0);
 
-  const reload = useCallback(() => setRetryCount((n) => n + 1), []);
+  const loadUserTemplates = useCallback(() => {
+    setUserTemplates(readSavedTemplates(userEmail).map(toUserTemplateCatalogItem));
+  }, [userEmail]);
+
+  const reload = useCallback(() => {
+    loadUserTemplates();
+    setRetryCount((n) => n + 1);
+  }, [loadUserTemplates]);
+
+  useEffect(() => {
+    loadUserTemplates();
+  }, [loadUserTemplates]);
+
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === 'clearform_saved_templates') loadUserTemplates();
+    };
+    const onUpdated = () => loadUserTemplates();
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('clearform:user-templates-updated', onUpdated);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('clearform:user-templates-updated', onUpdated);
+    };
+  }, [loadUserTemplates]);
 
   useEffect(() => {
     if (forceStatus === 'empty') {
@@ -79,9 +108,11 @@ export function useTemplates({ forceStatus = null } = {}) {
 
   return {
     templates,
+    userTemplates,
     status,
     recentSearches,
     saveRecentSearch,
     reload,
+    loadUserTemplates,
   };
 }
