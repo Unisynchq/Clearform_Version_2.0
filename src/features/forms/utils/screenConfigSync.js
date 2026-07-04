@@ -1,4 +1,7 @@
-import { normalizeResponseQualityOptions } from '@/features/forms/components/ResponseQualityScoringCard';
+import {
+  DEFAULT_RESPONSE_QUALITY_OPTIONS,
+  normalizeResponseQualityOptions,
+} from '@/features/forms/components/ResponseQualityScoringCard';
 
 /**
 
@@ -241,6 +244,253 @@ export function getScreenPreviewText(screen, fallbackMap = {}) {
 }
 
 
+
+const DEFAULT_ADDRESS_FIELDS_MAP = {
+  street: { visible: true, required: false },
+  city: { visible: true, required: false },
+  state: { visible: true, required: false },
+  postal: { visible: true, required: false },
+  country: { visible: true, required: false },
+};
+
+function cloneFieldMap(map) {
+  return Object.fromEntries(Object.entries(map).map(([key, value]) => [key, { ...value }]));
+}
+
+function freshResponseQualityOptions() {
+  return normalizeResponseQualityOptions(DEFAULT_RESPONSE_QUALITY_OPTIONS);
+}
+
+/** Factory defaults for a brand-new content screen — never reuse another screen's draft state. */
+export function getDefaultScreenConfig(label) {
+  switch (label) {
+    case 'Contact':
+      return {
+        contactQuestion: '',
+        contactHelperText: '',
+        contactFields: cloneFieldMap(DEFAULT_CONTACT_FIELDS_MAP),
+        contactRequired: false,
+      };
+    case 'Address':
+      return {
+        addressQuestion: '',
+        addressHelperText: '',
+        addressFields: cloneFieldMap(DEFAULT_ADDRESS_FIELDS_MAP),
+        addressRequired: false,
+      };
+    case 'Work Info':
+      return {
+        workQuestion: '',
+        workHelperText: '',
+        workFields: cloneFieldMap(DEFAULT_WORK_FIELDS_MAP),
+        workRequired: false,
+      };
+    case 'Short text':
+      return {
+        shortTextQuestion: '',
+        shortTextHelperText: '',
+        shortTextPlaceholder: 'Type your answer here…',
+        shortTextMaxChars: 100,
+        shortTextMinChars: 0,
+        shortTextValidation: 'None',
+        shortTextAlign: 'left',
+        shortTextSize: 'M',
+        shortTextRequired: false,
+        shortTextHidden: false,
+        shortTextResponseQualityEnabled: false,
+        shortTextResponseQualityOptions: freshResponseQualityOptions(),
+      };
+    case 'Long text':
+      return {
+        longTextQuestion: '',
+        longTextHelperText: '',
+        longTextPlaceholder: 'Type your answer here…',
+        longTextMaxChars: 500,
+        longTextMinChars: 0,
+        longTextValidation: 'None',
+        longTextAlign: 'left',
+        longTextSize: 'M',
+        longTextRequired: false,
+        longTextHidden: false,
+        longTextResponseQualityEnabled: false,
+        longTextResponseQualityOptions: freshResponseQualityOptions(),
+      };
+    case 'Single':
+      return {
+        singleQuestion: '',
+        singleHelperText: '',
+        singleOptions: ['Option A', 'Option B', 'Option C', 'Option D'],
+        singleLayout: 'list',
+        singleOptionHeight: 'M',
+        singleRequired: false,
+        singleAllowOther: false,
+        singleRandomize: false,
+        singleMultipleSelect: false,
+        singleMinChoices: 1,
+        singleMaxChoices: null,
+        singleShowKeyboardHints: false,
+      };
+    case 'Multiple':
+      return {
+        multipleQuestion: '',
+        multipleHelperText: '',
+        multipleOptions: ['Option A', 'Option B', 'Option C'],
+        multipleLayout: 'list',
+        multipleRequired: false,
+        multipleAllowOther: false,
+        multipleRandomize: false,
+        multipleMultipleSelect: true,
+        multipleMinChoices: 1,
+        multipleMaxChoices: null,
+        multipleShowKeyboardHints: false,
+        multipleOptionHeight: 'M',
+      };
+    case 'Heading':
+      return {
+        headingText: '',
+        subHeading: '',
+        headingRequired: false,
+        headingHidden: false,
+        headingLevel: 'H2',
+        headingTextSize: 'L',
+        headingAlignment: 'left',
+        headingFontWeight: '600',
+        headingAnswerText: '',
+      };
+    case 'Description':
+      return {
+        descriptionContent: '',
+        descriptionHidden: false,
+        descriptionShowCharCount: false,
+        descriptionCharLimit: 500,
+        descriptionFormatting: 'plain',
+        descriptionTextSize: 'M',
+        descriptionAlignment: 'left',
+      };
+    case 'CTA':
+      return {
+        ctaButtonLabel: 'Continue',
+        ctaHeadingText: '',
+        ctaHelperText: '',
+        ctaDurationText: '',
+        ctaButtonSize: 'M',
+        ctaButtonStyle: 'filled',
+        ctaCornerRadius: 8,
+        ctaShowIcon: false,
+        ctaImage: null,
+        ctaHeadingSize: 'L',
+        ctaBodySize: 'M',
+        ctaFontWeight: '600',
+        ctaTextAlign: 'left',
+        ctaPadding: 'M',
+        ctaTextColor: '#111111',
+        ctaBtnColor: '#111111',
+        ctaLabelColor: '#ffffff',
+        ctaContentWidth: 'M',
+      };
+    case 'Rating':
+      return {
+        ratingQuestion: '',
+        ratingRequired: false,
+        ratingUseScale: true,
+        ratingUseSlider: false,
+        ratingMaxRating: 5,
+        ratingStyle: 'stars',
+        ratingLowLabel: '',
+        ratingHighLabel: '',
+        ratingShowLabels: true,
+        ratingIconSize: 'M',
+      };
+    case 'Date':
+      return {
+        dateQuestion: '',
+        dateHelperText: '',
+        dateRequired: false,
+      };
+    case 'Time':
+      return {
+        timeQuestion: '',
+        timeHelperText: '',
+        timeRequired: false,
+        timeUse12h: true,
+        timeShowSeconds: false,
+        timeMinTime: '',
+        timeMaxTime: '',
+      };
+    case 'Images':
+      return {
+        imageQuestion: '',
+        imageDescription: '',
+        imageHidden: false,
+        imageAltText: '',
+        imageCaption: '',
+        imageLinkOnClick: false,
+        imageLinkUrl: '',
+        imageOpenInNewTab: true,
+        imageAlignment: 'center',
+        imageWidth: 'full',
+        imageCornerRadius: 8,
+        imagePreview: null,
+        imageFileName: '',
+      };
+    case 'Video':
+      return {
+        videoQuestion: '',
+        videoDescription: '',
+        videoRequired: false,
+        videoHidden: false,
+        videoLoop: false,
+        videoAutoplay: false,
+        videoShowControls: true,
+        videoSource: 'url',
+        videoUrl: '',
+        videoCaption: '',
+        videoWidth: 'full',
+        videoAspectRatio: '16:9',
+        videoCornerRadius: 8,
+      };
+    case 'Media':
+      return {
+        mediaQuestion: '',
+        mediaHelperText: '',
+        mediaOptions: [
+          { label: 'Option A', image: null },
+          { label: 'Option B', image: null },
+        ],
+        mediaAllowMultiple: false,
+        mediaRequired: false,
+        mediaRandomiseOrder: false,
+        mediaMinChoices: 1,
+        mediaMaxChoices: null,
+        mediaLayout: 'grid',
+        mediaOptionHeight: 'M',
+      };
+    case 'Captcha':
+      return {
+        captchaProvider: 'recaptcha',
+        captchaSiteKey: '',
+        captchaEnabled: true,
+        captchaVisibility: 'visible',
+      };
+    case 'Multi-image upload':
+      return {
+        question: '',
+        helperText: '',
+        maxFiles: 3,
+        required: false,
+        multipleFiles: true,
+        maxFileSize: 5,
+      };
+    case 'Upload':
+      return {
+        question: '',
+        helperText: '',
+        maxFileSize: 10,
+      };
+    default:
+      return null;
+  }
+}
 
 export function extractScreenConfig(screen, globals) {
 

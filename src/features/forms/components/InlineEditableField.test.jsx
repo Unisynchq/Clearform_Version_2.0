@@ -34,4 +34,23 @@ describe('InlineEditableField', () => {
     expect(onChange).toHaveBeenLastCalledWith('Original');
     expect(screen.getByRole('button', { name: /field/i })).toHaveTextContent('Original');
   });
+
+  it('keeps an empty field visible with placeholder after blur', () => {
+    const onChange = vi.fn();
+    render(
+      <InlineEditableField
+        value=""
+        onChange={onChange}
+        placeholder="Add question…"
+        aria-label="Question"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /question/i }));
+    const input = screen.getByLabelText('Question');
+    fireEvent.change(input, { target: { value: '' } });
+    fireEvent.blur(input);
+
+    expect(screen.getByRole('button', { name: /question/i })).toHaveTextContent('Add question…');
+  });
 });

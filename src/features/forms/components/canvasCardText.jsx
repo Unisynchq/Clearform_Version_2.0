@@ -33,6 +33,7 @@ export function CanvasQuestionText({
       disabled={isPreviewMode}
       className={base}
       style={{ fontSize, fontWeight, color: resolveTextColor(textColor, '#111') }}
+      placeholder="Add question…"
       suffix={suffix}
       aria-label="Question"
     />

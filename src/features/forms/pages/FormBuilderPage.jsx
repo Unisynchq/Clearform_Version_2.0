@@ -36,6 +36,7 @@ import {
   applyScreenConfig,
   extractScreenConfig,
   getBuilderScreenPreviewText,
+  getDefaultScreenConfig,
 } from '@/features/forms/utils/screenConfigSync';
 import {
   RiAddLine,
@@ -1759,6 +1760,7 @@ const FormBuilderPage = () => {
       type: 'content',
       section: sectionKey,
       label: itemLabel,
+      config: getDefaultScreenConfig(itemLabel),
     };
     setScreens((prev) => {
       const endIdx = prev.findIndex((s) => s.type === 'end');
@@ -3897,6 +3899,10 @@ const FormBuilderPage = () => {
     if (screen.config) {
       applyScreenConfig(screen, screen.config, screenConfigSetters);
     } else {
+      const defaults = getDefaultScreenConfig(screen.label);
+      if (defaults) {
+        applyScreenConfig(screen, defaults, screenConfigSetters);
+      }
       setShowIfConditions((prev) => (prev.length === 0 ? prev : []));
     }
     // Only re-load panel state when the active screen changes (not on every screens[] update).

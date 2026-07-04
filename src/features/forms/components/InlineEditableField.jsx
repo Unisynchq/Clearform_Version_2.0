@@ -81,8 +81,9 @@ export default function InlineEditableField({
   };
 
   const sharedClass = `${INPUT_RESET} ${className}`.trim();
-  const display = value?.length ? value : placeholder;
-  const showPlaceholderTone = !value?.length && placeholder;
+  const isEmpty = !value?.length;
+  const display = isEmpty ? placeholder || '\u00a0' : value;
+  const showPlaceholderTone = isEmpty && !!placeholder;
 
   if (!canEdit) {
     return (
@@ -131,7 +132,7 @@ export default function InlineEditableField({
           startEditing();
         }
       }}
-      className={`${className} ${HOVER_AFFORDANCE} ${showPlaceholderTone ? 'text-[#aaa]' : ''}`.trim()}
+      className={`${className} ${HOVER_AFFORDANCE} min-h-[1.3em] ${showPlaceholderTone ? 'text-[#aaa]' : ''}`.trim()}
       style={style}
       aria-label={ariaLabel ? `${ariaLabel}, click to edit` : 'Click to edit'}
     >
