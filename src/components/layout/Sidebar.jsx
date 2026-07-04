@@ -97,58 +97,64 @@ const ProfileFooter = ({ expanded, active, displayName, initials, email, onClick
 
 const NavItem = ({ icon: Icon, label, badge, active, onClick }) => (
   <motion.button
+    type="button"
     {...navItemSurface(active)}
     onClick={onClick}
-    className="w-full flex items-center justify-between px-4 py-2 rounded-lg cursor-pointer transition-colors"
+    className="flex w-full items-center gap-2 rounded-lg px-4 py-2 text-left transition-colors cursor-pointer"
   >
-    <div className="flex items-center gap-2">
-      {Icon && <Icon size={16} className="text-[#6b6966] shrink-0" />}
-      <span
-        className={`text-[13px] font-medium leading-[19.5px] ${
-          active ? 'text-[#1a1a1c]' : 'text-[#6b6966]'
-        }`}
-      >
-        {label}
-      </span>
-    </div>
-    {badge !== undefined && (
-      <span className="text-[12px] font-medium text-[#a8a6a0] leading-[18px]">
+    {Icon ? <Icon size={16} className="shrink-0 text-[#6b6966]" /> : null}
+    <span
+      className={`min-w-0 flex-1 truncate text-left text-[13px] font-medium leading-[19.5px] ${
+        active ? 'text-[#1a1a1c]' : 'text-[#6b6966]'
+      }`}
+    >
+      {label}
+    </span>
+    {badge !== undefined ? (
+      <span className="shrink-0 text-[12px] font-medium leading-[18px] text-[#a8a6a0] tabular-nums">
         {badge}
       </span>
-    )}
+    ) : null}
   </motion.button>
 );
 
 const WorkspaceItem = ({ workspace, active, frozen, onClick, onContextMenu }) => {
   const color = workspace.color || '#6b6966';
+  const showCount = typeof workspace.count === 'number' && workspace.count > 0;
+
   return (
-  <motion.button
-    whileHover={{ backgroundColor: active ? `${color}2E` : `${color}14` }}
-    animate={{ backgroundColor: active ? `${color}1F` : 'transparent' }}
-    onClick={onClick}
-    onContextMenu={onContextMenu}
-    title={frozen ? 'Over your plan’s workspace limit — existing forms keep working, upgrade to add new ones here.' : undefined}
-    className="w-full flex items-center justify-between px-4 py-2 rounded-lg cursor-pointer transition-colors"
-  >
-    <div className="flex items-center gap-2">
-      <WorkspaceFolderIcon color={color} open={active} size={18} />
-      <span className={`text-[13px] font-medium leading-[19.5px] ${
-        active ? 'text-[#1a1a1c]' : 'text-[#6b6966]'
-      }`}>
+    <motion.button
+      type="button"
+      whileHover={{ backgroundColor: active ? `${color}2E` : `${color}14` }}
+      animate={{ backgroundColor: active ? `${color}1F` : 'transparent' }}
+      onClick={onClick}
+      onContextMenu={onContextMenu}
+      title={
+        frozen
+          ? 'Over your plan’s workspace limit — existing forms keep working, upgrade to add new ones here.'
+          : undefined
+      }
+      className="flex w-full items-center gap-2 rounded-lg px-4 py-2 text-left transition-colors cursor-pointer"
+    >
+      <WorkspaceFolderIcon color={color} open={active} size={18} className="shrink-0" />
+      <span
+        className={`min-w-0 flex-1 truncate text-left text-[13px] font-medium leading-[19.5px] ${
+          active ? 'text-[#1a1a1c]' : 'text-[#6b6966]'
+        }`}
+      >
         {workspace.label}
       </span>
       {frozen ? (
-        <span className="rounded-full bg-[#f4ede2] px-[7px] py-[1px] text-[10px] font-semibold uppercase tracking-[0.4px] text-[#a3702a]">
+        <span className="shrink-0 rounded-full bg-[#f4ede2] px-[7px] py-[1px] text-[10px] font-semibold uppercase tracking-[0.4px] text-[#a3702a]">
           Limit
         </span>
       ) : null}
-    </div>
-    {typeof workspace.count === 'number' && workspace.count > 0 ? (
-      <span className="text-[12px] font-medium text-[#a8a6a0] leading-[18px]">
-        {workspace.count}
-      </span>
-    ) : null}
-  </motion.button>
+      {showCount ? (
+        <span className="shrink-0 text-[12px] font-medium leading-[18px] text-[#a8a6a0] tabular-nums">
+          {workspace.count}
+        </span>
+      ) : null}
+    </motion.button>
   );
 };
 
