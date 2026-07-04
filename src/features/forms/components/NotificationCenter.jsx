@@ -215,9 +215,7 @@ const NotificationCenter = () => {
     return notifications.filter((item) => item.category === activeTab);
   }, [activeTab, notifications]);
 
-  const { isClearing: isClearingAll, startClear, resolveDisplayList } = useAnimatedListClear({
-    onClear: () => dispatch(clearAllNotificationsThunk()),
-  });
+  const { isClearing: isClearingAll, startClear, resolveDisplayList } = useAnimatedListClear({});
 
   const displayNotifications = resolveDisplayList(filteredNotifications);
   const unreadCount = notifications.filter((item) => item.unread).length;
@@ -233,7 +231,8 @@ const NotificationCenter = () => {
   );
 
   const handleMarkAllRead = () => {
-    startClear(filteredNotifications);
+    if (!startClear(filteredNotifications)) return;
+    dispatch(clearAllNotificationsThunk());
   };
 
 

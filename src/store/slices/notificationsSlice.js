@@ -65,6 +65,21 @@ function persistNotifications(notifications) {
   }
 }
 
+/** Record current inbox items as dismissed so alert sync cannot immediately restore them. */
+function dismissAndClearInbox(state) {
+  if (!state.dismissedKeys) state.dismissedKeys = {};
+  for (const n of state.notifications) {
+    if (n.dedupeKey) state.dismissedKeys[n.dedupeKey] = true;
+    if (n.id != null) state.dismissedKeys[String(n.id)] = true;
+  }
+  state.notifications = [];
+  persistNotifications(state.notifications);
+}
+
+function isDismissedKey(state, key) {
+  return key != null && !!state.dismissedKeys?.[String(key)];
+}
+
 export const loadNotificationsFromApi = createAsyncThunk(
   'notifications/loadFromApi',
   async () => {
@@ -108,6 +123,7 @@ export const clearAllNotificationsThunk = createAsyncThunk(
 const initialState = {
   activeTab: 'all',
   notifications: isApiConfigured() ? [] : readNotifications(),
+  dismissedKeys: {},
 };
 
 const notificationsSlice = createSlice({
@@ -123,12 +139,10 @@ const notificationsSlice = createSlice({
     },
     /** Clears the inbox after UI exit animation (not individual mark-read). */
     clearAllNotifications(state) {
-      state.notifications = [];
-      persistNotifications(state.notifications);
+      dismissAndClearInbox(state);
     },
     markAllNotificationsRead(state) {
-      state.notifications = [];
-      persistNotifications(state.notifications);
+      dismissAndClearInbox(state);
     },
     addNotification(state, action) {
       const next = { unread: true, dateGroup: 'Today', timestamp: 'Just now', ...action.payload };
@@ -138,6 +152,7 @@ const notificationsSlice = createSlice({
     },
     upsertAlertNotification(state, action) {
       const { dedupeKey, notification, active } = action.payload;
+      if (active && isDismissedKey(state, dedupeKey)) return;
       const idx = state.notifications.findIndex((n) => n.dedupeKey === dedupeKey);
       if (!active) {
         if (idx >= 0) state.notifications.splice(idx, 1);
@@ -170,7 +185,7 @@ const notificationsSlice = createSlice({
       });
 
       items.forEach(({ dedupeKey, notification, active }) => {
-        if (!active || !notification) return;
+        if (!active || !notification || isDismissedKey(state, dedupeKey)) return;
         const idx = state.notifications.findIndex((n) => n.dedupeKey === dedupeKey);
         const item = {
           id: dedupeKey,
@@ -206,7 +221,7 @@ const notificationsSlice = createSlice({
       });
 
       items.forEach(({ dedupeKey, notification, active }) => {
-        if (!active || !notification) return;
+        if (!active || !notification || isDismissedKey(state, dedupeKey)) return;
         const idx = state.notifications.findIndex((n) => n.dedupeKey === dedupeKey);
         const item = {
           id: dedupeKey,
@@ -226,13 +241,18 @@ const notificationsSlice = createSlice({
   },
   extraReducers(builder) {
     builder
+      .addCase(clearAllNotificationsThunk.pending, (state) => {
+        dismissAndClearInbox(state);
+      })
       .addCase(loadNotificationsFromApi.fulfilled, (state, action) => {
-        const apiItems = action.payload;
+        const apiItems = action.payload.filter((n) => !isDismissedKey(state, n.id));
         const localOnly = state.notifications.filter(
           (n) => n.dedupeKey || isLocalNotificationId(n.id),
         );
         const apiIds = new Set(apiItems.map((n) => n.id));
-        const mergedLocal = localOnly.filter((n) => !apiIds.has(n.id));
+        const mergedLocal = localOnly.filter(
+          (n) => !apiIds.has(n.id) && !isDismissedKey(state, n.dedupeKey ?? n.id),
+        );
         state.notifications = [...apiItems, ...mergedLocal];
         persistNotifications(state.notifications);
       })
@@ -241,8 +261,7 @@ const notificationsSlice = createSlice({
         persistNotifications(state.notifications);
       })
       .addCase(clearAllNotificationsThunk.fulfilled, (state) => {
-        state.notifications = [];
-        persistNotifications(state.notifications);
+        dismissAndClearInbox(state);
       });
   },
 });
