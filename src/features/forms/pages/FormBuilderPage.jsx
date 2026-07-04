@@ -3648,7 +3648,13 @@ const FormBuilderPage = () => {
     formTouchedRef.current = false;
     setBuilderHydrated(false);
     setIsPublishView(location.state?.startInPublishView === true);
-  }, [activeFormId, location.key, location.state?.startInPublishView]);
+  }, [
+    activeFormId,
+    location.state?.templateId,
+    location.state?.formTitle,
+    location.state?.templateTitle,
+    location.state?.startInPublishView,
+  ]);
 
   useEffect(() => {
     activeScreenIdRef.current = activeScreenId;
@@ -3736,7 +3742,9 @@ const FormBuilderPage = () => {
         : persistedForm
           ? 'form'
           : 'pending';
-    const hydrationSessionKey = `${location.key}|${formId ?? 'new'}|${templateId ?? ''}|${hydrationSource}`;
+    const hydrationSessionKey = `${formId ?? 'new'}|${templateId ?? ''}|${
+      location.state?.formTitle ?? location.state?.templateTitle ?? ''
+    }|${hydrationSource}`;
 
     if (builderHydrationSessionRef.current === hydrationSessionKey) return;
     builderHydrationSessionRef.current = hydrationSessionKey;
@@ -3867,7 +3875,7 @@ const FormBuilderPage = () => {
     activeFormId,
     location.state?.templateId,
     location.state?.formTitle,
-    location.key,
+    location.state?.templateTitle,
     persistedForm,
     dispatch,
     applyBuiltFormState,

@@ -41,7 +41,7 @@ import { PiCaretCircleUp } from 'react-icons/pi';
 import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.png';
 import InlineEditableField from '@/features/forms/components/InlineEditableField';
 import { CanvasBadgeText, CanvasHelperText, CanvasOptionLabel, CanvasQuestionText } from '@/features/forms/components/canvasCardText';
-import { BoxesIcon, ImagesCardIcon, VideoCardIcon } from '@/features/forms/formBuilder/builderFieldIcons';
+import { ImagesCardIcon, VideoCardIcon } from '@/features/forms/formBuilder/builderFieldIcons';
 import ResponseQualityScoringCard, {
   DEFAULT_RESPONSE_QUALITY_OPTIONS,
 } from '@/features/forms/components/ResponseQualityScoringCard';
@@ -1612,8 +1612,8 @@ const ContentCardInner = ({
                 className="w-16 h-16 rounded-[12px] object-cover shrink-0"
               />
             ) : (
-              <div className="bg-[#111] w-9 h-9 rounded-[10px] flex items-center justify-center shrink-0">
-                <BoxesIcon size={18} className="text-white" />
+              <div className="w-16 h-16 rounded-[12px] bg-[#18181a] flex items-center justify-center shrink-0">
+                <RiAddLine size={24} className="text-white" />
               </div>
             )
           ) : (
@@ -1632,13 +1632,14 @@ const ContentCardInner = ({
                 className={`group relative shrink-0 overflow-hidden flex items-center justify-center cursor-pointer transition-colors ${
                   cc.ctaImage
                     ? 'w-16 h-16 rounded-[12px]'
-                    : 'w-9 h-9 rounded-[10px] bg-[#111] hover:bg-[#2c2c2c]'
+                    : 'w-16 h-16 rounded-[12px] bg-[#18181a] hover:bg-[#2c2c2c]'
                 }`}
+                style={cc.ctaImage ? { padding: 0 } : {}}
               >
                 {cc.ctaImage ? (
                   <img src={cc.ctaImage} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  <BoxesIcon size={18} className="text-white" />
+                  <RiAddLine size={24} className="text-white" />
                 )}
                 {cc.ctaImage && (
                   <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/35 transition-colors">

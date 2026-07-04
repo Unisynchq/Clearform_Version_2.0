@@ -5,7 +5,6 @@ import {
   RiInformationLine,
   RiArrowDownSLine,
   RiSparklingLine,
-  RiLoader4Line,
   RiPencilLine,
 } from 'react-icons/ri';
 import { useBillingStatus } from '@/features/billing/utils/useBillingStatus';
@@ -13,6 +12,10 @@ import { useBillingStatus } from '@/features/billing/utils/useBillingStatus';
 const MAX_CRITERIA = 2;
 const FONT = { fontFamily: "'DM Sans', sans-serif" };
 const SAVE_TRANSITION_MS = 450;
+const AI_IMPROVE_DELAY_MIN_MS = 1500;
+const AI_IMPROVE_DELAY_MAX_MS = 2000;
+const PREFERENCE_TRANSITION_MS = 250;
+const PREFERENCE_TEXTAREA_MIN_H = '132px';
 
 /** Max length for the owner's free-text AI guidance (keeps prompts fast). */
 export const AI_GUIDANCE_MAX_LENGTH = 600;
@@ -53,6 +56,39 @@ export function normalizeResponseQualityOptions(options) {
 
 const EXPERIENCE_FEEDBACK_Q =
   /\b(filling this form|using this form|this form|form builder|clearform|this survey|how is your|how was your|your experience|experien|feedback|improve)\b/i;
+
+/** Client-side polish until a dedicated improve API exists. */
+export function improvePreferenceInstructions(raw, { questionText = '' } = {}) {
+  let text = String(raw ?? '')
+    .trim()
+    .replace(/\s+/g, ' ');
+  if (!text) return '';
+
+  text = text.charAt(0).toUpperCase() + text.slice(1);
+  if (!/[.!?]$/.test(text)) text += '.';
+
+  const hasActionVerbs = /\b(focus|prioritize|expect|want|ensure|look for|score|rate|flag|nudge|emphasize|prefer|require)\b/i.test(
+    text,
+  );
+
+  if (!hasActionVerbs) {
+    const questionHint = questionText.trim() ? ' to this question' : '';
+    text = `I want responses${questionHint} that ${text.charAt(0).toLowerCase()}${text.slice(1)}`;
+  }
+
+  if (text.split(/\s+/).length < 12) {
+    text += ' Flag vague or off-topic answers and nudge respondents toward concrete, relevant detail.';
+  }
+
+  return text.slice(0, AI_GUIDANCE_MAX_LENGTH);
+}
+
+function randomImproveDelayMs() {
+  return (
+    AI_IMPROVE_DELAY_MIN_MS +
+    Math.floor(Math.random() * (AI_IMPROVE_DELAY_MAX_MS - AI_IMPROVE_DELAY_MIN_MS + 1))
+  );
+}
 
 /** True when question text looks like experience / form feedback (mirrors backend heuristics). */
 export function isExperienceFeedbackQuestion(questionText) {
@@ -220,7 +256,109 @@ function PreferenceFrame({ title, children, footer }) {
         {title}
       </p>
       {children}
-      <div className="mt-6 flex items-center justify-end gap-2">{footer}</div>
+      <div className="mt-6 flex min-h-7 items-center justify-end gap-2.5">{footer}</div>
+    </div>
+  );
+}
+
+function AnimatedEllipsis() {
+  return (
+    <span className="inline-flex w-[12px]" aria-hidden>
+      {[0, 1, 2].map((i) => (
+        <motion.span
+          key={i}
+          animate={{ opacity: [0.25, 1, 0.25] }}
+          transition={{ duration: 0.9, repeat: Infinity, ease: 'easeInOut', delay: i * 0.18 }}
+        >
+          .
+        </motion.span>
+      ))}
+    </span>
+  );
+}
+
+function InlineImproveWithAiAction({ disabled, onClick }) {
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 4 }}
+      transition={{ duration: PREFERENCE_TRANSITION_MS / 1000, ease: 'easeInOut' }}
+      className="pointer-events-auto inline-flex cursor-pointer items-center gap-1 rounded-[4px] border-0 bg-transparent px-1 py-0.5 text-[11.5px] font-medium text-[#6f6b63] transition-colors hover:text-[#111827] disabled:cursor-not-allowed disabled:opacity-50"
+      style={FONT}
+    >
+      <RiSparklingLine size={12} className="shrink-0 text-[#8a8880]" aria-hidden />
+      Improve with AI
+    </motion.button>
+  );
+}
+
+function InlineImprovingWithAiStatus() {
+  return (
+    <motion.div
+      role="status"
+      aria-live="polite"
+      aria-label="Improving with AI"
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 4 }}
+      transition={{ duration: PREFERENCE_TRANSITION_MS / 1000, ease: 'easeInOut' }}
+      className="inline-flex cursor-default items-center gap-1 px-1 py-0.5 text-[11.5px] font-medium text-[#6f6b63]"
+      style={FONT}
+    >
+      <motion.span
+        animate={{ opacity: [0.55, 1, 0.55], scale: [0.96, 1.04, 0.96] }}
+        transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+        className="inline-flex shrink-0"
+      >
+        <RiSparklingLine size={12} aria-hidden />
+      </motion.span>
+      Improving with AI
+      <AnimatedEllipsis />
+    </motion.div>
+  );
+}
+
+function PreferenceTextareaField({
+  value,
+  onChange,
+  onImproveClick,
+  improveState,
+  saveState,
+}) {
+  const isProcessing = improveState === 'improving';
+  const showInlineImprove = improveState === 'idle';
+
+  return (
+    <div className="relative w-full">
+      <textarea
+        value={value}
+        onChange={onChange}
+        placeholder="e.g. I want to focus more on specificity and relevance of the responses to this question."
+        rows={6}
+        disabled={isProcessing || saveState === 'saving'}
+        aria-busy={isProcessing}
+        className={`w-full resize-none rounded-[10px] border border-[rgba(140,138,132,0.24)] bg-[#fcfbf8] px-4 pb-9 pt-3 text-[12px] leading-[17px] text-[#000000] outline-none transition-all duration-[250ms] ease-in-out placeholder:text-[rgba(0,0,0,0.38)] disabled:cursor-default ${
+          isProcessing ? 'pointer-events-none blur-[2px] opacity-[0.95]' : 'blur-0 opacity-100'
+        }`}
+        style={{ ...FONT, minHeight: PREFERENCE_TEXTAREA_MIN_H, height: PREFERENCE_TEXTAREA_MIN_H }}
+      />
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-end px-3 pb-2.5">
+        <AnimatePresence initial={false}>
+          {showInlineImprove ? (
+            <InlineImproveWithAiAction
+              key="improve"
+              disabled={!value.trim() || saveState === 'saving'}
+              onClick={onImproveClick}
+            />
+          ) : null}
+          {isProcessing ? <InlineImprovingWithAiStatus key="improving" /> : null}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
@@ -456,8 +594,10 @@ export default function ResponseQualityScoringCard({
   const [draftInstructions, setDraftInstructions] = useState(options.customInstructions ?? '');
   const [isEditingPreference, setIsEditingPreference] = useState(!(options.customInstructions ?? '').trim());
   const [saveState, setSaveState] = useState('idle');
+  const [improveState, setImproveState] = useState('idle');
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const syncingPreferenceRef = useRef(false);
+  const improveRunRef = useRef(0);
   const activeCount = criterionEntries(options).filter(([, criterion]) => criterion.enabled).length;
   const showExperienceHint = isExperienceFeedbackQuestion(questionText);
   const brevityHelper = /\b(as much or as little|as little as)\b/i.test(helperText ?? '');
@@ -474,6 +614,7 @@ export default function ResponseQualityScoringCard({
     setDraftInstructions(savedInstructions);
     setIsEditingPreference(!savedInstructions.trim());
     setSaveState('idle');
+    setImproveState('idle');
   }, [options.customInstructions]);
 
   const updateCriterion = useCallback(
@@ -511,6 +652,7 @@ export default function ResponseQualityScoringCard({
     if (!enabled) {
       setIsEditingPreference(!(options.customInstructions ?? '').trim());
       setSaveState('idle');
+      setImproveState('idle');
     }
   }, [enabled, options.customInstructions]);
 
@@ -558,23 +700,64 @@ export default function ResponseQualityScoringCard({
     [onOptionsChange, onSave],
   );
 
+  const handleImproveClick = useCallback(async () => {
+    const input = draftInstructions.trim();
+    if (!input) return;
+
+    const runId = improveRunRef.current + 1;
+    improveRunRef.current = runId;
+    setImproveState('improving');
+
+    try {
+      const [improved] = await Promise.all([
+        Promise.resolve(improvePreferenceInstructions(input, { questionText })),
+        new Promise((resolve) => window.setTimeout(resolve, randomImproveDelayMs())),
+      ]);
+
+      if (improveRunRef.current !== runId) return;
+
+      setDraftInstructions(improved);
+      setImproveState('improved');
+    } catch {
+      if (improveRunRef.current === runId) {
+        setImproveState('idle');
+      }
+    }
+  }, [draftInstructions, questionText]);
+
   const handleSaveClick = useCallback(async () => {
+    if (saveState === 'saving' || improveState === 'improving' || !draftInstructions.trim()) return;
+
     const trimmed = await savePreference(draftInstructions);
     if (!trimmed) {
       setIsEditingPreference(true);
       setSaveState('idle');
+      setImproveState('idle');
       return;
     }
     setDraftInstructions(trimmed);
     setIsEditingPreference(false);
-  }, [draftInstructions, savePreference]);
+    setImproveState('idle');
+  }, [draftInstructions, improveState, savePreference, saveState]);
 
   const handleCancelClick = useCallback(() => {
+    improveRunRef.current += 1;
     const savedInstructions = options.customInstructions ?? '';
     setDraftInstructions(savedInstructions);
     setIsEditingPreference(!savedInstructions.trim());
     setSaveState('idle');
+    setImproveState('idle');
   }, [options.customInstructions]);
+
+  const handleDraftChange = useCallback(
+    (nextValue) => {
+      setDraftInstructions(nextValue.slice(0, AI_GUIDANCE_MAX_LENGTH));
+      if (improveState === 'improved') {
+        setImproveState('idle');
+      }
+    },
+    [improveState],
+  );
 
   const handleDeleteClick = useCallback(async () => {
     setDraftInstructions('');
@@ -585,6 +768,8 @@ export default function ResponseQualityScoringCard({
 
   const savedInstructions = (options.customInstructions ?? '').trim();
   const hasSavedPreference = savedInstructions.length > 0;
+  const showSavedPreferenceView =
+    !isEditingPreference && (hasSavedPreference || saveState === 'saved');
   const activeCriteria = criterionEntries(options)
     .filter(([, criterion]) => criterion.enabled)
     .map(([id]) => CRITERIA_META.find((meta) => meta.id === id)?.title)
@@ -637,7 +822,7 @@ export default function ResponseQualityScoringCard({
               </div>
 
               <AnimatePresence initial={false} mode="wait">
-                {isEditingPreference || !hasSavedPreference ? (
+                {!showSavedPreferenceView ? (
                   <motion.div
                     key="preference-edit"
                     initial={{ opacity: 0, y: 4 }}
@@ -655,34 +840,24 @@ export default function ResponseQualityScoringCard({
                           <PreferenceButton
                             variant="primary"
                             onClick={handleSaveClick}
-                            disabled={!draftInstructions.trim() || saveState === 'saving'}
-                            className={
-                              saveState === 'saving'
-                                ? 'min-w-[136px] animate-pulse bg-[#2a2a27]'
-                                : 'min-w-[136px]'
+                            disabled={
+                              !draftInstructions.trim() ||
+                              saveState === 'saving' ||
+                              improveState === 'improving'
                             }
-                            icon={
-                              saveState === 'saving' ? (
-                                <RiLoader4Line size={16} className="animate-spin" aria-hidden />
-                              ) : (
-                                <RiSparklingLine size={14} aria-hidden />
-                              )
-                            }
+                            className="min-w-[72px]"
                           >
-                            {saveState === 'saving' ? 'Improving...' : 'Improve with AI'}
+                            {saveState === 'saving' ? 'Saving...' : 'Save'}
                           </PreferenceButton>
                         </>
                       }
                     >
-                      <textarea
+                      <PreferenceTextareaField
                         value={draftInstructions}
-                        onChange={(e) =>
-                          setDraftInstructions(e.target.value.slice(0, AI_GUIDANCE_MAX_LENGTH))
-                        }
-                        placeholder="e.g. I want to focus more on specificity and relevance of the responses to this question."
-                        rows={6}
-                        className="w-full min-h-[132px] rounded-[10px] border border-[rgba(140,138,132,0.24)] bg-[#fcfbf8] px-4 py-3 text-[12px] leading-[17px] text-[#000000] outline-none transition-colors placeholder:text-[rgba(0,0,0,0.38)]"
-                        style={FONT}
+                        onChange={(e) => handleDraftChange(e.target.value)}
+                        onImproveClick={handleImproveClick}
+                        improveState={improveState}
+                        saveState={saveState}
                       />
                     </PreferenceFrame>
                   </motion.div>
@@ -703,6 +878,7 @@ export default function ResponseQualityScoringCard({
                             onClick={() => {
                               setDraftInstructions(savedInstructions);
                               setSaveState('idle');
+                              setImproveState('idle');
                               setIsEditingPreference(true);
                             }}
                             icon={<RiPencilLine size={12} aria-hidden />}

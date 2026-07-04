@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { describe, expect, it, vi, beforeAll } from 'vitest';
-import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import {
   AI_GUIDANCE_MAX_LENGTH,
   DEFAULT_RESPONSE_QUALITY_OPTIONS,
   default as ResponseQualityScoringCard,
+  improvePreferenceInstructions,
   normalizeResponseQualityOptions,
 } from './ResponseQualityScoringCard';
 
@@ -83,6 +84,16 @@ describe('normalizeResponseQualityOptions', () => {
   });
 });
 
+describe('improvePreferenceInstructions', () => {
+  it('polishes terse preference text into clearer guidance', () => {
+    const improved = improvePreferenceInstructions('specificity and relevance', {
+      questionText: 'What did you think?',
+    });
+    expect(improved).toMatch(/^I want responses/);
+    expect(improved).toContain('specificity and relevance');
+  });
+});
+
 describe('ResponseQualityScoringCard', () => {
   it('shows saved preference state and allows returning to edit mode', async () => {
     render(
@@ -106,7 +117,7 @@ describe('ResponseQualityScoringCard', () => {
     );
   });
 
-  it('keeps criteria inside advanced options and shows saving state before saved', async () => {
+  it('keeps criteria inside advanced options and runs improve then save flow', async () => {
     const onSave = vi.fn();
 
     render(React.createElement(CardHarness, { onSave }));
@@ -121,13 +132,24 @@ describe('ResponseQualityScoringCard', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Improve with AI' }));
 
-    expect(screen.getByRole('button', { name: 'Improving...' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Improving with AI' })).toBeInTheDocument();
+
+    await waitFor(
+      () => {
+        const saveButton = screen.getByRole('button', { name: 'Save' });
+        expect(saveButton).not.toBeDisabled();
+      },
+      { timeout: 3000 },
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(onSave).toHaveBeenCalledTimes(1);
 
-    await waitFor(() =>
-      expect(screen.getByText('Preference Saved!')).toBeInTheDocument(),
+    await waitFor(
+      () => expect(screen.getByText('Preference Saved!')).toBeInTheDocument(),
+      { timeout: 1000 },
     );
-  });
+  }, 10000);
 
   it('greys out expanded criterion details when the criterion is disabled', () => {
     render(React.createElement(CardHarness));
