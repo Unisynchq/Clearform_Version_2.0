@@ -47,6 +47,8 @@ export const API_ENDPOINTS = {
   },
   responseQuality: {
     evaluate: (formId) => `/forms/${formId}/response-quality/evaluate`,
+    improveInstructions: (formId) =>
+      `/forms/${formId}/response-quality/improve-instructions`,
     analytics: (formId) => `/analytics/forms/${formId}/response-quality`,
   },
   aiFeedback: {

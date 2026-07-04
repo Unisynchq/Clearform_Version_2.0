@@ -70,6 +70,7 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
   toggleSection,
   activeScreen,
   activeScreenId,
+  activeFormId,
   activeTab,
   activeThemeId,
   addressFields,
@@ -3448,6 +3449,9 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                       onSave={handleSaveShortTextResponseQuality}
                       questionText={shortTextQuestion}
                       helperText={shortTextHelperText}
+                      formId={activeFormId}
+                      fieldId="short-text"
+                      screenId={activeScreenId}
                     />
                   </div>
 
@@ -3588,6 +3592,9 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                       onSave={handleSaveLongTextResponseQuality}
                       questionText={longTextQuestion}
                       helperText={longTextHelperText}
+                      formId={activeFormId}
+                      fieldId="long-text"
+                      screenId={activeScreenId}
                     />
                   </div>
 

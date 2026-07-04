@@ -49,11 +49,18 @@ export async function fetchFormOverview(formId) {
   return apiClient(API_ENDPOINTS.analytics.overview(formId));
 }
 
-export async function fetchTopResponses(formId, { limit = 10, minScore = 75 } = {}) {
-  if (!isApiConfigured() || !formId) return [];
-  return apiClient(API_ENDPOINTS.analytics.topResponses(formId), {
+export async function fetchTopResponses(formId, { limit = 5, minScore = 75 } = {}) {
+  if (!isApiConfigured() || !formId) return { items: [], meta: {} };
+  const data = await apiClient(API_ENDPOINTS.analytics.topResponses(formId), {
     query: { limit, minScore },
   });
+  if (Array.isArray(data)) {
+    return { items: data, meta: { rankedBy: 'score' } };
+  }
+  return {
+    items: Array.isArray(data?.items) ? data.items : [],
+    meta: data?.meta ?? {},
+  };
 }
 
 /** Map B.13 overview API shape to FormOverlayModal fields. */

@@ -17,3 +17,20 @@ export async function evaluateResponseQualityApi(formId, body, { signal } = {}) 
     timeoutMs: 12_000,
   });
 }
+
+/** Owner-only — polish response-quality customInstructions draft. */
+export async function improveResponseQualityInstructionsApi(
+  formId,
+  body,
+  { signal } = {},
+) {
+  if (!isApiConfigured() || formId == null) {
+    return null;
+  }
+  return apiClient(API_ENDPOINTS.responseQuality.improveInstructions(formId), {
+    method: 'POST',
+    body,
+    signal,
+    timeoutMs: 15_000,
+  });
+}

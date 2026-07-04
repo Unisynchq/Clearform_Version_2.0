@@ -141,8 +141,8 @@ const AnalyticsBestResponsesPanel = ({ form, responseCount = 0 }) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchTopResponses(formId, { limit: 10, minScore: 75 });
-      setResponses(Array.isArray(data) ? data : []);
+      const data = await fetchTopResponses(formId, { limit: 5, minScore: 75 });
+      setResponses(Array.isArray(data?.items) ? data.items : []);
     } catch (err) {
       setError(err?.message ?? 'Failed to load top responses.');
     } finally {

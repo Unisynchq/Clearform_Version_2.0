@@ -8,6 +8,8 @@ import {
   RiPencilLine,
 } from 'react-icons/ri';
 import { useBillingStatus } from '@/features/billing/utils/useBillingStatus';
+import { improveResponseQualityInstructionsApi } from '@/api/services/responseQualityService';
+import { isApiConfigured } from '@/config/env';
 
 const MAX_CRITERIA = 2;
 const FONT = { fontFamily: "'DM Sans', sans-serif" };
@@ -590,6 +592,9 @@ export default function ResponseQualityScoringCard({
   onSave,
   questionText = '',
   helperText = '',
+  formId = null,
+  fieldId = 'short-text',
+  screenId = null,
 }) {
   const [draftInstructions, setDraftInstructions] = useState(options.customInstructions ?? '');
   const [isEditingPreference, setIsEditingPreference] = useState(!(options.customInstructions ?? '').trim());
@@ -709,10 +714,26 @@ export default function ResponseQualityScoringCard({
     setImproveState('improving');
 
     try {
-      const [improved] = await Promise.all([
-        Promise.resolve(improvePreferenceInstructions(input, { questionText })),
-        new Promise((resolve) => window.setTimeout(resolve, randomImproveDelayMs())),
-      ]);
+      let improved = null;
+      if (isApiConfigured() && formId != null) {
+        const apiResult = await improveResponseQualityInstructionsApi(formId, {
+          screenId: screenId != null ? String(screenId) : undefined,
+          fieldId,
+          questionText,
+          helperText,
+          draftInstructions: input,
+        });
+        improved = apiResult?.customInstructions ?? null;
+      }
+      if (!improved) {
+        const [localImproved] = await Promise.all([
+          Promise.resolve(improvePreferenceInstructions(input, { questionText })),
+          new Promise((resolve) => window.setTimeout(resolve, randomImproveDelayMs())),
+        ]);
+        improved = localImproved;
+      } else {
+        await new Promise((resolve) => window.setTimeout(resolve, randomImproveDelayMs()));
+      }
 
       if (improveRunRef.current !== runId) return;
 
@@ -723,7 +744,7 @@ export default function ResponseQualityScoringCard({
         setImproveState('idle');
       }
     }
-  }, [draftInstructions, questionText]);
+  }, [draftInstructions, questionText, formId, fieldId, screenId, helperText]);
 
   const handleSaveClick = useCallback(async () => {
     if (saveState === 'saving' || improveState === 'improving' || !draftInstructions.trim()) return;

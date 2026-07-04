@@ -44,6 +44,10 @@ function buildEvaluatePayload({
   const completeness = options?.completeness ?? {};
   const topicKeywords = relevance.keywords ?? relevance.topicKeywords ?? '';
   const keywordThreshold = relevance.matchThreshold ?? relevance.keywordThreshold ?? 1;
+  const customInstructions =
+    typeof options?.customInstructions === 'string'
+      ? options.customInstructions.trim()
+      : '';
 
   return {
     screenId: screenId != null ? String(screenId) : undefined,
@@ -54,7 +58,9 @@ function buildEvaluatePayload({
     helperText: helperText ?? '',
     answerText,
     conversationHistory: conversationHistory ?? [],
+    customInstructions: customInstructions || undefined,
     options: {
+      customInstructions,
       minWords: length.minWords,
       sensitivity: specificity.sensitivity,
       vagueWords: specificity.vagueWords,

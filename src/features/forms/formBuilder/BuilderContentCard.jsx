@@ -3507,7 +3507,7 @@ const ContentCardInner = ({
         open={qualityUpgradeOpen}
         onClose={() => setQualityUpgradeOpen(false)}
         title="Preview AI coaching in the builder"
-        reason="Pilot lets you test response-quality feedback in preview before you publish. Your live form already coaches respondents on the free tier."
+        reason="Live AI coaching runs in preview for every plan. Free accounts use free-tier limits; Pilot accounts get higher limits and richer feedback."
       />
     </>
   );

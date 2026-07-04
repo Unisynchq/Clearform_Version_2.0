@@ -88,7 +88,6 @@ import {
 import { PiCaretCircleUp } from 'react-icons/pi';
 
 import ContentCard, { PreviewCardStepNav } from '@/features/forms/formBuilder/BuilderContentCard';
-import { useBillingStatus } from '@/features/billing/utils/useBillingStatus';
 import { introInnerPadClass } from '@/features/forms/utils/respondentLayout';
 import { getCardShellSurface } from '@/features/forms/utils/respondentThemeStyles';
 import {
@@ -1236,8 +1235,7 @@ const FormBuilderPage = () => {
 
   const [deviceView, setDeviceView] = useState('desktop');
   const [isPreview, setIsPreview] = useState(false);
-  const { aiTier } = useBillingStatus();
-  const responseQualityEvaluateLive = aiTier === 'pro';
+  const responseQualityEvaluateLive = isApiConfigured();
   const [isPublishView, setIsPublishView] = useState(false);
   const [publishedPublicUrl, setPublishedPublicUrl] = useState(null);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
@@ -5843,6 +5841,7 @@ const FormBuilderPage = () => {
     toggleSection,
     activeScreen,
     activeScreenId,
+    activeFormId,
     activeTab,
     activeThemeId,
     addressFields,
