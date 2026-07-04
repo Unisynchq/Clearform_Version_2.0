@@ -15,8 +15,7 @@ import { RiAddLine, RiLayoutGridLine } from 'react-icons/ri';
 import {
   selectFilteredForms,
   setLoading,
-  setActiveFilter,
-  setActiveWorkspace,
+  clearAllFormFilters,
 } from '@/store/slices/formsSlice';
 import FilterTabs from '../components/FilterTabs';
 import WorkspaceChips from '../components/WorkspaceChips';
@@ -126,14 +125,17 @@ const AllFormsPage = () => {
     searchQuery,
     forms: allForms,
     workspaces,
+    advancedFilters,
   } = useSelector((s) => s.forms);
 
   const compareModeActive = useSelector((s) => s.ui.compareMode.active);
 
   const hasActiveFilters =
-    activeFilter !== 'all' || activeWorkspace !== 'all' || searchQuery !== '';
-
-  /* New workspace = a workspace is selected but has no forms at all */
+    activeFilter !== 'all' ||
+    activeWorkspace !== 'all' ||
+    searchQuery !== '' ||
+    advancedFilters.status.length > 0 ||
+    advancedFilters.responses.length > 0;
   const selectedWorkspaceForms = allForms.filter((f) => {
     if (activeWorkspace === 'all') return true;
     const fw = f.workspace == null || f.workspace === '' ? '' : String(f.workspace);
@@ -173,8 +175,7 @@ const AllFormsPage = () => {
   }, [allForms, isLoading, showToast]);
 
   const handleClearFilters = () => {
-    dispatch(setActiveFilter('all'));
-    dispatch(setActiveWorkspace('all'));
+    dispatch(clearAllFormFilters());
   };
 
   /* Workspace name for new-workspace empty state — derived from Redux */

@@ -2,10 +2,9 @@
 export const MAX_COMPARE_FORMS = 2;
 
 export const FILTER_TABS = [
-  { id: 'all', label: 'All' },
+  { id: 'all', label: 'All forms' },
   { id: 'live', label: 'Live' },
   { id: 'draft', label: 'Drafts' },
-  { id: 'shared', label: 'Shared with you' },
   { id: 'archived', label: 'Archived' },
 ];
 

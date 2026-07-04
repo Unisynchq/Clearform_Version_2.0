@@ -164,6 +164,13 @@ const formsSlice = createSlice({
     clearAdvancedFilters(state) {
       state.advancedFilters = { status: [], responses: [] };
     },
+    /** Reset dashboard list filters (status tab, workspace, search, advanced filters). */
+    clearAllFormFilters(state) {
+      state.activeFilter = 'all';
+      state.activeWorkspace = 'all';
+      state.searchQuery = '';
+      state.advancedFilters = { status: [], responses: [] };
+    },
     setForms(state, action) {
       state.forms = normalizeApiForms(action.payload);
       applyWorkspaceCounts(state);
@@ -216,6 +223,7 @@ export const {
   unarchiveForm,
   setAdvancedFilters,
   clearAdvancedFilters,
+  clearAllFormFilters,
   resetFormsForOnboarding,
 } = formsSlice.actions;
 

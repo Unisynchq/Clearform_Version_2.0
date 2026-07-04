@@ -18,7 +18,14 @@ const CheckIcon = () => (
   </svg>
 );
 
-import { setActiveFilter, setViewMode, setSortOrder, setAdvancedFilters, clearAdvancedFilters } from '@/store/slices/formsSlice';
+import {
+  setActiveFilter,
+  setViewMode,
+  setSortOrder,
+  setAdvancedFilters,
+  clearAdvancedFilters,
+  clearAllFormFilters,
+} from '@/store/slices/formsSlice';
 import { openWorkspaceContextMenu } from '@/store/slices/uiSlice';
 import { FILTER_TABS } from '@/constants';
 
@@ -113,6 +120,17 @@ const FilterTabs = () => {
     setPendingStatus([]);
     setPendingResponses([]);
     dispatch(clearAdvancedFilters());
+    setFilterOpen(false);
+  };
+
+  const handleTabClick = (tabId) => {
+    if (tabId === 'all') {
+      dispatch(clearAllFormFilters());
+      setPendingStatus([]);
+      setPendingResponses([]);
+      return;
+    }
+    dispatch(setActiveFilter(tabId));
   };
 
   const pendingFilterCount = pendingStatus.length + pendingResponses.length;
@@ -196,7 +214,7 @@ const FilterTabs = () => {
           return (
             <button
               key={tab.id}
-              onClick={() => dispatch(setActiveFilter(tab.id))}
+              onClick={() => handleTabClick(tab.id)}
               className={`px-4 py-3 text-[13px] font-medium leading-[19.5px] border-b-2 whitespace-nowrap transition-colors cursor-pointer ${
                 isActive
                   ? 'text-[#1a1a1c] border-[#1a1a1c]'

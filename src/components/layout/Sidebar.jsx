@@ -15,6 +15,7 @@ import {
   setActiveWorkspace,
   selectNavWorkspaces,
   selectTotalFormCount,
+  clearAllFormFilters,
 } from '@/store/slices/formsSlice';
 import { logout } from '@/store/slices/authSlice';
 import { signOutUser } from '@/features/auth/services/firebaseAuthService';
@@ -299,8 +300,8 @@ const Sidebar = ({ hideLogo = false, exit }) => {
                   active={isDashboardActive && activeWorkspace === 'all'}
                   title="All forms"
                   onClick={() => {
+                    dispatch(clearAllFormFilters());
                     navigate('/dashboard');
-                    dispatch(setActiveWorkspace('all'));
                   }}
                 />
 
@@ -379,8 +380,8 @@ const Sidebar = ({ hideLogo = false, exit }) => {
                 }
                 active={isDashboardActive && activeWorkspace === 'all'}
                 onClick={() => {
+                  dispatch(clearAllFormFilters());
                   navigate('/dashboard');
-                  dispatch(setActiveWorkspace('all'));
                 }}
               />
 

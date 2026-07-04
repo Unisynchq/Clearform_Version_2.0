@@ -13,7 +13,7 @@ import {
   RiLink,
   RiSearchLine,
 } from 'react-icons/ri';
-import { selectNavWorkspaces } from '@/store/slices/formsSlice';
+import { selectNavWorkspaces, clearAllFormFilters } from '@/store/slices/formsSlice';
 import { openFormOverlay, openCreateNewFormModal } from '@/store/slices/uiSlice';
 import { readRecentSearches, saveRecentSearch } from '@/utils/searchRecentStorage';
 import { useToast } from '@/hooks/useToast';
@@ -301,10 +301,13 @@ const SearchDropdown = ({ open, query, anchorRef, onClose, onQueryChange, onCrea
 
   const handleNavigate = useCallback(
     (path) => {
+      if (path === '/dashboard') {
+        dispatch(clearAllFormFilters());
+      }
       onClose();
       navigate(path);
     },
-    [navigate, onClose]
+    [dispatch, navigate, onClose]
   );
 
   const handleFormClick = useCallback(

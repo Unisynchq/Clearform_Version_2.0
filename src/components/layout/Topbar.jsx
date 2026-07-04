@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { RiNotification3Line } from 'react-icons/ri';
 import {
   openCreateNewFormModal,
   toggleNotificationCenter,
 } from '@/store/slices/uiSlice';
+import { setSearchQuery } from '@/store/slices/formsSlice';
 import SearchDropdown from './SearchPalette';
 
 const shimmer = 'relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_1.5s_infinite] before:bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.6),transparent)]';
@@ -27,13 +29,26 @@ const TITLE_CLASS = {
 
 const Topbar = ({ title = 'All forms', titleSize = 'default', useFormsLoading = true }) => {
   const dispatch = useDispatch();
+  const location = useLocation();
+  const isFormsDashboard = location.pathname === '/dashboard';
+  const formsSearchQuery = useSelector((s) => s.forms.searchQuery);
   const formsLoading = useSelector((s) => s.forms.isLoading);
   const isLoading = useFormsLoading ? formsLoading : false;
   const unreadCount = useSelector((s) => s.notifications.notifications.filter((item) => item.unread).length);
   const [isOpen, setIsOpen] = useState(false);
-  const [query, setQuery] = useState('');
+  const [paletteQuery, setPaletteQuery] = useState('');
   const containerRef = useRef(null);
   const inputRef = useRef(null);
+
+  const query = isFormsDashboard ? formsSearchQuery : paletteQuery;
+
+  const setQuery = (value) => {
+    if (isFormsDashboard) {
+      dispatch(setSearchQuery(value));
+    } else {
+      setPaletteQuery(value);
+    }
+  };
 
   const open = () => setIsOpen(true);
 

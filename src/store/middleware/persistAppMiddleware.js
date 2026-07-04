@@ -29,6 +29,7 @@ const UI_ACTIONS = new Set([
   'forms/setSortOrder',
   'forms/setAdvancedFilters',
   'forms/clearAdvancedFilters',
+  'forms/clearAllFormFilters',
 ]);
 
 const persistFormsSlice = (formsState) => {
