@@ -10,7 +10,7 @@ import {
   RiArrowLeftSLine,
   RiLogoutBoxRLine,
 } from 'react-icons/ri';
-import WorkspaceFolderIcon from '@/components/ui/WorkspaceFolderIcon';
+import WorkspaceSidebarItem from '@/components/layout/WorkspaceSidebarItem';
 import {
   setActiveWorkspace,
   selectNavWorkspaces,
@@ -20,7 +20,11 @@ import {
 import { logout } from '@/store/slices/authSlice';
 import { signOutUser } from '@/features/auth/services/firebaseAuthService';
 import { readProfileSettings } from '@/features/profile/utils/profileSettingsStorage';
-import { openCreateWorkspaceModal, openWorkspaceContextMenu } from '@/store/slices/uiSlice';
+import {
+  openCreateWorkspaceModal,
+  openWorkspaceContextMenu,
+  startSidebarWorkspaceRename,
+} from '@/store/slices/uiSlice';
 import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.png';
 import clearformLogoIcon from '@/assets/clearform-high-resolution-logo-transparent (1).png';
 import SidebarSkeleton from './SidebarSkeleton';
@@ -118,46 +122,6 @@ const NavItem = ({ icon: Icon, label, badge, active, onClick }) => (
   </motion.button>
 );
 
-const WorkspaceItem = ({ workspace, active, frozen, onClick, onContextMenu }) => {
-  const color = workspace.color || '#6b6966';
-  const showCount = typeof workspace.count === 'number' && workspace.count > 0;
-
-  return (
-    <motion.button
-      type="button"
-      whileHover={{ backgroundColor: active ? `${color}2E` : `${color}14` }}
-      animate={{ backgroundColor: active ? `${color}1F` : 'transparent' }}
-      onClick={onClick}
-      onContextMenu={onContextMenu}
-      title={
-        frozen
-          ? 'Over your plan’s workspace limit — existing forms keep working, upgrade to add new ones here.'
-          : undefined
-      }
-      className="flex w-full items-center gap-2 rounded-lg px-4 py-2 text-left transition-colors cursor-pointer"
-    >
-      <WorkspaceFolderIcon color={color} open={active} size={18} className="shrink-0" />
-      <span
-        className={`min-w-0 flex-1 truncate text-left text-[13px] font-medium leading-[19.5px] ${
-          active ? 'text-[#1a1a1c]' : 'text-[#6b6966]'
-        }`}
-      >
-        {workspace.label}
-      </span>
-      {frozen ? (
-        <span className="shrink-0 rounded-full bg-[#f4ede2] px-[7px] py-[1px] text-[10px] font-semibold uppercase tracking-[0.4px] text-[#a3702a]">
-          Limit
-        </span>
-      ) : null}
-      {showCount ? (
-        <span className="shrink-0 text-[12px] font-medium leading-[18px] text-[#a8a6a0] tabular-nums">
-          {workspace.count}
-        </span>
-      ) : null}
-    </motion.button>
-  );
-};
-
 const CollapsedIconBtn = ({ icon: Icon, active, onClick, title }) => (
   <motion.button
     whileHover={{ backgroundColor: active ? SIDEBAR_ITEM_HOVER_BG : SIDEBAR_ITEM_IDLE_HOVER_BG }}
@@ -212,6 +176,7 @@ const Sidebar = ({ hideLogo = false, exit }) => {
     displayName: savedProfile?.displayName,
   });
   const { activeWorkspace, isLoading: formsLoading } = useSelector((state) => state.forms);
+  const renamingWorkspaceId = useSelector((state) => state.ui.sidebarWorkspaceRenameId);
   const workspaces = useSelector(selectNavWorkspaces);
   const { entitlements } = useBillingStatus();
   const frozenWorkspaceIds = entitlements?.workspaces?.frozenWorkspaceIds ?? [];
@@ -374,7 +339,7 @@ const Sidebar = ({ hideLogo = false, exit }) => {
 
             {/* Nav items */}
             <div
-              className="flex-1 overflow-y-auto py-[13px] pl-2 pr-4 flex flex-col gap-0"
+              className="flex min-w-0 flex-1 flex-col gap-0 overflow-hidden overflow-y-auto py-[13px] pl-2 pr-4"
               style={{ backgroundColor: SIDEBAR_NAV_BG }}
             >
               {/* All Forms */}
@@ -396,17 +361,17 @@ const Sidebar = ({ hideLogo = false, exit }) => {
 
               {/* Workspace list */}
               {workspaces.map((ws) => (
-                <WorkspaceItem
+                <WorkspaceSidebarItem
                   key={ws.id}
-                  workspace={
-                    showFormCounts ? ws : { ...ws, count: 0 }
-                  }
+                  workspace={showFormCounts ? ws : { ...ws, count: 0 }}
                   frozen={frozenWorkspaceIds.includes(ws.id)}
                   active={isDashboardActive && activeWorkspace === ws.id}
-                  onClick={() => {
+                  isRenaming={renamingWorkspaceId === ws.id}
+                  onSelect={() => {
                     navigate('/dashboard');
                     dispatch(setActiveWorkspace(ws.id));
                   }}
+                  onStartRename={() => dispatch(startSidebarWorkspaceRename(ws.id))}
                   onContextMenu={(e) => handleWorkspaceContextMenu(e, ws.id)}
                 />
               ))}

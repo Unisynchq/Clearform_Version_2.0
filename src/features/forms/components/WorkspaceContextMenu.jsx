@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { RiEditLine, RiDeleteBinLine } from 'react-icons/ri';
 import {
   closeWorkspaceContextMenu,
-  openRenameWorkspaceModal,
+  startSidebarWorkspaceRename,
   openDeleteWorkspaceModal,
 } from '@/store/slices/uiSlice';
 
@@ -33,10 +33,7 @@ const WorkspaceContextMenu = () => {
   }, [open, dispatch]);
 
   const handleRename = () => {
-    dispatch(openRenameWorkspaceModal({
-      workspaceId,
-      workspaceName: workspace?.label ?? '',
-    }));
+    dispatch(startSidebarWorkspaceRename(workspaceId));
   };
 
   const handleDelete = () => {

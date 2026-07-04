@@ -181,6 +181,11 @@ const AllFormsPage = () => {
   /* Workspace name for new-workspace empty state — derived from Redux */
   const workspaceName =
     workspaces.find((ws) => ws.id === activeWorkspace)?.label ?? 'your workspace';
+  const selectedWorkspace =
+    activeWorkspace !== 'all'
+      ? workspaces.find((ws) => ws.id === activeWorkspace)
+      : null;
+  const workspaceFormCount = selectedWorkspace ? filteredForms.length : 0;
 
   return (
     <>
@@ -205,12 +210,14 @@ const AllFormsPage = () => {
               animate={DASHBOARD_HEADING_MOTION.animate}
               transition={DASHBOARD_HEADING_MOTION.transition}
             >
-              <div>
-                <h2 className="text-[30px] font-semibold text-[#111110] leading-[36px] tracking-[-0.3px]">
-                  What are you building today?
+              <div className="min-w-0 flex-1 pr-4">
+                <h2 className="text-[30px] font-semibold text-[#111110] leading-[36px] tracking-[-0.3px] break-words">
+                  {selectedWorkspace ? selectedWorkspace.label : 'What are you building today?'}
                 </h2>
                 <p className="text-[16px] font-normal text-[#6e6d67] leading-[24px]">
-                  Start with a template or create a form from scratch
+                  {selectedWorkspace
+                    ? `${workspaceFormCount} form${workspaceFormCount === 1 ? '' : 's'} in this workspace`
+                    : 'Start with a template or create a form from scratch'}
                 </p>
               </div>
               <button

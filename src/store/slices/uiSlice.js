@@ -80,6 +80,7 @@ const initialState = {
     workspaceId: null,
     workspaceName: '',
   },
+  sidebarWorkspaceRenameId: null,
   notificationCenter: {
     open: false,
   },
@@ -229,6 +230,13 @@ const uiSlice = createSlice({
     closeRenameWorkspaceModal(state) {
       state.renameWorkspaceModal = { open: false, workspaceId: null, workspaceName: '' };
     },
+    startSidebarWorkspaceRename(state, action) {
+      state.sidebarWorkspaceRenameId = action.payload;
+      state.workspaceContextMenu = { open: false, workspaceId: null, x: 0, y: 0 };
+    },
+    clearSidebarWorkspaceRename(state) {
+      state.sidebarWorkspaceRenameId = null;
+    },
     openDeleteWorkspaceModal(state, action) {
       const { workspaceId, workspaceName } = action.payload;
       state.deleteWorkspaceModal = { open: true, workspaceId, workspaceName };
@@ -342,6 +350,8 @@ export const {
   closeWorkspaceContextMenu,
   openRenameWorkspaceModal,
   closeRenameWorkspaceModal,
+  startSidebarWorkspaceRename,
+  clearSidebarWorkspaceRename,
   openDeleteWorkspaceModal,
   closeDeleteWorkspaceModal,
   toggleNotificationCenter,
