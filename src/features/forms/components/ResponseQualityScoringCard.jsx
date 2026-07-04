@@ -968,8 +968,9 @@ export default function ResponseQualityScoringCard({
                         {aiTrialExhausted ? (
                           <div className="mb-4 rounded-[10px] bg-[#fbf3e8] px-4 py-[10px]">
                             <p className="text-[11.25px] font-medium leading-snug text-[#9b6522]" style={FONT}>
-                              AI trial used — respondents now get rule-based checks. Upgrade to
-                              Clearform Pilot for AI quality on every response.
+                              AI trial used — respondents now get rule-based
+                              checks (no live AI). Upgrade to Clearform Pilot
+                              for AI quality on every response.
                             </p>
                           </div>
                         ) : null}
