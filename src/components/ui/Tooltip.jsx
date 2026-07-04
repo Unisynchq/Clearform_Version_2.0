@@ -96,7 +96,7 @@ export default function Tooltip({
                   ? { top: coords.top, left: coords.left, transform: 'translateY(-50%)' }
                   : { top: coords.top, left: coords.left, transform: 'translateX(-50%)' }
               }
-              className="pointer-events-none fixed z-[500] max-w-[min(280px,calc(100vw-24px))] text-[13px] font-medium leading-[19.5px] text-[#1a1a1c]"
+              className="pointer-events-none fixed z-[500] max-w-[min(280px,calc(100vw-24px))] rounded-[8px] border border-[#e5e3dc] bg-white px-2.5 py-1.5 text-[12px] font-medium leading-[16px] text-[#1a1a1c] shadow-[0_8px_24px_rgba(0,0,0,0.08),0_2px_6px_rgba(0,0,0,0.04)]"
             >
               {content}
             </motion.div>
