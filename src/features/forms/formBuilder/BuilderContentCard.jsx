@@ -251,16 +251,38 @@ const SectionBadge = ({ num, label }) => (
   </div>
 );
 
-const FormField = ({ label, value }) => (
+/** Builder canvas placeholder — empty field preview (not fake sample data). */
+const BuilderLabeledField = ({ label, placeholder = 'Respondent answer' }) => (
   <div className="flex flex-col w-full">
     <p className="text-[#888] text-[10.5px] font-medium tracking-[0.42px] uppercase pb-[6px]">{label}</p>
-    <div className="border-b border-[rgba(0,0,0,0.16)] pb-[9px] pt-[8px]">
-      <p className="text-[14px] text-black font-light">{value}</p>
+    <div className="border-b border-[rgba(0,0,0,0.16)] pb-[9px] pt-[8px] min-h-[31px]">
+      <p className="text-[14px] text-[#bbb] font-light">{placeholder}</p>
     </div>
   </div>
 );
 
-/** Editable text field for preview/fill mode (replaces static {@link FormField} samples). */
+const CompositeLabeledField = ({
+  label,
+  isPreviewMode,
+  previewValue,
+  onPreviewChange,
+  builderPlaceholder,
+  type = 'text',
+}) => (
+  isPreviewMode ? (
+    <PreviewLabeledInput
+      label={label}
+      value={previewValue}
+      onChange={onPreviewChange}
+      placeholder={builderPlaceholder}
+      type={type}
+    />
+  ) : (
+    <BuilderLabeledField label={label} placeholder={builderPlaceholder} />
+  )
+);
+
+/** Editable text field for preview/fill mode. */
 const PreviewLabeledInput = ({ label, value, onChange, placeholder = '', type = 'text', className = '' }) => (
   <div className="flex flex-col w-full">
     <label className="text-[#888] text-[10.5px] font-medium tracking-[0.42px] uppercase pb-[6px]">{label}</label>
@@ -2447,70 +2469,59 @@ const ContentCardInner = ({
           />
           {(showFirst || showLast) && (
             <div className={grid2}>
-              {showFirst && (isPreviewMode ? (
-                <PreviewLabeledInput
+              {showFirst && (
+                <CompositeLabeledField
                   label={cLabel('FIRST NAME', cFields.firstName)}
-                  value={pf('c.fn')}
-                  onChange={(v) => setPf('c.fn', v)}
-                  placeholder=""
+                  isPreviewMode={isPreviewMode}
+                  previewValue={pf('c.fn')}
+                  onPreviewChange={(v) => setPf('c.fn', v)}
+                  builderPlaceholder="First name"
                 />
-              ) : (
-                <FormField label={cLabel('FIRST NAME', cFields.firstName)} value="Jane" />
-              ))}
-              {showLast && (isPreviewMode ? (
-                <PreviewLabeledInput
+              )}
+              {showLast && (
+                <CompositeLabeledField
                   label={cLabel('LAST NAME', cFields.lastName)}
-                  value={pf('c.ln')}
-                  onChange={(v) => setPf('c.ln', v)}
-                  placeholder=""
+                  isPreviewMode={isPreviewMode}
+                  previewValue={pf('c.ln')}
+                  onPreviewChange={(v) => setPf('c.ln', v)}
+                  builderPlaceholder="Last name"
                 />
-              ) : (
-                <FormField label={cLabel('LAST NAME', cFields.lastName)} value="Smith" />
-              ))}
+              )}
             </div>
           )}
           {showEmail && (
             <div className="mt-[9px]">
-              {isPreviewMode ? (
-                <PreviewLabeledInput
-                  label={cLabel('EMAIL ADDRESS', cFields.email)}
-                  value={pf('c.em')}
-                  onChange={(v) => setPf('c.em', v)}
-                  placeholder="you@example.com"
-                  type="email"
-                />
-              ) : (
-                <FormField label={cLabel('EMAIL ADDRESS', cFields.email)} value="jane@example.com" />
-              )}
+              <CompositeLabeledField
+                label={cLabel('EMAIL ADDRESS', cFields.email)}
+                isPreviewMode={isPreviewMode}
+                previewValue={pf('c.em')}
+                onPreviewChange={(v) => setPf('c.em', v)}
+                builderPlaceholder="you@example.com"
+                type="email"
+              />
             </div>
           )}
           {showPhone && (
             <div className="mt-[9px]">
-              {isPreviewMode ? (
-                <PreviewLabeledInput
-                  label={cReq(cFields.phone) ? cLabel('PHONE', cFields.phone) : 'PHONE (OPTIONAL)'}
-                  value={pf('c.ph')}
-                  onChange={(v) => setPf('c.ph', v)}
-                  placeholder=""
-                  type="tel"
-                />
-              ) : (
-                <FormField label={cReq(cFields.phone) ? cLabel('PHONE', cFields.phone) : 'PHONE (OPTIONAL)'} value="+1 (555) 000-0000" />
-              )}
+              <CompositeLabeledField
+                label={cReq(cFields.phone) ? cLabel('PHONE', cFields.phone) : 'PHONE (OPTIONAL)'}
+                isPreviewMode={isPreviewMode}
+                previewValue={pf('c.ph')}
+                onPreviewChange={(v) => setPf('c.ph', v)}
+                builderPlaceholder="Phone number"
+                type="tel"
+              />
             </div>
           )}
           {showCompany && (
             <div className="mt-[9px]">
-              {isPreviewMode ? (
-                <PreviewLabeledInput
-                  label={cLabel('COMPANY', cFields.company)}
-                  value={pf('c.co')}
-                  onChange={(v) => setPf('c.co', v)}
-                  placeholder=""
-                />
-              ) : (
-                <FormField label={cLabel('COMPANY', cFields.company)} value="Acme Inc." />
-              )}
+              <CompositeLabeledField
+                label={cLabel('COMPANY', cFields.company)}
+                isPreviewMode={isPreviewMode}
+                previewValue={pf('c.co')}
+                onPreviewChange={(v) => setPf('c.co', v)}
+                builderPlaceholder="Company name"
+              />
             </div>
           )}
           <div className="pb-[17px]" />
@@ -2558,44 +2569,57 @@ const ContentCardInner = ({
           />
           {showStreet && (
             <div className="mt-[19px]">
-              {isPreviewMode ? (
-                <PreviewLabeledInput
-                  label={aLabel('STREET ADDRESS', aFields.street)}
-                  value={pf('a.st')}
-                  onChange={(v) => setPf('a.st', v)}
-                  placeholder=""
-                />
-              ) : (
-                <FormField label={aLabel('STREET ADDRESS', aFields.street)} value="123 Main Street" />
-              )}
+              <CompositeLabeledField
+                label={aLabel('STREET ADDRESS', aFields.street)}
+                isPreviewMode={isPreviewMode}
+                previewValue={pf('a.st')}
+                onPreviewChange={(v) => setPf('a.st', v)}
+                builderPlaceholder="Street address"
+              />
             </div>
           )}
           {(showCity || showState) && (
             <div className={`${grid2} mt-[9px]`}>
-              {showCity && (isPreviewMode ? (
-                <PreviewLabeledInput label={aLabel('CITY', aFields.city)} value={pf('a.ci')} onChange={(v) => setPf('a.ci', v)} />
-              ) : (
-                <FormField label={aLabel('CITY', aFields.city)} value="San Francisco" />
-              ))}
-              {showState && (isPreviewMode ? (
-                <PreviewLabeledInput label={aLabel('STATE / REGION', aFields.state)} value={pf('a.ste')} onChange={(v) => setPf('a.ste', v)} />
-              ) : (
-                <FormField label={aLabel('STATE / REGION', aFields.state)} value="California" />
-              ))}
+              {showCity && (
+                <CompositeLabeledField
+                  label={aLabel('CITY', aFields.city)}
+                  isPreviewMode={isPreviewMode}
+                  previewValue={pf('a.ci')}
+                  onPreviewChange={(v) => setPf('a.ci', v)}
+                  builderPlaceholder="City"
+                />
+              )}
+              {showState && (
+                <CompositeLabeledField
+                  label={aLabel('STATE / REGION', aFields.state)}
+                  isPreviewMode={isPreviewMode}
+                  previewValue={pf('a.ste')}
+                  onPreviewChange={(v) => setPf('a.ste', v)}
+                  builderPlaceholder="State or region"
+                />
+              )}
             </div>
           )}
           {(showPostal || showCountry) && (
             <div className={`${grid2} mt-[9px] pb-[17px]`}>
-              {showPostal && (isPreviewMode ? (
-                <PreviewLabeledInput label={aLabel('POSTAL CODE', aFields.postal)} value={pf('a.po')} onChange={(v) => setPf('a.po', v)} />
-              ) : (
-                <FormField label={aLabel('POSTAL CODE', aFields.postal)} value="94103" />
-              ))}
-              {showCountry && (isPreviewMode ? (
-                <PreviewLabeledInput label={aLabel('COUNTRY', aFields.country)} value={pf('a.ct')} onChange={(v) => setPf('a.ct', v)} />
-              ) : (
-                <FormField label={aLabel('COUNTRY', aFields.country)} value="United States" />
-              ))}
+              {showPostal && (
+                <CompositeLabeledField
+                  label={aLabel('POSTAL CODE', aFields.postal)}
+                  isPreviewMode={isPreviewMode}
+                  previewValue={pf('a.po')}
+                  onPreviewChange={(v) => setPf('a.po', v)}
+                  builderPlaceholder="Postal code"
+                />
+              )}
+              {showCountry && (
+                <CompositeLabeledField
+                  label={aLabel('COUNTRY', aFields.country)}
+                  isPreviewMode={isPreviewMode}
+                  previewValue={pf('a.ct')}
+                  onPreviewChange={(v) => setPf('a.ct', v)}
+                  builderPlaceholder="Country"
+                />
+              )}
             </div>
           )}
           {!showPostal && !showCountry && <div className="pb-[17px]" />}
@@ -2642,30 +2666,46 @@ const ContentCardInner = ({
           />
           {(showWCompany || showTitle) && (
             <div className={`${grid2} mt-[19px]`}>
-              {showWCompany && (isPreviewMode ? (
-                <PreviewLabeledInput label={wLabel('COMPANY', wFields.company)} value={pf('w.co')} onChange={(v) => setPf('w.co', v)} />
-              ) : (
-                <FormField label={wLabel('COMPANY', wFields.company)} value="Acme Inc." />
-              ))}
-              {showTitle && (isPreviewMode ? (
-                <PreviewLabeledInput label={wLabel('JOB TITLE', wFields.title)} value={pf('w.ti')} onChange={(v) => setPf('w.ti', v)} />
-              ) : (
-                <FormField label={wLabel('JOB TITLE', wFields.title)} value="Product Manager" />
-              ))}
+              {showWCompany && (
+                <CompositeLabeledField
+                  label={wLabel('COMPANY', wFields.company)}
+                  isPreviewMode={isPreviewMode}
+                  previewValue={pf('w.co')}
+                  onPreviewChange={(v) => setPf('w.co', v)}
+                  builderPlaceholder="Company name"
+                />
+              )}
+              {showTitle && (
+                <CompositeLabeledField
+                  label={wLabel('JOB TITLE', wFields.title)}
+                  isPreviewMode={isPreviewMode}
+                  previewValue={pf('w.ti')}
+                  onPreviewChange={(v) => setPf('w.ti', v)}
+                  builderPlaceholder="Job title"
+                />
+              )}
             </div>
           )}
           {(showIndustry || showTeamSize) && (
             <div className={`${grid2} mt-[9px] pb-[17px]`}>
-              {showIndustry && (isPreviewMode ? (
-                <PreviewLabeledInput label={wLabel('INDUSTRY', wFields.industry)} value={pf('w.ind')} onChange={(v) => setPf('w.ind', v)} />
-              ) : (
-                <FormField label={wLabel('INDUSTRY', wFields.industry)} value="Technology" />
-              ))}
-              {showTeamSize && (isPreviewMode ? (
-                <PreviewLabeledInput label={wLabel('TEAM SIZE', wFields.teamSize)} value={pf('w.ts')} onChange={(v) => setPf('w.ts', v)} />
-              ) : (
-                <FormField label={wLabel('TEAM SIZE', wFields.teamSize)} value="11–50 people" />
-              ))}
+              {showIndustry && (
+                <CompositeLabeledField
+                  label={wLabel('INDUSTRY', wFields.industry)}
+                  isPreviewMode={isPreviewMode}
+                  previewValue={pf('w.ind')}
+                  onPreviewChange={(v) => setPf('w.ind', v)}
+                  builderPlaceholder="Industry"
+                />
+              )}
+              {showTeamSize && (
+                <CompositeLabeledField
+                  label={wLabel('TEAM SIZE', wFields.teamSize)}
+                  isPreviewMode={isPreviewMode}
+                  previewValue={pf('w.ts')}
+                  onPreviewChange={(v) => setPf('w.ts', v)}
+                  builderPlaceholder="Team size"
+                />
+              )}
             </div>
           )}
           {!showIndustry && !showTeamSize && <div className="pb-[17px]" />}

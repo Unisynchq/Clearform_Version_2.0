@@ -868,8 +868,8 @@ export default function ResponseQualityScoringCard({
 
               <div className="mx-[15px] mb-4">
                 <p className="text-[11.5px] font-medium leading-[16.5px] text-[#64615b]" style={FONT}>
-                  Describe the kind of answer you want for this question only. AI will use it
-                  when nudging and scoring responses here.
+                  Guide the AI: Describe the specific details, friction points, or outcomes you want
+                  respondents to share.
                 </p>
               </div>
 
