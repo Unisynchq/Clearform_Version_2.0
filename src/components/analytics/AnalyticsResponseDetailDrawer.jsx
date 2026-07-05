@@ -11,6 +11,7 @@ import {
   RiThumbDownFill,
 } from 'react-icons/ri';
 import { submitAiFeedback } from '@/api/services/aiFeedbackService';
+import ResponseUploadCell from './ResponseUploadCell';
 
 const Q_START = 3;
 const FEEDBACK_KEY = 'cf_ai_fb';
@@ -266,8 +267,19 @@ export default function AnalyticsResponseDetailDrawer({
                   {headers.slice(Q_START).map((h, j) => {
                     const i = Q_START + j;
                     const Icon = h.Icon;
-                    const chips = answerToChips(row[i]);
-                    const raw = row[i];
+                    const cell = row[i];
+                    const answer = responseItem?.answers?.[j];
+                    const isUploadCell =
+                      (cell && typeof cell === 'object' && cell.type === 'upload')
+                      || answer?.kind === 'upload';
+                    const uploadFiles = isUploadCell
+                      ? (cell?.files ?? answer?.files ?? [])
+                      : [];
+                    const uploadValue = isUploadCell
+                      ? (cell?.value ?? answer?.value)
+                      : null;
+                    const chips = answerToChips(isUploadCell ? null : cell);
+                    const raw = isUploadCell ? null : cell;
                     const displayChips =
                       chips.length > 0 ? chips : raw && raw !== '—' ? [raw] : [];
 
@@ -289,26 +301,32 @@ export default function AnalyticsResponseDetailDrawer({
                             {h.label}
                           </p>
                         </div>
-                        <div className="mt-3 flex flex-wrap gap-1.5 pl-[36px]">
-                          {displayChips.length === 0 ? (
-                            <span className="text-[13px] text-[#8a8880]">—</span>
+                        <div className="mt-3 pl-[36px]">
+                          {isUploadCell ? (
+                            <ResponseUploadCell files={uploadFiles} value={uploadValue} />
                           ) : (
-                            displayChips.map((chip, chipIdx) => (
-                              <motion.span
-                                key={`${chip}-${chipIdx}`}
-                                layout
-                                initial={{ opacity: 0, scale: 0.96 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{
-                                  type: 'spring',
-                                  stiffness: 500,
-                                  damping: 34,
-                                }}
-                                className="inline-flex items-center rounded-[5px] border border-[rgba(0,0,0,0.13)] bg-white px-[13px] py-[5px] text-[13px] font-normal leading-normal text-[#181816]"
-                              >
-                                {chip}
-                              </motion.span>
-                            ))
+                            <div className="flex flex-wrap gap-1.5">
+                              {displayChips.length === 0 ? (
+                                <span className="text-[13px] text-[#8a8880]">—</span>
+                              ) : (
+                                displayChips.map((chip, chipIdx) => (
+                                  <motion.span
+                                    key={`${chip}-${chipIdx}`}
+                                    layout
+                                    initial={{ opacity: 0, scale: 0.96 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    transition={{
+                                      type: 'spring',
+                                      stiffness: 500,
+                                      damping: 34,
+                                    }}
+                                    className="inline-flex items-center rounded-[5px] border border-[rgba(0,0,0,0.13)] bg-white px-[13px] py-[5px] text-[13px] font-normal leading-normal text-[#181816]"
+                                  >
+                                    {chip}
+                                  </motion.span>
+                                ))
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>

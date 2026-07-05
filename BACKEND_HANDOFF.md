@@ -11,6 +11,161 @@ This document is for the **backend team**: what exists today, what the UI expect
 
 Use this section to see what shipped on `main` without re-reading git history. Backend work is still required where noted below; these entries are **frontend-only** unless stated otherwise.
 
+### 2026-07-05 — Responses: file upload display + download (frontend needs backend file hosting)
+
+| Field | Value |
+|-------|--------|
+| **Date** | 2026-07-05 |
+| **Scope** | Frontend — Analytics Responses table, detail drawer, and CSV export now render upload answers with thumbnails, filenames, metadata, and Download buttons |
+| **Backend changes** | **Required for production downloads.** The frontend already submits and reads `answersByScreenId`; upload screens must persist **durable file URLs** (not browser `blob:` URLs). See **Upload file contract** below |
+
+#### What the frontend does today
+
+| Area | Behavior |
+|------|----------|
+| **Question types** | Treats builder labels `Upload`, `Multi-image upload`, and any label matching `*upload*` + file/image/video/audio as file questions |
+| **Submit (POST)** | Sends full per-screen snap blobs in `answersByScreenId`. Upload snaps include `uploadedFiles[]` and `previewFields.uploadAns` |
+| **Analytics (GET list)** | Rebuilds display from `answersByScreenId` + published snapshot. Upload cells show filename, type, size, timestamp; images get thumbnail + lightbox |
+| **Download** | Uses `downloadUrl` or `url` on each file object. Without a durable URL, the UI still shows the filename but **Download is disabled** |
+| **Empty upload** | Shows `"No file uploaded."` — never a blank cell |
+| **CSV export** | Client-side fallback (no API): `filename \| type \| size \| url`. Server export should include the same metadata |
+
+#### Upload file contract (backend must implement)
+
+**1. Accept uploads on response submit**
+
+`POST /forms/:formId/responses` body (existing shape — upload snaps nested inside):
+
+```json
+{
+  "submittedAt": "2026-07-05T14:30:00.000Z",
+  "completed": true,
+  "contact": "user@example.com",
+  "answers": [ { "screenId": 12, "label": "Attach documents", "value": "report.pdf" } ],
+  "answersByScreenId": {
+    "12": {
+      "uploadedFiles": [
+        {
+          "id": "client-generated-id",
+          "name": "report.pdf",
+          "size": 204800,
+          "type": "application/pdf",
+          "url": "blob:http://localhost/…",
+          "uploadedAt": "2026-07-05T14:29:55.000Z"
+        }
+      ],
+      "previewFields": { "uploadAns": "uploaded" }
+    }
+  },
+  "metadata": { "durationMs": 120000 }
+}
+```
+
+**Important:** `url` on submit may be a browser `blob:` URL (ephemeral). Backend must **not** store blob URLs as-is. Instead:
+
+1. **Option A (recommended):** Presigned upload flow — frontend uploads bytes to S3 (or equivalent) before/during submit; snap contains `storageKey` or final `downloadUrl`.
+2. **Option B:** Accept multipart on `POST /forms/:formId/responses` (or a dedicated `POST /forms/:formId/responses/uploads` presign endpoint); backend stores files and replaces client entries with hosted metadata before persisting the response.
+
+**2. Persist and return durable file metadata**
+
+When storing and returning `answersByScreenId`, each entry in `uploadedFiles` should include at minimum:
+
+| Field | Required | Notes |
+|-------|----------|--------|
+| `name` (or `filename` / `fileName`) | Yes | Original filename |
+| `downloadUrl` (or `url` / `storageUrl` / `publicUrl`) | Yes for downloads | HTTPS URL the browser can `fetch` or open; prefer signed URL if private |
+| `type` (or `mimeType` / `contentType`) | Recommended | e.g. `image/png`, `application/pdf` |
+| `size` (or `fileSize`) | Recommended | Bytes |
+| `uploadedAt` (or `createdAt`) | Recommended | ISO-8601 |
+| `id` | Optional | Stable file id for multi-file questions |
+
+Frontend normalizer accepts any of the alias keys above.
+
+**Example stored + GET list item:**
+
+```json
+{
+  "id": "resp_abc123",
+  "formId": 42,
+  "submittedAt": "2026-07-05T14:30:00.000Z",
+  "answersByScreenId": {
+    "12": {
+      "uploadedFiles": [
+        {
+          "id": "file_001",
+          "name": "report.pdf",
+          "downloadUrl": "https://cdn.example.com/forms/42/responses/resp_abc123/report.pdf?token=…",
+          "type": "application/pdf",
+          "size": 204800,
+          "uploadedAt": "2026-07-05T14:29:55.000Z"
+        }
+      ],
+      "previewFields": { "uploadAns": "uploaded" }
+    },
+    "15": {
+      "uploadedFiles": [
+        {
+          "id": "file_002",
+          "name": "photo.jpg",
+          "downloadUrl": "https://cdn.example.com/…/photo.jpg",
+          "url": "https://cdn.example.com/…/photo.jpg",
+          "type": "image/jpeg",
+          "size": 512000,
+          "uploadedAt": "2026-07-05T14:28:10.000Z"
+        }
+      ]
+    }
+  }
+}
+```
+
+Multi-image upload screens use the same `uploadedFiles[]` array (one object per image).
+
+**3. GET list must return full `answersByScreenId`**
+
+Analytics calls `GET /forms/:formId/responses` and maps each item with `mapApiResponseForDisplay(item, draft)`. Upload rendering **requires** `answersByScreenId` on each list row (not just flattened `answers[]` strings).
+
+**4. CSV / XLSX export**
+
+`GET /forms/:formId/responses/export?format=csv&range=…` should include, for upload columns:
+
+- Original filename
+- MIME type
+- File size
+- Download URL (or `"No file uploaded."` when empty)
+
+Suggested CSV cell format (matches client export):  
+`report.pdf | application/pdf | 200 KB | https://…`
+
+**5. CORS / auth for downloads**
+
+- If files are on a CDN with signed URLs, generate URLs valid long enough for the form owner to download from Analytics.
+- If downloads require auth, either use short-lived signed URLs in `downloadUrl` or expose `GET /forms/:formId/responses/:responseId/files/:fileId` that streams the file after owner auth.
+
+#### Suggested new endpoints (if not already planned)
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/forms/:formId/uploads/presign` | Return presigned PUT URL + `fileId` before respondent submits |
+| POST | `/forms/:formId/responses` | Existing — persist response with hosted `uploadedFiles` metadata |
+| GET | `/forms/:formId/responses/:responseId/files/:fileId` | Optional authenticated download proxy |
+
+#### Files changed (frontend)
+
+| File | What changed |
+|------|----------------|
+| `src/features/forms/utils/responseUploadFiles.js` | Normalizes file metadata; download helper; upload question detection |
+| `src/features/forms/utils/formResponseBuilder.js` | Upload answers include `kind: 'upload'` + `files[]`; export helpers |
+| `src/components/analytics/ResponseUploadCell.jsx` | Thumbnail, preview modal, Download button |
+| `src/components/analytics/AnalyticsResponsesPanel.jsx` | Renders upload cells in table |
+| `src/components/analytics/AnalyticsResponseDetailDrawer.jsx` | Upload rendering in detail view |
+| `src/components/analytics/AnalyticsExportModal.jsx` | Client CSV export includes file URLs when API unavailable |
+| `src/features/forms/formBuilder/BuilderContentCard.jsx` | Captures name, size, type, blob url, uploadedAt on file select |
+
+**Done when:** Respondent uploads a PDF and an image → Analytics Responses table shows thumbnail + filenames → Download saves the original files → CSV export includes filenames and URLs.
+
+---
+
 ### 2026-07-03 — Response quality redesign + builder hydration hardening (frontend)
 
 | Field | Value |

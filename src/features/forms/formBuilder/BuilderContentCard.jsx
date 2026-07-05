@@ -437,6 +437,9 @@ const FileUploadCard = ({
       id: `${Date.now()}-${Math.random()}`,
       name: f.name,
       size: f.size,
+      type: f.type || '',
+      url: URL.createObjectURL(f),
+      uploadedAt: new Date().toISOString(),
       progress: 0,
     }));
 
@@ -878,7 +881,7 @@ const MultiImageUploadCard = ({
       onPreviewSnapChange(previewScreenId, {
         cardKey: 'interactive:Multi-image upload',
         imageCount: nextImages.length,
-        uploadedFiles: nextImages.map((img) => ({ name: 'Image' })),
+        uploadedFiles: nextImages,
         previewFields: { uploadAns: nextImages.length ? 'uploaded' : '' },
       });
     },
@@ -926,7 +929,11 @@ const MultiImageUploadCard = ({
     const remaining = maxImages - images.length;
     const toAdd = files.slice(0, remaining).map((f) => ({
       id: `${Date.now()}-${Math.random()}`,
+      name: f.name || `image-${Date.now()}.jpg`,
+      size: f.size,
+      type: f.type || 'image/jpeg',
       url: URL.createObjectURL(f),
+      uploadedAt: new Date().toISOString(),
     }));
     setImages((prev) => {
       const next = [...prev, ...toAdd];

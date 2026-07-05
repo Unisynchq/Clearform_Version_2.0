@@ -296,8 +296,16 @@ export default function RespondentScreenFields({ label, config, snap, updateSnap
           className="text-[14px] text-[#52525b]"
           onChange={(e) => {
             const files = Array.from(e.target.files ?? []);
+            const uploadedAt = new Date().toISOString();
             updateSnap({
-              uploadedFiles: files.map((f) => ({ name: f.name })),
+              uploadedFiles: files.map((f) => ({
+                id: `${Date.now()}-${Math.random()}`,
+                name: f.name,
+                size: f.size,
+                type: f.type || '',
+                url: URL.createObjectURL(f),
+                uploadedAt,
+              })),
               previewFields: {
                 ...(snap.previewFields ?? {}),
                 uploadAns: files.length ? 'uploaded' : '',

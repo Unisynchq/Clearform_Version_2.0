@@ -1,4 +1,13 @@
 import { getScreenPreviewText } from '@/features/forms/utils/screenConfigSync';
+import {
+  buildUploadAnswerPayload,
+  cellDisplayText,
+  isUploadQuestionLabel,
+  uploadAnswerExportText,
+  uploadAnswerTableCell,
+} from '@/features/forms/utils/responseUploadFiles';
+
+export { cellDisplayText, uploadAnswerExportText };
 
 const QUESTION_ICON_BGS = [
   '#ECFDF3',
@@ -103,11 +112,8 @@ export function formatScreenAnswerValue(screen, snap) {
   if (label === 'Video') {
     return field(snap, 'videoAns') || '—';
   }
-  if (label === 'Upload' || label === 'Multi-image upload') {
-    if (snap?.uploadedFiles?.length) {
-      return snap.uploadedFiles.map((f) => f.name || 'File').join(' · ');
-    }
-    return field(snap, 'uploadAns') || '—';
+  if (label === 'Upload' || label === 'Multi-image upload' || isUploadQuestionLabel(label)) {
+    return buildUploadAnswerPayload(screen, snap).displayText;
   }
   if (label === 'Captcha') {
     return snap?.captchaChecked ? 'Verified' : '—';
@@ -157,11 +163,25 @@ export function buildResponseFromPreview({
   screenTimestamps,
 }) {
   const contentScreens = (screens ?? []).filter((s) => s.type === 'content');
-  const answers = contentScreens.map((screen, i) => ({
-    screenId: screen.id,
-    label: getScreenPreviewText(screen, {}) || screen.label || `Question ${i + 1}`,
-    value: formatScreenAnswerValue(screen, snapForScreen(snapsByScreenId, screen.id)),
-  }));
+  const answers = contentScreens.map((screen, i) => {
+    const snap = snapForScreen(snapsByScreenId, screen.id);
+    const label = getScreenPreviewText(screen, {}) || screen.label || `Question ${i + 1}`;
+    if (isUploadQuestionLabel(screen.label)) {
+      const payload = buildUploadAnswerPayload(screen, snap);
+      return {
+        screenId: screen.id,
+        label,
+        value: payload.displayText,
+        kind: 'upload',
+        files: payload.files,
+      };
+    }
+    return {
+      screenId: screen.id,
+      label,
+      value: formatScreenAnswerValue(screen, snap),
+    };
+  });
 
   const contact = extractRespondentLabel(screens, snapsByScreenId);
   const submittedAt = new Date().toISOString();
@@ -231,6 +251,7 @@ export function mapApiResponseForDisplay(item, draft) {
       contact: rebuilt.contact,
       status: item.status ?? rebuilt.status,
       answers: rebuilt.answers,
+      answersByScreenId: byScreen,
       durationMs: item.durationMs ?? item.metadata?.durationMs ?? null,
     };
   }
@@ -252,8 +273,51 @@ export function responseToTableRow(response) {
     response.contact || '—',
     durationLabel,
     response.status === 'completed' ? 'Completed' : 'Partial',
-    ...(response.answers ?? []).map((a) => a.value || '—'),
+    ...(response.answers ?? []).map((a) => {
+      if (a?.kind === 'upload') {
+        return uploadAnswerTableCell({
+          files: a.files ?? [],
+          displayText: a.value,
+        });
+      }
+      return a?.value || '—';
+    }),
   ];
+}
+
+/** Build CSV rows for client-side response export (includes upload file metadata). */
+export function buildResponsesExportRows(responses, headers) {
+  const headerLabels = headers.map((h) => (typeof h === 'string' ? h : h.label));
+  const rows = [headerLabels];
+  for (const response of responses ?? []) {
+    const tableRow = responseToTableRow(response);
+    rows.push(
+      tableRow.map((cell, ci) => {
+        if (ci < 3) return cellDisplayText(cell);
+        const answer = response.answers?.[ci - 3];
+        if (answer?.kind === 'upload') return uploadAnswerExportText(answer);
+        return cellDisplayText(cell);
+      }),
+    );
+  }
+  return rows;
+}
+
+export function responsesExportToCsv(responses, headers) {
+  const rows = buildResponsesExportRows(responses, headers);
+  return rows
+    .map((row) =>
+      row
+        .map((cell) => {
+          const s = String(cell ?? '');
+          if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+            return `"${s.replace(/"/g, '""')}"`;
+          }
+          return s;
+        })
+        .join(','),
+    )
+    .join('\n');
 }
 
 const MS_DAY = 86_400_000;

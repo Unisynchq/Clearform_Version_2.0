@@ -23,7 +23,10 @@ import {
   responseToTableRow,
   filterResponsesByRange,
   mapApiResponseForDisplay,
+  cellDisplayText,
+  responsesExportToCsv,
 } from '@/features/forms/utils/formResponseBuilder';
+import ResponseUploadCell from './ResponseUploadCell';
 import CustomRangeDatePicker, { formatCustomRangeLabel } from './CustomRangeDatePicker';
 import AnalyticsResponseDetailDrawer from './AnalyticsResponseDetailDrawer';
 
@@ -58,6 +61,15 @@ function splitDateTimeDisplay(value) {
 }
 
 function renderCellContent(cell, ci) {
+  if (cell && typeof cell === 'object' && cell.type === 'upload') {
+    return (
+      <ResponseUploadCell
+        files={cell.files}
+        value={cell.value}
+        compact
+      />
+    );
+  }
   if (ci === 2) {
     return (
       <span className="inline-flex w-fit max-w-full rounded-[8px] border border-[#d8eadf] bg-[#f4fbf7] px-2.5 py-1 text-[13px] font-medium leading-snug text-[#3d7d4e]">
@@ -303,7 +315,7 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
     if (!search.trim()) return FORM_ROWS;
     const q = search.toLowerCase();
     return FORM_ROWS.filter((row) =>
-      row.some((cell) => String(cell).toLowerCase().includes(q)),
+      row.some((cell) => cellDisplayText(cell).toLowerCase().includes(q)),
     );
   }, [search, FORM_ROWS]);
 
@@ -312,7 +324,7 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
     if (!search.trim()) return responsesInRange;
     const q = search.toLowerCase();
     return responsesInRange.filter((_, i) =>
-      FORM_ROWS[i]?.some((cell) => String(cell).toLowerCase().includes(q)),
+      FORM_ROWS[i]?.some((cell) => cellDisplayText(cell).toLowerCase().includes(q)),
     );
   }, [search, FORM_ROWS, responsesInRange]);
 

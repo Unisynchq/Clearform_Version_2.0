@@ -72,6 +72,21 @@ describe('formResponseBuilder', () => {
     expect(response.answers[1].value).toBe('Designer');
   });
 
+  it('buildResponseFromPreview marks empty upload as No file uploaded', () => {
+    const uploadScreens = [
+      { id: 1, type: 'intro', label: 'Intro' },
+      { id: 2, type: 'content', label: 'Upload', config: {} },
+      { id: 3, type: 'end', label: 'End' },
+    ];
+    const response = buildResponseFromPreview({
+      formId: 42,
+      screens: uploadScreens,
+      snapsByScreenId: { 2: { uploadedFiles: [] } },
+    });
+    expect(response.answers[0].kind).toBe('upload');
+    expect(response.answers[0].value).toBe('No file uploaded.');
+  });
+
   it('responseToTableRow maps stored response to table cells', () => {
     const row = responseToTableRow({
       contact: 'a@b.co',

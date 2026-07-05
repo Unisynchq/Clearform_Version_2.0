@@ -5,6 +5,9 @@ import Select from '../ui/Select';
 import { getFreshAuthToken } from '@/features/auth/utils/authTokenRefresh';
 import { env } from '@/config/env';
 import { useToast } from '@/hooks/useToast';
+import { useSelector } from 'react-redux';
+import { selectFormResponses } from '@/store/slices/formsSlice';
+import { responsesExportToCsv } from '@/features/forms/utils/formResponseBuilder';
 
 const FORMAT_OPTIONS = [
   { value: 'PDF', label: 'PDF' },
@@ -35,8 +38,13 @@ const AnalyticsExportModal = ({
   rangeLabel,
   defaultFormat = 'PDF',
   formId,
+  exportHeaders = [],
+  exportResponses = null,
 }) => {
   const { showToast } = useToast();
+  const storedResponses = useSelector((state) =>
+    formId != null ? selectFormResponses(state, formId) : [],
+  );
   const [format, setFormat] = useState(defaultFormat);
   const [range, setRange] = useState(rangeLabel ?? 'All time');
   const [isExporting, setIsExporting] = useState(false);
@@ -57,6 +65,28 @@ const AnalyticsExportModal = ({
       return;
     }
     if (!formId || !env.apiBaseUrl) {
+      if (format !== 'PDF' && (exportResponses?.length || storedResponses?.length)) {
+        const rows = exportResponses?.length ? exportResponses : storedResponses;
+        const headers = exportHeaders?.length
+          ? exportHeaders
+          : [
+              'Name, email, or phone',
+              'Response time',
+              'Response type',
+              ...(rows[0]?.answers?.map((a) => a.label).filter(Boolean) ?? []),
+            ];
+        const csv = responsesExportToCsv(rows, headers);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${reportNameRef.current ?? `responses-${formId}`}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+        onClose();
+        return;
+      }
       onClose();
       return;
     }
