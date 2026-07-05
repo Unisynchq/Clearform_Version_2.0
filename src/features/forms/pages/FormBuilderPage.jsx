@@ -3621,8 +3621,9 @@ const FormBuilderPage = () => {
     // still keep the screen the user is editing instead of jumping to intro.
     const preserveForced = preserveActiveScreenOnNextHydrateRef.current;
     preserveActiveScreenOnNextHydrateRef.current = false;
+    const preserving = isRehydrate || preserveForced;
     const keepActive =
-      (isRehydrate || preserveForced) &&
+      preserving &&
       prevActive != null &&
       built.screens.some((s) => s.id === prevActive);
     const nextActive = resolveHydratedActiveScreenId(built.screens, prevActive, {
