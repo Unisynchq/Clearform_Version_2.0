@@ -311,6 +311,33 @@ const ContentCardFooter = ({ onDelete, onConfigure, variant = 'default', accentC
   </div>
 );
 
+const UPLOAD_ZONE_DROP_CLASS = {
+  Compact: 'pt-[18px] pb-[24px] px-[16px] gap-[6px]',
+  Default: 'pt-[34px] pb-[50px] px-[25px] gap-[10px]',
+  Large: 'pt-[48px] pb-[64px] px-[32px] gap-[12px]',
+};
+
+const UPLOAD_ZONE_ICON_CLASS = {
+  Compact: 'w-[32px] h-[32px] rounded-[8px]',
+  Default: 'w-[40px] h-[40px] rounded-[10px]',
+  Large: 'w-[48px] h-[48px] rounded-[12px]',
+};
+
+const UPLOAD_ACCEPT_BY_TYPE = {
+  PDF: '.pdf',
+  PNG: '.png',
+  JPG: '.jpg,.jpeg',
+  DOCX: '.docx,.doc',
+};
+
+function uploadAcceptAttr(types) {
+  if (!Array.isArray(types) || types.length === 0) {
+    return '.pdf,.docx,.doc,.png,.jpg,.jpeg';
+  }
+  const mapped = types.flatMap((t) => (UPLOAD_ACCEPT_BY_TYPE[t] ?? '').split(',')).filter(Boolean);
+  return mapped.length > 0 ? [...new Set(mapped)].join(',') : '.pdf,.docx,.doc,.png,.jpg,.jpeg';
+}
+
 const FileUploadCard = ({
   blockNum,
   onDelete,
@@ -320,16 +347,64 @@ const FileUploadCard = ({
   isPreviewMode = false,
   accentColor = DEFAULT_ACCENT,
   compactLayout = false,
+  previewScreenValidatorRef,
+  onPreviewSnapChange,
+  previewScreenId,
 }) => {
   const accent = accentColor || DEFAULT_ACCENT;
   const question = config?.question || 'Attach supporting documents';
   const helperText = config?.helperText || 'Attach any files that help us understand your request better.';
   const maxFileSizeLabel = config?.maxFileSize || '25 MB';
   const maxBytes = parseMaxFileSizeBytes(maxFileSizeLabel);
+  const required = !!config?.required;
+  const uploadZoneSize = config?.uploadZoneSize ?? 'Default';
+  const showPreview = config?.showPreview !== false;
+  const acceptAttr = uploadAcceptAttr(config?.acceptedTypes);
 
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [sizeError, setSizeError] = useState(null);
+  const [previewRequiredHint, setPreviewRequiredHint] = useState(false);
   const fileInputRef = useRef(null);
+
+  const snapRef = useRef({});
+  snapRef.current = { required, fileCount: uploadedFiles.length };
+
+  const emitPreviewSnap = useCallback(
+    (files) => {
+      if (!isPreviewMode || !onPreviewSnapChange || previewScreenId == null) return;
+      onPreviewSnapChange(previewScreenId, {
+        cardKey: 'interactive:Upload',
+        uploadedFiles: files,
+        previewFields: { uploadAns: files.length ? 'uploaded' : '' },
+      });
+    },
+    [isPreviewMode, onPreviewSnapChange, previewScreenId],
+  );
+
+  useEffect(() => {
+    setPreviewRequiredHint(false);
+  }, [uploadedFiles]);
+
+  useEffect(() => {
+    if (!previewScreenValidatorRef) return undefined;
+    if (!isPreviewMode) {
+      previewScreenValidatorRef.current = null;
+      return undefined;
+    }
+    previewScreenValidatorRef.current = () => {
+      const { required: rq, fileCount } = snapRef.current;
+      if (!rq) {
+        setPreviewRequiredHint(false);
+        return true;
+      }
+      const ok = fileCount > 0;
+      setPreviewRequiredHint(!ok);
+      return ok;
+    };
+    return () => {
+      previewScreenValidatorRef.current = null;
+    };
+  }, [isPreviewMode, previewScreenValidatorRef, required]);
 
   const startUploadProgress = (fileIds) => {
     fileIds.forEach((fileId) => {
@@ -365,7 +440,11 @@ const FileUploadCard = ({
       progress: 0,
     }));
 
-    setUploadedFiles((prev) => [...prev, ...newFiles]);
+    setUploadedFiles((prev) => {
+      const next = [...prev, ...newFiles];
+      emitPreviewSnap(next);
+      return next;
+    });
     startUploadProgress(newFiles.map((f) => f.id));
     e.target.value = '';
   };
@@ -379,7 +458,11 @@ const FileUploadCard = ({
   };
 
   const handleRemove = (id) => {
-    setUploadedFiles((prev) => prev.filter((f) => f.id !== id));
+    setUploadedFiles((prev) => {
+      const next = prev.filter((f) => f.id !== id);
+      emitPreviewSnap(next);
+      return next;
+    });
   };
 
   const handleTryAnother = () => {
@@ -400,15 +483,17 @@ const FileUploadCard = ({
     <>
       <CardBody compactLayout={compactLayout}>
         <SectionBadge num={blockNum} label="File upload" />
-        <div className="pt-[9px]">
+        <div className="pt-[9px] flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
           <CanvasQuestionText
             value={config?.question ?? ''}
             onChange={config?.setQuestion}
             isPreviewMode={isPreviewMode}
+            required={required}
             fontSize="26px"
             fontWeight="500"
             className="font-medium leading-tight"
           />
+          <PreviewRequiredInline show={previewRequiredHint} />
         </div>
         <CanvasHelperText
           value={config?.helperText ?? ''}
@@ -417,7 +502,7 @@ const FileUploadCard = ({
           className="mt-[2px] mb-5 leading-[1.6]"
         />
 
-        {uploadedFiles.length > 0 && (
+        {showPreview && uploadedFiles.length > 0 && (
           <div className="flex flex-col gap-[5px] mb-[5px]">
             {uploadedFiles.map(file => (
               <div key={file.id} className="bg-[rgba(255,255,255,0.6)] border border-[rgba(0,0,0,0.1)] rounded-[9px] flex gap-[10px] items-center px-[15px] py-[11px]">
@@ -451,7 +536,7 @@ const FileUploadCard = ({
           type="file"
           multiple
           className="hidden"
-          accept=".pdf,.docx,.doc,.png,.jpg,.jpeg"
+          accept={acceptAttr}
           onChange={handleFileSelect}
         />
 
@@ -475,13 +560,19 @@ const FileUploadCard = ({
           </div>
         ) : (
           <div
-            className="bg-[rgba(255,255,255,0.4)] border border-dashed border-[rgba(0,0,0,0.16)] rounded-[12px] flex flex-col items-center gap-[10px] pt-[34px] pb-[50px] px-[25px] mt-[5px] mb-5 cursor-pointer"
+            className={`bg-[rgba(255,255,255,0.4)] border border-dashed border-[rgba(0,0,0,0.16)] rounded-[12px] flex flex-col items-center mt-[5px] mb-5 cursor-pointer ${
+              UPLOAD_ZONE_DROP_CLASS[uploadZoneSize] ?? UPLOAD_ZONE_DROP_CLASS.Default
+            }`}
             onClick={() => fileInputRef.current?.click()}
             onDrop={handleDrop}
             onDragOver={(e) => e.preventDefault()}
           >
-            <div className="bg-[rgba(0,0,0,0.06)] rounded-[10px] w-[40px] h-[40px] shrink-0 flex items-center justify-center pointer-events-none">
-              <RiFileUploadLine size={20} className="text-[#666]" />
+            <div
+              className={`bg-[rgba(0,0,0,0.06)] shrink-0 flex items-center justify-center pointer-events-none ${
+                UPLOAD_ZONE_ICON_CLASS[uploadZoneSize] ?? UPLOAD_ZONE_ICON_CLASS.Default
+              }`}
+            >
+              <RiFileUploadLine size={uploadZoneSize === 'Large' ? 24 : uploadZoneSize === 'Compact' ? 16 : 20} className="text-[#666]" />
             </div>
             <span className="font-medium text-[#111] text-[14px] text-center pointer-events-none">
               {uploadedFiles.length > 0 ? 'Add another file' : 'Drop your files here'}
@@ -756,6 +847,8 @@ const MultiImageUploadCard = ({
   isPreviewMode = false,
   previewStepNav = null,
   previewScreenValidatorRef,
+  onPreviewSnapChange,
+  previewScreenId,
   compactLayout = false,
 }) => {
   const accent = accentColor || DEFAULT_ACCENT;
@@ -765,6 +858,8 @@ const MultiImageUploadCard = ({
   const maxFileSizeLabel = config?.maxFileSize || '25 MB';
   const maxBytes = parseMaxFileSizeBytes(maxFileSizeLabel);
   const required   = !!config?.required;
+  const uploadZoneSize = config?.uploadZoneSize ?? 'Default';
+  const showPreview = config?.showPreview !== false;
 
   const [images, setImages]       = useState([]);
   const [sizeError, setSizeError] = useState(null);
@@ -776,6 +871,19 @@ const MultiImageUploadCard = ({
 
   const snapRef = useRef({});
   snapRef.current = { required, imageCount: images.length };
+
+  const emitPreviewSnap = useCallback(
+    (nextImages) => {
+      if (!isPreviewMode || !onPreviewSnapChange || previewScreenId == null) return;
+      onPreviewSnapChange(previewScreenId, {
+        cardKey: 'interactive:Multi-image upload',
+        imageCount: nextImages.length,
+        uploadedFiles: nextImages.map((img) => ({ name: 'Image' })),
+        previewFields: { uploadAns: nextImages.length ? 'uploaded' : '' },
+      });
+    },
+    [isPreviewMode, onPreviewSnapChange, previewScreenId],
+  );
 
   useEffect(() => {
     setPreviewRequiredHint(false);
@@ -820,7 +928,11 @@ const MultiImageUploadCard = ({
       id: `${Date.now()}-${Math.random()}`,
       url: URL.createObjectURL(f),
     }));
-    setImages((prev) => [...prev, ...toAdd]);
+    setImages((prev) => {
+      const next = [...prev, ...toAdd];
+      emitPreviewSnap(next);
+      return next;
+    });
     e.target.value = '';
   };
 
@@ -833,7 +945,9 @@ const MultiImageUploadCard = ({
     setImages(prev => {
       const removed = prev.find(img => img.id === id);
       if (removed) URL.revokeObjectURL(removed.url);
-      return prev.filter(img => img.id !== id);
+      const next = prev.filter(img => img.id !== id);
+      emitPreviewSnap(next);
+      return next;
     });
   };
 
@@ -855,6 +969,7 @@ const MultiImageUploadCard = ({
       const next = [...prev];
       const [moved] = next.splice(dragIndex, 1);
       next.splice(index, 0, moved);
+      emitPreviewSnap(next);
       return next;
     });
     setDragIndex(null);
@@ -916,8 +1031,8 @@ const MultiImageUploadCard = ({
           </div>
         )}
 
-        {/* Counter + drag hint — only show once images exist */}
-        {images.length > 0 && (
+        {/* Counter + drag hint — only show once images exist and preview enabled */}
+        {showPreview && images.length > 0 && (
           <div className="flex items-center justify-between mt-[14px]">
             <span className="text-[#888] text-[11.5px]">{images.length} of {maxImages} uploaded</span>
             <div className="flex items-center gap-[4px]">
@@ -932,6 +1047,7 @@ const MultiImageUploadCard = ({
         )}
 
         {/* Image grid — 4 per row, scrollable so card never expands */}
+        {showPreview ? (
         <div className={`mt-[10px] mb-[4px] overflow-y-auto ${compactLayout ? 'max-h-[45dvh]' : ''}`} style={compactLayout ? undefined : { maxHeight: '250px' }}>
           <div className={`grid gap-[6px] ${compactLayout ? 'grid-cols-2' : 'grid-cols-4'}`}>
             {images.map((img, index) => (
@@ -987,6 +1103,26 @@ const MultiImageUploadCard = ({
             </div>
           </div>
         </div>
+        ) : (
+          <div
+            className={`bg-[rgba(255,255,255,0.4)] border border-dashed border-[rgba(0,0,0,0.16)] rounded-[12px] flex flex-col items-center mt-[14px] mb-[4px] cursor-pointer ${
+              UPLOAD_ZONE_DROP_CLASS[uploadZoneSize] ?? UPLOAD_ZONE_DROP_CLASS.Default
+            }`}
+            onClick={() => !isAtMax && fileInputRef.current?.click()}
+            onDragOver={(e) => e.preventDefault()}
+          >
+            <div
+              className={`bg-[rgba(0,0,0,0.06)] shrink-0 flex items-center justify-center pointer-events-none ${
+                UPLOAD_ZONE_ICON_CLASS[uploadZoneSize] ?? UPLOAD_ZONE_ICON_CLASS.Default
+              }`}
+            >
+              <RiAddLine size={uploadZoneSize === 'Large' ? 24 : uploadZoneSize === 'Compact' ? 16 : 20} className="text-[#555]" />
+            </div>
+            <span className="font-medium text-[#111] text-[14px] text-center pointer-events-none">
+              {images.length > 0 ? `${images.length} image${images.length === 1 ? '' : 's'} selected` : 'Add photos'}
+            </span>
+          </div>
+        )}
 
         <input
           ref={fileInputRef}
@@ -1324,6 +1460,18 @@ function isPreviewAdvanceAllowed(snap) {
         showSeconds: !!tc.timeShowSeconds,
       });
     }
+    case 'interactive:Upload': {
+      const uc = snap.uploadConfig || {};
+      if (!uc.required) return true;
+      const count = snap.uploadedFiles?.length ?? snap.fileCount ?? 0;
+      return count > 0;
+    }
+    case 'interactive:Multi-image upload': {
+      const mc = snap.multiImageConfig || {};
+      if (!mc.required) return true;
+      const count = snap.imageCount ?? snap.uploadedFiles?.length ?? 0;
+      return count > 0;
+    }
     default:
       return true;
   }
@@ -1595,7 +1743,7 @@ const ContentCardInner = ({
     }
 
     previewScreenValidatorRef.current = null;
-    if (cardKey === 'interactive:Multi-image upload') {
+    if (cardKey === 'interactive:Multi-image upload' || cardKey === 'interactive:Upload') {
       return () => {
         previewScreenValidatorRef.current = null;
       };
@@ -3221,6 +3369,9 @@ const ContentCardInner = ({
         isPreviewMode={isPreviewMode}
         accentColor={accent}
         compactLayout={compactLayout}
+        previewScreenValidatorRef={previewScreenValidatorRef}
+        onPreviewSnapChange={onPreviewSnapChange}
+        previewScreenId={previewScreenId}
       />
     );
   } else if (cardKey === 'interactive:Multi-image upload') {
@@ -3238,6 +3389,8 @@ const ContentCardInner = ({
         isPreviewMode={isPreviewMode}
         previewStepNav={previewStepNav}
         previewScreenValidatorRef={previewScreenValidatorRef}
+        onPreviewSnapChange={onPreviewSnapChange}
+        previewScreenId={previewScreenId}
         compactLayout={compactLayout}
       />
     );

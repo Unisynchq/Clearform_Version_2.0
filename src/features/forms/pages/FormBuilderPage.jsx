@@ -181,6 +181,10 @@ import {
   getSafeVisibilityAutoSkipTarget,
   isScreenVisibleInPreview,
 } from '@/features/forms/utils/logicEngine';
+import {
+  resolveHydratedActiveScreenId,
+  shouldSkipStaleSnapshotHydrate,
+} from '@/features/forms/utils/resolveHydratedActiveScreenId';
 
 const LOGIC_STORAGE_KEY = 'clearform-builder-logic-v1';
 const logicStorageKeyForForm = (formId) =>
@@ -1342,6 +1346,7 @@ const FormBuilderPage = () => {
   const builderDraftHydratedRef = useRef(false);
   const builderHydrationSessionRef = useRef(null);
   const activeScreenIdRef = useRef(null);
+  const screensRef = useRef([]);
   const builderActiveHydratedRef = useRef(false);
   // Set when we self-navigate after first-saving a brand-new form (null -> real
   // id). That navigation resets the hydration guard, so without this the
@@ -3175,6 +3180,9 @@ const FormBuilderPage = () => {
     uploadQuestion,
     uploadHelperText,
     uploadMaxFileSize,
+    multiImageUploadZoneSize,
+    multiImageShowPreview,
+    multiImageAcceptedTypes,
     showIfConditions,
   };
 
@@ -3502,6 +3510,9 @@ const FormBuilderPage = () => {
       setUploadQuestion,
       setUploadHelperText,
       setUploadMaxFileSize,
+      setMultiImageUploadZoneSize,
+      setMultiImageShowPreview,
+      setMultiImageAcceptedTypes,
       setShowIfConditions,
     }),
     []
@@ -3614,8 +3625,12 @@ const FormBuilderPage = () => {
       (isRehydrate || preserveForced) &&
       prevActive != null &&
       built.screens.some((s) => s.id === prevActive);
-    setActiveScreenId(keepActive ? prevActive : built.screens[0]?.id ?? null);
-    if (!keepActive) {
+    const nextActive = resolveHydratedActiveScreenId(built.screens, prevActive, {
+      isRehydrate,
+      preserveForced,
+    });
+    setActiveScreenId(nextActive);
+    if (!keepActive && nextActive !== prevActive && !preserving) {
       closeAllRightPanels();
       setShowConfigPanel(true);
       setActiveTab('content');
@@ -3647,6 +3662,10 @@ const FormBuilderPage = () => {
   useEffect(() => {
     activeScreenIdRef.current = activeScreenId;
   }, [activeScreenId]);
+
+  useEffect(() => {
+    screensRef.current = screens;
+  }, [screens]);
 
   useEffect(() => {
     if (!location.state?.startInPublishView || !isPublishView) return;
@@ -3735,6 +3754,17 @@ const FormBuilderPage = () => {
     }|${hydrationSource}`;
 
     if (builderHydrationSessionRef.current === hydrationSessionKey) return;
+
+    if (
+      builderActiveHydratedRef.current
+      && savedSnapshot
+      && shouldSkipStaleSnapshotHydrate(screensRef.current, savedSnapshot.screens)
+    ) {
+      builderHydrationSessionRef.current = hydrationSessionKey;
+      setBuilderHydrated(true);
+      return;
+    }
+
     builderHydrationSessionRef.current = hydrationSessionKey;
 
     if (formId && savedSnapshot) {
@@ -4333,9 +4363,11 @@ const FormBuilderPage = () => {
     capturePreviewAnswersForScreen(activeScreenId);
     const nextId = getLogicalNextScreenId(activeScreenId);
     if (nextId == null) return;
+    const safeNext = getSafeVisibilityAutoSkipTarget(screens, activeScreenId, nextId);
+    if (safeNext == null || safeNext === activeScreenId) return;
     setPreviewVisitStack((stack) => [...stack, activeScreenId]);
-    setActiveScreenId(nextId);
-  }, [activeScreenId, capturePreviewAnswersForScreen, getLogicalNextScreenId]);
+    setActiveScreenId(safeNext);
+  }, [activeScreenId, capturePreviewAnswersForScreen, getLogicalNextScreenId, screens]);
 
   const previewStepNavEl =
     isPreview && activeScreen?.type !== 'intro' ? (
@@ -5766,6 +5798,9 @@ const FormBuilderPage = () => {
         multiImageRequired,
         multiImageMultipleFiles,
         multiImageMaxFileSize,
+        multiImageUploadZoneSize,
+        multiImageShowPreview,
+        multiImageAcceptedTypes,
         setMultiImageQuestion,
         setMultiImageHelperText,
         uploadQuestion,

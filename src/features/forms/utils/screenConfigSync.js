@@ -928,6 +928,12 @@ export function extractScreenConfig(screen, globals) {
 
         maxFileSize: globals.multiImageMaxFileSize,
 
+        uploadZoneSize: globals.multiImageUploadZoneSize,
+
+        showPreview: globals.multiImageShowPreview,
+
+        acceptedTypes: globals.multiImageAcceptedTypes,
+
       };
 
     case 'Upload':
@@ -939,6 +945,14 @@ export function extractScreenConfig(screen, globals) {
         helperText: globals.uploadHelperText,
 
         maxFileSize: globals.uploadMaxFileSize,
+
+        required: globals.multiImageRequired,
+
+        uploadZoneSize: globals.multiImageUploadZoneSize,
+
+        showPreview: globals.multiImageShowPreview,
+
+        acceptedTypes: globals.multiImageAcceptedTypes,
 
       };
 
@@ -1365,6 +1379,12 @@ export function applyScreenConfig(screen, config, setters) {
 
       if (config.maxFileSize != null) setters.setMultiImageMaxFileSize(config.maxFileSize);
 
+      if (config.uploadZoneSize != null) setters.setMultiImageUploadZoneSize(config.uploadZoneSize);
+
+      if (config.showPreview != null) setters.setMultiImageShowPreview(config.showPreview);
+
+      if (config.acceptedTypes != null) setters.setMultiImageAcceptedTypes(config.acceptedTypes);
+
       break;
 
     case 'Upload':
@@ -1374,6 +1394,14 @@ export function applyScreenConfig(screen, config, setters) {
       if (config.helperText != null) setters.setUploadHelperText(config.helperText);
 
       if (config.maxFileSize != null) setters.setUploadMaxFileSize(config.maxFileSize);
+
+      if (config.required != null) setters.setMultiImageRequired(config.required);
+
+      if (config.uploadZoneSize != null) setters.setMultiImageUploadZoneSize(config.uploadZoneSize);
+
+      if (config.showPreview != null) setters.setMultiImageShowPreview(config.showPreview);
+
+      if (config.acceptedTypes != null) setters.setMultiImageAcceptedTypes(config.acceptedTypes);
 
       break;
 

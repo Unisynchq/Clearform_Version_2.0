@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildResponseFromPreview,
   extractRespondentLabel,
+  mapApiResponseForDisplay,
   responseToTableRow,
   filterResponsesByRange,
   sortResponsesByNewest,
@@ -25,12 +26,34 @@ describe('formResponseBuilder', () => {
     { id: 4, type: 'end', label: 'End' },
   ];
 
-  it('extractRespondentLabel falls back to short text when no contact screen', () => {
+  it('extractRespondentLabel shows em dash when no contact data', () => {
     expect(
       extractRespondentLabel(screens, {
         3: { shortTextDraft: 'Rahul Pandey' },
       }),
-    ).toBe('Rahul Pandey');
+    ).toBe('—');
+  });
+
+  it('extractRespondentLabel prefers contact email over other fields', () => {
+    expect(
+      extractRespondentLabel(screens, {
+        2: { previewFields: { 'c.em': 'test@example.com', 'c.fn': 'Ada' } },
+      }),
+    ).toBe('test@example.com');
+  });
+
+  it('mapApiResponseForDisplay recomputes contact from answersByScreenId', () => {
+    const draft = { screens };
+    const item = {
+      formId: 42,
+      contact: 'Stale feedback text',
+      answersByScreenId: {
+        2: { previewFields: { 'c.em': 'fresh@example.com' } },
+        3: { shortTextDraft: 'Designer' },
+      },
+    };
+    const mapped = mapApiResponseForDisplay(item, draft);
+    expect(mapped.contact).toBe('fresh@example.com');
   });
 
   it('buildResponseFromPreview captures contact and answers', () => {

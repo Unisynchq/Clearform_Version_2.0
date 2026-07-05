@@ -186,8 +186,10 @@ export default function FormRespondentView({ draft, formId }) {
     const snap = snapsByScreenId[activeScreenId] ?? emptySnap();
     runnerRef.current?.recordScreenAnswers(activeScreenId, snap);
     const nextId = runnerRef.current?.getNextScreenId(activeScreenId);
-    const nextScreen = nextId != null ? screens.find((s) => s.id === nextId) : null;
-    const isFormComplete = nextId == null || nextScreen?.type === 'end';
+    const advanceId = getSafeVisibilityAutoSkipTarget(screens, activeScreenId, nextId);
+    if (nextId != null && advanceId == null) return;
+    const nextScreen = advanceId != null ? screens.find((s) => s.id === advanceId) : null;
+    const isFormComplete = advanceId == null || nextScreen?.type === 'end';
 
     if (isFormComplete && formId) {
       isCompletedRef.current = true;
@@ -203,11 +205,12 @@ export default function FormRespondentView({ draft, formId }) {
         screenTimestamps: { ...screenEnteredAtRef.current },
       });
       submitFormResponse(formId, response, mergedSnaps).catch(() => {});
-      if (nextId == null) return;
+      if (advanceId == null) return;
     }
 
-    setVisitStack((s) => [...s, activeScreenId]);
-    setActiveScreenId(nextId);
+    const leavingIntro = screens.find((s) => s.id === activeScreenId)?.type === 'intro';
+    setVisitStack((s) => (leavingIntro ? s : [...s, activeScreenId]));
+    setActiveScreenId(advanceId);
   }, [activeScreenId, snapsByScreenId, screens, formId]);
 
   const goBack = useCallback(() => {

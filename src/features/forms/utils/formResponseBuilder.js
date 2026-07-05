@@ -133,21 +133,15 @@ export function extractContactFromScreens(screens, snapsByScreenId) {
     if (phone) return phone;
     const name = [field(snap, 'c.fn'), field(snap, 'c.ln')].filter(Boolean).join(' ');
     if (name) return name;
+    const company = field(snap, 'c.co');
+    if (company) return company;
   }
   return '—';
 }
 
-/** Name/email/phone column — Contact screen first, else first short/long text answer. */
+/** Name/email/phone column — Contact screen identity fields only. */
 export function extractRespondentLabel(screens, snapsByScreenId) {
-  const contact = extractContactFromScreens(screens, snapsByScreenId);
-  if (contact !== '—') return contact;
-  for (const screen of screens ?? []) {
-    if (screen.type !== 'content') continue;
-    if (screen.label !== 'Short text' && screen.label !== 'Long text') continue;
-    const v = formatScreenAnswerValue(screen, snapForScreen(snapsByScreenId, screen.id));
-    if (v && v !== '—') return v;
-  }
-  return '—';
+  return extractContactFromScreens(screens, snapsByScreenId);
 }
 
 /**
@@ -234,7 +228,7 @@ export function mapApiResponseForDisplay(item, draft) {
     });
     return {
       ...item,
-      contact: item.contact && item.contact !== '—' ? item.contact : rebuilt.contact,
+      contact: rebuilt.contact,
       status: item.status ?? rebuilt.status,
       answers: rebuilt.answers,
       durationMs: item.durationMs ?? item.metadata?.durationMs ?? null,
