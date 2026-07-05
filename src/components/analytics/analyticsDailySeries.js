@@ -121,19 +121,17 @@ export function dailyTimePerQuestionSec(row) {
 }
 
 /** Daily reach → submit rate using explicit funnel denominators when present. */
-export function dailyCompletionRatePct(row) {
+export function dailyCompletionRatePct(row, funnelContext = {}) {
   if (row == null) return null;
-  const num =
-    typeof row.completions === 'number'
-      ? row.completions
-      : typeof row.submissions === 'number'
-        ? row.submissions
-        : typeof row.submitted === 'number'
-          ? row.submitted
-          : null;
+
+  let num = null;
+  if (typeof row.completions === 'number') num = row.completions;
+  else if (typeof row.submissions === 'number') num = row.submissions;
+  else if (typeof row.submitted === 'number') num = row.submitted;
+
   if (num == null) return null;
 
-  const denom =
+  let denom =
     typeof row.reached === 'number'
       ? row.reached
       : typeof row.started === 'number'
@@ -144,6 +142,19 @@ export function dailyCompletionRatePct(row) {
             ? row.opened
             : null;
 
+  // Backend often sends session volume as `count` alongside daily completions.
+  if (denom == null && typeof row.count === 'number' && row.count > 0 && row.count >= num) {
+    denom = row.count;
+  }
+
+  if (denom == null) {
+    denom =
+      funnelContext.reached ??
+      funnelContext.started ??
+      funnelContext.opened ??
+      null;
+  }
+
   if (denom == null || denom <= 0) return null;
   return Math.round((num / denom) * 100);
 }
@@ -152,7 +163,95 @@ export function dailyCompletionRatePct(row) {
  * Build bar chart panel for Performance tab.
  * @returns {{ bars, chartMax, yTicks, isEmpty } | null}
  */
-export function buildDailyChartPanel(series, seg, { totalSubmitted } = {}) {
+export function buildDailyChartPanel(series, seg, { totalSubmitted, funnel } = {}) {
+  const funnelContext = funnel ?? {};
+  const hasSubmissions = (totalSubmitted ?? 0) > 0;
+
+  if (seg === 'completion') {
+    const aggregateRate =
+      funnelContext.reached > 0 && hasSubmissions
+        ? Math.round(((totalSubmitted ?? 0) / funnelContext.reached) * 100)
+        : null;
+
+    if (!Array.isArray(series) || series.length === 0) {
+      if (!hasSubmissions || aggregateRate == null) {
+        return { chartMax: 100, yTicks: buildYTicks(100), isEmpty: true, bars: [] };
+      }
+      const chartMax = Math.min(100, chartMaxForBarScale(aggregateRate, { min: Math.max(1, aggregateRate) }));
+      return {
+        chartMax,
+        yTicks: buildYTicks(chartMax),
+        isEmpty: false,
+        bars: [
+          {
+            label: 'All time',
+            value: aggregateRate,
+            tier: aggregateRate < 40 ? 'bad' : aggregateRate < 65 ? 'warn' : 'ok',
+            date: null,
+          },
+        ],
+      };
+    }
+
+    const vals = series.map((r) => dailyCompletionRatePct(r, funnelContext));
+    let bars = series.map((r, i) => {
+      const val = vals[i];
+      if (val == null) {
+        return { label: formatDailyDateLabel(r.date), value: null, tier: 'warn', date: r.date };
+      }
+      return {
+        label: formatDailyDateLabel(r.date),
+        value: val,
+        tier: 'warn',
+        date: r.date,
+      };
+    });
+
+    let numericVals = vals.filter((v) => v != null && Number.isFinite(v));
+
+    // Fall back to aggregate funnel rate on days with completions but no per-day denominator.
+    if (hasSubmissions && numericVals.length === 0 && aggregateRate != null) {
+      bars = series.map((r) => {
+        const dayCompletions =
+          typeof r.completions === 'number'
+            ? r.completions
+            : typeof r.submissions === 'number'
+              ? r.submissions
+              : typeof r.submitted === 'number'
+                ? r.submitted
+                : 0;
+        const value = dayCompletions > 0 ? aggregateRate : 0;
+        return {
+          label: formatDailyDateLabel(r.date),
+          value,
+          tier: value < 40 ? 'bad' : value < 65 ? 'warn' : 'ok',
+          date: r.date,
+        };
+      });
+      numericVals = bars.map((b) => b.value).filter((v) => Number.isFinite(v));
+    }
+
+    const seriesMax = Math.max(...numericVals, 0);
+    const tierMax = Math.max(...numericVals, 1);
+    bars = bars.map((bar) =>
+      bar.value != null && Number.isFinite(bar.value)
+        ? { ...bar, tier: toTier(bar.value, tierMax) }
+        : bar,
+    );
+
+    const chartMax =
+      seriesMax > 0
+        ? Math.min(100, chartMaxForBarScale(seriesMax, { min: Math.max(1, seriesMax) }))
+        : 100;
+
+    return {
+      chartMax,
+      yTicks: buildYTicks(chartMax),
+      isEmpty: !hasSubmissions,
+      bars,
+    };
+  }
+
   if (!Array.isArray(series) || series.length === 0) return null;
 
   if (seg === 'responses') {
@@ -172,34 +271,6 @@ export function buildDailyChartPanel(series, seg, { totalSubmitted } = {}) {
           label: formatDailyDateLabel(r.date),
           value,
           tier: toTier(value, tierMax),
-          date: r.date,
-        };
-      }),
-    };
-  }
-
-  if (seg === 'completion') {
-    const vals = series.map((r) => dailyCompletionRatePct(r));
-    const numericVals = vals.filter((v) => v != null && Number.isFinite(v));
-    const isEmpty = numericVals.length === 0;
-    const seriesMax = Math.max(...numericVals, 0);
-    const chartMax = isEmpty
-      ? 100
-      : Math.min(100, chartMaxForBarScale(seriesMax, { min: Math.max(1, seriesMax) }));
-    const tierMax = Math.max(...numericVals, 1);
-    return {
-      chartMax,
-      yTicks: buildYTicks(chartMax),
-      isEmpty,
-      bars: series.map((r, i) => {
-        const val = vals[i];
-        if (val == null) {
-          return { label: formatDailyDateLabel(r.date), value: null, tier: 'warn', date: r.date };
-        }
-        return {
-          label: formatDailyDateLabel(r.date),
-          value: val,
-          tier: toTier(val, tierMax),
           date: r.date,
         };
       }),

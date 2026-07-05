@@ -459,10 +459,11 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
   ];
 
   const totalSubmitted = apiStats?.responses ?? apiStats?.funnel?.submitted ?? null;
+  const funnel = apiStats?.funnel ?? null;
 
   const chartPanel = useMemo(
-    () => buildDailyChartPanel(apiStats?.dailySeries, seg, { totalSubmitted }),
-    [apiStats?.dailySeries, seg, totalSubmitted],
+    () => buildDailyChartPanel(apiStats?.dailySeries, seg, { totalSubmitted, funnel }),
+    [apiStats?.dailySeries, seg, totalSubmitted, funnel],
   );
 
   const avgFromSeries = useMemo(() => {
@@ -488,7 +489,11 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
     const bars = chartPanel?.bars ?? [];
     const chartMax = chartPanel?.chartMax ?? 5;
     const yTicks = chartPanel?.yTicks ?? ['5', '0'];
-    const isEmpty = !chartPanel || chartPanel.isEmpty || bars.length === 0;
+    const hasSubmissions = (totalSubmitted ?? 0) > 0;
+    const isEmpty =
+      seg === 'completion'
+        ? !hasSubmissions || chartPanel?.isEmpty === true
+        : !chartPanel || chartPanel.isEmpty || bars.length === 0;
 
     switch (seg) {
       case 'completion':
@@ -503,8 +508,8 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
           trend: null,
           insight: null,
           chartTitle: 'Completion rate',
-          guideTop: 'top-[32%]',
-          guideLabel: 'industry avg.: 35%',
+          guideTop: null,
+          guideLabel: null,
         };
       case 'time':
         return {
@@ -518,8 +523,8 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
           trend: null,
           insight: null,
           chartTitle: 'Seconds per question',
-          guideTop: 'top-[28%]',
-          guideLabel: 'goal: 10s',
+          guideTop: null,
+          guideLabel: null,
         };
       default:
         return {
@@ -533,11 +538,11 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
           trend: null,
           insight: null,
           chartTitle: 'Completed submissions per day',
-          guideTop: 'top-[25%]',
+          guideTop: null,
           guideLabel: null,
         };
     }
-  }, [seg, chartPanel, avgFromSeries]);
+  }, [seg, chartPanel, avgFromSeries, totalSubmitted]);
 
   return (
     <div className="bg-white rounded-[20px] border border-[#ebebeb] overflow-hidden flex flex-col min-h-[420px]">

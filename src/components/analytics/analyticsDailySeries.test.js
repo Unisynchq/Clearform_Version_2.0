@@ -22,7 +22,15 @@ describe('dailyCompletionRatePct', () => {
     expect(dailyCompletionRatePct({ completions: 2, reached: 50 })).toBe(4);
   });
 
-  it('does not treat submission count as denominator', () => {
+  it('uses session-like count when reached is missing', () => {
+    expect(dailyCompletionRatePct({ completions: 2, count: 50 })).toBe(4);
+  });
+
+  it('falls back to funnel reached for the day', () => {
+    expect(dailyCompletionRatePct({ completions: 2 }, { reached: 50 })).toBe(4);
+  });
+
+  it('does not treat matching submission count as denominator', () => {
     expect(dailyCompletionRatePct({ completions: 2, submissions: 2 })).toBeNull();
   });
 });
@@ -67,10 +75,34 @@ describe('buildDailyChartPanel completion', () => {
   it('uses dynamic axis for low completion percentages', () => {
     const series = [{ date: '2026-01-01', completions: 2, reached: 50 }];
     const panel = buildDailyChartPanel(series, 'completion', { totalSubmitted: 2 });
+    expect(panel.isEmpty).toBe(false);
     expect(panel.chartMax).toBeLessThan(100);
     expect(panel.bars[0].value).toBe(4);
     const h = barHeightPx(panel.bars[0].value, panel.chartMax, BAR_PLOT_HEIGHT_PX);
     expect(h / BAR_PLOT_HEIGHT_PX).toBeGreaterThan(0.55);
+  });
+
+  it('renders chart when daily rows only have count and completions', () => {
+    const series = [
+      { date: '2026-01-01', count: 50, completions: 2 },
+      { date: '2026-01-02', count: 40, completions: 0 },
+    ];
+    const panel = buildDailyChartPanel(series, 'completion', {
+      totalSubmitted: 2,
+      funnel: { reached: 50, submitted: 2 },
+    });
+    expect(panel.isEmpty).toBe(false);
+    expect(panel.bars[0].value).toBe(4);
+    expect(panel.bars[1].value).toBe(0);
+  });
+
+  it('renders aggregate bar when daily series is empty but submissions exist', () => {
+    const panel = buildDailyChartPanel([], 'completion', {
+      totalSubmitted: 2,
+      funnel: { reached: 50, submitted: 2 },
+    });
+    expect(panel.isEmpty).toBe(false);
+    expect(panel.bars[0].value).toBe(4);
   });
 });
 
