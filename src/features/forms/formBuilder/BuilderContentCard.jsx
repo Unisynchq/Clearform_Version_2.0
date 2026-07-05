@@ -41,6 +41,7 @@ import { PiCaretCircleUp } from 'react-icons/pi';
 import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.png';
 import InlineEditableField from '@/features/forms/components/InlineEditableField';
 import { CanvasBadgeText, CanvasHelperText, CanvasOptionLabel, CanvasQuestionText } from '@/features/forms/components/canvasCardText';
+import FormDatePickerCalendar from '@/features/forms/formBuilder/FormDatePickerCalendar';
 import { ImagesCardIcon, VideoCardIcon } from '@/features/forms/formBuilder/builderFieldIcons';
 import ResponseQualityScoringCard, {
   DEFAULT_RESPONSE_QUALITY_OPTIONS,
@@ -1452,6 +1453,11 @@ function isPreviewAdvanceAllowed(snap) {
     }
     case 'numeric:Rating':
       return !snap.ratingConfig?.ratingRequired || (ratingValue ?? 0) > 0;
+    case 'numeric:Date': {
+      const dc = snap.dateConfig || {};
+      const v = g('dateAns') || g('date');
+      return !dc.dateRequired || v.length > 0;
+    }
     case 'numeric:Time': {
       const tc = snap.timeConfig || {};
       const sel = snap.timeSelection;
@@ -1553,6 +1559,7 @@ const ContentCardInner = ({
   const [longTextDraft, setLongTextDraft] = useState('');
   const [previewRequiredHint, setPreviewRequiredHint] = useState(false);
   const [timeSelection, setTimeSelection] = useState(null);
+  const [builderDatePreview, setBuilderDatePreview] = useState('2026-05-11');
   const [qualityUpgradeOpen, setQualityUpgradeOpen] = useState(false);
 
   useEffect(() => {
@@ -3617,11 +3624,7 @@ const ContentCardInner = ({
     );
   } else if (cardKey === 'numeric:Date') {
     const dc = dateConfig || {};
-    const dQuestion = dc.dateQuestion || "When's the best date for you?";
-    const dHelper = dc.dateHelperText || 'Pick a date from the calendar.';
     const dRequired = !!dc.dateRequired;
-    const days = Array.from({ length: 31 }, (_, i) => i + 1);
-    const weekendIdx = new Set([4, 5, 11, 12, 18, 19, 25, 26]);
     content = (
       <>
         <CardBody compactLayout={compactLayout}>
@@ -3642,29 +3645,15 @@ const ContentCardInner = ({
             isPreviewMode={isPreviewMode}
             className="mb-[19px]"
           />
-          <div className="border border-[rgba(0,0,0,0.12)] rounded-[10px] overflow-hidden mb-5">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-[rgba(0,0,0,0.07)]">
-              <span className="text-[13px] font-medium text-[#111]">May 2026</span>
-              <div className="flex gap-3">
-                <RiArrowLeftSLine size={16} className="text-[#888] cursor-pointer shrink-0" aria-hidden />
-                <RiArrowRightSLine size={16} className="text-[#888] cursor-pointer shrink-0" aria-hidden />
-              </div>
-            </div>
-            <div className="grid grid-cols-7 text-center px-4 py-3 gap-y-1">
-              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-                <span key={d} className="text-[10px] text-[#888] pb-1">{d}</span>
-              ))}
-              {days.map((d) => (
-                <span
-                  key={d}
-                  className={`${compactLayout ? 'text-[12px]' : 'text-[13px]'} py-1 rounded-full ${d === 11 ? 'text-white' : weekendIdx.has(d - 1) ? 'text-[#ccc]' : 'text-[#111] cursor-pointer hover:bg-[rgba(0,0,0,0.05)]'}`}
-                  style={d === 11 ? { backgroundColor: accent } : undefined}
-                >
-                  {d}
-                </span>
-              ))}
-            </div>
-          </div>
+          <FormDatePickerCalendar
+            value={isPreviewMode ? (pf('dateAns') || pf('date')) : builderDatePreview}
+            onChange={(iso) => {
+              if (isPreviewMode) setPf('dateAns', iso);
+              else setBuilderDatePreview(iso);
+            }}
+            accentColor={accent}
+            compactLayout={compactLayout}
+          />
         </CardBody>
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
