@@ -2,15 +2,28 @@ import { describe, expect, it } from 'vitest';
 import {
   averageDailySubmissions,
   buildDailyChartPanel,
+  chartMaxForBarScale,
   chartMaxWithHeadroom,
+  dailyCompletionRatePct,
   dailySubmissionsCount,
   sanitizeDailySeriesForSubmissions,
 } from './analyticsDailySeries';
+import { BAR_PLOT_HEIGHT_PX, barHeightPx } from './analyticsMetrics';
 
 describe('dailySubmissionsCount', () => {
   it('prefers submissions and completions over raw count', () => {
     expect(dailySubmissionsCount({ submissions: 2, count: 50 })).toBe(2);
     expect(dailySubmissionsCount({ completions: 2, count: 50 })).toBe(2);
+  });
+});
+
+describe('dailyCompletionRatePct', () => {
+  it('uses reached as denominator when available', () => {
+    expect(dailyCompletionRatePct({ completions: 2, reached: 50 })).toBe(4);
+  });
+
+  it('does not treat submission count as denominator', () => {
+    expect(dailyCompletionRatePct({ completions: 2, submissions: 2 })).toBeNull();
   });
 });
 
@@ -39,15 +52,31 @@ describe('buildDailyChartPanel responses', () => {
     const series = [{ date: '2026-01-01', submissions: 2 }];
     const panel = buildDailyChartPanel(series, 'responses', { totalSubmitted: 2 });
     expect(panel.chartMax).toBeLessThanOrEqual(5);
-    const hPct = (panel.bars[0].value / panel.chartMax) * 100;
-    expect(hPct).toBeGreaterThan(50);
-    expect(hPct).toBeLessThanOrEqual(100);
+    const h = barHeightPx(panel.bars[0].value, panel.chartMax, BAR_PLOT_HEIGHT_PX);
+    expect(h / BAR_PLOT_HEIGHT_PX).toBeGreaterThan(0.55);
   });
 
   it('does not overflow bar height when count was inflated', () => {
     const series = [{ date: '2026-01-01', count: 50 }];
     const panel = buildDailyChartPanel(series, 'responses', { totalSubmitted: 2 });
     expect(panel.bars[0].value).toBe(0);
+  });
+});
+
+describe('buildDailyChartPanel completion', () => {
+  it('uses dynamic axis for low completion percentages', () => {
+    const series = [{ date: '2026-01-01', completions: 2, reached: 50 }];
+    const panel = buildDailyChartPanel(series, 'completion', { totalSubmitted: 2 });
+    expect(panel.chartMax).toBeLessThan(100);
+    expect(panel.bars[0].value).toBe(4);
+    const h = barHeightPx(panel.bars[0].value, panel.chartMax, BAR_PLOT_HEIGHT_PX);
+    expect(h / BAR_PLOT_HEIGHT_PX).toBeGreaterThan(0.55);
+  });
+});
+
+describe('chartMaxForBarScale', () => {
+  it('keeps small maxes readable', () => {
+    expect(chartMaxForBarScale(2)).toBeLessThanOrEqual(5);
   });
 });
 

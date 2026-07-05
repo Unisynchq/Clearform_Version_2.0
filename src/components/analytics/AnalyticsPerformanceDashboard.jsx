@@ -19,6 +19,13 @@ import {
   averageDailySubmissions,
   buildDailyChartPanel,
 } from './analyticsDailySeries';
+import {
+  aggregateAvgTimePerQuestionSec,
+  barHeightPx,
+  BAR_PLOT_HEIGHT_PX,
+  formatSecondsLabel,
+  funnelCompletionRatePct,
+} from './analyticsMetrics';
 
 function barColor(tier) {
   if (tier === 'bad') return 'bg-[rgba(231,76,60,0.85)]';
@@ -136,16 +143,15 @@ const statsRowVariant = {
 
 function formatStatsDisplay(form, apiStats) {
   const s = deriveFormStatsFromApi(form, apiStats);
-  if (apiStats && !apiStats.source) {
-    if (apiStats.avgTimePerQuestion && apiStats.avgTimePerQuestion !== '—') {
-      s.avgTimeLabel = apiStats.avgTimePerQuestion;
-    } else if (apiStats.avgTime && apiStats.avgTime !== '—') {
-      s.avgTimeLabel = apiStats.avgTime;
-    }
+  const funnelRate = funnelCompletionRatePct(apiStats);
+  if (funnelRate != null) {
+    s.conversion = funnelRate.toFixed(1);
+    s.conversionPct = Math.round(funnelRate);
   }
-  if (apiStats && !apiStats.source && typeof apiStats.completionRate === 'number') {
-    s.conversion = apiStats.completionRate.toFixed(1);
-    s.conversionPct = Math.round(apiStats.completionRate);
+  const avgTimeSec = aggregateAvgTimePerQuestionSec(apiStats);
+  if (avgTimeSec != null) {
+    s.avgTimeSec = avgTimeSec;
+    s.avgTimeLabel = formatSecondsLabel(avgTimeSec);
   }
   const industry = 35;
   const diff = s.conversionPct - industry;
@@ -463,12 +469,20 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
     if (seg === 'responses') {
       return averageDailySubmissions(apiStats?.dailySeries, totalSubmitted);
     }
+    if (seg === 'completion') {
+      const rate = funnelCompletionRatePct(apiStats);
+      return rate != null ? rate.toFixed(1) : null;
+    }
+    if (seg === 'time') {
+      const sec = aggregateAvgTimePerQuestionSec(apiStats);
+      return sec != null ? String(sec) : null;
+    }
     if (!chartPanel?.bars?.length) return null;
     const numeric = chartPanel.bars.map((b) => b.value).filter((v) => v != null && Number.isFinite(v));
     if (numeric.length === 0) return null;
     const sum = numeric.reduce((acc, v) => acc + v, 0);
     return (sum / numeric.length).toFixed(1);
-  }, [seg, chartPanel, apiStats?.dailySeries, totalSubmitted]);
+  }, [seg, chartPanel, apiStats, totalSubmitted]);
 
   const panel = useMemo(() => {
     const bars = chartPanel?.bars ?? [];
@@ -629,35 +643,39 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
                       {panel.bars.map((d, bi) => {
                         const rawVal = d.value ?? 0;
                         const safeVal = Number.isFinite(rawVal) ? rawVal : 0;
-                        const hPct = panel.chartMax > 0
-                          ? Math.min(100, Math.max(0, (safeVal / panel.chartMax) * 100))
-                          : 0;
+                        const barPx = barHeightPx(safeVal, panel.chartMax, BAR_PLOT_HEIGHT_PX);
                         const showLabel = panel.bars.length <= 14 || bi % 2 === 0;
+                        const valueTitle =
+                          seg === 'completion'
+                            ? `${d.label}: ${safeVal}%`
+                            : seg === 'time'
+                              ? `${d.label}: ${safeVal}s`
+                              : `${d.label}: ${safeVal} submission${safeVal === 1 ? '' : 's'}`;
                         return (
-                          <div key={`${d.date ?? d.label}-${bi}`} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-                            <div className="relative w-full flex justify-center items-end h-full">
-                              <motion.div
-                                initial={{ height: 0 }}
-                                animate={{ height: `${hPct}%` }}
-                                transition={{
-                                  type: 'spring',
-                                  stiffness: 400,
-                                  damping: 30,
-                                  delay: 0.05 + bi * 0.022,
-                                }}
-                                title={`${d.label}: ${safeVal} submission${safeVal === 1 ? '' : 's'}`}
-                                className={`w-[72%] max-w-[28px] rounded-t-[4px] self-end ${barColor(d.tier)} ${
-                                  d.highlight ? 'ring-2 ring-[rgba(231,76,60,0.5)]' : ''
-                                }`}
-                                style={{ minHeight: safeVal > 0 ? 3 : 0 }}
-                              />
-                            </div>
+                          <div
+                            key={`${d.date ?? d.label}-${bi}`}
+                            className="flex-1 flex flex-col items-center justify-end min-w-0 h-[148px]"
+                          >
+                            <motion.div
+                              initial={{ height: 0 }}
+                              animate={{ height: barPx }}
+                              transition={{
+                                type: 'spring',
+                                stiffness: 400,
+                                damping: 30,
+                                delay: 0.05 + bi * 0.022,
+                              }}
+                              title={valueTitle}
+                              className={`w-[72%] max-w-[28px] rounded-t-[4px] ${barColor(d.tier)} ${
+                                d.highlight ? 'ring-2 ring-[rgba(231,76,60,0.5)]' : ''
+                              }`}
+                            />
                             {showLabel ? (
-                              <span className="text-[8px] sm:text-[10px] text-[#6d6d6d] text-center leading-tight max-w-full px-0.5 truncate">
+                              <span className="shrink-0 text-[8px] sm:text-[10px] text-[#6d6d6d] text-center leading-tight max-w-full px-0.5 truncate h-[14px]">
                                 {d.label}
                               </span>
                             ) : (
-                              <span className="h-[12px]" aria-hidden />
+                              <span className="h-[14px] shrink-0" aria-hidden />
                             )}
                           </div>
                         );

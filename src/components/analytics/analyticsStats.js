@@ -73,18 +73,18 @@ export function deriveFormStatsFromApi(form, apiStats) {
   const funnel = apiStats.funnel ?? {};
   const totalResponses = apiStats.responses ?? funnel.submitted ?? 0;
   const submitted = totalResponses;
-  if (totalResponses === 0) {
+  if (totalResponses === 0 && (funnel.reached ?? 0) === 0) {
     return emptyFormStats(form);
   }
-  const reached = funnel.reached ?? Math.max(submitted, Math.round(submitted * 1.2));
-  const opened = funnel.opened ?? Math.max(submitted, Math.round(submitted * 1.1));
-  const started = funnel.started ?? Math.max(submitted, Math.round(submitted / Math.max((apiStats.completionRate ?? 50) / 100, 0.05)));
+  const reached = funnel.reached ?? Math.max(submitted, 0);
+  const opened = funnel.opened ?? Math.max(submitted, 0);
+  const started = funnel.started ?? Math.max(submitted, 0);
   const target = form?.responseLimit ?? Math.max(submitted, submitted * 2 || 500);
 
-  const avgTimeSec =
-    typeof apiStats.avgDurationMs === 'number' && apiStats.avgDurationMs > 0
-      ? Math.round(apiStats.avgDurationMs / 1000)
-      : null;
+  let avgTimeSec = null;
+  if (typeof apiStats.avgTimePerQuestionSec === 'number' && apiStats.avgTimePerQuestionSec > 0) {
+    avgTimeSec = Math.round(apiStats.avgTimePerQuestionSec);
+  }
 
   return buildFunnelStats({
     submitted,

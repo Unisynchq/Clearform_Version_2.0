@@ -1,3 +1,5 @@
+import { BAR_TARGET_FILL_RATIO } from './analyticsMetrics';
+
 /** Completed submissions for one day — never opened/started/reached sessions. */
 export function dailySubmissionsCount(row) {
   if (row == null) return 0;
@@ -23,7 +25,18 @@ export function formatDailyDateLabel(dateStr) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-/** Round up to a readable axis maximum with ~15% headroom above the tallest bar. */
+/**
+ * Axis maximum so the tallest bar fills ~75% of plot height (≈15–20% headroom above).
+ * Never scales small counts against session totals.
+ */
+export function chartMaxForBarScale(maxValue, { targetFill = BAR_TARGET_FILL_RATIO, min = 1 } = {}) {
+  if (!Number.isFinite(maxValue) || maxValue <= 0) return min;
+  const raw = maxValue / targetFill;
+  if (raw <= 10) return Math.max(min, Math.ceil(raw));
+  return niceRoundChartMax(raw, { min });
+}
+
+/** @deprecated Prefer chartMaxForBarScale — kept for tests migrating gradually. */
 export function chartMaxWithHeadroom(maxValue, { headroomPct = 0.15, min = 1 } = {}) {
   if (!Number.isFinite(maxValue) || maxValue <= 0) return min;
   return niceRoundChartMax(maxValue * (1 + headroomPct), { min });
@@ -99,12 +112,40 @@ export function sanitizeDailySeriesForSubmissions(series, totalSubmitted) {
   return series;
 }
 
+/** Per-question dwell time from interaction timestamps only (no session-duration fallback). */
 export function dailyTimePerQuestionSec(row) {
   if (typeof row?.avgTimePerQuestionSec === 'number' && row.avgTimePerQuestionSec > 0) {
     return row.avgTimePerQuestionSec;
   }
-  if (row?.avgDuration && row.avgDuration > 0) return Math.round(row.avgDuration / 1000);
   return null;
+}
+
+/** Daily reach → submit rate using explicit funnel denominators when present. */
+export function dailyCompletionRatePct(row) {
+  if (row == null) return null;
+  const num =
+    typeof row.completions === 'number'
+      ? row.completions
+      : typeof row.submissions === 'number'
+        ? row.submissions
+        : typeof row.submitted === 'number'
+          ? row.submitted
+          : null;
+  if (num == null) return null;
+
+  const denom =
+    typeof row.reached === 'number'
+      ? row.reached
+      : typeof row.started === 'number'
+        ? row.started
+        : typeof row.sessions === 'number'
+          ? row.sessions
+          : typeof row.opened === 'number'
+            ? row.opened
+            : null;
+
+  if (denom == null || denom <= 0) return null;
+  return Math.round((num / denom) * 100);
 }
 
 /**
@@ -119,7 +160,7 @@ export function buildDailyChartPanel(series, seg, { totalSubmitted } = {}) {
     const vals = sanitized.map((r) => dailySubmissionsCount(r));
     const seriesMax = Math.max(...vals, 0);
     const isEmpty = vals.every((v) => v === 0);
-    const chartMax = isEmpty ? 5 : chartMaxWithHeadroom(seriesMax, { min: seriesMax > 0 ? seriesMax : 5 });
+    const chartMax = isEmpty ? 5 : chartMaxForBarScale(seriesMax, { min: seriesMax > 0 ? seriesMax : 5 });
     const tierMax = Math.max(...vals, 1);
     return {
       chartMax,
@@ -138,21 +179,30 @@ export function buildDailyChartPanel(series, seg, { totalSubmitted } = {}) {
   }
 
   if (seg === 'completion') {
-    const vals = series.map((r) => {
-      const denom = dailySessionsCount(r);
-      const num = typeof r.completions === 'number' ? r.completions : dailySubmissionsCount(r);
-      return denom > 0 ? Math.round((num / denom) * 100) : 0;
-    });
+    const vals = series.map((r) => dailyCompletionRatePct(r));
+    const numericVals = vals.filter((v) => v != null && Number.isFinite(v));
+    const isEmpty = numericVals.length === 0;
+    const seriesMax = Math.max(...numericVals, 0);
+    const chartMax = isEmpty
+      ? 100
+      : Math.min(100, chartMaxForBarScale(seriesMax, { min: Math.max(1, seriesMax) }));
+    const tierMax = Math.max(...numericVals, 1);
     return {
-      chartMax: 100,
-      yTicks: ['100', '75', '50', '25', '0'],
-      isEmpty: false,
-      bars: series.map((r, i) => ({
-        label: formatDailyDateLabel(r.date),
-        value: vals[i],
-        tier: vals[i] < 40 ? 'bad' : vals[i] < 65 ? 'warn' : 'ok',
-        date: r.date,
-      })),
+      chartMax,
+      yTicks: buildYTicks(chartMax),
+      isEmpty,
+      bars: series.map((r, i) => {
+        const val = vals[i];
+        if (val == null) {
+          return { label: formatDailyDateLabel(r.date), value: null, tier: 'warn', date: r.date };
+        }
+        return {
+          label: formatDailyDateLabel(r.date),
+          value: val,
+          tier: toTier(val, tierMax),
+          date: r.date,
+        };
+      }),
     };
   }
 
@@ -161,7 +211,7 @@ export function buildDailyChartPanel(series, seg, { totalSubmitted } = {}) {
     const numericVals = vals.filter((v) => v != null && Number.isFinite(v));
     if (numericVals.length === 0) return null;
     const seriesMax = Math.max(...numericVals, 1);
-    const chartMax = chartMaxWithHeadroom(seriesMax);
+    const chartMax = chartMaxForBarScale(seriesMax);
     const tierMax = Math.max(...numericVals, 1);
     return {
       chartMax,
@@ -187,11 +237,7 @@ export function buildDailyChartPanel(series, seg, { totalSubmitted } = {}) {
 
 export function dailyMetricValue(row, trendMetric) {
   if (trendMetric === 'responses') return dailySubmissionsCount(row);
-  if (trendMetric === 'completion') {
-    const denom = dailySessionsCount(row);
-    const num = typeof row.completions === 'number' ? row.completions : dailySubmissionsCount(row);
-    return denom > 0 ? Math.round((num / denom) * 100) : 0;
-  }
+  if (trendMetric === 'completion') return dailyCompletionRatePct(row) ?? 0;
   return dailyTimePerQuestionSec(row);
 }
 
