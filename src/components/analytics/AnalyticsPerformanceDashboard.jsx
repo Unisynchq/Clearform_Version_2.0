@@ -15,10 +15,10 @@ import {
   hasRiverEnoughData,
 } from './dropoffRiverData';
 import { deriveFormStatsFromApi } from './analyticsStats';
-
-const CHART_MAX = 20;
-const CHART_MAX_COMPLETION = 100;
-const CHART_MAX_TIME = 30;
+import {
+  averageDailySubmissions,
+  buildDailyChartPanel,
+} from './analyticsDailySeries';
 
 function barColor(tier) {
   if (tier === 'bad') return 'bg-[rgba(231,76,60,0.85)]';
@@ -444,49 +444,6 @@ export function AnalyticsFunnelCard({ form, apiStats }) {
   );
 }
 
-function buildBarsFromSeries(series, seg) {
-  if (!Array.isArray(series) || series.length === 0) return null;
-  const toLabel = (dateStr) => {
-    const d = new Date(dateStr + 'T00:00:00');
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
-  const toTier = (val, max) => {
-    const ratio = max > 0 ? val / max : 0;
-    if (ratio < 0.2) return 'bad';
-    if (ratio < 0.5) return 'warn';
-    return 'ok';
-  };
-  if (seg === 'responses') {
-    const vals = series.map((r) => r.count);
-    const max = Math.max(...vals, 1);
-    return series.map((r) => ({ label: toLabel(r.date), value: r.count, tier: toTier(r.count, max) }));
-  }
-  if (seg === 'completion') {
-    return series.map((r) => {
-      const val = r.count > 0 ? Math.round((r.completions / r.count) * 100) : 0;
-      return { label: toLabel(r.date), value: val, tier: val < 40 ? 'bad' : val < 65 ? 'warn' : 'ok' };
-    });
-  }
-  if (seg === 'time') {
-    const vals = series.map((r) => {
-      if (typeof r.avgTimePerQuestionSec === 'number' && r.avgTimePerQuestionSec > 0) {
-        return r.avgTimePerQuestionSec;
-      }
-      if (r.avgDuration && r.avgDuration > 0) return Math.round(r.avgDuration / 1000);
-      return null;
-    });
-    const numericVals = vals.filter((v) => v != null);
-    if (numericVals.length === 0) return null;
-    const max = Math.max(...numericVals, 1);
-    return series.map((r, i) => {
-      const val = vals[i];
-      if (val == null) return { label: toLabel(r.date), value: null, tier: 'warn' };
-      return { label: toLabel(r.date), value: val, tier: toTier(val, max) };
-    });
-  }
-  return null;
-}
-
 export function AnalyticsDailyResponsesCard({ apiStats }) {
   const [seg, setSeg] = useState('responses');
   const tabs = [
@@ -495,23 +452,37 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
     { id: 'time', label: 'Time per question' },
   ];
 
-  const apiBars = useMemo(() => buildBarsFromSeries(apiStats?.dailySeries, seg), [apiStats?.dailySeries, seg]);
+  const totalSubmitted = apiStats?.responses ?? apiStats?.funnel?.submitted ?? null;
+
+  const chartPanel = useMemo(
+    () => buildDailyChartPanel(apiStats?.dailySeries, seg, { totalSubmitted }),
+    [apiStats?.dailySeries, seg, totalSubmitted],
+  );
 
   const avgFromSeries = useMemo(() => {
-    if (!apiBars?.length) return null;
-    const numeric = apiBars.map((b) => b.value).filter((v) => v != null && Number.isFinite(v));
+    if (seg === 'responses') {
+      return averageDailySubmissions(apiStats?.dailySeries, totalSubmitted);
+    }
+    if (!chartPanel?.bars?.length) return null;
+    const numeric = chartPanel.bars.map((b) => b.value).filter((v) => v != null && Number.isFinite(v));
     if (numeric.length === 0) return null;
     const sum = numeric.reduce((acc, v) => acc + v, 0);
     return (sum / numeric.length).toFixed(1);
-  }, [apiBars]);
+  }, [seg, chartPanel, apiStats?.dailySeries, totalSubmitted]);
 
   const panel = useMemo(() => {
+    const bars = chartPanel?.bars ?? [];
+    const chartMax = chartPanel?.chartMax ?? 5;
+    const yTicks = chartPanel?.yTicks ?? ['5', '0'];
+    const isEmpty = !chartPanel || chartPanel.isEmpty || bars.length === 0;
+
     switch (seg) {
       case 'completion':
         return {
-          chartMax: CHART_MAX_COMPLETION,
-          bars: apiBars ?? [],
-          yTicks: ['100', '75', '50', '25', '0'],
+          chartMax,
+          bars,
+          yTicks,
+          isEmpty,
           kpiWhole: avgFromSeries ?? '—',
           kpiFraction: '%',
           kpiSub: 'Avg. completion rate',
@@ -523,9 +494,10 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
         };
       case 'time':
         return {
-          chartMax: CHART_MAX_TIME,
-          bars: apiBars ?? [],
-          yTicks: ['30', '24', '18', '12', '6'],
+          chartMax,
+          bars,
+          yTicks,
+          isEmpty,
           kpiWhole: avgFromSeries ?? '—',
           kpiFraction: 's',
           kpiSub: 'Avg. time per question',
@@ -537,20 +509,21 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
         };
       default:
         return {
-          chartMax: CHART_MAX,
-          bars: apiBars ?? [],
-          yTicks: ['20', '15', '10', '5', '0'],
+          chartMax,
+          bars,
+          yTicks,
+          isEmpty,
           kpiWhole: avgFromSeries ?? '—',
           kpiFraction: '/day',
-          kpiSub: 'Avg. responses per day',
+          kpiSub: 'Avg. completed submissions per day',
           trend: null,
           insight: null,
-          chartTitle: 'Responses per day',
+          chartTitle: 'Completed submissions per day',
           guideTop: 'top-[25%]',
-          guideLabel: 'typical: 8',
+          guideLabel: null,
         };
     }
-  }, [seg, apiBars, avgFromSeries]);
+  }, [seg, chartPanel, avgFromSeries]);
 
   return (
     <div className="bg-white rounded-[20px] border border-[#ebebeb] overflow-hidden flex flex-col min-h-[420px]">
@@ -636,52 +609,74 @@ export function AnalyticsDailyResponsesCard({ apiStats }) {
                 </div>
               </div>
 
-              <div className="flex gap-1.5 items-end flex-1 pt-2 pb-6 border-b border-[#eceae4] relative">
-                <div className="flex shrink-0 flex-col justify-between text-[9px] sm:text-[10px] font-medium text-[#6a6a6a] pr-1 min-w-[28px] h-[168px] py-1 tabular-nums leading-tight text-right">
-                  {panel.yTicks.map((t) => (
-                    <span key={t}>{t}</span>
-                  ))}
+              {panel.isEmpty ? (
+                <div className="flex flex-1 min-h-[168px] items-center justify-center rounded-[10px] border border-dashed border-[#eceae4] bg-[#faf9f7] px-4">
+                  <p className="text-[13px] text-[#7c7c7c] text-center">
+                    {totalSubmitted > 0
+                      ? `${totalSubmitted} completed submission${totalSubmitted === 1 ? '' : 's'} total — no reliable daily breakdown yet`
+                      : 'No completed submissions in this period'}
+                  </p>
                 </div>
-                <div className="flex-1 flex items-end justify-between gap-1 sm:gap-[3px] h-[168px] relative min-w-0">
-                  {panel.bars.map((d, bi) => {
-                    const hPct = (d.value / panel.chartMax) * 100;
-                    return (
-                      <div key={d.label} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-                        <div className="relative w-full flex justify-center items-end h-[148px]">
-                          <motion.div
-                            initial={{ height: 0 }}
-                            animate={{ height: `${hPct}%` }}
-                            transition={{
-                              type: 'spring',
-                              stiffness: 400,
-                              damping: 30,
-                              delay: 0.05 + bi * 0.022,
-                            }}
-                            className={`w-[72%] max-w-[28px] rounded-t-[4px] self-end ${barColor(d.tier)} ${
-                              d.highlight ? 'ring-2 ring-[rgba(231,76,60,0.5)]' : ''
-                            }`}
-                            style={{ minHeight: d.value > 0 ? 3 : 0 }}
+              ) : (
+                <div className="flex gap-1.5 items-end flex-1 pt-2 pb-1 relative">
+                  <div className="flex shrink-0 flex-col justify-between text-[9px] sm:text-[10px] font-medium text-[#6a6a6a] pr-1 min-w-[28px] h-[168px] py-1 tabular-nums leading-tight text-right">
+                    {panel.yTicks.map((t) => (
+                      <span key={t}>{t}</span>
+                    ))}
+                  </div>
+                  <div className="flex-1 flex flex-col min-w-0">
+                    <div className="flex-1 flex items-end justify-between gap-1 sm:gap-[3px] h-[148px] relative min-w-0">
+                      {panel.bars.map((d, bi) => {
+                        const rawVal = d.value ?? 0;
+                        const safeVal = Number.isFinite(rawVal) ? rawVal : 0;
+                        const hPct = panel.chartMax > 0
+                          ? Math.min(100, Math.max(0, (safeVal / panel.chartMax) * 100))
+                          : 0;
+                        const showLabel = panel.bars.length <= 14 || bi % 2 === 0;
+                        return (
+                          <div key={`${d.date ?? d.label}-${bi}`} className="flex-1 flex flex-col items-center gap-1 min-w-0">
+                            <div className="relative w-full flex justify-center items-end h-full">
+                              <motion.div
+                                initial={{ height: 0 }}
+                                animate={{ height: `${hPct}%` }}
+                                transition={{
+                                  type: 'spring',
+                                  stiffness: 400,
+                                  damping: 30,
+                                  delay: 0.05 + bi * 0.022,
+                                }}
+                                title={`${d.label}: ${safeVal} submission${safeVal === 1 ? '' : 's'}`}
+                                className={`w-[72%] max-w-[28px] rounded-t-[4px] self-end ${barColor(d.tier)} ${
+                                  d.highlight ? 'ring-2 ring-[rgba(231,76,60,0.5)]' : ''
+                                }`}
+                                style={{ minHeight: safeVal > 0 ? 3 : 0 }}
+                              />
+                            </div>
+                            {showLabel ? (
+                              <span className="text-[8px] sm:text-[10px] text-[#6d6d6d] text-center leading-tight max-w-full px-0.5 truncate">
+                                {d.label}
+                              </span>
+                            ) : (
+                              <span className="h-[12px]" aria-hidden />
+                            )}
+                          </div>
+                        );
+                      })}
+                      <div className="pointer-events-none absolute left-0 right-0 bottom-0 border-t border-[#eceae4]" />
+                      {panel.guideLabel ? (
+                        <>
+                          <div
+                            className={`pointer-events-none absolute left-[8%] right-[8%] border-t border-dashed border-[#d8d6d0] ${panel.guideTop}`}
                           />
-                          {d.highlight && (
-                            <span className="absolute -top-5 text-[9px] sm:text-[10px] font-bold text-[rgba(231,76,60,0.85)] tabular-nums">
-                              {d.value}
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[8px] sm:text-[10px] text-[#6d6d6d] text-center leading-tight max-w-full px-0.5">
-                          {d.label}
-                        </span>
-                      </div>
-                    );
-                  })}
-                  <div
-                    className={`pointer-events-none absolute left-[8%] right-[8%] border-t border-dashed border-[#d8d6d0] ${panel.guideTop}`}
-                  />
-                  <span className="pointer-events-none absolute right-2 top-[18%] text-[8px] sm:text-[9px] text-[#6d6d6d] font-medium max-w-[min(120px,40%)] text-right">
-                    {panel.guideLabel}
-                  </span>
+                          <span className="pointer-events-none absolute right-2 top-[18%] text-[8px] sm:text-[9px] text-[#6d6d6d] font-medium max-w-[min(120px,40%)] text-right">
+                            {panel.guideLabel}
+                          </span>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </motion.div>
         </AnimatePresence>

@@ -474,6 +474,7 @@ function AnalyticsComparePanel({
               metricHasNoTrendData={!(compareApiData?.series?.length)}
               rangeLabel={rangeLabel}
               compareDailySeries={compareApiData?.series ?? null}
+              totalSubmitted={responsesN}
             />
           </motion.div>
         ) : (

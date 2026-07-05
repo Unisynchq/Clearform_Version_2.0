@@ -2,6 +2,11 @@ import { useMemo, useTransition } from 'react';
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
 import { SelectFormToCompareEmpty, TrendMetricNoDataEmpty } from './compare/CompareAnalyticsEmptyStates';
 import TrendComparisonLinePlot from './TrendComparisonLinePlot';
+import {
+  dailyMetricValue,
+  formatDailyDateLabel,
+  sanitizeDailySeriesForSubmissions,
+} from './analyticsDailySeries';
 
 const TAB_SPRING = { type: 'spring', stiffness: 420, damping: 32, mass: 0.55 };
 const TAB_INITIAL = { opacity: 0, scale: 0.85, y: 2 };
@@ -59,20 +64,18 @@ function suggestedMetricSwitch(currentId) {
   return { id: 'completion', label: METRIC_HEADLINE.completion };
 }
 
-function buildChartDataFromDailySeries(dailySeries, trendMetric) {
+function buildChartDataFromDailySeries(dailySeries, trendMetric, totalSubmitted) {
   if (!Array.isArray(dailySeries) || dailySeries.length === 0) return null;
-  const labels = dailySeries.map((row) => {
+  const series =
+    trendMetric === 'responses'
+      ? sanitizeDailySeriesForSubmissions(dailySeries, totalSubmitted)
+      : dailySeries;
+  const labels = series.map((row) => {
     const d = new Date(`${row.date}T00:00:00`);
+    if (Number.isNaN(d.getTime())) return formatDailyDateLabel(row.date);
     return formatMonthDay(d);
   });
-  const values = dailySeries.map((row) => {
-    if (trendMetric === 'responses') return row.count ?? 0;
-    if (trendMetric === 'completion') {
-      return row.count > 0 ? Math.round((row.completions / row.count) * 100) : 0;
-    }
-    if (row.avgDuration && row.avgDuration > 0) return Math.round(row.avgDuration / 1000);
-    return null;
-  });
+  const values = series.map((row) => dailyMetricValue(row, trendMetric));
   const last = values[values.length - 1];
   const suffix = trendMetric === 'completion' ? '%' : trendMetric === 'responses' ? ' /day' : 's';
   return {
@@ -96,11 +99,12 @@ export default function TrendComparisonChart({
   metricHasNoTrendData = false,
   rangeLabel = 'Last 30 days',
   compareDailySeries = null,
+  totalSubmitted = null,
 }) {
   const [, startMetricTransition] = useTransition();
   const apiTrend = useMemo(
-    () => buildChartDataFromDailySeries(compareDailySeries, trendMetric),
-    [compareDailySeries, trendMetric],
+    () => buildChartDataFromDailySeries(compareDailySeries, trendMetric, totalSubmitted),
+    [compareDailySeries, trendMetric, totalSubmitted],
   );
   const hasLiveTrend = Boolean(apiTrend?.chartData?.length);
   const yTickSuffix = METRIC_Y_TICK_SUFFIX[trendMetric] ?? '';
