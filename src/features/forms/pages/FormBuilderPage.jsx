@@ -87,7 +87,7 @@ import {
 } from 'react-icons/ri';
 import { PiCaretCircleUp } from 'react-icons/pi';
 
-import ContentCard, { PreviewCardStepNav } from '@/features/forms/formBuilder/BuilderContentCard';
+import ContentCard, { PreviewCardStepNav, PreviewPageIndicator } from '@/features/forms/formBuilder/BuilderContentCard';
 import { introInnerPadClass } from '@/features/forms/utils/respondentLayout';
 import { getCardShellSurface } from '@/features/forms/utils/respondentThemeStyles';
 import {
@@ -178,6 +178,7 @@ import {
   resolveNextScreenId,
   resolveVisibleNextScreenId,
   getPriorContentScreens,
+  getSafeVisibilityAutoSkipTarget,
   isScreenVisibleInPreview,
 } from '@/features/forms/utils/logicEngine';
 
@@ -1153,26 +1154,8 @@ const hexToRgba = (hex, opacity) => {
   return `rgba(${r}, ${g}, ${b}, ${(opacity / 100).toFixed(2)})`;
 };
 
-const PREVIEW_PAGE_INDICATOR_H = 34;
 const PREVIEW_POWERED_BY_H = 38;
-const PREVIEW_CHROME_H = PREVIEW_PAGE_INDICATOR_H + PREVIEW_POWERED_BY_H;
-
-/** Page counter shown above the form card in preview — Figma 2521:8332 */
-const PreviewPageIndicator = ({ current, total }) => (
-  <motion.div
-    layout
-    className="flex items-center justify-center shrink-0 w-full"
-    style={{
-      height: PREVIEW_PAGE_INDICATOR_H,
-      fontFamily: "'DM Sans', sans-serif",
-      fontVariationSettings: "'opsz' 14",
-    }}
-  >
-    <span className="text-[11px] font-medium tracking-[0.04em] text-[#8c8a84]">
-      Page {current} of {total}
-    </span>
-  </motion.div>
-);
+const PREVIEW_CHROME_H = 58 + PREVIEW_POWERED_BY_H;
 
 /** Clearform branding shown below the form card in preview — Figma 2521:8332 */
 const PreviewPoweredBy = () => (
@@ -1300,6 +1283,7 @@ const FormBuilderPage = () => {
   const previewAnswersByScreenRef = useRef({});
   const [previewVisitStack, setPreviewVisitStack] = useState([]);
   const previewVisitStackRef = useRef([]);
+  const prevIsPreviewRef = useRef(false);
   const [previewSnapVersion, setPreviewSnapVersion] = useState(0);
   const logicStorageHydratedRef = useRef(false);
   const logicMergeSessionRef = useRef(null);
@@ -1324,13 +1308,17 @@ const FormBuilderPage = () => {
 
   useEffect(() => {
     if (!isPreview) {
+      prevIsPreviewRef.current = false;
       setPreviewVisitStack([]);
       return;
     }
+    const justEnteredPreview = !prevIsPreviewRef.current;
+    prevIsPreviewRef.current = true;
+    if (!justEnteredPreview) return;
     setPreviewVisitStack([]);
     const intro = screens.find((s) => s.type === 'intro');
     if (intro) setActiveScreenId(intro.id);
-  }, [isPreview]);
+  }, [isPreview, screens]);
 
   useEffect(() => {
     if (!contentDraggingId) return undefined;
@@ -2218,7 +2206,7 @@ const FormBuilderPage = () => {
       next[logicEdgeKey(from, to)] = {
         rules: ifThenDraft.rules.map((r) => ({
           ...r,
-          thenScreenId: to,
+          thenScreenId: r.thenScreenId ?? to,
           conditions: r.conditions.map((c) => ({ ...c })),
         })),
         elseScreenId: ifThenDraft.elseScreenId ?? null,
@@ -4095,6 +4083,8 @@ const FormBuilderPage = () => {
           buttonText: introButtonText,
           textSize: welcomeTextSize,
           alignment: welcomeAlignment,
+          logo: logoImage,
+          essential: introEssential,
         },
         end: {
           title: endScreenTitle,
@@ -4244,10 +4234,11 @@ const FormBuilderPage = () => {
       logicConnections,
       answersByScreenId: previewAnswersByScreenRef.current,
     });
-    if (nextId != null && nextId !== activeScreenId) {
-      setActiveScreenId(nextId);
+    const safeNext = getSafeVisibilityAutoSkipTarget(screens, activeScreenId, nextId);
+    if (safeNext != null && safeNext !== activeScreenId) {
+      setActiveScreenId(safeNext);
     }
-  }, [isPreview, activeScreenId, screens, logicIfRulesByEdge, logicElseByScreen, logicConnections, previewSnapVersion]);
+  }, [isPreview, activeScreenId, screens, logicIfRulesByEdge, logicElseByScreen, logicConnections]);
 
   const prevScreen = useMemo(() => {
     if (isPreview) {
@@ -4392,6 +4383,11 @@ const FormBuilderPage = () => {
     return () => obs.disconnect();
   }, [measureCanvasScale, hasScreens]);
 
+  const welcomeTextAlignStyle =
+    welcomeAlignment === 'center' ? 'center' : welcomeAlignment === 'right' ? 'right' : 'left';
+
+  const welcomeSelfAlignClass =
+    welcomeAlignment === 'center' ? 'self-center' : welcomeAlignment === 'right' ? 'self-end' : 'self-start';
   const welcomeTextAlignClass =
     welcomeAlignment === 'center' ? 'text-center' : welcomeAlignment === 'right' ? 'text-right' : 'text-left';
   const welcomeItemsAlignClass =
@@ -5316,22 +5312,34 @@ const FormBuilderPage = () => {
       setPublishModalOpen(false);
       return;
     }
+    let publishSnapshot = snapshot;
+    if (typeof snapshot.intro?.logo === 'string' && snapshot.intro.logo.startsWith('blob:')) {
+      const dataUrl = await blobUrlToDataUrl(snapshot.intro.logo);
+      if (dataUrl) {
+        publishSnapshot = {
+          ...snapshot,
+          intro: { ...snapshot.intro, logo: dataUrl },
+        };
+        setLogoImage(dataUrl);
+        setDraftLogo(dataUrl);
+      }
+    }
     try {
       const workspaceId = resolveApiWorkspaceId(location.state?.workspaceId);
       if (workspaceId && !persistedForm?.workspace) {
         await patchForm(formId, { workspaceId });
       }
-      await saveBuilderSnapshot(formId, snapshot);
-      const published = await publishFormToApi(formId, snapshot);
+      await saveBuilderSnapshot(formId, publishSnapshot);
+      const published = await publishFormToApi(formId, publishSnapshot);
       setPublishedPublicUrl(published?.publicUrl ?? null);
       dispatch(
         updateForm({
           id: formId,
           changes: {
             status: published?.status ?? 'live',
-            title: published?.title ?? snapshot.formTitle,
-            templateId: snapshot.templateId,
-            builderSnapshot: snapshot,
+            title: published?.title ?? publishSnapshot.formTitle,
+            templateId: publishSnapshot.templateId,
+            builderSnapshot: publishSnapshot,
             timeAgo: published?.timeAgo ?? 'just now',
             ...(workspaceId ? { workspace: workspaceId } : {}),
           },
@@ -7639,13 +7647,17 @@ const FormBuilderPage = () => {
               >
               {hasScreens && (
                 isPreview ? (
-                  <PreviewPageIndicator current={activeScreenIdx + 1} total={screens.length} />
+                  <PreviewPageIndicator
+                    step={activeScreen?.type === 'content' ? contentBlockNum : null}
+                    totalSteps={contentScreens.length}
+                    show={activeScreen?.type === 'content' && contentScreens.length > 0}
+                  />
                 ) : (
                   <motion.div
                     layout
                     aria-hidden
                     className="shrink-0 w-full"
-                    style={{ height: PREVIEW_PAGE_INDICATOR_H }}
+                    style={{ height: 58 }}
                   />
                 )
               )}
@@ -7716,6 +7728,7 @@ const FormBuilderPage = () => {
                             previewScreenValidatorRef={previewScreenValidatorRef}
                             onPreviewSnapChange={handlePreviewSnapChange}
                             previewScreenId={activeScreen.id}
+                            initialPreviewSnap={previewSnapByScreenRef.current[activeScreen.id]}
                             responseQualityFormId={activeFormId}
                             responseQualityEvaluateLive={responseQualityEvaluateLive}
                           />
@@ -7782,6 +7795,7 @@ const FormBuilderPage = () => {
                                     fontSize: welcomeSize.title,
                                     lineHeight: welcomeSize.titleLeading,
                                     color: builderTheme.textColor,
+                                    textAlign: welcomeTextAlignStyle,
                                   }}
                                   placeholder="Title"
                                 />
@@ -7797,10 +7811,12 @@ const FormBuilderPage = () => {
                                   aria-label="Form title"
                                   placeholder="Title"
                                   className={`font-bold w-full max-w-[320px] ${welcomeTextAlignClass}`}
+                                  editWrapperClassName={`w-full max-w-[320px] ${welcomeSelfAlignClass}`}
                                   style={{
                                     fontSize: welcomeSize.title,
                                     lineHeight: welcomeSize.titleLeading,
                                     color: builderTheme.textColor,
+                                    textAlign: welcomeTextAlignStyle,
                                   }}
                                 />
                               )}
@@ -7814,19 +7830,31 @@ const FormBuilderPage = () => {
                                   style={{
                                     fontSize: welcomeSize.desc,
                                     color: hexToRgba(builderTheme.textColor, 0.65),
+                                    textAlign: welcomeTextAlignStyle,
                                   }}
                                   placeholder="Add the purpose of form here"
                                 />
                               ) : (
-                                <p
-                                  className={`font-normal ${welcomeTextAlignClass}`}
+                                <InlineEditableField
+                                  as="p"
+                                  value={introDescription}
+                                  onChange={(v) => {
+                                    setIntroDescription(v);
+                                    markFormTouched();
+                                  }}
+                                  disabled={isPreview}
+                                  multiline
+                                  rows={2}
+                                  aria-label="Form description"
+                                  placeholder="Add the purpose of form here"
+                                  className={`font-normal w-full max-w-[360px] ${welcomeTextAlignClass}`}
+                                  editWrapperClassName={`w-full max-w-[360px] ${welcomeSelfAlignClass}`}
                                   style={{
                                     fontSize: welcomeSize.desc,
                                     color: hexToRgba(builderTheme.textColor, 0.65),
+                                    textAlign: welcomeTextAlignStyle,
                                   }}
-                                >
-                                  {introDescription}
-                                </p>
+                                />
                               )}
 
                               {isEditingContent ? (
@@ -7928,6 +7956,7 @@ const FormBuilderPage = () => {
                             previewScreenValidatorRef={previewScreenValidatorRef}
                             onPreviewSnapChange={handlePreviewSnapChange}
                             previewScreenId={activeScreen.id}
+                            initialPreviewSnap={previewSnapByScreenRef.current[activeScreen.id]}
                             responseQualityFormId={activeFormId}
                             responseQualityEvaluateLive={responseQualityEvaluateLive}
                           />

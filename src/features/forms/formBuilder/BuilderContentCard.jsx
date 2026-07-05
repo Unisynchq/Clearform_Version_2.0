@@ -132,27 +132,41 @@ const choiceOptionChangeHandler = (options, setOptions, opt) => (next) => {
   setOptions((prev) => prev.map((o, j) => (j === idx ? next : o)));
 };
 
-/** Preview viewport chrome heights — Figma Clearform-Changes 2521:8332 */
-const PREVIEW_PAGE_INDICATOR_H = 34;
+/** Preview viewport chrome heights — Figma Clearform-Changes 3099:4915 / 3099:4918 */
+const PREVIEW_PAGE_INDICATOR_H = 58;
 const PREVIEW_POWERED_BY_H = 38;
 export const PREVIEW_CHROME_H = PREVIEW_PAGE_INDICATOR_H + PREVIEW_POWERED_BY_H;
 
-/** Page counter shown above the form card in preview — Figma 2521:8332 */
-export const PreviewPageIndicator = ({ current, total }) => (
-  <motion.div
-    layout
-    className="flex items-center justify-center shrink-0 w-full"
-    style={{
-      height: PREVIEW_PAGE_INDICATOR_H,
-      fontFamily: "'DM Sans', sans-serif",
-      fontVariationSettings: "'opsz' 14",
-    }}
-  >
-    <span className="text-[11px] font-medium tracking-[0.04em] text-[#8c8a84]">
-      Page {current} of {total}
-    </span>
-  </motion.div>
-);
+/** Progress bar + step label above the form card in preview/respondent flow. */
+export const PreviewPageIndicator = ({ step, totalSteps, show = true }) => {
+  if (!show || step == null || !totalSteps) {
+    return <div className="shrink-0 w-full" style={{ height: PREVIEW_PAGE_INDICATOR_H }} aria-hidden />;
+  }
+  const pct = totalSteps > 0 ? Math.min(100, Math.max(0, (step / totalSteps) * 100)) : 0;
+  return (
+    <motion.div
+      layout
+      className="flex flex-col items-center justify-center gap-[8px] shrink-0 w-full px-6"
+      style={{
+        height: PREVIEW_PAGE_INDICATOR_H,
+        fontFamily: "'DM Sans', sans-serif",
+        fontVariationSettings: "'opsz' 14",
+      }}
+    >
+      <div className="w-full max-w-[320px] h-[6px] rounded-full bg-[#e2e0dc] overflow-hidden">
+        <motion.div
+          className="h-full rounded-full bg-[#1a1a18]"
+          initial={false}
+          animate={{ width: `${pct}%` }}
+          transition={{ duration: 0.25, ease: 'easeOut' }}
+        />
+      </div>
+      <span className="text-[20px] font-normal leading-none text-[#8a8880]">
+        Step {step} of {totalSteps}
+      </span>
+    </motion.div>
+  );
+};
 
 /** Clearform branding shown below the form card in preview — Figma 2521:8332 */
 export const PreviewPoweredBy = () => (
@@ -1162,6 +1176,20 @@ const HiddenFieldOverlay = ({ show }) =>
     </motion.div>
   ) : null;
 
+/** Restore preview/respondent local field state from a persisted snap (e.g. after Back navigation). */
+export function hydratePreviewLocalState(snap) {
+  if (!snap) return null;
+  return {
+    previewPicks: Array.isArray(snap.previewPicks) ? snap.previewPicks : [],
+    shortTextDraft: snap.shortTextDraft ?? '',
+    longTextDraft: snap.longTextDraft ?? '',
+    ratingValue: snap.ratingValue ?? 0,
+    previewFields: snap.previewFields ?? {},
+    captchaChecked: !!snap.captchaChecked,
+    timeSelection: snap.timeSelection ?? null,
+  };
+}
+
 /** Validates preview Continue when configured fields are marked required */
 function isPreviewAdvanceAllowed(snap) {
   const g = (k) => String(snap.previewFields[k] ?? '').trim();
@@ -1341,6 +1369,7 @@ const ContentCardInner = ({
   previewScreenValidatorRef,
   onPreviewSnapChange,
   previewScreenId,
+  initialPreviewSnap = null,
   responseQualityFormId = null,
   responseQualityEvaluateLive = true,
   qualityConversationHistory = [],
@@ -1370,6 +1399,21 @@ const ContentCardInner = ({
   const [previewRequiredHint, setPreviewRequiredHint] = useState(false);
   const [timeSelection, setTimeSelection] = useState(null);
   const [qualityUpgradeOpen, setQualityUpgradeOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isPreviewMode || previewScreenId == null) return;
+    const hydrated = hydratePreviewLocalState(initialPreviewSnap);
+    if (!hydrated) return;
+    setPreviewPicks(hydrated.previewPicks);
+    setShortTextDraft(hydrated.shortTextDraft);
+    setLongTextDraft(hydrated.longTextDraft);
+    setRatingValue(hydrated.ratingValue);
+    setPreviewFields(hydrated.previewFields);
+    setCaptchaChecked(hydrated.captchaChecked);
+    setTimeSelection(hydrated.timeSelection);
+    setRatingHover(0);
+    setPreviewRequiredHint(false);
+  }, [isPreviewMode, previewScreenId, initialPreviewSnap]);
 
   const shortTextMaxCap = shortTextConfig?.shortTextMaxChars ?? 100;
   const longTextMaxCap = longTextConfig?.longTextMaxChars ?? 500;
@@ -3268,6 +3312,9 @@ const ContentCardInner = ({
     const rHigh = rc.ratingHighLabel ?? 'Excellent';
     const rShowLabels = rc.ratingShowLabels !== false;
     const rIconSize = rc.ratingIconSize || 'M';
+    const rRequired = !!rc.ratingRequired;
+    const useSlider = !!rc.ratingUseSlider;
+    const useScale = !!rc.ratingUseScale && !useSlider;
     const iconPx = rIconSize === 'S' ? 13 : rIconSize === 'L' ? 20 : 16;
     const btnSizePx = rIconSize === 'S' ? 30 : rIconSize === 'L' ? 42 : 36;
 
@@ -3275,7 +3322,7 @@ const ContentCardInner = ({
 
     const renderIconBtn = (n) => {
       const filled = n <= activeRating;
-      if (rStyle === '1-10') {
+      if (useScale || rStyle === '1-10') {
         return (
           <button
             key={n}
@@ -3330,17 +3377,37 @@ const ContentCardInner = ({
               value={rc.ratingQuestion ?? ''}
               onChange={rc.setRatingQuestion}
               isPreviewMode={isPreviewMode}
+              required={rRequired}
               fontSize={qFont('media')}
               fontWeight="500"
               className="font-medium"
             />
             <PreviewRequiredInline show={previewRequiredHint} />
           </div>
-          <div className={`flex pt-[19px] pb-[17px] ${rStyle === '1-10' ? '' : 'justify-center'} ${compactLayout ? 'flex-wrap' : ''}`}>
-            <div className={`flex flex-col ${rStyle === '1-10' ? 'w-full' : ''}`}>
-              <div className={`flex items-center ${rStyle === '1-10' ? 'gap-[6px]' : 'gap-2'}`}>
-                {Array.from({ length: rMax }, (_, i) => i + 1).map(renderIconBtn)}
-              </div>
+          <div className={`flex pt-[19px] pb-[17px] ${useScale || rStyle === '1-10' ? '' : 'justify-center'} ${compactLayout ? 'flex-wrap' : ''}`}>
+            <div className={`flex flex-col ${useScale || rStyle === '1-10' ? 'w-full' : ''}`}>
+              {useSlider ? (
+                <div className="flex flex-col gap-3 w-full px-1">
+                  <input
+                    type="range"
+                    min={1}
+                    max={rMax}
+                    step={1}
+                    value={ratingValue || 1}
+                    onChange={(e) => setRatingValue(Number(e.target.value))}
+                    className="w-full accent-[var(--card-accent,#2a9d6e)]"
+                    style={{ '--card-accent': accent }}
+                    aria-label={rQuestion}
+                  />
+                  <p className="text-[13px] text-center tabular-nums" style={{ color: primaryText }}>
+                    {ratingValue > 0 ? ratingValue : '—'} / {rMax}
+                  </p>
+                </div>
+              ) : (
+                <div className={`flex items-center ${useScale || rStyle === '1-10' ? 'gap-[6px]' : 'gap-2'}`}>
+                  {Array.from({ length: rMax }, (_, i) => i + 1).map(renderIconBtn)}
+                </div>
+              )}
               {rShowLabels && (
                 <div className="flex items-start justify-between pt-[6px] gap-2">
                   <InlineEditableField

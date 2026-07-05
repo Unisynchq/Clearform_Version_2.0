@@ -712,6 +712,7 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
         {showConfigPanel && (
           <BuilderRightPanelShell panelKey="config-panel" width={280}>
           <div
+            data-builder-config-panel
             className="w-[280px] h-full bg-[#f7f7f8] border-l border-[#e5e3dc] flex flex-col"
             style={{ boxShadow: '-2px 2px 10px 0px rgba(0,0,0,0.08)' }}
           >
@@ -1069,7 +1070,10 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                               ].map(({ alignKey, Icon: AlignIcon }) => (
                                 <button
                                   key={alignKey}
-                                  onClick={() => setWelcomeAlignment(alignKey)}
+                                  onClick={() => {
+                                    setWelcomeAlignment(alignKey);
+                                    markFormTouched?.();
+                                  }}
                                   className={`flex items-center justify-center rounded-[5px] cursor-pointer transition-colors ${
                                     welcomeAlignment === alignKey
                                       ? 'bg-white border border-[rgba(0,0,0,0.09)] shadow-[0px_1px_1px_rgba(0,0,0,0.08)]'
@@ -4917,13 +4921,21 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
 
                             {/* Toggles: Required, Use scale, Use slider */}
                             {[
-                              { label: 'Required', val: ratingRequired, set: setRatingRequired },
-                              { label: 'Use scale', val: ratingUseScale, set: setRatingUseScale },
-                              { label: 'Use slider', val: ratingUseSlider, set: setRatingUseSlider },
-                            ].map(({ label, val, set }) => (
+                              { label: 'Required', val: ratingRequired, set: setRatingRequired, exclusive: null },
+                              { label: 'Use scale', val: ratingUseScale, set: setRatingUseScale, exclusive: 'slider' },
+                              { label: 'Use slider', val: ratingUseSlider, set: setRatingUseSlider, exclusive: 'scale' },
+                            ].map(({ label, val, set, exclusive }) => (
                               <div key={label} className="flex items-center justify-between">
                                 <span className="text-[12px] text-[#444]">{label}</span>
-                                <button onClick={() => set(!val)} className={`w-[34px] h-[20px] rounded-[10px] relative transition-colors appearance-none border-0 p-0 ${val ? 'bg-[#2a9d6e]' : 'bg-[#e4e2dc]'}`}>
+                                <button
+                                  onClick={() => {
+                                    const next = !val;
+                                    set(next);
+                                    if (next && exclusive === 'slider') setRatingUseSlider(false);
+                                    if (next && exclusive === 'scale') setRatingUseScale(false);
+                                  }}
+                                  className={`w-[34px] h-[20px] rounded-[10px] relative transition-colors appearance-none border-0 p-0 ${val ? 'bg-[#2a9d6e]' : 'bg-[#e4e2dc]'}`}
+                                >
                                   <span className={`absolute top-[3px] w-[14px] h-[14px] rounded-[7px] bg-white transition-all ${val ? 'left-[17px]' : 'left-[3px]'}`} />
                                 </button>
                               </div>

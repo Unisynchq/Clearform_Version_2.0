@@ -3,6 +3,7 @@ import {
   buildLogicAnswersFromScreen,
   evaluateCondition,
   evaluateRule,
+  getSafeVisibilityAutoSkipTarget,
   resolveNextScreenId,
   logicEdgeKey,
 } from './logicEngine';
@@ -126,5 +127,21 @@ describe('logicEngine multi-rule OR on one if-edge', () => {
         answersByScreenId,
       })
     ).toBe(to);
+  });
+});
+
+describe('getSafeVisibilityAutoSkipTarget', () => {
+  const screens = [
+    { id: 1, type: 'intro' },
+    { id: 2, type: 'content' },
+    { id: 3, type: 'content' },
+  ];
+
+  it('blocks auto-skip back to intro', () => {
+    expect(getSafeVisibilityAutoSkipTarget(screens, 3, 1)).toBeNull();
+  });
+
+  it('allows forward auto-skip', () => {
+    expect(getSafeVisibilityAutoSkipTarget(screens, 2, 3)).toBe(3);
   });
 });

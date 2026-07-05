@@ -141,6 +141,16 @@ export function isScreenVisibleInPreview(screen, answersByScreenId) {
 }
 
 /** Resolve next screen, skipping content screens that fail visibility rules in preview. */
+export function getSafeVisibilityAutoSkipTarget(screens, fromScreenId, nextId) {
+  if (nextId == null || nextId === fromScreenId) return null;
+  const nextScreen = screens.find((s) => s.id === nextId);
+  if (!nextScreen || nextScreen.type === 'intro') return null;
+  const fromIdx = screens.findIndex((s) => s.id === fromScreenId);
+  const nextIdx = screens.findIndex((s) => s.id === nextId);
+  if (fromIdx >= 0 && nextIdx >= 0 && nextIdx < fromIdx) return null;
+  return nextId;
+}
+
 export function resolveVisibleNextScreenId(params) {
   const { fromScreenId, screens } = params;
   const visited = new Set();

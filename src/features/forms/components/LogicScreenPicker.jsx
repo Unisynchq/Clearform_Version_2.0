@@ -181,14 +181,16 @@ const LogicScreenPicker = ({
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        {SelectedIcon ? (
+        {selected ? (
           <>
-            <span
-              className={`flex size-6 shrink-0 items-center justify-center rounded-[6px] ${selected.iconClass ?? 'text-[#4c414e]'}`}
-              style={{ backgroundColor: selected.badgeBg ?? '#f4f4f5' }}
-            >
-              <SelectedIcon size={14} aria-hidden />
-            </span>
+            {SelectedIcon ? (
+              <span
+                className={`flex size-6 shrink-0 items-center justify-center rounded-[6px] ${selected.iconClass ?? 'text-[#4c414e]'}`}
+                style={{ backgroundColor: selected.badgeBg ?? '#f4f4f5' }}
+              >
+                <SelectedIcon size={14} aria-hidden />
+              </span>
+            ) : null}
             <span className="flex-1 min-w-0 text-[13px] text-[#18181b] truncate leading-5">
               {selected.label}
             </span>

@@ -32,51 +32,92 @@ export default function PublicFormPage() {
       return;
     }
 
-    if (isApiConfigured()) {
+    let cancelled = false;
+
+    const loadPublished = () => {
+      if (isApiConfigured()) {
+        return getPublishedForm(formId)
+          .then((data) => {
+            if (cancelled) return;
+            if (data?.screens?.length) {
+              setDraft(data);
+              setBlocked(null);
+            } else {
+              setBlocked('no_draft');
+            }
+          })
+          .catch((err) => {
+            if (cancelled) return;
+            if (err instanceof ApiError && err.status === 404) {
+              setBlocked('not_found');
+            } else if (err instanceof ApiError && err.status === 401) {
+              setBlocked('unavailable');
+            } else {
+              setBlocked(err instanceof ApiError && err.status ? 'unavailable' : 'not_found');
+            }
+          })
+          .finally(() => {
+            if (!cancelled) setLoading(false);
+          });
+      }
+
+      const numId = Number(formId);
+      if (Number.isNaN(numId)) {
+        setBlocked('invalid');
+        setLoading(false);
+        return Promise.resolve();
+      }
+      const forms = readUserForms();
+      const meta = forms.find((f) => Number(f.id) === numId);
+      if (!meta) {
+        setBlocked('not_found');
+      } else if (meta.status !== 'live') {
+        setBlocked('not_live');
+      } else {
+        const published = readPublishedForm(numId);
+        if (!published?.screens?.length) {
+          setBlocked('no_draft');
+        } else {
+          setDraft(published);
+          setBlocked(null);
+        }
+      }
+      setLoading(false);
+      return Promise.resolve();
+    };
+
+    setLoading(true);
+    loadPublished();
+
+    if (!isApiConfigured()) return () => { cancelled = true; };
+
+    const refreshIfVisible = () => {
+      if (document.visibilityState !== 'visible') return;
       getPublishedForm(formId)
         .then((data) => {
-          if (data?.screens?.length) {
-            setDraft(data);
-            setBlocked(null);
-          } else {
-            setBlocked('no_draft');
-          }
+          if (cancelled || !data?.screens?.length) return;
+          setDraft((prev) => {
+            if (!prev) return data;
+            const prevSavedAt = prev.savedAt ?? prev.publishedAt;
+            const nextSavedAt = data.savedAt ?? data.publishedAt;
+            const prevIds = (prev.screens ?? []).map((s) => s.id).join(',');
+            const nextIds = (data.screens ?? []).map((s) => s.id).join(',');
+            if (prevSavedAt === nextSavedAt && prevIds === nextIds) return prev;
+            return data;
+          });
+          setBlocked(null);
         })
-        .catch((err) => {
-          if (err instanceof ApiError && err.status === 404) {
-            setBlocked('not_found');
-          } else if (err instanceof ApiError && err.status === 401) {
-            setBlocked('unavailable');
-          } else {
-            setBlocked(err instanceof ApiError && err.status ? 'unavailable' : 'not_found');
-          }
-        })
-        .finally(() => setLoading(false));
-      return;
-    }
+        .catch(() => {});
+    };
 
-    const numId = Number(formId);
-    if (Number.isNaN(numId)) {
-      setBlocked('invalid');
-      setLoading(false);
-      return;
-    }
-    const forms = readUserForms();
-    const meta = forms.find((f) => Number(f.id) === numId);
-    if (!meta) {
-      setBlocked('not_found');
-    } else if (meta.status !== 'live') {
-      setBlocked('not_live');
-    } else {
-      const published = readPublishedForm(numId);
-      if (!published?.screens?.length) {
-        setBlocked('no_draft');
-      } else {
-        setDraft(published);
-        setBlocked(null);
-      }
-    }
-    setLoading(false);
+    window.addEventListener('focus', refreshIfVisible);
+    document.addEventListener('visibilitychange', refreshIfVisible);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', refreshIfVisible);
+      document.removeEventListener('visibilitychange', refreshIfVisible);
+    };
   }, [formId]);
 
   if (loading) {

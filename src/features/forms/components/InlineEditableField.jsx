@@ -21,6 +21,7 @@ export default function InlineEditableField({
   maxLength,
   suffix = null,
   rows = 1,
+  editWrapperClassName = '',
   'aria-label': ariaLabel,
 }) {
   const fieldId = useId();
@@ -61,6 +62,7 @@ export default function InlineEditableField({
 
     const onDocPointerDown = (e) => {
       if (rootRef.current?.contains(e.target)) return;
+      if (e.target.closest?.('[data-builder-config-panel]')) return;
       stopEditing();
     };
 
@@ -75,6 +77,11 @@ export default function InlineEditableField({
       return;
     }
     if (!multiline && e.key === 'Enter') {
+      e.preventDefault();
+      inputRef.current?.blur();
+      return;
+    }
+    if (multiline && e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       inputRef.current?.blur();
     }
@@ -97,7 +104,7 @@ export default function InlineEditableField({
   if (editing) {
     const InputTag = multiline ? 'textarea' : 'input';
     return (
-      <div ref={rootRef} className="min-w-0 w-full">
+      <div ref={rootRef} className={`min-w-0 ${editWrapperClassName || 'w-full'}`}>
         <InputTag
           ref={inputRef}
           id={fieldId}

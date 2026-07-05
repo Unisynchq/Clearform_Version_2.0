@@ -7,7 +7,13 @@ import ContentCard, {
   PreviewCardStepNav,
 } from '@/features/forms/formBuilder/BuilderContentCard';
 import { createFormLogicRunner } from '@/features/forms/utils/formLogicRunner';
-import { isScreenVisibleInPreview } from '@/features/forms/utils/logicEngine';
+import {
+  buildLogicAnswersFromScreen,
+  getSafeVisibilityAutoSkipTarget,
+  isScreenVisibleInPreview,
+} from '@/features/forms/utils/logicEngine';
+import clearformStartLogo from '@/assets/Clearform logo.png';
+import { resolveIntroLogoUrl } from '@/features/forms/utils/introLogoUtils';
 import { previewCanvasConfigsFromScreen } from '@/features/forms/utils/previewCanvasConfigsFromScreen';
 import { getCardShellSurface, resolveThemeFromSnapshot } from '@/features/forms/utils/respondentThemeStyles';
 import {
@@ -43,6 +49,26 @@ const SCREEN_MOTION = {
   transition: { duration: 0.2, ease: 'easeOut' },
 };
 
+function IntroLogo({ logoSrc }) {
+  const initial = resolveIntroLogoUrl(logoSrc, clearformStartLogo);
+  const [src, setSrc] = useState(initial);
+
+  useEffect(() => {
+    setSrc(resolveIntroLogoUrl(logoSrc, clearformStartLogo));
+  }, [logoSrc]);
+
+  return (
+    <div className="w-[42px] h-[42px] rounded-[10px] overflow-hidden shrink-0">
+      <img
+        src={src}
+        alt="Logo"
+        className="w-full h-full object-cover"
+        onError={() => setSrc(clearformStartLogo)}
+      />
+    </div>
+  );
+}
+
 /**
  * Live form runner — same ContentCard + preview chrome as builder preview.
  */
@@ -69,11 +95,19 @@ export default function FormRespondentView({ draft, formId }) {
   const snapsByScreenIdRef = useRef(snapsByScreenId);
 
   useEffect(() => {
-    runnerRef.current = createFormLogicRunner({
+    const runner = createFormLogicRunner({
       screens,
       logicConnections,
       logicIfRulesByEdge,
     });
+    for (const [screenIdKey, snap] of Object.entries(snapsByScreenIdRef.current)) {
+      const screenId = Number(screenIdKey);
+      const screen = screens.find((s) => s.id === screenId);
+      if (screen && snap) {
+        runner.recordScreenAnswers(screenId, snap);
+      }
+    }
+    runnerRef.current = runner;
   }, [screens, logicConnections, logicIfRulesByEdge]);
 
   // Keep refs in sync so the abandon handler always sees the latest values.
@@ -111,6 +145,11 @@ export default function FormRespondentView({ draft, formId }) {
     return screens.filter((s) => s.type === 'content').findIndex((s) => s.id === activeScreen.id) + 1;
   }, [activeScreen, screens]);
 
+  const contentScreenCount = useMemo(
+    () => screens.filter((s) => s.type === 'content').length,
+    [screens],
+  );
+
   useEffect(() => {
     if (activeScreenId == null) return;
     const now = Date.now();
@@ -121,17 +160,23 @@ export default function FormRespondentView({ draft, formId }) {
 
   useEffect(() => {
     const runner = runnerRef.current;
-    if (!runner || !activeScreen || activeScreen.type !== 'content') return;
-    if (isScreenVisibleInPreview(activeScreen, runner.answersByScreenId)) return;
+    const screen = screens.find((s) => s.id === activeScreenId);
+    if (!runner || !screen || screen.type !== 'content') return;
+    if (isScreenVisibleInPreview(screen, runner.answersByScreenId)) return;
     const nextId = runner.getNextScreenId(activeScreenId);
-    if (nextId != null && nextId !== activeScreenId) {
-      setActiveScreenId(nextId);
+    const safeNext = getSafeVisibilityAutoSkipTarget(screens, activeScreenId, nextId);
+    if (safeNext != null && safeNext !== activeScreenId) {
+      setActiveScreenId(safeNext);
     }
-  }, [activeScreen, activeScreenId, screens, logicConnections, logicIfRulesByEdge]);
+  }, [activeScreenId, screens]);
 
   const handlePreviewSnapChange = useCallback((screenId, snap) => {
     setSnapsByScreenId((prev) => ({ ...prev, [screenId]: snap }));
-  }, []);
+    const screen = screens.find((s) => s.id === screenId);
+    if (screen && snap && runnerRef.current) {
+      runnerRef.current.recordScreenAnswers(screenId, snap);
+    }
+  }, [screens]);
 
   const recordAndAdvance = useCallback(() => {
     if (activeScreenId == null) return;
@@ -257,13 +302,7 @@ export default function FormRespondentView({ draft, formId }) {
             <div
               className={`flex-1 flex flex-col ${welcomeItemsAlignClass} justify-center gap-4 ${introInnerPadClass(isCompact)}`}
             >
-              {draft?.intro?.logo ? (
-                <div className="w-[42px] h-[42px] rounded-[10px] overflow-hidden shrink-0">
-                  <img src={draft.intro.logo} alt="Logo" className="w-full h-full object-cover" />
-                </div>
-              ) : (
-                <div className="w-[42px] h-[42px] rounded-[10px] bg-[#18181a] shrink-0" />
-              )}
+              <IntroLogo logoSrc={draft?.intro?.logo} />
               <p
                 className={`font-bold ${welcomeTextAlignClass}`}
                 style={{
@@ -352,6 +391,7 @@ export default function FormRespondentView({ draft, formId }) {
             previewScreenValidatorRef={previewScreenValidatorRef}
             onPreviewSnapChange={handlePreviewSnapChange}
             previewScreenId={activeScreen.id}
+            initialPreviewSnap={snapsByScreenId[activeScreen.id]}
             responseQualityFormId={formId}
             qualityConversationHistory={qualityConversationHistory}
             compactLayout={isCompact}
@@ -371,7 +411,11 @@ export default function FormRespondentView({ draft, formId }) {
         style={{ fontFamily: theme.typography }}
       >
         {screens.length > 0 && (
-          <PreviewPageIndicator current={activeScreenIdx + 1} total={screens.length} />
+          <PreviewPageIndicator
+            step={activeScreen?.type === 'content' ? contentBlockNum : null}
+            totalSteps={contentScreenCount}
+            show={activeScreen?.type === 'content' && contentScreenCount > 0}
+          />
         )}
         <motion.div layout className="flex-1 min-h-0 flex flex-col w-full">
           <AnimatePresence mode="wait">{screenBody}</AnimatePresence>

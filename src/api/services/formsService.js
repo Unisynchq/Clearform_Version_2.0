@@ -97,19 +97,17 @@ export async function publishForm(formId, snapshot) {
 export async function getPublishedForm(formId) {
   if (isApiConfigured()) {
     const cached = readPublishedFormSessionCache(formId);
-    const fetchPublished = () =>
-      apiClient(API_ENDPOINTS.forms.published(formId)).then((data) => {
-        if (data?.screens?.length) {
-          writePublishedFormSessionCache(formId, data);
-        }
-        return data;
-      });
-
-    if (cached?.snapshot) {
-      fetchPublished().catch(() => {});
-      return cached.snapshot;
+    try {
+      const fresh = await apiClient(API_ENDPOINTS.forms.published(formId));
+      if (fresh?.screens?.length) {
+        writePublishedFormSessionCache(formId, fresh);
+        return fresh;
+      }
+    } catch (err) {
+      if (cached?.snapshot) return cached.snapshot;
+      throw err;
     }
-    return fetchPublished();
+    return cached?.snapshot ?? null;
   }
   return readPublishedForm(formId);
 }
