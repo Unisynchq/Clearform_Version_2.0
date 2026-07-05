@@ -10,11 +10,14 @@ import {
 import { useBillingStatus } from '@/features/billing/utils/useBillingStatus';
 import { improveResponseQualityInstructionsApi } from '@/api/services/responseQualityService';
 import { isApiConfigured } from '@/config/env';
+import { useToast } from '@/hooks/useToast';
+import { buildDefaultOwnerPromptForQuestion } from '@/features/forms/utils/defaultOwnerQualityPrompt';
 
 const MAX_CRITERIA = 2;
 const FONT = { fontFamily: "'DM Sans', sans-serif" };
 const SAVE_TRANSITION_MS = 450;
 const AI_IMPROVE_DELAY_MIN_MS = 1500;
+const AI_IMPROVE_TIMEOUT_MS = 15000;
 const AI_IMPROVE_DELAY_MAX_MS = 2000;
 const PREFERENCE_TRANSITION_MS = 250;
 const PREFERENCE_TEXTAREA_MIN_H = '132px';
@@ -354,7 +357,7 @@ function PreferenceTextareaField({
           {showInlineImprove ? (
             <InlineImproveWithAiAction
               key="improve"
-              disabled={!value.trim() || saveState === 'saving'}
+              disabled={saveState === 'saving'}
               onClick={onImproveClick}
             />
           ) : null}
@@ -607,6 +610,7 @@ export default function ResponseQualityScoringCard({
   const showExperienceHint = isExperienceFeedbackQuestion(questionText);
   const brevityHelper = /\b(as much or as little|as little as)\b/i.test(helperText ?? '');
   const { entitlements, isPaid } = useBillingStatus();
+  const { showToast } = useToast();
   const qualityTrial = entitlements?.aiTrial?.qualitySessions;
   const aiTrialExhausted =
     !isPaid &&
@@ -674,10 +678,19 @@ export default function ResponseQualityScoringCard({
     (next) => {
       onEnabledChange(next);
       if (next) {
-        onOptionsChange((prev) => normalizeResponseQualityOptions(prev));
+        onOptionsChange((prev) => {
+          const normalized = normalizeResponseQualityOptions(prev);
+          if (!normalized.customInstructions?.trim()) {
+            const seeded = buildDefaultOwnerPromptForQuestion(questionText, helperText);
+            setDraftInstructions(seeded);
+            setIsEditingPreference(true);
+            return { ...normalized, customInstructions: seeded };
+          }
+          return normalized;
+        });
       }
     },
-    [onEnabledChange, onOptionsChange],
+    [onEnabledChange, onOptionsChange, questionText, helperText],
   );
 
   const savePreference = useCallback(
@@ -707,11 +720,16 @@ export default function ResponseQualityScoringCard({
 
   const handleImproveClick = useCallback(async () => {
     const input = draftInstructions.trim();
-    if (!input) return;
-
     const runId = improveRunRef.current + 1;
     improveRunRef.current = runId;
     setImproveState('improving');
+
+    const timeoutId = window.setTimeout(() => {
+      if (improveRunRef.current === runId) {
+        setImproveState('idle');
+        showToast({ type: 'error', message: 'Improve with AI timed out — try again.' });
+      }
+    }, AI_IMPROVE_TIMEOUT_MS);
 
     try {
       let improved = null;
@@ -727,7 +745,11 @@ export default function ResponseQualityScoringCard({
       }
       if (!improved) {
         const [localImproved] = await Promise.all([
-          Promise.resolve(improvePreferenceInstructions(input, { questionText })),
+          Promise.resolve(
+            improvePreferenceInstructions(input || buildDefaultOwnerPromptForQuestion(questionText, helperText), {
+              questionText,
+            }),
+          ),
           new Promise((resolve) => window.setTimeout(resolve, randomImproveDelayMs())),
         ]);
         improved = localImproved;
@@ -739,12 +761,21 @@ export default function ResponseQualityScoringCard({
 
       setDraftInstructions(improved);
       setImproveState('improved');
-    } catch {
+    } catch (err) {
       if (improveRunRef.current === runId) {
         setImproveState('idle');
+        showToast({
+          type: 'error',
+          message: err?.message || 'Could not improve instructions — try again.',
+        });
+      }
+    } finally {
+      window.clearTimeout(timeoutId);
+      if (improveRunRef.current === runId) {
+        setImproveState((prev) => (prev === 'improving' ? 'idle' : prev));
       }
     }
-  }, [draftInstructions, questionText, formId, fieldId, screenId, helperText]);
+  }, [draftInstructions, questionText, helperText, formId, fieldId, screenId, showToast]);
 
   const handleSaveClick = useCallback(async () => {
     if (saveState === 'saving' || improveState === 'improving' || !draftInstructions.trim()) return;

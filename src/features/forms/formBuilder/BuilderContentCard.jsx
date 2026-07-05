@@ -1372,6 +1372,7 @@ const ContentCardInner = ({
   const [qualityUpgradeOpen, setQualityUpgradeOpen] = useState(false);
 
   const shortTextMaxCap = shortTextConfig?.shortTextMaxChars ?? 100;
+  const longTextMaxCap = longTextConfig?.longTextMaxChars ?? 500;
   const shortTextCapRef = useRef(shortTextMaxCap);
   if (shortTextCapRef.current !== shortTextMaxCap) {
     shortTextCapRef.current = shortTextMaxCap;
@@ -1462,6 +1463,7 @@ const ContentCardInner = ({
     formId: responseQualityFormId,
     screenId: previewScreenId,
     conversationHistory: qualityConversationHistory,
+    maxChars: longTextMaxCap,
     previewMode: true,
   });
 
@@ -1475,6 +1477,7 @@ const ContentCardInner = ({
     formId: responseQualityFormId,
     screenId: previewScreenId,
     conversationHistory: qualityConversationHistory,
+    maxChars: shortTextMaxCap,
     previewMode: true,
   });
 

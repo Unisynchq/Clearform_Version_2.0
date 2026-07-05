@@ -35,6 +35,7 @@ function buildEvaluatePayload({
   answerText,
   options,
   conversationHistory,
+  maxChars,
 }) {
   const fieldType = fieldKind === 'longText' ? 'Long text' : 'Short text';
   const fieldId = fieldKind === 'longText' ? 'long-text' : 'short-text';
@@ -48,6 +49,7 @@ function buildEvaluatePayload({
     typeof options?.customInstructions === 'string'
       ? options.customInstructions.trim()
       : '';
+  const trimmedAnswer = String(answerText ?? '').trim();
 
   return {
     screenId: screenId != null ? String(screenId) : undefined,
@@ -56,7 +58,9 @@ function buildEvaluatePayload({
     questionText: question ?? '',
     fieldType,
     helperText: helperText ?? '',
-    answerText,
+    answerText: trimmedAnswer,
+    answerCharCount: trimmedAnswer.length,
+    maxChars: maxChars != null && maxChars > 0 ? maxChars : undefined,
     conversationHistory: conversationHistory ?? [],
     customInstructions: customInstructions || undefined,
     options: {
@@ -124,6 +128,7 @@ export function useResponseQualityEvaluation({
   formId,
   screenId,
   conversationHistory,
+  maxChars,
   debounceMs = 400,
   previewMode = false,
 }) {
@@ -183,6 +188,7 @@ export function useResponseQualityEvaluation({
             answerText: trimmed,
             options,
             conversationHistory,
+            maxChars,
           }),
           { signal: controller.signal },
         );
@@ -214,6 +220,7 @@ export function useResponseQualityEvaluation({
     formId,
     screenId,
     conversationHistory,
+    maxChars,
     debounceMs,
     previewMode,
   ]);

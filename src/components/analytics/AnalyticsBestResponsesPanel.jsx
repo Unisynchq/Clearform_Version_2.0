@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   RiArrowDownSLine,
@@ -8,6 +8,10 @@ import {
   RiLoaderLine,
 } from 'react-icons/ri';
 import { fetchTopResponses } from '@/api/services/analyticsService';
+import { getBuilderSnapshot } from '@/api/services/formsService';
+import { mapApiResponseForDisplay } from '@/features/forms/utils/formResponseBuilder';
+import { isApiConfigured } from '@/config/env';
+import { useBillingStatus } from '@/features/billing/utils/useBillingStatus';
 
 const MIN_RESPONSES_FOR_BEST = 5;
 
@@ -133,22 +137,51 @@ function EmptyState({ responseCount }) {
 const AnalyticsBestResponsesPanel = ({ form, responseCount = 0 }) => {
   const formId = form?.id;
   const [responses, setResponses] = useState(null);
+  const [meta, setMeta] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [fetchedSnapshot, setFetchedSnapshot] = useState(null);
+  const { isPaid } = useBillingStatus();
+  const displayLimit = isPaid ? 5 : 3;
+
+  const draft = useMemo(() => {
+    const fromForm = form?.publishedSnapshot ?? form?.builderSnapshot;
+    if (fromForm?.screens?.length) return fromForm;
+    if (fetchedSnapshot?.screens?.length) return fetchedSnapshot;
+    return fromForm ?? fetchedSnapshot ?? null;
+  }, [form?.publishedSnapshot, form?.builderSnapshot, fetchedSnapshot]);
+
+  useEffect(() => {
+    if (!formId || !isApiConfigured()) return undefined;
+    let cancelled = false;
+    getBuilderSnapshot(formId)
+      .then((data) => {
+        const snap = data?.snapshot ?? data;
+        if (!cancelled && snap?.screens?.length) setFetchedSnapshot(snap);
+      })
+      .catch(() => {
+        if (!cancelled) setFetchedSnapshot(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [formId, form?.publishedSnapshot, form?.builderSnapshot]);
 
   const load = useCallback(async () => {
     if (!formId) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchTopResponses(formId, { limit: 5, minScore: 75 });
-      setResponses(Array.isArray(data?.items) ? data.items : []);
+      const data = await fetchTopResponses(formId, { limit: displayLimit, minScore: 75 });
+      const raw = Array.isArray(data?.items) ? data.items : [];
+      setResponses(raw.map((item) => mapApiResponseForDisplay(item, draft)));
+      setMeta(data?.meta ?? null);
     } catch (err) {
       setError(err?.message ?? 'Failed to load top responses.');
     } finally {
       setLoading(false);
     }
-  }, [formId]);
+  }, [formId, displayLimit, draft]);
 
   useEffect(() => {
     load();
@@ -160,7 +193,8 @@ const AnalyticsBestResponsesPanel = ({ form, responseCount = 0 }) => {
         <div>
           <h2 className="text-[16px] font-semibold text-[#111110]">Best Responses</h2>
           <p className="mt-0.5 text-[12px] text-[#888580]">
-            Top-scoring responses from your respondents — quality score 75+
+            Top responses for this form — filtered for quality
+            {isPaid ? ' (up to 5 on Pilot)' : ' (up to 3 on Free)'}
           </p>
         </div>
       </div>
