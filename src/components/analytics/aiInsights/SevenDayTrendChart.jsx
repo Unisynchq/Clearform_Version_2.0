@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { dailySubmissionsCount } from '../analyticsDailySeries';
 /** Figma 2241:19568 */
 const CHART_H = 46.279;
 
@@ -15,9 +14,9 @@ function defaultHoverIndex(days) {
 
 function buildDaysFromApi(sevenDayTrend) {
   if (!Array.isArray(sevenDayTrend) || sevenDayTrend.length === 0) return null;
-  const maxCount = Math.max(1, ...sevenDayTrend.map((d) => dailySubmissionsCount(d)));
+  const maxCount = Math.max(1, ...sevenDayTrend.map((d) => d.count ?? 0));
   return sevenDayTrend.map((d, index) => {
-    const responses = dailySubmissionsCount(d);
+    const responses = d.count ?? 0;
     const height = Math.round((responses / maxCount) * 100) || 4;
     const isAccent = index >= 4;
     return {

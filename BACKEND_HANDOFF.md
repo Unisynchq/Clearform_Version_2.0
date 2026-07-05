@@ -11,6 +11,37 @@ This document is for the **backend team**: what exists today, what the UI expect
 
 Use this section to see what shipped on `main` without re-reading git history. Backend work is still required where noted below; these entries are **frontend-only** unless stated otherwise.
 
+### 2026-07-03 — Response quality redesign + builder hydration hardening (frontend)
+
+| Field | Value |
+|-------|--------|
+| **Date** | 2026-07-03 |
+| **Scope** | Frontend-only UI/state pass for response quality, plus client-side builder hydration hardening for template-created forms |
+| **Backend changes** | **No new endpoint.** Existing `POST /forms/:id/response-quality/evaluate` contract is still the path, but the frontend now sends richer context: `sessionId`, optional `conversationHistory`, and owner `customInstructions` inside `options`. Backend should also apply a **default internal prompt/fallback instruction set** when `customInstructions` is empty so quality feedback remains stable even when the form owner has not saved a preference |
+
+#### What we fixed (frontend)
+
+| Area | Fix |
+|------|-----|
+| **Response quality panel** | Rebuilt the short-text/long-text configure UI into a flatter “Response quality” section with AI preference editing, saved/edit/delete states, advanced-options disclosure, stronger disabled states, and cleaner typography |
+| **Preference persistence** | Owner AI guidance is now stored in `customInstructions` on the existing response-quality options object; no schema break on the frontend side, but published/draft snapshots must continue to round-trip that field exactly |
+| **Live builder UX** | Removed repetitive success toasts for AI preference saves; added explicit loading state for “Improve with AI” |
+| **Template-created builder sessions** | Seeded `builderSnapshot` earlier and hardened hydration guards so first-save navigation does not snap the builder back to the Start screen |
+
+#### Files changed
+
+| File | What changed |
+|------|----------------|
+| `src/features/forms/components/ResponseQualityScoringCard.jsx` | Redesigned response-quality UI; added `customInstructions`; advanced options; loading/saved states |
+| `src/features/forms/components/ResponseQualityScoringCard.test.js` | Added focused coverage for saved state, loading state, and disabled criteria styling |
+| `src/features/forms/pages/FormBuilderPage.jsx` | Removed noisy success toasts for AI preference saves; preserved active builder content across first-save hydration |
+| `src/features/forms/utils/createFormFromTemplateFlow.js` | Seeds `builderSnapshot` before navigating to the builder |
+| `src/features/forms/utils/createFormFromTemplateFlow.test.js` | Verifies `builderSnapshot` is created when forms are built from templates |
+
+**Backend note:** if `options.customInstructions` is blank, do **not** skip quality guidance. Use a backend-owned default prompt/template that still evaluates the enabled criteria against the question context.
+
+---
+
 ### 2026-07-01 — Fix: builder jumped to Start screen on first save of a new form (frontend)
 
 | Field | Value |
@@ -650,16 +681,23 @@ Call this on debounced keystrokes (frontend will throttle) for long-text and sho
   "formId": 123,
   "screenId": 5,
   "fieldId": "long-text",
+  "sessionId": "per-tab-session-id",
   "questionText": "What went wrong during onboarding?",
   "fieldType": "Long text",
   "helperText": "Be specific — mention steps, screens, or errors.",
   "answerText": "It was fine I guess",
+  "conversationHistory": [],
   "options": {
+    "customInstructions": "Focus more on specific steps or screens the respondent mentions.",
     "minWords": 10,
     "sensitivity": "Medium",
     "vagueWords": "good, fine, okay, great",
     "topicKeywords": "onboarding, step, error, confusing",
     "keywordThreshold": 1,
+    "length": { "enabled": true, "minWords": 10 },
+    "specificity": { "enabled": true, "sensitivity": "Medium", "vagueWords": "good, fine, okay, great" },
+    "relevance": { "enabled": true, "topicKeywords": "onboarding, step, error", "keywordThreshold": 1 },
+    "completeness": { "enabled": true, "detectTrailing": true, "requiredSentences": 1 },
     "criteria": {
       "length": { "enabled": true, "minWords": 10 },
       "specificity": { "enabled": true, "sensitivity": "Medium", "vagueWords": "good, fine, okay, great" },
@@ -684,6 +722,8 @@ Call this on debounced keystrokes (frontend will throttle) for long-text and sho
 - `message`: one short, actionable sentence shown to the respondent
 - `failedIds`: subset of `length`, `specificity`, `relevance`, `completeness`
 
+**Important fallback rule:** when `options.customInstructions` is empty, backend should inject its own **default prompt / default evaluator instructions** so the model still produces consistent feedback. `customInstructions` is an owner override, not a requirement for quality evaluation to work.
+
 **Suggested system prompt (copy into your LLM service)**
 
 ```text
@@ -693,18 +733,20 @@ You will receive:
 - questionText: the exact question shown to the respondent
 - helperText: optional instructions shown under the question
 - answerText: what the respondent has typed so far (may be partial)
+- customInstructions: optional owner preference for this question only; if empty, use your backend default prompt/instructions
 - options.criteria: which checks are enabled and their parameters (minWords, sensitivity, vagueWords, topicKeywords, keywordThreshold)
 
 Rules:
 1. Only evaluate criteria marked enabled: true. Ignore disabled criteria entirely.
-2. Use questionText and helperText to judge relevance — do not expect topics not related to the question.
-3. For length, count words in answerText against minWords when length is enabled.
-4. For specificity, flag vague words from vagueWords when sensitivity is enabled.
-5. For relevance, check topicKeywords appear when relevance is enabled.
-6. For completeness, detect incomplete sentences or trailing fragments when completeness is enabled.
-7. Return JSON only: { "level": "green"|"amber"|"red", "message": string, "failedIds": string[] }
-8. green = passes all enabled checks; amber = one issue; red = two or more issues or severe failure.
-9. message must be helpful and refer to the question context, not generic praise.
+2. Apply customInstructions when present. If absent, apply the backend's default quality-evaluator prompt so output quality stays stable.
+3. Use questionText and helperText to judge relevance — do not expect topics not related to the question.
+4. For length, count words in answerText against minWords when length is enabled.
+5. For specificity, flag vague words from vagueWords when sensitivity is enabled.
+6. For relevance, check topicKeywords appear when relevance is enabled.
+7. For completeness, detect incomplete sentences or trailing fragments when completeness is enabled.
+8. Return JSON only: { "level": "green"|"amber"|"red", "message": string, "failedIds": string[] }
+9. green = passes all enabled checks; amber = one issue; red = two or more issues or severe failure.
+10. message must be helpful and refer to the question context, not generic praise.
 
 Do not invent criteria. Do not return markdown.
 ```
@@ -1717,23 +1759,6 @@ When API is off, analytics panels show **empty states** (demo charts and the “
 
 See **B.11** for full `screenDropoff` + funnel shape. Frontend today consumes: `responses`, `contentScreenCount`, `funnel`, `screenDropoff`, `avgDurationMs`, `completionRate`, `trendPct`, `trendUp`, daily series fields used by stats/funnel cards.
 
-**`dailySeries[]` — submitted responses only (Performance + Compare tabs)**
-
-Each row represents one calendar day in the selected range (`date`: `YYYY-MM-DD`).
-
-| Field | Type | Semantics |
-|-------|------|-----------|
-| `date` | string | ISO date `YYYY-MM-DD` for the bucket |
-| `submissions` | number | **Preferred.** Count of **completed** form submissions (`POST /forms/:id/responses`) whose `submittedAt` falls on this day |
-| `submitted` | number | Alias for `submissions` (optional) |
-| `count` | number | Legacy alias — MUST mean completed submissions only, **not** opened/started sessions |
-| `sessions` / `started` | number | Optional denominator for completion rate (started sessions that day) |
-| `completions` | number | Completed submissions that day (numerator for completion rate when `sessions` is present) |
-| `avgTimePerQuestionSec` | number | Average seconds spent per question for submissions that day |
-| `avgDuration` | number | Optional total session duration in ms (fallback for time chart only) |
-
-**Do not** populate daily bar counts from `funnel.opened` or `funnel.started`. Funnel metrics stay in the funnel card only. Frontend normalizes via `submissions ?? submitted ?? count`.
-
 ---
 
 ## Priority 2.5 — AI integration
@@ -1781,22 +1806,34 @@ Each row represents one calendar day in the selected range (`date`: `YYYY-MM-DD`
 
 ### B. Response Quality AI
 
-**Current state:** Rule-based heuristics in `responseQualityScoring.js` (“Dummy … no AI”). Works in **builder preview only**; not on live `PublicFormPage` yet.
+**Current state:** Rule-based heuristics in `responseQualityScoring.js` remain the offline fallback. When `VITE_API_BASE_URL` is set, both builder preview and live `/f/:formId` call `POST /forms/:formId/response-quality/evaluate` via `useResponseQualityEvaluation`.
 
-**Config in snapshot** per screen: `longTextResponseQualityEnabled`, `longTextResponseQualityOptions`, `shortTextResponseQuality*`.
+**Config in snapshot** per screen: `longTextResponseQualityEnabled`, `longTextResponseQualityOptions`, `shortTextResponseQuality*`. Each options object now includes owner `customInstructions` plus nested criterion config objects (`length`, `specificity`, `relevance`, `completeness`).
 
 **Options shape:**
 
 ```json
 {
+  "customInstructions": "",
   "minWords": 10,
   "sensitivity": "Low" | "Medium" | "High",
   "vagueWords": "good, fine, okay",
   "topicKeywords": "experience, product",
   "keywordThreshold": 1,
-  "criteria": ["length", "specificity", "relevance", "completeness"]
+  "length": { "enabled": true, "minWords": 10 },
+  "specificity": { "enabled": true, "sensitivity": "Medium", "vagueWords": "good, fine, okay" },
+  "relevance": { "enabled": true, "keywords": "experience, product", "matchThreshold": 1 },
+  "completeness": { "enabled": true, "detectTrailing": true, "requiredSentences": 1 },
+  "criteria": {
+    "length": { "enabled": true, "minWords": 10 },
+    "specificity": { "enabled": true, "sensitivity": "Medium", "vagueWords": "good, fine, okay" },
+    "relevance": { "enabled": true, "topicKeywords": "experience, product", "keywordThreshold": 1 },
+    "completeness": { "enabled": true, "detectTrailing": true, "requiredSentences": 1 }
+  }
 }
 ```
+
+If `customInstructions` is blank, backend should fall back to a **default evaluator prompt** rather than treating the field as required.
 
 **Proposed endpoints** (defined in `endpoints.js`):
 
@@ -1811,7 +1848,11 @@ Each row represents one calendar day in the selected range (`date`: `YYYY-MM-DD`
 {
   "screenId": 3,
   "fieldId": "long-text-1",
-  "text": "user answer...",
+  "sessionId": "per-tab-session-id",
+  "questionText": "What went wrong during onboarding?",
+  "helperText": "Be specific — mention steps, screens, or errors.",
+  "answerText": "user answer...",
+  "conversationHistory": [],
   "options": { "minWords": 10, "criteria": ["length", "specificity"] }
 }
 ```
