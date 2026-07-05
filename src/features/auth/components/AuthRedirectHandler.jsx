@@ -70,7 +70,7 @@ const AuthRedirectHandler = () => {
       if (
         !user &&
         (pending === 'microsoft' || pending === 'google') &&
-        auth.currentUser?.email
+        auth?.currentUser?.email
       ) {
         user = await restoreFirebaseSessionFromCurrentUser();
         if (user) sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
@@ -78,7 +78,7 @@ const AuthRedirectHandler = () => {
 
       if (!user) {
         if (pending === 'microsoft' || pending === 'google') {
-          if (!auth.currentUser) {
+          if (!auth?.currentUser) {
             logPendingMicrosoftNoUser();
             return;
           }

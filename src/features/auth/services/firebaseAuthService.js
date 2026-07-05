@@ -13,13 +13,19 @@ import {
 import { auth, googleProvider, microsoftProvider, getFirebaseAuthOrigin } from '@/config/firebase';
 import { fetchMe } from '@/api/services/authMeService';
 import { ApiError } from '@/api/client';
-import { isApiConfigured } from '@/config/env';
+import { isApiConfigured, isFirebaseConfigured } from '@/config/env';
 import { runSingleFlightSync } from '@/features/auth/utils/authBootstrapCoordinator';
 import {
   clearAuthClientContext,
   writeOnboardingHint,
 } from '@/features/auth/utils/authClientContext';
 import { resetAuthBootstrapCoordinator } from '@/features/auth/utils/authBootstrapCoordinator';
+import {
+  clearLocalDevToken,
+  localSignInWithEmail,
+  localSignUpWithEmail,
+  rejectLocalOAuth,
+} from '@/features/auth/services/localAuthService';
 
 const TOKEN_KEY = 'clearform:auth-token';
 export const AUTH_RETURN_TO_KEY = 'clearform:auth-return-to';
@@ -214,6 +220,7 @@ async function buildUserFromFirebaseResult(result) {
  * When getRedirectResult is null but Firebase still has a session (redirect race / Brave).
  */
 export async function restoreFirebaseSessionFromCurrentUser() {
+  if (!auth) return null;
   const user = auth.currentUser;
   if (!user?.email) return null;
   logAuthDebug('session-bridge', { uid: user.uid, email: user.email });
@@ -224,6 +231,7 @@ export async function restoreFirebaseSessionFromCurrentUser() {
  * Microsoft on Mac/Brave: popup handler often stays blank — use full-page redirect.
  */
 export async function startMicrosoftSignInRedirect(returnTo) {
+  if (!auth || !microsoftProvider) return rejectLocalOAuth();
   const canonicalUrl = resolveMicrosoftRedirectStartUrl(returnTo);
   if (canonicalUrl) {
     logAuthDebug('microsoft-redirect-hop', { from: window.location.origin, to: canonicalUrl });
@@ -251,6 +259,7 @@ export async function startMicrosoftSignInRedirect(returnTo) {
  * Optional fallback when redirect fails (popup often blank on Brave — user must opt in).
  */
 export async function startMicrosoftSignInPopup() {
+  if (!auth || !microsoftProvider) return rejectLocalOAuth();
   try {
     sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
     logAuthDebug('microsoft-popup-start', { origin: window.location.origin });
@@ -314,6 +323,7 @@ async function consumeRedirectSignInResultInternal() {
  * Call once on app load after returning from Microsoft OAuth redirect.
  */
 export async function consumeRedirectSignInResult() {
+  if (!auth) return null;
   if (!redirectResultPromise) {
     redirectResultPromise = (async () => {
       try {
@@ -329,6 +339,10 @@ export async function consumeRedirectSignInResult() {
 }
 
 export async function signInWithEmail(email, password) {
+  if (!auth) {
+    const user = await localSignInWithEmail(email, password);
+    return { ...user, user: null };
+  }
   try {
     const { user } = await signInWithEmailAndPassword(auth, email, password);
     await storeToken(user);
@@ -341,6 +355,10 @@ export async function signInWithEmail(email, password) {
 }
 
 export async function signUpWithEmail(email, password, firstName, lastName) {
+  if (!auth) {
+    const user = await localSignUpWithEmail(email, password, firstName, lastName);
+    return { ...user, user: null };
+  }
   try {
     const { user } = await createUserWithEmailAndPassword(auth, email, password);
     const displayName = [firstName, lastName].filter(Boolean).join(' ');
@@ -354,6 +372,7 @@ export async function signUpWithEmail(email, password, firstName, lastName) {
 }
 
 export async function signInWithGoogle(returnTo) {
+  if (!auth || !googleProvider) return rejectLocalOAuth();
   try {
     if (isBraveBrowser()) {
       if (typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//')) {
@@ -386,10 +405,17 @@ export async function signOutUser() {
   backendSyncPromise = null;
   clearAuthClientContext();
   resetAuthBootstrapCoordinator();
+  if (!auth) {
+    clearLocalDevToken();
+    return;
+  }
   await signOut(auth);
 }
 
 export async function requestPasswordResetEmail(email) {
+  if (!auth) {
+    throw new Error('Password reset is unavailable in local frontend mode. Change password from Profile → Security after signing in.');
+  }
   const trimmed = (email ?? '').trim();
   if (!trimmed) throw new Error('Enter your email address first.');
   try {

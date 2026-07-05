@@ -33,8 +33,7 @@ import {
   verifyCurrentPassword,
 } from '@/features/profile/utils/profileValidation';
 import { persistAccountPassword } from '@/features/auth/utils/userAccountsStorage';
-import { sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from '@/config/firebase';
+import { requestPasswordResetEmail } from '@/features/auth/services/firebaseAuthService';
 import { useToast } from '@/hooks/useToast';
 import { useSelector } from 'react-redux';
 
@@ -282,7 +281,7 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
       return;
     }
     try {
-      await sendPasswordResetEmail(auth, targetEmail);
+      await requestPasswordResetEmail(targetEmail);
       showToast({
         type: 'success',
         message: `Password reset email sent to ${targetEmail}.`,

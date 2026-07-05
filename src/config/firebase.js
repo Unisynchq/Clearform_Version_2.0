@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
+import { isFirebaseConfigured } from '@/config/env';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -10,15 +11,22 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
+let auth = null;
+let googleProvider = null;
+let microsoftProvider = null;
 
-export const microsoftProvider = new OAuthProvider('microsoft.com');
-// prompt=login avoids Microsoft FIDO/passkey "Confirm sign in?" hanging on Brave + wallet extensions.
-microsoftProvider.setCustomParameters({ prompt: 'login' });
-microsoftProvider.addScope('email');
-microsoftProvider.addScope('profile');
+if (isFirebaseConfigured()) {
+  const app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  googleProvider = new GoogleAuthProvider();
+
+  microsoftProvider = new OAuthProvider('microsoft.com');
+  microsoftProvider.setCustomParameters({ prompt: 'login' });
+  microsoftProvider.addScope('email');
+  microsoftProvider.addScope('profile');
+}
+
+export { auth, googleProvider, microsoftProvider };
 
 /** Canonical HTTPS origin for Firebase redirect (must match VITE_FIREBASE_AUTH_DOMAIN). */
 export function getFirebaseAuthOrigin() {

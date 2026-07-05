@@ -4,7 +4,7 @@ import { auth } from '@/config/firebase';
  * Returns a fresh Firebase ID token for API calls (forces refresh when user exists).
  */
 export async function getFreshAuthToken() {
-  const user = auth.currentUser;
+  const user = auth?.currentUser;
   if (!user) {
     return typeof window !== 'undefined'
       ? sessionStorage.getItem('clearform:auth-token')

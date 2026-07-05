@@ -14,14 +14,16 @@ import App from './App.jsx';
 const sentryEnabled = initSentry();
 
 // Keep sessionStorage token in sync with Firebase's silent refresh cycle (~1 h)
-onIdTokenChanged(auth, async (user) => {
-  if (user) {
-    const token = await user.getIdToken();
-    sessionStorage.setItem('clearform:auth-token', token);
-  } else {
-    sessionStorage.removeItem('clearform:auth-token');
-  }
-});
+if (auth) {
+  onIdTokenChanged(auth, async (user) => {
+    if (user) {
+      const token = await user.getIdToken();
+      sessionStorage.setItem('clearform:auth-token', token);
+    } else {
+      sessionStorage.removeItem('clearform:auth-token');
+    }
+  });
+}
 
 // Sign out and clear Redux state when any API call returns 401
 window.addEventListener('clearform:auth-expired', async () => {

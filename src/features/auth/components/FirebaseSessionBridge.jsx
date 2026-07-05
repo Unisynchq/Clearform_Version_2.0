@@ -29,6 +29,7 @@ const FirebaseSessionBridge = () => {
   const syncingRef = useRef(false);
 
   useEffect(() => {
+    if (!auth) return undefined;
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser?.email || isAuthenticated || syncingRef.current) return;
 
