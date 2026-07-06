@@ -33,6 +33,7 @@ import AnalyticsSettingsPanel from '@/components/analytics/AnalyticsSettingsPane
 import AnalyticsAiInsightsPanel from '@/components/analytics/AnalyticsAiInsightsPanel';
 import AiTierTeaser from '@/features/billing/components/AiTierTeaser';
 import AnalyticsBestResponsesPanel from '@/components/analytics/AnalyticsBestResponsesPanel';
+import AnalyticsResponsesSubNav from '@/components/analytics/AnalyticsResponsesSubNav';
 import Topbar from '@/components/layout/Topbar';
 
 function LiveUpdatedStamp({ updatedAt }) {
@@ -78,9 +79,11 @@ const AnalyticsPage = () => {
     selectedForm,
     hasResponseData,
     activeTab,
+    responsesView,
     aiInsightsVisit,
     handlePickForm: pickFormFromUrl,
     handleTabChange,
+    handleResponsesViewChange,
   } = useAnalyticsPageState(forms);
 
   const [formMenuOpen, setFormMenuOpen] = useState(false);
@@ -323,7 +326,7 @@ const AnalyticsPage = () => {
         viewLoadingTimerRef.current = null;
       }
     };
-  }, [bootLoading, activeTab, selectedFormId]);
+  }, [bootLoading, activeTab, selectedFormId, responsesView]);
 
   const handlePickForm = (id) => {
     setFormMenuOpen(false);
@@ -377,15 +380,16 @@ const AnalyticsPage = () => {
     effectiveLoading || performanceFetching
       ? `loading-${activeTab}-${selectedFormId ?? 'none'}`
       : `ready-${activeTab}-${selectedFormId ?? 'none'}-${
-          activeTab === 'ai' ? aiInsightsVisit : '0'
+          activeTab === 'responses' ? responsesView : activeTab === 'ai' ? aiInsightsVisit : '0'
         }-${activeTab === 'performance' && !effectiveHasResponseData ? 'empty' : 'full'}`;
 
   const renderLoadingSkeleton = () => {
     if (activeTab === 'performance') return <AnalyticsPerformanceSkeleton />;
-    if (activeTab === 'responses') return <AnalyticsPanelSkeleton blocks={4} />;
+    if (activeTab === 'responses') {
+      return <AnalyticsPanelSkeleton blocks={responsesView === 'best' ? 3 : 4} />;
+    }
     if (activeTab === 'compare') return <AnalyticsPanelSkeleton blocks={3} />;
     if (activeTab === 'ai') return <AnalyticsPanelSkeleton blocks={4} />;
-    if (activeTab === 'best') return <AnalyticsPanelSkeleton blocks={3} />;
     return <AnalyticsPanelSkeleton blocks={2} />;
   };
 
@@ -440,11 +444,24 @@ const AnalyticsPage = () => {
         );
       case 'responses':
         return (
-          <AnalyticsResponsesPanel
-            form={selectedForm}
-            rangeLabel={rangeLabel}
-            onRangeChange={setRangeLabel}
-          />
+          <div className="max-w-[1400px] mx-auto flex flex-col gap-4">
+            <AnalyticsResponsesSubNav
+              value={responsesView}
+              onChange={handleResponsesViewChange}
+            />
+            {responsesView === 'best' ? (
+              <AnalyticsBestResponsesPanel
+                form={selectedForm}
+                responseCount={perfApiStats?.responses ?? selectedForm?.responses ?? 0}
+              />
+            ) : (
+              <AnalyticsResponsesPanel
+                form={selectedForm}
+                rangeLabel={rangeLabel}
+                onRangeChange={setRangeLabel}
+              />
+            )}
+          </div>
         );
       case 'compare':
         if (compareLoading) {
@@ -503,20 +520,13 @@ const AnalyticsPage = () => {
             />
           </>
         );
-      case 'best':
-        return (
-          <AnalyticsBestResponsesPanel
-            form={selectedForm}
-            responseCount={perfApiStats?.responses ?? selectedForm?.responses ?? 0}
-          />
-        );
       default:
         return null;
     }
   };
 
   const headerActions = () => {
-    if (activeTab === 'responses' || activeTab === 'compare') {
+    if ((activeTab === 'responses' && responsesView === 'all') || activeTab === 'compare') {
       return (
         <>
           <button

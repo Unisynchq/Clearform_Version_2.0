@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-const MAIN_TABS = [
-  { id: 'performance', label: 'Performance' },
+const MAIN_TABS = [  { id: 'performance', label: 'Performance' },
   { id: 'responses', label: 'Responses' },
   { id: 'compare', label: 'Compare' },
   { id: 'ai', label: 'AI Insights' },
-  { id: 'best', label: 'Best Responses' },
   { id: 'settings', label: 'Settings' },
 ];
 
@@ -17,6 +15,7 @@ export function useAnalyticsPageState(forms) {
   const [searchParams, setSearchParams] = useSearchParams();
   const paramFormId = searchParams.get('form');
   const paramTab = searchParams.get('tab');
+  const paramView = searchParams.get('view');
 
   const selectedFormId = useMemo(() => {
     if (!forms.length) return null;
@@ -30,7 +29,20 @@ export function useAnalyticsPageState(forms) {
   const [activeTab, setActiveTab] = useState('performance');
   const [aiInsightsVisit, setAiInsightsVisit] = useState(0);
 
+  const responsesView = paramView === 'best' ? 'best' : 'all';
+
+  // Legacy: ?tab=best → ?tab=responses&view=best
   useEffect(() => {
+    if (paramTab !== 'best') return;
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', 'responses');
+    next.set('view', 'best');
+    if (selectedFormId != null) next.set('form', String(selectedFormId));
+    setSearchParams(next, { replace: true });
+  }, [paramTab, searchParams, selectedFormId, setSearchParams]);
+
+  useEffect(() => {
+    if (paramTab === 'best') return;
     if (paramTab && MAIN_TABS.some((tab) => tab.id === paramTab)) {
       setActiveTab(paramTab);
       if (paramTab === 'ai') setAiInsightsVisit((n) => n + 1);
@@ -55,6 +67,21 @@ export function useAnalyticsPageState(forms) {
     } else {
       next.set('tab', tabId);
     }
+    if (tabId !== 'responses') {
+      next.delete('view');
+    }
+    if (selectedFormId != null) next.set('form', String(selectedFormId));
+    setSearchParams(next, { replace: true });
+  };
+
+  const handleResponsesViewChange = (viewId) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', 'responses');
+    if (viewId === 'best') {
+      next.set('view', 'best');
+    } else {
+      next.delete('view');
+    }
     if (selectedFormId != null) next.set('form', String(selectedFormId));
     setSearchParams(next, { replace: true });
   };
@@ -65,9 +92,11 @@ export function useAnalyticsPageState(forms) {
     selectedForm,
     hasResponseData,
     activeTab,
+    responsesView,
     aiInsightsVisit,
     handlePickForm,
     handleTabChange,
+    handleResponsesViewChange,
     setActiveTab,
     searchParams,
     setSearchParams,
