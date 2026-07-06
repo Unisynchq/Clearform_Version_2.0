@@ -36,8 +36,8 @@ import { DASHBOARD_CONTENT_MOTION } from '@/motion/dashboardMotion';
 import StartWithTemplateModal from '../components/StartWithTemplateModal';
 import OnboardingTemplatePreviewModal from '@/features/onboarding/components/OnboardingTemplatePreviewModal';
 import { NO_WORKSPACE_ID } from '@/features/forms/constants/workspaces';
+import { useBillingStatus } from '@/features/billing/utils/useBillingStatus';
 
-const PLAN_LIMIT = 10;
 const PARTIAL_SKELETON_MS = 400;
 
 const LibraryTab = ({ label, active, onClick }) => (
@@ -161,7 +161,11 @@ const TemplatesPage = () => {
     loadUserTemplates();
   }, [loadUserTemplates]);
 
-  const isAtLimit = formsCount >= PLAN_LIMIT;
+  // Server entitlements are the single source of truth for the forms limit —
+  // `formsLimit: null` means unlimited (every current plan). Never hardcode.
+  const { status: billingStatus } = useBillingStatus();
+  const formsLimit = billingStatus?.formsLimit ?? null;
+  const isAtLimit = formsLimit != null && formsCount >= formsLimit;
   const resolvedBannerState =
     bannerOverride && ['default', 'loading', 'error', 'limit'].includes(bannerOverride)
       ? bannerOverride
@@ -552,7 +556,7 @@ const TemplatesPage = () => {
     <div className="mb-6">
       <CreateCustomFormBanner
         state={resolvedBannerState}
-        planLimit={PLAN_LIMIT}
+        planLimit={formsLimit ?? undefined}
         onCreate={handleBannerCreate}
         onRetry={handleBannerRetry}
         onUpgrade={handleBannerUpgrade}
