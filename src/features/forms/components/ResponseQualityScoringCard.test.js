@@ -6,6 +6,7 @@ import {
   DEFAULT_RESPONSE_QUALITY_OPTIONS,
   default as ResponseQualityScoringCard,
   improvePreferenceInstructions,
+  isSubstantiallySameInstructions,
   normalizeResponseQualityOptions,
 } from './ResponseQualityScoringCard';
 
@@ -13,6 +14,12 @@ vi.mock('@/features/billing/utils/useBillingStatus', () => ({
   useBillingStatus: () => ({
     entitlements: null,
     isPaid: false,
+  }),
+}));
+
+vi.mock('@/hooks/useToast', () => ({
+  useToast: () => ({
+    showToast: vi.fn(),
   }),
 }));
 
@@ -85,12 +92,24 @@ describe('normalizeResponseQualityOptions', () => {
 });
 
 describe('improvePreferenceInstructions', () => {
-  it('polishes terse preference text into clearer guidance', () => {
+  it('polishes terse preference text into question-aware guidance', () => {
     const improved = improvePreferenceInstructions('specificity and relevance', {
       questionText: 'What did you think?',
     });
-    expect(improved).toMatch(/^I want responses/);
-    expect(improved).toContain('specificity and relevance');
+    expect(improved).toMatch(/For "What did you think\?"/);
+    expect(improved).toMatch(/specificity and relevance/i);
+    expect(improved).toMatch(/green when/i);
+  });
+
+  it('rewrites drafts that already contain "want"', () => {
+    const draft =
+      'I want relevant experience with a example on what they worked on.';
+    const improved = improvePreferenceInstructions(draft, {
+      questionText: 'How many years of relevant experience do you have?',
+      helperText: 'Include only directly related roles.',
+    });
+    expect(isSubstantiallySameInstructions(improved, draft)).toBe(false);
+    expect(improved).toMatch(/relevant experience/i);
   });
 });
 
@@ -139,7 +158,7 @@ describe('ResponseQualityScoringCard', () => {
         const saveButton = screen.getByRole('button', { name: 'Save' });
         expect(saveButton).not.toBeDisabled();
       },
-      { timeout: 3000 },
+      { timeout: 2000 },
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));

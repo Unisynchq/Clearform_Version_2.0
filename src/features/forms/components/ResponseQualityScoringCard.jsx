@@ -16,9 +16,8 @@ import { buildDefaultOwnerPromptForQuestion } from '@/features/forms/utils/defau
 const MAX_CRITERIA = 2;
 const FONT = { fontFamily: "'DM Sans', sans-serif" };
 const SAVE_TRANSITION_MS = 450;
-const AI_IMPROVE_DELAY_MIN_MS = 1500;
-const AI_IMPROVE_TIMEOUT_MS = 15000;
-const AI_IMPROVE_DELAY_MAX_MS = 2000;
+const AI_IMPROVE_MIN_ANIMATION_MS = 400;
+const AI_IMPROVE_TIMEOUT_MS = 20000;
 const PREFERENCE_TRANSITION_MS = 250;
 const PREFERENCE_TEXTAREA_MIN_H = '132px';
 
@@ -62,37 +61,77 @@ export function normalizeResponseQualityOptions(options) {
 const EXPERIENCE_FEEDBACK_Q =
   /\b(filling this form|using this form|this form|form builder|clearform|this survey|how is your|how was your|your experience|experien|feedback|improve)\b/i;
 
-/** Client-side polish until a dedicated improve API exists. */
-export function improvePreferenceInstructions(raw, { questionText = '' } = {}) {
-  let text = String(raw ?? '')
-    .trim()
-    .replace(/\s+/g, ' ');
-  if (!text) return '';
-
-  text = text.charAt(0).toUpperCase() + text.slice(1);
-  if (!/[.!?]$/.test(text)) text += '.';
-
-  const hasActionVerbs = /\b(focus|prioritize|expect|want|ensure|look for|score|rate|flag|nudge|emphasize|prefer|require)\b/i.test(
-    text,
-  );
-
-  if (!hasActionVerbs) {
-    const questionHint = questionText.trim() ? ' to this question' : '';
-    text = `I want responses${questionHint} that ${text.charAt(0).toLowerCase()}${text.slice(1)}`;
-  }
-
-  if (text.split(/\s+/).length < 12) {
-    text += ' Flag vague or off-topic answers and nudge respondents toward concrete, relevant detail.';
-  }
-
-  return text.slice(0, AI_GUIDANCE_MAX_LENGTH);
+function normalizeForCompare(text) {
+  return String(text ?? '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[.!?,;:'"()]/g, '')
+    .trim();
 }
 
-function randomImproveDelayMs() {
+export function isSubstantiallySameInstructions(a, b) {
+  const left = normalizeForCompare(a);
+  const right = normalizeForCompare(b);
+  if (!left || !right) return false;
+  if (left === right) return true;
+  const longer = left.length >= right.length ? left : right;
+  const shorter = left.length < right.length ? left : right;
+  return longer.includes(shorter) && shorter.length / longer.length > 0.88;
+}
+
+function extractScoringClause(template) {
+  const match = template.match(/green when[\s\S]*/i);
+  if (match) return match[0].trim();
   return (
-    AI_IMPROVE_DELAY_MIN_MS +
-    Math.floor(Math.random() * (AI_IMPROVE_DELAY_MAX_MS - AI_IMPROVE_DELAY_MIN_MS + 1))
+    'Green when on-topic with useful detail; amber when thin but on-topic; ' +
+    'red for gibberish, repetition, or off-topic.'
   );
+}
+
+function distillOwnerIntent(draft) {
+  let intent = String(draft ?? '')
+    .trim()
+    .replace(/\s+/g, ' ');
+  intent = intent
+    .replace(/^i\s+want\s+(responses?( to this question)? that\s+)?/i, '')
+    .replace(/^i\s+would\s+prefer\s+/i, '')
+    .replace(/^i\s+prefer\s+/i, '')
+    .replace(/[.!?]+$/, '')
+    .trim();
+  return intent || String(draft ?? '').trim().replace(/\s+/g, ' ').replace(/[.!?]+$/, '');
+}
+
+/** Question-aware polish used when the improve API is unavailable or returns no change. */
+export function improvePreferenceInstructions(
+  raw,
+  { questionText = '', helperText = '' } = {},
+) {
+  const template = buildDefaultOwnerPromptForQuestion(questionText, helperText);
+  const normalized = String(raw ?? '')
+    .trim()
+    .replace(/\s+/g, ' ');
+  if (!normalized) return template;
+
+  const question = String(questionText || 'this question')
+    .trim()
+    .slice(0, 90);
+  const intent = distillOwnerIntent(normalized);
+  const scoring = extractScoringClause(template);
+  const merged = `For "${question}": ${intent}. ${scoring.charAt(0).toUpperCase()}${scoring.slice(1)}`;
+
+  let result = merged.slice(0, AI_GUIDANCE_MAX_LENGTH);
+  if (isSubstantiallySameInstructions(result, normalized)) {
+    result =
+      `${merged} Quote their exact words when nudging; never repeat what they already wrote.`.slice(
+        0,
+        AI_GUIDANCE_MAX_LENGTH,
+      );
+  }
+  return result;
+}
+
+function waitForImproveAnimation() {
+  return new Promise((resolve) => window.setTimeout(resolve, AI_IMPROVE_MIN_ANIMATION_MS));
 }
 
 /** True when question text looks like experience / form feedback (mirrors backend heuristics). */
@@ -720,6 +759,11 @@ export default function ResponseQualityScoringCard({
 
   const handleImproveClick = useCallback(async () => {
     const input = draftInstructions.trim();
+    if (!input) {
+      showToast({ type: 'error', message: 'Add a preference first, then improve it with AI.' });
+      return;
+    }
+
     const runId = improveRunRef.current + 1;
     improveRunRef.current = runId;
     setImproveState('improving');
@@ -731,8 +775,36 @@ export default function ResponseQualityScoringCard({
       }
     }, AI_IMPROVE_TIMEOUT_MS);
 
+    const applyImproved = (nextText, { source = 'local' } = {}) => {
+      if (improveRunRef.current !== runId) return false;
+      if (!nextText?.trim()) {
+        setImproveState('idle');
+        showToast({ type: 'error', message: 'Could not improve instructions — try again.' });
+        return false;
+      }
+      if (isSubstantiallySameInstructions(nextText, input)) {
+        setImproveState('idle');
+        showToast({
+          type: 'error',
+          message: 'AI could not improve this text — add more detail about what you want, then retry.',
+        });
+        return false;
+      }
+      setDraftInstructions(nextText);
+      setImproveState('improved');
+      if (source === 'llm') {
+        showToast({ type: 'success', message: 'Instructions improved with AI.' });
+      } else if (source === 'fallback') {
+        showToast({ type: 'success', message: 'Instructions polished for this question.' });
+      }
+      return true;
+    };
+
     try {
+      const animation = waitForImproveAnimation();
       let improved = null;
+      let source = 'local';
+
       if (isApiConfigured() && formId != null) {
         const apiResult = await improveResponseQualityInstructionsApi(formId, {
           screenId: screenId != null ? String(screenId) : undefined,
@@ -741,34 +813,27 @@ export default function ResponseQualityScoringCard({
           helperText,
           draftInstructions: input,
         });
-        improved = apiResult?.customInstructions ?? null;
-      }
-      if (!improved) {
-        const [localImproved] = await Promise.all([
-          Promise.resolve(
-            improvePreferenceInstructions(input || buildDefaultOwnerPromptForQuestion(questionText, helperText), {
-              questionText,
-            }),
-          ),
-          new Promise((resolve) => window.setTimeout(resolve, randomImproveDelayMs())),
-        ]);
-        improved = localImproved;
-      } else {
-        await new Promise((resolve) => window.setTimeout(resolve, randomImproveDelayMs()));
+        improved = apiResult?.customInstructions?.trim() ?? null;
+        source = apiResult?.meta?.source === 'llm' ? 'llm' : 'fallback';
       }
 
-      if (improveRunRef.current !== runId) return;
+      if (!improved || isSubstantiallySameInstructions(improved, input)) {
+        improved = improvePreferenceInstructions(input, { questionText, helperText });
+        source = improved && source === 'llm' ? 'fallback' : source;
+      }
 
-      setDraftInstructions(improved);
-      setImproveState('improved');
+      await animation;
+
+      if (!applyImproved(improved, { source })) return;
     } catch (err) {
-      if (improveRunRef.current === runId) {
-        setImproveState('idle');
-        showToast({
-          type: 'error',
-          message: err?.message || 'Could not improve instructions — try again.',
-        });
-      }
+      if (improveRunRef.current !== runId) return;
+      const localImproved = improvePreferenceInstructions(input, { questionText, helperText });
+      if (applyImproved(localImproved, { source: 'fallback' })) return;
+      setImproveState('idle');
+      showToast({
+        type: 'error',
+        message: err?.message || 'Could not improve instructions — try again.',
+      });
     } finally {
       window.clearTimeout(timeoutId);
       if (improveRunRef.current === runId) {
