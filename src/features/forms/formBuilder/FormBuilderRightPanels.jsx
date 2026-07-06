@@ -3493,21 +3493,9 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                               </div>
                               <div>
                                 <label className="text-[10px] font-semibold text-[#888] uppercase tracking-[0.5px] block mb-1">Max chars</label>
-                                <input type="number" min={1} value={shortTextMaxChars} onChange={(e) => setShortTextMaxChars(Number(e.target.value))}
+                                <input type="number" min={1} max={2000} value={shortTextMaxChars} onChange={(e) => setShortTextMaxChars(Number(e.target.value))}
                                   className="w-full border border-[rgba(0,0,0,0.12)] rounded-[6px] px-3 py-[7px] text-[12px] bg-white outline-none focus:border-[#111] transition-colors" />
                               </div>
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-semibold text-[#888] uppercase tracking-[0.5px] block mb-1">Validation</label>
-                              <Select
-                                value={shortTextValidation}
-                                onValueChange={setShortTextValidation}
-                                options={['None', 'Email', 'URL', 'Number', 'Phone'].map((v) => ({
-                                  value: v,
-                                  label: v,
-                                }))}
-                                triggerClassName="text-[12px] py-[7px]"
-                              />
                             </div>
                             {[
                               { label: 'Required', val: shortTextRequired, set: setShortTextRequired },
@@ -3636,21 +3624,9 @@ export default function FormBuilderRightPanels({   ACCORDION_SECTIONS,
                               </div>
                               <div>
                                 <label className="text-[10px] font-semibold text-[#888] uppercase tracking-[0.5px] block mb-1">Max chars</label>
-                                <input type="number" min={1} value={longTextMaxChars} onChange={(e) => setLongTextMaxChars(Number(e.target.value))}
+                                <input type="number" min={1} max={20000} value={longTextMaxChars} onChange={(e) => setLongTextMaxChars(Number(e.target.value))}
                                   className="w-full border border-[rgba(0,0,0,0.12)] rounded-[6px] px-3 py-[7px] text-[12px] bg-white outline-none focus:border-[#111] transition-colors" />
                               </div>
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-semibold text-[#888] uppercase tracking-[0.5px] block mb-1">Validation</label>
-                              <Select
-                                value={longTextValidation}
-                                onValueChange={setLongTextValidation}
-                                options={['None', 'Email', 'URL'].map((v) => ({
-                                  value: v,
-                                  label: v,
-                                }))}
-                                triggerClassName="text-[12px] py-[7px]"
-                              />
                             </div>
                             {[
                               { label: 'Required', val: longTextRequired, set: setLongTextRequired },

@@ -1571,12 +1571,12 @@ const FormBuilderPage = () => {
   const [shortTextHelperText, setShortTextHelperText] = useState('Please enter your full name as it appears on official documents.');
   const [shortTextPlaceholder, setShortTextPlaceholder] = useState('Type your answer here…');
   const [shortTextMinChars, setShortTextMinChars] = useState(0);
-  const [shortTextMaxChars, setShortTextMaxChars] = useState(100);
+  const [shortTextMaxChars, setShortTextMaxChars] = useState(500);
   const [shortTextValidation, setShortTextValidation] = useState('None');
   const [shortTextSize, setShortTextSize] = useState('M');
   const [shortTextAlign, setShortTextAlign] = useState('left');
   const [shortTextSections, setShortTextSections] = useState({
-    fieldSettings: false,
+    fieldSettings: true,
     appearance: false,
     conditionalLogic: false,
     responseQuality: false,
@@ -1590,11 +1590,11 @@ const FormBuilderPage = () => {
   const [longTextHelperText, setLongTextHelperText] = useState("Share as much or as little as you'd like.");
   const [longTextPlaceholder, setLongTextPlaceholder] = useState('Type your answer here…');
   const [longTextMinChars, setLongTextMinChars] = useState(0);
-  const [longTextMaxChars, setLongTextMaxChars] = useState(500);
+  const [longTextMaxChars, setLongTextMaxChars] = useState(5000);
   const [longTextValidation, setLongTextValidation] = useState('None');
   const [longTextSize, setLongTextSize] = useState('M');
   const [longTextAlign, setLongTextAlign] = useState('left');
-  const [longTextSections, setLongTextSections] = useState({ fieldSettings: false, appearance: false, conditionalLogic: false, responseQuality: false });
+  const [longTextSections, setLongTextSections] = useState({ fieldSettings: true, appearance: false, conditionalLogic: false, responseQuality: false });
 
   /* ── Multiple choice configure panel state ── */
   const [showMultipleConfigPanel, setShowMultipleConfigPanel] = useState(false);

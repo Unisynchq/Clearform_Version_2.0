@@ -8,6 +8,7 @@ describe('getDefaultScreenConfig', () => {
 
     expect(first.shortTextQuestion).toBe('');
     expect(first.shortTextHelperText).toBe('');
+    expect(first.shortTextMaxChars).toBe(500);
     expect(first.shortTextResponseQualityEnabled).toBe(false);
     expect(first.shortTextResponseQualityOptions.customInstructions).toBe('');
 
@@ -21,6 +22,8 @@ describe('getDefaultScreenConfig', () => {
   it('returns blank long text defaults independent of short text', () => {
     const short = getDefaultScreenConfig('Short text');
     const long = getDefaultScreenConfig('Long text');
+
+    expect(long.longTextMaxChars).toBe(5000);
 
     short.shortTextQuestion = 'Shared by mistake';
     short.shortTextResponseQualityOptions.customInstructions = 'Should not leak';

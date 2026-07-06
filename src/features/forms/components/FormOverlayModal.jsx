@@ -18,6 +18,7 @@ import { getFormBuilderState } from '../utils/formBuilderNavigation';
 import { navigateToFormBuilder } from '../utils/navigateToFormBuilder';
 import { useFormOverlayMetrics } from '@/hooks/useFormOverlayMetrics';
 import { fetchFormOverview, mapOverviewApiToUi } from '@/api/services/analyticsService';
+import { buildFallbackPublicUrl } from '@/api/services/shareService';
 import { isApiConfigured } from '@/config/env';
 import FormOverlayModalSkeleton from '@/features/forms/components/formOverlay/FormOverlayModalSkeleton';
 import {
@@ -64,7 +65,9 @@ const FormOverlayModal = () => {
   const [perfData, setPerfData]             = useState(null);
   const [overviewData, setOverviewData]     = useState(null);
   const [aiInsightDismissed, setAiInsightDismissed] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
   const limitSaveTimerRef = useRef(null);
+  const linkCopiedTimerRef = useRef(null);
   const prevTabRef = useRef('overview');
   // date-time picker state (local only — persisted to Redux on confirm)
   const [viewYear, setViewYear]   = useState(2026);
@@ -136,6 +139,19 @@ const FormOverlayModal = () => {
     setActiveTab(tabId);
   };
 
+  const handleCopyFormLink = useCallback(async () => {
+    if (!form?.id) return;
+    const url = buildFallbackPublicUrl(form.id);
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      if (linkCopiedTimerRef.current) clearTimeout(linkCopiedTimerRef.current);
+      linkCopiedTimerRef.current = setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      setLinkCopied(false);
+    }
+  }, [form?.id]);
+
   // Reset UI/picker state only when a *different* form is opened
   const prevFormIdRef = useRef(null);
   useEffect(() => {
@@ -182,8 +198,9 @@ const FormOverlayModal = () => {
   }, [activeTab, loadOverview]);
 
   useEffect(
-    () => () => {
+    () =>     () => {
       if (limitSaveTimerRef.current) clearTimeout(limitSaveTimerRef.current);
+      if (linkCopiedTimerRef.current) clearTimeout(linkCopiedTimerRef.current);
     },
     [],
   );
@@ -612,9 +629,41 @@ const FormOverlayModal = () => {
                 </p>
                 {/* CTA buttons */}
                 <div className="flex flex-col items-center gap-[6px] w-[220px]">
-                  <button className="w-full flex items-center justify-center gap-[6px] bg-[#1a1a1c] text-white text-[13px] font-medium h-[34px] px-[17px] rounded-[8px] hover:bg-[#2c2c2e] transition-colors cursor-pointer">
-                    <RiFileCopyLine size={13} />
-                    Copy form link
+                  <button
+                    type="button"
+                    onClick={handleCopyFormLink}
+                    className={`w-full flex items-center justify-center gap-[6px] text-[13px] font-medium h-[34px] px-[17px] rounded-[8px] transition-colors cursor-pointer ${
+                      linkCopied
+                        ? 'bg-[#16a34a] text-white hover:bg-[#15803d]'
+                        : 'bg-[#1a1a1c] text-white hover:bg-[#2c2c2e]'
+                    }`}
+                  >
+                    <AnimatePresence mode="wait" initial={false}>
+                      {linkCopied ? (
+                        <motion.span
+                          key="copied-icon"
+                          initial={{ scale: 0.5, opacity: 0, rotate: -20 }}
+                          animate={{ scale: 1, opacity: 1, rotate: 0 }}
+                          exit={{ scale: 0.5, opacity: 0, rotate: 20 }}
+                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          className="flex items-center"
+                        >
+                          <RiCheckLine size={13} />
+                        </motion.span>
+                      ) : (
+                        <motion.span
+                          key="copy-icon"
+                          initial={{ scale: 0.5, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.5, opacity: 0 }}
+                          transition={{ duration: 0.18, ease: 'easeOut' }}
+                          className="flex items-center"
+                        >
+                          <RiFileCopyLine size={13} />
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                    {linkCopied ? 'Copied!' : 'Copy form link'}
                   </button>
                   <button className="w-full flex items-center justify-center text-[12px] font-medium text-[#6b6966] h-[28px] px-[13px] rounded-[8px] hover:text-[#1a1a1c] transition-colors cursor-pointer">
                     Share via email

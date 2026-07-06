@@ -1602,8 +1602,8 @@ const ContentCardInner = ({
     setPreviewRequiredHint(false);
   }, [isPreviewMode, previewScreenId]);
 
-  const shortTextMaxCap = shortTextConfig?.shortTextMaxChars ?? 100;
-  const longTextMaxCap = longTextConfig?.longTextMaxChars ?? 500;
+  const shortTextMaxCap = shortTextConfig?.shortTextMaxChars ?? 500;
+  const longTextMaxCap = longTextConfig?.longTextMaxChars ?? 5000;
   const shortTextCapRef = useRef(shortTextMaxCap);
   if (shortTextCapRef.current !== shortTextMaxCap) {
     shortTextCapRef.current = shortTextMaxCap;
@@ -2727,10 +2727,9 @@ const ContentCardInner = ({
     const stQuestion = stc.shortTextQuestion || "What's your name?";
     const stHelper = stc.shortTextHelperText || 'Please enter your full name as it appears on official documents.';
     const stPlaceholder = stc.shortTextPlaceholder || 'Type your answer here…';
-    const stMaxChars = stc.shortTextMaxChars ?? 100;
+    const stMaxChars = stc.shortTextMaxChars ?? 500;
     const stMinChars = Math.max(0, Number(stc.shortTextMinChars) || 0);
     const stValidation = stc.shortTextValidation || 'None';
-    const stInputType = TEXT_VALIDATION_INPUT_TYPE[stValidation] || 'text';
     const stHidden = !!stc.shortTextHidden;
     const stRequired = !!stc.shortTextRequired;
     const stAlign = stc.shortTextAlign || 'left';
@@ -2794,27 +2793,27 @@ const ContentCardInner = ({
                     maxChars={stMaxChars}
                     answerLabel="Short answer"
                   >
-                    <input
-                      type={stInputType}
+                    <textarea
                       value={shortTextDraft}
                       onChange={(e) => setShortTextDraft(e.target.value.slice(0, stMaxChars))}
                       maxLength={stMaxChars}
                       placeholder={stPlaceholder}
                       aria-label={stQuestion}
                       onMouseDown={(e) => e.stopPropagation()}
-                      className={respondentInputClass(`${stTextAlign} ${RESPONDENT_QUALITY_FIELD_PAD}`)}
+                      rows={2}
+                      className={respondentTextareaClass(`${stTextAlign} ${RESPONDENT_QUALITY_FIELD_PAD}`)}
                     />
                   </ResponseQualityFeedback>
                 ) : (
-                  <input
-                    type={stInputType}
+                  <textarea
                     value={shortTextDraft}
                     onChange={(e) => setShortTextDraft(e.target.value.slice(0, stMaxChars))}
                     maxLength={stMaxChars}
                     placeholder={stPlaceholder}
                     aria-label={stQuestion}
                     onMouseDown={(e) => e.stopPropagation()}
-                    className={respondentInputClass(stTextAlign)}
+                    rows={2}
+                    className={respondentTextareaClass(stTextAlign)}
                   />
                 )}
                 {!shortTextResponseQualityConfig?.enabled ? (
@@ -2858,7 +2857,7 @@ const ContentCardInner = ({
     const ltQuestion = ltc.longTextQuestion || 'Tell us about your experience';
     const ltHelper = ltc.longTextHelperText || "Share as much or as little as you'd like.";
     const ltPlaceholder = ltc.longTextPlaceholder || 'Type your answer here…';
-    const ltMaxChars = ltc.longTextMaxChars ?? 500;
+    const ltMaxChars = ltc.longTextMaxChars ?? 5000;
     const ltMinChars = Math.max(0, Number(ltc.longTextMinChars) || 0);
     const ltValidation = ltc.longTextValidation || 'None';
     const ltHidden = !!ltc.longTextHidden;
