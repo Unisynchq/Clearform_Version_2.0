@@ -4209,6 +4209,11 @@ const FormBuilderPage = () => {
     setPreviewSnapVersion(0);
   }, [isPreview]);
 
+  useEffect(() => {
+    if (!isPreview || activeScreenId == null) return;
+    setPreviewSnapVersion((v) => v + 1);
+  }, [isPreview, activeScreenId]);
+
   const handlePreviewSnapChange = useCallback(
     (screenId, snap) => {
       if (!isPreview || screenId == null) return;
@@ -4217,7 +4222,6 @@ const FormBuilderPage = () => {
       if (screen) {
         previewAnswersByScreenRef.current[screenId] = buildLogicAnswersFromScreen(screen, snap);
       }
-      setPreviewSnapVersion((v) => v + 1);
     },
     [isPreview, screens]
   );

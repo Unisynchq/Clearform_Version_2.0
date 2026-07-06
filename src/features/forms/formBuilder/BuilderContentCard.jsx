@@ -1584,9 +1584,12 @@ const ContentCardInner = ({
   const [builderDatePreview, setBuilderDatePreview] = useState('2026-05-11');
   const [qualityUpgradeOpen, setQualityUpgradeOpen] = useState(false);
 
+  const initialPreviewSnapRef = useRef(initialPreviewSnap);
+  initialPreviewSnapRef.current = initialPreviewSnap;
+
   useEffect(() => {
     if (!isPreviewMode || previewScreenId == null) return;
-    const hydrated = hydratePreviewLocalState(initialPreviewSnap);
+    const hydrated = hydratePreviewLocalState(initialPreviewSnapRef.current);
     if (!hydrated) return;
     setPreviewPicks(hydrated.previewPicks);
     setShortTextDraft(hydrated.shortTextDraft);
@@ -1597,7 +1600,7 @@ const ContentCardInner = ({
     setTimeSelection(hydrated.timeSelection);
     setRatingHover(0);
     setPreviewRequiredHint(false);
-  }, [isPreviewMode, previewScreenId, initialPreviewSnap]);
+  }, [isPreviewMode, previewScreenId]);
 
   const shortTextMaxCap = shortTextConfig?.shortTextMaxChars ?? 100;
   const longTextMaxCap = longTextConfig?.longTextMaxChars ?? 500;
@@ -3743,7 +3746,7 @@ const ContentCardInner = ({
       <motion.div
         className="h-full min-h-0 flex flex-col"
         style={cardTextStyle}
-        initial={{ opacity: 0, y: 14 }}
+        initial={isPreviewMode ? false : { opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.97 }}
         transition={{ duration: 0.22, ease: 'easeOut' }}

@@ -83,7 +83,6 @@ export default function FormRespondentView({ draft, formId }) {
   const intro = screens.find((s) => s.type === 'intro');
   const [activeScreenId, setActiveScreenId] = useState(intro?.id ?? screens[0]?.id ?? null);
   const [visitStack, setVisitStack] = useState([]);
-  const [snapsByScreenId, setSnapsByScreenId] = useState({});
 
   const runnerRef = useRef(null);
   const previewScreenValidatorRef = useRef(null);
@@ -92,7 +91,7 @@ export default function FormRespondentView({ draft, formId }) {
   const screenEnteredAtRef = useRef({});
   const isCompletedRef = useRef(false);
   const activeScreenIdRef = useRef(activeScreenId);
-  const snapsByScreenIdRef = useRef(snapsByScreenId);
+  const snapsByScreenIdRef = useRef({});
 
   useEffect(() => {
     const runner = createFormLogicRunner({
@@ -112,7 +111,6 @@ export default function FormRespondentView({ draft, formId }) {
 
   // Keep refs in sync so the abandon handler always sees the latest values.
   useEffect(() => { activeScreenIdRef.current = activeScreenId; }, [activeScreenId]);
-  useEffect(() => { snapsByScreenIdRef.current = snapsByScreenId; }, [snapsByScreenId]);
 
   // Send a partial session beacon when the user leaves without completing the form.
   useEffect(() => {
@@ -171,7 +169,7 @@ export default function FormRespondentView({ draft, formId }) {
   }, [activeScreenId, screens]);
 
   const handlePreviewSnapChange = useCallback((screenId, snap) => {
-    setSnapsByScreenId((prev) => ({ ...prev, [screenId]: snap }));
+    snapsByScreenIdRef.current[screenId] = snap;
     const screen = screens.find((s) => s.id === screenId);
     if (screen && snap && runnerRef.current) {
       runnerRef.current.recordScreenAnswers(screenId, snap);
@@ -183,7 +181,7 @@ export default function FormRespondentView({ draft, formId }) {
     const validate = previewScreenValidatorRef.current;
     if (validate && !validate()) return;
 
-    const snap = snapsByScreenId[activeScreenId] ?? emptySnap();
+    const snap = snapsByScreenIdRef.current[activeScreenId] ?? emptySnap();
     runnerRef.current?.recordScreenAnswers(activeScreenId, snap);
     const nextId = runnerRef.current?.getNextScreenId(activeScreenId);
     const advanceId = getSafeVisibilityAutoSkipTarget(screens, activeScreenId, nextId);
@@ -193,7 +191,7 @@ export default function FormRespondentView({ draft, formId }) {
 
     if (isFormComplete && formId) {
       isCompletedRef.current = true;
-      const mergedSnaps = { ...snapsByScreenId, [activeScreenId]: snap };
+      const mergedSnaps = { ...snapsByScreenIdRef.current, [activeScreenId]: snap };
       const startedAtMs = sessionStartedAtRef.current;
       const durationMs = Math.max(0, Date.now() - startedAtMs);
       const response = buildResponseFromPreview({
@@ -211,7 +209,7 @@ export default function FormRespondentView({ draft, formId }) {
     const leavingIntro = screens.find((s) => s.id === activeScreenId)?.type === 'intro';
     setVisitStack((s) => (leavingIntro ? s : [...s, activeScreenId]));
     setActiveScreenId(advanceId);
-  }, [activeScreenId, snapsByScreenId, screens, formId]);
+  }, [activeScreenId, screens, formId]);
 
   const goBack = useCallback(() => {
     if (!visitStack.length) return;
@@ -237,14 +235,19 @@ export default function FormRespondentView({ draft, formId }) {
     [theme],
   );
 
+  const activeScreenCanvasConfigs = useMemo(
+    () => (activeScreen?.type === 'content' ? previewCanvasConfigsFromScreen(activeScreen) : {}),
+    [activeScreen?.id, activeScreen?.config],
+  );
+
   const qualityConversationHistory = useMemo(
     () =>
       buildQualityConversationHistory({
         screens,
-        snapsByScreenId,
+        snapsByScreenId: snapsByScreenIdRef.current,
         currentScreenId: activeScreenId,
       }),
-    [screens, snapsByScreenId, activeScreenId],
+    [screens, activeScreenId],
   );
 
   const previewStepNav =
@@ -385,7 +388,7 @@ export default function FormRespondentView({ draft, formId }) {
             cardImage={theme.cardImage}
             accentColor={theme.accentColor}
             textColor={theme.textColor}
-            {...previewCanvasConfigsFromScreen(activeScreen)}
+            {...activeScreenCanvasConfigs}
             imageFileInputRef={imageFileInputRef}
             onConfigure={() => {}}
             isPreviewMode
@@ -394,7 +397,7 @@ export default function FormRespondentView({ draft, formId }) {
             previewScreenValidatorRef={previewScreenValidatorRef}
             onPreviewSnapChange={handlePreviewSnapChange}
             previewScreenId={activeScreen.id}
-            initialPreviewSnap={snapsByScreenId[activeScreen.id]}
+            initialPreviewSnap={snapsByScreenIdRef.current[activeScreen.id]}
             responseQualityFormId={formId}
             qualityConversationHistory={qualityConversationHistory}
             compactLayout={isCompact}
@@ -420,9 +423,9 @@ export default function FormRespondentView({ draft, formId }) {
             show={activeScreen?.type === 'content' && contentScreenCount > 0}
           />
         )}
-        <motion.div layout className="flex-1 min-h-0 flex flex-col w-full">
+        <div className="flex-1 min-h-0 flex flex-col w-full">
           <AnimatePresence mode="wait">{screenBody}</AnimatePresence>
-        </motion.div>
+        </div>
         {screens.length > 0 && <PreviewPoweredBy />}
       </div>
     </div>
