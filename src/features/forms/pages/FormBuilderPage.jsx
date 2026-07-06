@@ -2899,9 +2899,11 @@ const FormBuilderPage = () => {
       if (Array.isArray(applied.screens)) {
         setScreens(applied.screens);
       }
-      const source = applied.meta?.source;
+      const source = String(applied.meta?.source ?? '');
       const usedFallbackRules =
-        source === 'heuristic' || source === 'linear' || source === 'rules';
+        source.startsWith('heuristic') ||
+        source.startsWith('linear') ||
+        source === 'rules';
       showToast({
         type: 'success',
         message: usedFallbackRules
