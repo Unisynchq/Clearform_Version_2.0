@@ -292,7 +292,9 @@ const ProfileBillingPanel = () => {
           </div>
 
           <div className="flex flex-col gap-4 p-5">
-            {statusLoading || checkoutLoading ? (
+            {/* Only block on the *first* load — a background refetch (e.g. on
+                tab focus) must not tear down already-rendered plan/usage data. */}
+            {(statusLoading && !apiStatus) || checkoutLoading ? (
               <p className="text-[13px] text-[#888580]">Loading billing…</p>
             ) : (
               <>
