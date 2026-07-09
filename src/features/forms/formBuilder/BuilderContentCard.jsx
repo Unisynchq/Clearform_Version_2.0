@@ -1717,6 +1717,11 @@ const ContentCardInner = ({
     : shortTextQualityApiEnabled
       ? shortTextQuality.evaluation
       : null;
+  const responseQualityServiceError = longTextQualityApiEnabled
+    ? longTextQuality.serviceError
+    : shortTextQualityApiEnabled
+      ? shortTextQuality.serviceError
+      : null;
   const responseQualityLoading = longTextQualityApiEnabled
     ? longTextQuality.isLoading
     : shortTextQualityApiEnabled
@@ -2787,6 +2792,7 @@ const ContentCardInner = ({
                     previewUpgradeHint={shortTextPreviewUpgrade}
                     onUpgradeClick={shortTextPreviewUpgrade ? openQualityUpgrade : null}
                     evaluation={responseQualityEvaluation}
+                    serviceError={responseQualityServiceError}
                     isLoading={responseQualityLoading}
                     helperText={responseQualityHelperText}
                     charCount={shortTextDraft.length}
@@ -2918,6 +2924,7 @@ const ContentCardInner = ({
                     previewUpgradeHint={longTextPreviewUpgrade}
                     onUpgradeClick={longTextPreviewUpgrade ? openQualityUpgrade : null}
                     evaluation={responseQualityEvaluation}
+                    serviceError={responseQualityServiceError}
                     isLoading={responseQualityLoading}
                     helperText={responseQualityHelperText}
                     charCount={longTextDraft.length}

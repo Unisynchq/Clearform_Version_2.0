@@ -12,6 +12,13 @@ export const DEFAULT_QUALITY_COACHING =
 export const PREVIEW_QUALITY_UPGRADE_COACHING =
   'Respondents get AI coaching on your published form. Upgrade to Pilot to preview that feedback here before you publish.';
 
+/** Shown when the AI coaching service is down. */
+export const AI_SERVICE_STOPPED_COACHING =
+  'AI coaching is temporarily unavailable. Please try again in a moment.';
+
+export const AI_TRIAL_EXHAUSTED_COACHING =
+  'Free AI coaching sessions are used up. Upgrade to Pilot for unlimited live feedback.';
+
 const COACHING_NEUTRAL = {
   dot: '#c9c5bc',
   boxBg: '#faf9f7',
@@ -301,6 +308,7 @@ function renderIndicator({ isTyping, settledEvaluation, isLoading, answerLabel, 
 export default function ResponseQualityFeedback({
   evaluation,
   isLoading = false,
+  serviceError = null,
   charCount,
   maxChars,
   answerLabel = 'Long answer',
@@ -340,6 +348,20 @@ export default function ResponseQualityFeedback({
       dismissible={false}
       actionLabel={onUpgradeClick ? 'Upgrade to Pilot' : null}
       onAction={onUpgradeClick}
+    />
+  ) : serviceError ? (
+    <ResponseQualityMessage
+      key={`service-error-${serviceError.code}`}
+      level={null}
+      message={
+        serviceError.upgradeRequired
+          ? serviceError.message || AI_TRIAL_EXHAUSTED_COACHING
+          : serviceError.message || AI_SERVICE_STOPPED_COACHING
+      }
+      helperText={helperText}
+      dismissible={false}
+      actionLabel={serviceError.upgradeRequired && onUpgradeClick ? 'Upgrade to Pilot' : null}
+      onAction={serviceError.upgradeRequired ? onUpgradeClick : null}
     />
   ) : coachingEnabled ? (
     <AnimatePresence mode="wait">
