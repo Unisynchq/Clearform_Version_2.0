@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { evaluateResponseQualityApi } from '@/api/services/responseQualityService';
 import { isApiConfigured } from '@/config/env';
-import { evaluateResponseQuality } from '@/features/forms/utils/responseQualityScoring';
 
 /**
  * Stable per-tab, per-form respondent session id — lets the backend track
@@ -112,11 +111,26 @@ function normalizeApiEvaluation(result) {
   };
 }
 
+function parseServiceError(err) {
+  const body = err?.body ?? {};
+  const code = body.code ?? (err?.status === 403 ? 'UPGRADE_REQUIRED' : 'AI_SERVICE_UNAVAILABLE');
+  const message =
+    body.message ??
+    err?.message ??
+    'AI coaching is temporarily unavailable. Please try again in a moment.';
+  return {
+    code,
+    message,
+    upgradeRequired: code === 'UPGRADE_REQUIRED',
+    status: err?.status,
+  };
+}
+
 /**
  * Debounced response-quality evaluation — waits for API result before showing feedback.
- * Falls back to heuristics only if the API is unavailable or returns an error.
+ * No local heuristic fallback: errors surface as serviceError for the UI.
  *
- * @returns {{ evaluation: object|null, isLoading: boolean }}
+ * @returns {{ evaluation: object|null, isLoading: boolean, serviceError: object|null }}
  */
 export function useResponseQualityEvaluation({
   enabled,
@@ -134,6 +148,7 @@ export function useResponseQualityEvaluation({
 }) {
   const [evaluation, setEvaluation] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [serviceError, setServiceError] = useState(null);
   const timerRef = useRef(null);
   const requestIdRef = useRef(0);
   const abortRef = useRef(null);
@@ -141,6 +156,7 @@ export function useResponseQualityEvaluation({
   useEffect(() => {
     if (!enabled || !options) {
       setEvaluation(null);
+      setServiceError(null);
       setIsLoading(false);
       return undefined;
     }
@@ -148,27 +164,25 @@ export function useResponseQualityEvaluation({
     const trimmed = String(answerText ?? '').trim();
     if (!trimmed) {
       setEvaluation(null);
+      setServiceError(null);
       setIsLoading(false);
       return undefined;
     }
 
-    const runHeuristics = () =>
-      evaluateResponseQuality(trimmed, {
-        enabled,
-        options,
-        fieldKind,
-        question,
-        helperText,
-      });
-
     const formIdReady = formId != null && String(formId).length > 0;
     if (!isApiConfigured() || !formIdReady || screenId == null) {
-      setEvaluation(runHeuristics());
+      setEvaluation(null);
+      setServiceError({
+        code: 'AI_SERVICE_UNAVAILABLE',
+        message: 'AI coaching is unavailable — connect the API to enable live feedback.',
+        upgradeRequired: false,
+      });
       setIsLoading(false);
       return undefined;
     }
 
     setIsLoading(true);
+    setServiceError(null);
 
     clearTimeout(timerRef.current);
     abortRef.current?.abort();
@@ -194,11 +208,22 @@ export function useResponseQualityEvaluation({
         );
         if (requestId !== requestIdRef.current) return;
         const apiEval = normalizeApiEvaluation(result);
-        setEvaluation(apiEval ?? runHeuristics());
+        if (apiEval) {
+          setEvaluation(apiEval);
+          setServiceError(null);
+        } else {
+          setEvaluation(null);
+          setServiceError({
+            code: 'AI_SERVICE_UNAVAILABLE',
+            message: 'AI coaching returned an empty response. Please try again.',
+            upgradeRequired: false,
+          });
+        }
       } catch (err) {
         if (err?.name === 'AbortError') return;
         if (requestId !== requestIdRef.current) return;
-        setEvaluation(runHeuristics());
+        setEvaluation(null);
+        setServiceError(parseServiceError(err));
       } finally {
         if (requestId === requestIdRef.current) {
           setIsLoading(false);
@@ -225,5 +250,5 @@ export function useResponseQualityEvaluation({
     previewMode,
   ]);
 
-  return { evaluation, isLoading };
+  return { evaluation, isLoading, serviceError };
 }

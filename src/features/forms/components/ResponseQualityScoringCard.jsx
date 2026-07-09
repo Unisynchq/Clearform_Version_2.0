@@ -792,47 +792,41 @@ export default function ResponseQualityScoringCard({
       }
       setDraftInstructions(nextText);
       setImproveState('improved');
-      if (source === 'llm') {
-        showToast({ type: 'success', message: 'Instructions improved with AI.' });
-      } else if (source === 'fallback') {
-        showToast({ type: 'success', message: 'Instructions polished for this question.' });
-      }
+      showToast({ type: 'success', message: 'Instructions improved with AI.' });
       return true;
     };
 
-    try {
-      const animation = waitForImproveAnimation();
-      let improved = null;
-      let source = 'local';
-
-      if (isApiConfigured() && formId != null) {
-        const apiResult = await improveResponseQualityInstructionsApi(formId, {
-          screenId: screenId != null ? String(screenId) : undefined,
-          fieldId,
-          questionText,
-          helperText,
-          draftInstructions: input,
-        });
-        improved = apiResult?.customInstructions?.trim() ?? null;
-        source = apiResult?.meta?.source === 'llm' ? 'llm' : 'fallback';
-      }
-
-      if (!improved || isSubstantiallySameInstructions(improved, input)) {
-        improved = improvePreferenceInstructions(input, { questionText, helperText });
-        source = improved && source === 'llm' ? 'fallback' : source;
-      }
-
-      await animation;
-
-      if (!applyImproved(improved, { source })) return;
-    } catch (err) {
-      if (improveRunRef.current !== runId) return;
-      const localImproved = improvePreferenceInstructions(input, { questionText, helperText });
-      if (applyImproved(localImproved, { source: 'fallback' })) return;
+    if (!isApiConfigured() || formId == null) {
       setImproveState('idle');
       showToast({
         type: 'error',
-        message: err?.message || 'Could not improve instructions — try again.',
+        message: 'AI instruction improvement is unavailable — connect the API and try again.',
+      });
+      return;
+    }
+
+    try {
+      const animation = waitForImproveAnimation();
+      const apiResult = await improveResponseQualityInstructionsApi(formId, {
+        screenId: screenId != null ? String(screenId) : undefined,
+        fieldId,
+        questionText,
+        helperText,
+        draftInstructions: input,
+      });
+      const improved = apiResult?.customInstructions?.trim() ?? null;
+      await animation;
+      if (!applyImproved(improved, { source: 'llm' })) return;
+    } catch (err) {
+      if (improveRunRef.current !== runId) return;
+      setImproveState('idle');
+      const body = err?.body ?? {};
+      showToast({
+        type: 'error',
+        message:
+          body.message ??
+          err?.message ??
+          'AI could not improve these instructions. The service may be temporarily unavailable.',
       });
     } finally {
       window.clearTimeout(timeoutId);
