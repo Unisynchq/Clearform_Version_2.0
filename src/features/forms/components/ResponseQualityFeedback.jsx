@@ -65,11 +65,18 @@ export function resolveQualityDisplayMessage({ message, followUpQuestion, helper
     typeof followUpQuestion === 'string' && followUpQuestion.trim()
       ? followUpQuestion.trim()
       : null;
-  const raw = followUp ?? (typeof message === 'string' ? message.trim() : '');
-  if (!raw) return DEFAULT_QUALITY_COACHING;
+  const msg = typeof message === 'string' ? message.trim() : '';
   const helper = normalizeForCompare(helperText);
-  if (helper && normalizeForCompare(raw) === helper) return DEFAULT_QUALITY_COACHING;
-  return raw;
+
+  if (msg) {
+    if (helper && normalizeForCompare(msg) === helper) return DEFAULT_QUALITY_COACHING;
+    return msg;
+  }
+  if (followUp) {
+    if (helper && normalizeForCompare(followUp) === helper) return DEFAULT_QUALITY_COACHING;
+    return followUp;
+  }
+  return DEFAULT_QUALITY_COACHING;
 }
 
 function ResponseQualityWaveDots() {
@@ -173,11 +180,14 @@ export function ResponseQualityMessage({
     : Array.isArray(suggestions)
       ? suggestions.filter(Boolean).slice(0, 2)
       : [];
-  const hasFollowUp =
+  const followUp =
     level &&
     typeof followUpQuestion === 'string' &&
     followUpQuestion.trim().length > 0 &&
-    normalizeForCompare(followUpQuestion) !== normalizeForCompare(helperText);
+    normalizeForCompare(followUpQuestion) !== normalizeForCompare(helperText) &&
+    normalizeForCompare(followUpQuestion) !== normalizeForCompare(displayMessage)
+      ? followUpQuestion.trim()
+      : null;
 
   return (
     <motion.div
@@ -195,37 +205,37 @@ export function ResponseQualityMessage({
     >
       <span className="w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ backgroundColor: s.dotInBox ?? s.dot }} />
       <div className="flex-1 pr-5">
-        {hasFollowUp ? (
-          <p className="text-[13px] leading-[19px]" style={{ color: s.text, fontFamily: "'DM Sans', sans-serif" }}>
-            {followUpQuestion}
+        <p className="text-[13px] leading-[19px]" style={{ color: s.text, fontFamily: "'DM Sans', sans-serif" }}>
+          {displayMessage}
+        </p>
+        {tips.length > 0 ? (
+          <ul
+            className="mt-2 space-y-1 text-[12px] leading-[17px] list-disc pl-4"
+            style={{ color: s.text, fontFamily: "'DM Sans', sans-serif" }}
+          >
+            {tips.map((tip) => (
+              <li key={tip}>{tip}</li>
+            ))}
+          </ul>
+        ) : null}
+        {followUp ? (
+          <p
+            className="mt-2 text-[12px] leading-[17px] italic"
+            style={{ color: s.text, fontFamily: "'DM Sans', sans-serif" }}
+          >
+            {followUp}
           </p>
-        ) : (
-          <>
-            <p className="text-[13px] leading-[19px]" style={{ color: s.text, fontFamily: "'DM Sans', sans-serif" }}>
-              {displayMessage}
-            </p>
-            {tips.length > 0 ? (
-              <ul
-                className="mt-2 space-y-1 text-[12px] leading-[17px] list-disc pl-4"
-                style={{ color: s.text, fontFamily: "'DM Sans', sans-serif" }}
-              >
-                {tips.map((tip) => (
-                  <li key={tip}>{tip}</li>
-                ))}
-              </ul>
-            ) : null}
-            {actionLabel && onAction ? (
-              <button
-                type="button"
-                onClick={onAction}
-                className="mt-2.5 inline-flex items-center rounded-[7px] border border-[#1a1a18] px-3 py-1 text-[12px] font-medium text-[#1a1a18] transition-colors hover:bg-[#1a1a18] hover:text-white"
-                style={{ fontFamily: "'DM Sans', sans-serif" }}
-              >
-                {actionLabel}
-              </button>
-            ) : null}
-          </>
-        )}
+        ) : null}
+        {actionLabel && onAction ? (
+          <button
+            type="button"
+            onClick={onAction}
+            className="mt-2.5 inline-flex items-center rounded-[7px] border border-[#1a1a18] px-3 py-1 text-[12px] font-medium text-[#1a1a18] transition-colors hover:bg-[#1a1a18] hover:text-white"
+            style={{ fontFamily: "'DM Sans', sans-serif" }}
+          >
+            {actionLabel}
+          </button>
+        ) : null}
       </div>
       {dismissible && onDismiss ? (
         <button
