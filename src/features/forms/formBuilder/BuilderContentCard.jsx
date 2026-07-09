@@ -296,7 +296,7 @@ const PreviewLabeledInput = ({ label, value, onChange, placeholder = '', type = 
   </div>
 );
 
-const ContentCardFooter = ({ onDelete, onConfigure, variant = 'default', accentColor = DEFAULT_ACCENT, compactLayout = false }) => (
+const ContentCardFooter = ({ onDelete, onConfigure, onSave, variant = 'default', accentColor = DEFAULT_ACCENT, compactLayout = false }) => (
   <div className={`border-t border-[rgba(0,0,0,0.1)] flex gap-2 items-center ${cardFooterToolsPadClass(compactLayout)}`}>
     {variant === 'content' && (
       <button className="flex items-center gap-[5px] px-[14px] py-[8px] rounded-[8px] bg-white/70 border border-[rgba(0,0,0,0.16)] text-[#444] text-[12px] cursor-pointer hover:bg-[rgba(245,245,245,0.9)] transition-colors whitespace-nowrap">
@@ -325,6 +325,7 @@ const ContentCardFooter = ({ onDelete, onConfigure, variant = 'default', accentC
     <div className="flex-1" />
     <button
       type="button"
+      onClick={onSave}
       className="flex items-center gap-[5px] px-[16px] py-[8px] rounded-[8px] text-white text-[12px] font-medium cursor-pointer transition-opacity hover:opacity-90 whitespace-nowrap"
       style={accentButtonStyle(accentColor)}
     >
@@ -362,6 +363,7 @@ function uploadAcceptAttr(types) {
 }
 
 const FileUploadCard = ({
+  onSave,
   blockNum,
   onDelete,
   onConfigure,
@@ -626,6 +628,7 @@ const FileUploadCard = ({
         <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure && configureLabel ? () => onConfigure(configureLabel) : undefined}
+          onSave={onSave}
           variant="field"
           accentColor={accent}
           compactLayout={compactLayout}
@@ -851,6 +854,7 @@ const TimePickerCard = ({
         <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure && configureLabel ? () => onConfigure(configureLabel) : undefined}
+          onSave={onSave}
           variant="field"
           accentColor={accent}
           compactLayout={compactLayout}
@@ -861,6 +865,7 @@ const TimePickerCard = ({
 };
 
 const MultiImageUploadCard = ({
+  onSave,
   blockNum,
   onDelete,
   onConfigure,
@@ -1167,6 +1172,7 @@ const MultiImageUploadCard = ({
         <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure && configureLabel ? () => onConfigure(configureLabel) : undefined}
+          onSave={onSave}
           variant="field"
           accentColor={accent}
           compactLayout={compactLayout}
@@ -1513,6 +1519,7 @@ function isPreviewAdvanceAllowed(snap) {
 }
 
 const ContentCardInner = ({
+  onSave,
   block,
   blockNum,
   onDelete,
@@ -1620,7 +1627,11 @@ const ContentCardInner = ({
   const handleCtaImageUpload = (e) => {
     const file = e.target.files?.[0];
     if (file && typeof ctaConfig?.setCtaImage === 'function') {
-      ctaConfig.setCtaImage(URL.createObjectURL(file));
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') ctaConfig.setCtaImage(reader.result);
+      };
+      reader.readAsDataURL(file);
     }
     e.target.value = '';
   };
@@ -1965,6 +1976,7 @@ const ContentCardInner = ({
           <ContentCardFooter
             onDelete={onDelete}
             onConfigure={onConfigure ? () => onConfigure(label) : undefined}
+            onSave={onSave}
             variant="field"
             accentColor={accent}
             compactLayout={compactLayout}
@@ -2049,6 +2061,7 @@ const ContentCardInner = ({
           <ContentCardFooter
             onDelete={onDelete}
             onConfigure={onConfigure ? () => onConfigure(label) : undefined}
+            onSave={onSave}
             variant="field"
             accentColor={accent}
             compactLayout={compactLayout}
@@ -2150,6 +2163,7 @@ const ContentCardInner = ({
           <ContentCardFooter
             onDelete={onDelete}
             onConfigure={onConfigure ? () => onConfigure(label) : undefined}
+            onSave={onSave}
             variant="field"
             accentColor={accent}
             compactLayout={compactLayout}
@@ -2302,15 +2316,6 @@ const ContentCardInner = ({
           <span className="text-[11px] text-black font-light">Press Enter ↵ to continue</span>
           <span className="text-[11px] text-black">{isPreviewMode ? `${pf('imgAns').length}` : '0'} / 200</span>
         </div>
-        {!isPreviewMode && (
-          <ContentCardFooter
-            onDelete={onDelete}
-            onConfigure={onConfigure ? () => onConfigure(label) : undefined}
-            variant="field"
-            accentColor={accent}
-            compactLayout={compactLayout}
-          />
-        )}
       </CardBody>
     );
   } else if (cardKey === 'buildingBlocks:Video') {
@@ -2433,13 +2438,6 @@ const ContentCardInner = ({
             <span className="text-[11px] text-[#bbb]">{isPreviewMode ? pf('videoAns').length : 0} / 500</span>
           </div>
         </CardBody>
-        {!isPreviewMode && <ContentCardFooter
-          onDelete={onDelete}
-          onConfigure={onConfigure ? () => onConfigure(label) : undefined}
-          variant="field"
-          accentColor={accent}
-          compactLayout={compactLayout}
-        />}
       </>
     );
   } else if (cardKey === 'basicInfo:Contact') {
@@ -2537,6 +2535,7 @@ const ContentCardInner = ({
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure ? () => onConfigure(label) : undefined}
+          onSave={onSave}
           variant="field"
           accentColor={accent}
           compactLayout={compactLayout}
@@ -2635,6 +2634,7 @@ const ContentCardInner = ({
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure ? () => onConfigure(label) : undefined}
+          onSave={onSave}
           variant="field"
           accentColor={accent}
           compactLayout={compactLayout}
@@ -2721,6 +2721,7 @@ const ContentCardInner = ({
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure ? () => onConfigure(label) : undefined}
+          onSave={onSave}
           variant="field"
           accentColor={accent}
           compactLayout={compactLayout}
@@ -2852,6 +2853,7 @@ const ContentCardInner = ({
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure ? () => onConfigure(label) : undefined}
+          onSave={onSave}
           variant="field"
           accentColor={accent}
           compactLayout={compactLayout}
@@ -2988,6 +2990,7 @@ const ContentCardInner = ({
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure ? () => onConfigure(label) : undefined}
+          onSave={onSave}
           variant="field"
           accentColor={accent}
           compactLayout={compactLayout}
@@ -3415,6 +3418,7 @@ const ContentCardInner = ({
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure ? () => onConfigure(label) : undefined}
+          onSave={onSave}
           variant="field"
           accentColor={accent}
           compactLayout={compactLayout}
@@ -3425,6 +3429,7 @@ const ContentCardInner = ({
     content = (
       <FileUploadCard
         blockNum={blockNum}
+        onSave={onSave}
         onDelete={onDelete}
         onConfigure={onConfigure}
         configureLabel={label}
@@ -3441,6 +3446,7 @@ const ContentCardInner = ({
     return (
       <MultiImageUploadCard
         blockNum={blockNum}
+        onSave={onSave}
         onDelete={onDelete}
         onConfigure={onConfigure}
         configureLabel={label}
@@ -3650,6 +3656,7 @@ const ContentCardInner = ({
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure ? () => onConfigure(label) : undefined}
+          onSave={onSave}
           variant="field"
           accentColor={accent}
           compactLayout={compactLayout}
@@ -3707,6 +3714,7 @@ const ContentCardInner = ({
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure ? () => onConfigure(label) : undefined}
+          onSave={onSave}
           variant="field"
           accentColor={accent}
           compactLayout={compactLayout}
@@ -3731,6 +3739,7 @@ const ContentCardInner = ({
         {!isPreviewMode && <ContentCardFooter
           onDelete={onDelete}
           onConfigure={onConfigure ? () => onConfigure(label) : undefined}
+          onSave={onSave}
           variant="field"
           accentColor={accent}
           compactLayout={compactLayout}
@@ -3746,6 +3755,21 @@ const ContentCardInner = ({
 
   const inCardPreviewNav =
     isPreviewMode && previewStepNav ? cloneElement(previewStepNav, { compactLayout }) : null;
+
+  const builderFieldFooter = !isPreviewMode ? (
+    <ContentCardFooter
+      onDelete={onDelete}
+      onConfigure={onConfigure ? () => onConfigure(label) : undefined}
+      onSave={onSave}
+      variant="field"
+      accentColor={accent}
+      compactLayout={compactLayout}
+    />
+  ) : null;
+
+  const cardShellFooter = isScrollableCard
+    ? (isPreviewMode ? inCardPreviewNav : builderFieldFooter)
+    : inCardPreviewNav;
 
   return (
     <>
@@ -3765,7 +3789,7 @@ const ContentCardInner = ({
               </span>
               <div className="flex-1 h-px bg-[rgba(0,0,0,0.1)]" />
             </div>
-            <CardShell fullCanvas={fullCanvas} cardColor={cardColor} cardImage={cardImage} scrollable footer={inCardPreviewNav}>{content}</CardShell>
+            <CardShell fullCanvas={fullCanvas} cardColor={cardColor} cardImage={cardImage} scrollable footer={cardShellFooter}>{content}</CardShell>
           </div>
         ) : (
           <CardShell fullCanvas={fullCanvas} cardColor={cardColor} cardImage={cardImage} footer={inCardPreviewNav}>{content}</CardShell>

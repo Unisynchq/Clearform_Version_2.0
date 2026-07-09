@@ -377,7 +377,7 @@ function PreferenceTextareaField({
   const showInlineImprove = improveState === 'idle';
 
   return (
-    <div className="relative w-full">
+    <div className="w-full">
       <textarea
         value={value}
         onChange={onChange}
@@ -385,13 +385,13 @@ function PreferenceTextareaField({
         rows={6}
         disabled={isProcessing || saveState === 'saving'}
         aria-busy={isProcessing}
-        className={`w-full resize-none rounded-[10px] border border-[rgba(140,138,132,0.24)] bg-[#fcfbf8] px-4 pb-9 pt-3 text-[12px] leading-[17px] text-[#000000] outline-none transition-all duration-[250ms] ease-in-out placeholder:text-[rgba(0,0,0,0.38)] disabled:cursor-default ${
+        className={`w-full resize-none rounded-[10px] border border-[rgba(140,138,132,0.24)] bg-[#fcfbf8] px-4 py-3 text-[12px] leading-[17px] text-[#000000] outline-none transition-all duration-[250ms] ease-in-out placeholder:text-[rgba(0,0,0,0.38)] disabled:cursor-default ${
           isProcessing ? 'pointer-events-none blur-[2px] opacity-[0.95]' : 'blur-0 opacity-100'
         }`}
         style={{ ...FONT, minHeight: PREFERENCE_TEXTAREA_MIN_H, height: PREFERENCE_TEXTAREA_MIN_H }}
       />
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-end px-3 pb-2.5">
+      <div className="flex justify-end pt-2">
         <AnimatePresence initial={false}>
           {showInlineImprove ? (
             <InlineImproveWithAiAction

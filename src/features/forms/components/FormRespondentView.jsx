@@ -240,6 +240,15 @@ export default function FormRespondentView({ draft, formId }) {
     [activeScreen?.id, activeScreen?.config],
   );
 
+  const introEssentialCanvasConfigs = useMemo(() => {
+    if (!introEssential || !draft?.intro?.essentialConfig) return {};
+    return previewCanvasConfigsFromScreen({
+      type: 'content',
+      label: introEssential,
+      config: draft.intro.essentialConfig,
+    });
+  }, [introEssential, draft?.intro?.essentialConfig]);
+
   const qualityConversationHistory = useMemo(
     () =>
       buildQualityConversationHistory({
@@ -285,6 +294,7 @@ export default function FormRespondentView({ draft, formId }) {
               cardImage={theme.cardImage}
               accentColor={theme.accentColor}
               textColor={theme.textColor}
+              {...introEssentialCanvasConfigs}
               imageFileInputRef={imageFileInputRef}
               onConfigure={() => {}}
               isPreviewMode

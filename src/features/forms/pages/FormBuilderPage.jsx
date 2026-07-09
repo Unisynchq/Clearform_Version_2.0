@@ -1711,11 +1711,17 @@ const FormBuilderPage = () => {
   const [ratingSections, setRatingSections] = useState({ fieldSettings: true, appearance: true });
 
   const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setImagePreview(URL.createObjectURL(file));
-      setImageFileName(file.name);
+    const file = e.target.files?.[0];
+    if (!file) {
+      e.target.value = '';
+      return;
     }
+    setImageFileName(file.name);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') setImagePreview(reader.result);
+    };
+    reader.readAsDataURL(file);
     e.target.value = '';
   };
 
@@ -2834,6 +2840,12 @@ const FormBuilderPage = () => {
     setIsEditingEndScreen(false);
   };
 
+  const clearIntroEssential = useCallback(() => {
+    setIntroEssential(null);
+    closeAllRightPanels();
+    markFormTouched();
+  }, []);
+
   const toggleSection = (key) => {
     setSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
@@ -3545,6 +3557,45 @@ const FormBuilderPage = () => {
     markFormTouched();
   }, [activeScreenId, persistScreenConfigById]);
 
+  const handleSaveActiveScreen = useCallback(() => {
+    const screen = screens.find((s) => s.id === activeScreenId);
+    if (screen?.type === 'intro' && introEssential) {
+      markFormTouched();
+      return;
+    }
+    if (activeScreenId == null) return;
+    persistScreenConfigById(activeScreenId);
+    markFormTouched();
+  }, [activeScreenId, screens, introEssential, persistScreenConfigById]);
+
+  const buildIntroSnapshot = useCallback(() => {
+    const intro = {
+      title: introTitle,
+      description: introDescription,
+      buttonText: introButtonText,
+      textSize: welcomeTextSize,
+      alignment: welcomeAlignment,
+      logo: logoImage,
+      essential: introEssential,
+    };
+    if (introEssential) {
+      const essentialConfig = extractScreenConfig(
+        { type: 'content', label: introEssential },
+        configGlobalsRef.current,
+      );
+      if (essentialConfig) intro.essentialConfig = essentialConfig;
+    }
+    return intro;
+  }, [
+    introTitle,
+    introDescription,
+    introButtonText,
+    welcomeTextSize,
+    welcomeAlignment,
+    logoImage,
+    introEssential,
+  ]);
+
   useEffect(() => {
     const formTitle = location.state?.formTitle;
     if (formTitle && !newFormHydratedRef.current && !location.state?.templateId) {
@@ -3582,6 +3633,13 @@ const FormBuilderPage = () => {
       setDraftLogo(clearformStartLogo);
     }
     setIntroEssential(built.intro?.essential ?? null);
+    if (built.intro?.essential && built.intro?.essentialConfig) {
+      applyScreenConfig(
+        { type: 'content', label: built.intro.essential },
+        built.intro.essentialConfig,
+        screenConfigSetters,
+      );
+    }
     setDraftTitle(built.intro.title);
     setDraftDescription(built.intro.description);
     setDraftButtonText(built.intro.buttonText);
@@ -4000,13 +4058,15 @@ const FormBuilderPage = () => {
     const { kind, screenId } = pendingScreenDelete;
     if (kind === 'content' && screenId != null) {
       removeContentScreen(screenId);
+    } else if (kind === 'intro-essential') {
+      clearIntroEssential();
     } else if (kind === 'intro') {
       performDeleteIntroScreen();
     } else if (kind === 'end') {
       performDeleteEndScreen();
     }
     setPendingScreenDelete(null);
-  }, [pendingScreenDelete, removeContentScreen, performDeleteIntroScreen, performDeleteEndScreen]);
+  }, [pendingScreenDelete, removeContentScreen, clearIntroEssential, performDeleteIntroScreen, performDeleteEndScreen]);
 
   useEffect(() => {
     if (!builderHydrated || activeFormId == null) return;
@@ -4110,15 +4170,7 @@ const FormBuilderPage = () => {
         formTitle: loadedFormTitle ?? location.state?.formTitle ?? persistedForm?.title ?? 'Untitled Form',
         screens: getScreensSnapshot(),
         nextId: nextIdRef.current,
-        intro: {
-          title: introTitle,
-          description: introDescription,
-          buttonText: introButtonText,
-          textSize: welcomeTextSize,
-          alignment: welcomeAlignment,
-          logo: logoImage,
-          essential: introEssential,
-        },
+        intro: buildIntroSnapshot(),
         end: {
           title: endScreenTitle,
           description: endScreenDescription,
@@ -4191,6 +4243,7 @@ const FormBuilderPage = () => {
     location.state?.templateId,
     location.state?.formTitle,
     getScreensSnapshot,
+    buildIntroSnapshot,
     buildBuilderThemeSnapshot,
     buildBuilderSettingsSnapshot,
     dispatch,
@@ -4472,7 +4525,7 @@ const FormBuilderPage = () => {
       persistScreenConfigById(activeScreenId);
     }, 120);
     return () => clearTimeout(timer);
-  }, [activeScreenId, fieldPreviewFallback, showIfConditions, persistScreenConfigById, screens.length]);
+  }, [activeScreenId, fieldPreviewFallback, showIfConditions, persistScreenConfigById, screens.length, imagePreview, videoUrl, ctaImage]);
 
   const getLogicCardQuestionText = useCallback(
     (screen) => getBuilderScreenPreviewText(screen, fieldPreviewFallback, activeScreenId),
@@ -5192,15 +5245,7 @@ const FormBuilderPage = () => {
       formTitle: publishFormTitle,
       screens: getScreensSnapshot(),
       nextId: nextIdRef.current,
-      intro: {
-        title: introTitle,
-        description: introDescription,
-        buttonText: introButtonText,
-        textSize: welcomeTextSize,
-        alignment: welcomeAlignment,
-        logo: logoImage,
-        essential: introEssential,
-      },
+      intro: buildIntroSnapshot(),
       end: {
         title: endScreenTitle,
         description: endScreenDescription,
@@ -5225,8 +5270,7 @@ const FormBuilderPage = () => {
     introButtonText,
     welcomeTextSize,
     welcomeAlignment,
-    logoImage,
-    introEssential,
+    buildIntroSnapshot,
     endScreenTitle,
     endScreenDescription,
     endScreenButtonText,
@@ -7752,10 +7796,11 @@ const FormBuilderPage = () => {
                               compactLayout={deviceView === 'mobile'}
                               onDelete={() =>
                                 requestDeleteScreen({
-                                  kind: 'intro',
+                                  kind: 'intro-essential',
                                   screenLabel: getScreenDeleteLabel(activeScreen),
                                 })
                               }
+                              onSave={handleSaveActiveScreen}
                               fullCanvas={builderTheme.fullCanvas}
                               cardColor={builderTheme.cardColor}
                               cardImage={builderTheme.cardImage}
@@ -7984,6 +8029,7 @@ const FormBuilderPage = () => {
                                 screenLabel: getScreenDeleteLabel(activeScreen),
                               })
                             }
+                            onSave={handleSaveActiveScreen}
                             fullCanvas={builderTheme.fullCanvas}
                             cardColor={builderTheme.cardColor}
                             cardImage={builderTheme.cardImage}
