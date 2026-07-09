@@ -54,10 +54,16 @@ function formatExpiryDate(isoOrDate) {
   return d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-export function getActivePlanDisplay(planId, interval = 'monthly', { expiresAt } = {}) {
+export function getActivePlanDisplay(planId, interval = 'monthly', { expiresAt, isTrial = false } = {}) {
   if (planId === PILOT_35_PLAN_ID) {
     const meta = PLAN_STRIP.pilot_35;
     const expiryLabel = expiresAt ? formatExpiryDate(expiresAt) : null;
+    const fallbackLabel = isTrial ? '7-day pilot trial' : '90-day pilot access';
+    const renewLabel = expiryLabel
+      ? isTrial
+        ? `Trial ends ${expiryLabel}`
+        : `Expires ${expiryLabel}`
+      : fallbackLabel;
     return {
       id: PILOT_35_PLAN_ID,
       name: 'Clearform Pilot',
@@ -65,7 +71,7 @@ export function getActivePlanDisplay(planId, interval = 'monthly', { expiresAt }
       monthlyPrice: 34.99,
       priceLabel: '$34.99',
       priceSubtext: 'one-time',
-      renewLabel: expiryLabel ? `Expires ${expiryLabel}` : '90-day pilot access',
+      renewLabel,
       isOneTime: true,
       ...meta,
     };

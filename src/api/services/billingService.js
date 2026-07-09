@@ -24,6 +24,20 @@ export async function claimPurchase({ paymentId, orderId } = {}) {
   });
 }
 
+export async function redeemPromoCode(code) {
+  if (!isApiConfigured()) {
+    throw new Error('API is not configured');
+  }
+  const trimmed = code?.trim();
+  if (!trimmed) {
+    throw new Error('Promo code is required');
+  }
+  return apiClient(API_ENDPOINTS.billing.redeemPromo(), {
+    method: 'POST',
+    body: { code: trimmed },
+  });
+}
+
 export async function createPilotCheckoutSession() {
   if (!isApiConfigured()) {
     throw new Error('API is not configured');

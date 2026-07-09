@@ -86,5 +86,6 @@ export const API_ENDPOINTS = {
     claimPurchase: () => '/billing/claim-purchase',
     createCheckout: () => '/billing/create-checkout',
     pilotCheckoutSession: () => '/billing/checkout-sessions/pilot',
+    redeemPromo: () => '/billing/redeem-promo',
   },
 };
