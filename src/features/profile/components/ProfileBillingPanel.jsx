@@ -13,6 +13,7 @@ import { isApiConfigured } from '@/config/env';
 import { useBillingStatus } from '@/features/billing/utils/useBillingStatus';
 import { captureAndClaimPendingPurchase } from '@/features/billing/utils/billingReturnFlow';
 import { openPilotRazorpayCheckout } from '@/features/billing/utils/openPilotRazorpayCheckout';
+import PromoCodeRedeemBox from '@/features/billing/components/PromoCodeRedeemBox';
 import BillingInvoiceExpanded from '@/features/profile/components/billing/BillingInvoiceExpanded';
 import TaxInvoiceModal from '@/features/profile/components/billing/TaxInvoiceModal';
 import { getUsageHint, getUsageStatus } from '@/features/profile/utils/profileBillingDefaults';
@@ -146,6 +147,7 @@ const ProfileBillingPanel = () => {
     : Boolean(localSubscription?.planId);
 
   const isPilotExpired = useApiBilling && apiStatus?.status === 'EXPIRED';
+  const isPromoTrial = useApiBilling && isPaid && apiStatus?.source === 'PROMO';
 
   const handleStartPilotCheckout = useCallback(async () => {
     if (!useApiBilling || isPaid) return;
@@ -198,6 +200,7 @@ const ProfileBillingPanel = () => {
         return (
           getActivePlanDisplay(apiStatus.planId, 'pilot', {
             expiresAt: apiStatus.expiresAt ?? apiStatus.periodEnd,
+            isTrial: apiStatus.source === 'PROMO',
           }) ?? API_FREE_PLAN
         );
       }
@@ -312,12 +315,14 @@ const ProfileBillingPanel = () => {
                         <span className="text-[16px] font-semibold text-[#111110]">{plan.name}</span>
                         <span
                           className={`rounded-full px-[9px] py-[3px] text-[10px] font-medium ${
-                            isPaid
-                              ? 'bg-[#e8f5e9] text-[#2d7d32]'
-                              : 'bg-[#f0f0ee] text-[#555350]'
+                            isPromoTrial
+                              ? 'bg-[#fff4e0] text-[#a15c07]'
+                              : isPaid
+                                ? 'bg-[#e8f5e9] text-[#2d7d32]'
+                                : 'bg-[#f0f0ee] text-[#555350]'
                           }`}
                         >
-                          {isPaid ? 'Active' : isPilotExpired ? 'Expired' : 'Free'}
+                          {isPromoTrial ? 'Trial' : isPaid ? 'Active' : isPilotExpired ? 'Expired' : 'Free'}
                         </span>
                       </div>
                       <p className="mt-0.5 text-[12px] text-[#888580]">{plan.limitsLabel}</p>
@@ -403,6 +408,10 @@ const ProfileBillingPanel = () => {
             )}
           </div>
         </section>
+
+        {useApiBilling && !isPaid ? (
+          <PromoCodeRedeemBox onRedeemed={() => setBillingVersion((v) => v + 1)} />
+        ) : null}
 
         {showUpgradeCta ? (
           <section className="overflow-hidden rounded-[12px] border border-[#1a1a18] bg-[#1a1a18]">
