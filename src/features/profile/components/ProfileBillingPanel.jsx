@@ -32,6 +32,7 @@ import { readBillingSubscription } from '@/features/profile/utils/profileBilling
 import { dispatchSyncSystemAlerts } from '@/utils/syncSystemAlertsToStore';
 import { store } from '@/store/store';
 import { useToast } from '@/hooks/useToast';
+import { trackBillingViewed } from '@/analytics/track';
 
 const ALERT_COLOR = '#e8473f';
 
@@ -108,6 +109,7 @@ const ProfileBillingPanel = () => {
   const [taxInvoiceOpen, setTaxInvoiceOpen] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const upgradeStartedRef = useRef(false);
+  const billingViewTrackedRef = useRef(false);
 
   const useApiBilling = isApiConfigured();
   const {
@@ -136,6 +138,15 @@ const ProfileBillingPanel = () => {
     if (!apiStatus) return;
     dispatchSyncSystemAlerts(dispatch, store.getState(), { apiBilling: apiStatus });
   }, [apiStatus, dispatch]);
+
+  useEffect(() => {
+    if (!apiStatus || billingViewTrackedRef.current) return;
+    billingViewTrackedRef.current = true;
+    trackBillingViewed({
+      planId: apiStatus.planId,
+      aiTier: apiStatus.aiTier,
+    });
+  }, [apiStatus]);
 
   const localSubscription = useMemo(
     () => (useApiBilling ? null : readBillingSubscription(email)),
@@ -222,7 +233,7 @@ const ProfileBillingPanel = () => {
     return getWorkspaceUsageMetrics({ forms, email, responsesByFormId });
   }, [useApiBilling, apiStatus, forms, email, responsesByFormId, billingVersion]);
 
-  const { formsUsed, responsesUsed, teamUsed, teamLimit: workspacesLimit } = usageMetrics;
+  const { formsUsed, responsesUsed, teamUsed, teamLimit: workspacesLimit, aiTokensUsed, aiTokensLimit, aiTokensPeriodLabel } = usageMetrics;
 
   const invoice = useMemo(() => {
     if (useApiBilling && apiStatus?.receipt) {
@@ -241,12 +252,18 @@ const ProfileBillingPanel = () => {
   const showUpgradeCta = useMemo(() => {
     if (!useApiBilling || isPaid) return false;
     const responsesStatus = getUsageStatus(responsesUsed, plan.responsesLimit);
+    const tokensStatus =
+      Number(aiTokensLimit) > 0
+        ? getUsageStatus(aiTokensUsed ?? 0, aiTokensLimit)
+        : 'normal';
     return (
       isPilotExpired ||
       responsesStatus === 'near-limit' ||
-      responsesStatus === 'at-limit'
+      responsesStatus === 'at-limit' ||
+      tokensStatus === 'near-limit' ||
+      tokensStatus === 'at-limit'
     );
-  }, [useApiBilling, isPaid, isPilotExpired, responsesUsed, plan.responsesLimit]);
+  }, [useApiBilling, isPaid, isPilotExpired, responsesUsed, plan.responsesLimit, aiTokensUsed, aiTokensLimit]);
 
 
   const formsUnlimited = plan.formsLimit == null;
@@ -379,6 +396,15 @@ const ProfileBillingPanel = () => {
                       limit={workspacesLimit ?? plan.workspacesLimit ?? plan.teamLimit ?? 1}
                       metric="team"
                     />
+                    {useApiBilling && Number(aiTokensLimit) > 0 ? (
+                      <UsageMeter
+                        label={`AI tokens${aiTokensPeriodLabel ? ` · ${aiTokensPeriodLabel}` : ''}`}
+                        used={aiTokensUsed ?? 0}
+                        limit={aiTokensLimit}
+                        metric="ai_tokens"
+                        warnOnNearLimit
+                      />
+                    ) : null}
                   </div>
                 </div>
 

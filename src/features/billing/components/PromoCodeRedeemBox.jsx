@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { RiArrowRightLine } from 'react-icons/ri';
 import { redeemPromoCode } from '@/api/services/billingService';
 import { useToast } from '@/hooks/useToast';
+import { trackPilotActivated, trackPromoRedeemed } from '@/analytics/track';
 
 /**
  * Invite-only promo code redemption — pastes a shared code to unlock a
@@ -22,6 +23,8 @@ const PromoCodeRedeemBox = ({ onRedeemed }) => {
     setError(null);
     try {
       await redeemPromoCode(code);
+      trackPromoRedeemed();
+      trackPilotActivated({ source: 'promo' });
       showToast({
         type: 'success',
         message: 'Pilot trial activated — enjoy 7 days of full access.',

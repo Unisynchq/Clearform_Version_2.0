@@ -9,6 +9,7 @@ import {
   writePublishedFormSessionCache,
 } from '@/features/forms/utils/publishedFormSessionCache';
 import { readPersistedForms } from '@/features/forms/utils/userFormsStorage';
+import { trackFormCreated } from '@/analytics/track';
 
 /**
  * Forms API facade — today reads/writes localStorage when API is not configured.
@@ -23,24 +24,28 @@ export async function listForms() {
 }
 
 export async function createForm({ title, workspaceId, gradientFrom, gradientTo, overlayColor, iconGradient }) {
+  let created;
   if (isApiConfigured()) {
-    return apiClient(API_ENDPOINTS.forms.list, {
+    created = await apiClient(API_ENDPOINTS.forms.list, {
       method: 'POST',
       body: { title, workspaceId, gradientFrom, gradientTo, overlayColor, iconGradient },
     });
+  } else {
+    created = {
+      id: Date.now(),
+      title,
+      status: 'draft',
+      workspace: workspaceId ?? null,
+      responses: 0,
+      timeAgo: 'just now',
+      gradientFrom,
+      gradientTo,
+      overlayColor,
+      iconGradient,
+    };
   }
-  return {
-    id: Date.now(),
-    title,
-    status: 'draft',
-    workspace: workspaceId ?? null,
-    responses: 0,
-    timeAgo: 'just now',
-    gradientFrom,
-    gradientTo,
-    overlayColor,
-    iconGradient,
-  };
+  trackFormCreated({ formId: created?.id });
+  return created;
 }
 
 export async function patchForm(formId, body) {

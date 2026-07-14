@@ -6,6 +6,7 @@ import {
   getPendingOrderId,
   getPendingPaymentId,
 } from '@/features/billing/utils/pendingPaymentStorage';
+import { trackPilotActivated } from '@/analytics/track';
 
 const CLAIMED_KEY = 'clearform:billing-claim-done';
 const RETRY_DELAY_MS = 2000;
@@ -65,6 +66,7 @@ export async function claimPendingPurchaseIfPresent({ showToast } = {}) {
     if (activated) {
       markClaimed(paymentId, orderId);
       clearPendingPaymentId();
+      trackPilotActivated({ source: 'razorpay' });
       showToast?.({
         type: 'success',
         message: 'Your Clearform Pilot is linked to this account.',

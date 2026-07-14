@@ -10,6 +10,11 @@ export async function getStatus() {
   return apiClient(API_ENDPOINTS.billing.status());
 }
 
+export async function getPlatformPlanStats() {
+  if (!isApiConfigured()) return null;
+  return apiClient(API_ENDPOINTS.billing.platformStats());
+}
+
 export async function claimPurchase({ paymentId, orderId } = {}) {
   if (!isApiConfigured()) return null;
   const body = {};

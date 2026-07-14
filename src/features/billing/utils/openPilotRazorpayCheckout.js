@@ -1,10 +1,12 @@
 import { createPilotCheckoutSession } from '@/api/services/billingService';
 import { loadRazorpayCheckoutScript } from '@/features/billing/utils/loadRazorpayCheckout';
+import { trackPilotCheckoutStarted } from '@/analytics/track';
 
 /**
  * Open Razorpay Checkout for the pilot Orders session (authenticated user).
  */
 export async function openPilotRazorpayCheckout() {
+  trackPilotCheckoutStarted();
   const session = await createPilotCheckoutSession();
   const Razorpay = await loadRazorpayCheckoutScript();
 

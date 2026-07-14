@@ -26,6 +26,12 @@ import {
   localSignUpWithEmail,
   rejectLocalOAuth,
 } from '@/features/auth/services/localAuthService';
+import {
+  identifyUser,
+  resetAnalytics,
+  trackSignIn,
+  trackSignup,
+} from '@/analytics/track';
 
 const TOKEN_KEY = 'clearform:auth-token';
 export const AUTH_RETURN_TO_KEY = 'clearform:auth-return-to';
@@ -197,23 +203,58 @@ export async function syncUserWithBackend() {
   return backendSyncPromise;
 }
 
-async function buildUserFromFirebaseUser(user, { isNewUser } = {}) {
+function resolveOAuthMethod(result, user) {
+  const providerId =
+    result?.providerId ||
+    user?.providerData?.[0]?.providerId ||
+    '';
+  if (providerId.includes('google')) return 'google';
+  if (providerId.includes('microsoft')) return 'microsoft';
+  if (providerId.includes('password')) return 'email';
+  return 'oauth';
+}
+
+function captureAuthAnalytics(payload, firebaseUser, { isNewUser, method, trackAuth }) {
+  identifyUser({
+    id: payload?.user?.id,
+    uid: firebaseUser?.uid,
+    email: payload?.email ?? firebaseUser?.email,
+    firstName: payload?.firstName,
+    lastName: payload?.lastName,
+  });
+  if (!trackAuth) return;
+  const email = payload?.email ?? firebaseUser?.email;
+  if (isNewUser) trackSignup({ method, email });
+  else trackSignIn({ method, email });
+}
+
+async function buildUserFromFirebaseUser(user, { isNewUser, method, trackAuth } = {}) {
   await storeToken(user);
   const { firstName, lastName } = parseDisplayName(user.displayName);
   const backend = await syncUserWithBackend();
-  return {
+  const payload = {
     email: user.email,
     firstName,
     lastName,
     isNewUser: isNewUser === true,
     ...backend,
   };
+  captureAuthAnalytics(payload, user, {
+    isNewUser: isNewUser === true,
+    method: method ?? 'session',
+    trackAuth: trackAuth === true,
+  });
+  return payload;
 }
 
 async function buildUserFromFirebaseResult(result) {
   const { user } = result;
   const isNewUser = resolveIsNewUser(result, user);
-  return buildUserFromFirebaseUser(user, { isNewUser });
+  return buildUserFromFirebaseUser(user, {
+    isNewUser,
+    method: resolveOAuthMethod(result, user),
+    trackAuth: true,
+  });
 }
 
 /**
@@ -341,14 +382,26 @@ export async function consumeRedirectSignInResult() {
 export async function signInWithEmail(email, password) {
   if (!auth) {
     const user = await localSignInWithEmail(email, password);
-    return { ...user, user: null };
+    const payload = { ...user, user: null };
+    captureAuthAnalytics(payload, null, {
+      isNewUser: false,
+      method: 'email',
+      trackAuth: true,
+    });
+    return payload;
   }
   try {
     const { user } = await signInWithEmailAndPassword(auth, email, password);
     await storeToken(user);
     const { firstName, lastName } = parseDisplayName(user.displayName);
     const backend = await syncUserWithBackend();
-    return { email: user.email, firstName, lastName, ...backend };
+    const payload = { email: user.email, firstName, lastName, ...backend };
+    captureAuthAnalytics(payload, user, {
+      isNewUser: false,
+      method: 'email',
+      trackAuth: true,
+    });
+    return payload;
   } catch (error) {
     throw new Error(mapFirebaseError(error));
   }
@@ -357,7 +410,13 @@ export async function signInWithEmail(email, password) {
 export async function signUpWithEmail(email, password, firstName, lastName) {
   if (!auth) {
     const user = await localSignUpWithEmail(email, password, firstName, lastName);
-    return { ...user, user: null };
+    const payload = { ...user, user: null };
+    captureAuthAnalytics(payload, null, {
+      isNewUser: true,
+      method: 'email',
+      trackAuth: true,
+    });
+    return payload;
   }
   try {
     const { user } = await createUserWithEmailAndPassword(auth, email, password);
@@ -365,7 +424,13 @@ export async function signUpWithEmail(email, password, firstName, lastName) {
     if (displayName) await updateProfile(user, { displayName });
     await storeToken(user);
     const backend = await syncUserWithBackend();
-    return { email: user.email, firstName, lastName, ...backend };
+    const payload = { email: user.email, firstName, lastName, ...backend };
+    captureAuthAnalytics(payload, user, {
+      isNewUser: true,
+      method: 'email',
+      trackAuth: true,
+    });
+    return payload;
   } catch (error) {
     throw new Error(mapFirebaseError(error));
   }
@@ -405,6 +470,7 @@ export async function signOutUser() {
   backendSyncPromise = null;
   clearAuthClientContext();
   resetAuthBootstrapCoordinator();
+  resetAnalytics();
   if (!auth) {
     clearLocalDevToken();
     return;
