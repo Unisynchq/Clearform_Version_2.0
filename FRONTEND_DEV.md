@@ -26,8 +26,18 @@ All form data, workspaces, and responses persist in **localStorage** in your bro
 | Publish / preview | Client-side snapshot |
 | Analytics | Sample / cached data |
 | Billing / integrations | UI only — no live payments or OAuth without backend |
+| PostHog | No-op unless `VITE_POSTHOG_PROJECT_TOKEN` is set |
 
 Google and Microsoft buttons need Firebase keys in `.env.local`. For frontend work, use **email auth**.
+
+## Product analytics (PostHog)
+
+Production uses the **Clearform** PostHog project. Set in Vercel (and optionally `.env.local`):
+
+- `VITE_POSTHOG_PROJECT_TOKEN` — Project API key (never commit)
+- `VITE_POSTHOG_HOST=https://us.i.posthog.com`
+
+Dashboard for Abbu / Harshit: https://us.posthog.com/project/417685/dashboard/1847795
 
 ## Blank screen fix
 

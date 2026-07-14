@@ -83,6 +83,7 @@ export const API_ENDPOINTS = {
   },
   billing: {
     status: () => '/billing/status',
+    platformStats: () => '/billing/platform-stats',
     claimPurchase: () => '/billing/claim-purchase',
     createCheckout: () => '/billing/create-checkout',
     pilotCheckoutSession: () => '/billing/checkout-sessions/pilot',
