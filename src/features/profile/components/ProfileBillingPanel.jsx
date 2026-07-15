@@ -45,6 +45,7 @@ const UsageMeter = ({
   unlimited = false,
   valueClassName = 'text-[#1a1a18]',
   barClassName = 'bg-[#1a1a18]',
+  numberLocale = 'en-IN',
 }) => {
   const status = unlimited ? 'ok' : getUsageStatus(used, limit);
   const isAlert =
@@ -67,10 +68,10 @@ const UsageMeter = ({
           }`}
           style={isAlert ? { color: ALERT_COLOR } : undefined}
         >
-          {used.toLocaleString('en-IN')}
+          {used.toLocaleString(numberLocale)}
         </span>
         <span className="text-[12px] text-[#888580]">
-          {unlimited ? 'Unlimited' : `/ ${limit.toLocaleString('en-IN')}`}
+          {unlimited ? 'Unlimited' : `/ ${limit.toLocaleString(numberLocale)}`}
         </span>
       </div>
       {!unlimited ? (
@@ -233,7 +234,15 @@ const ProfileBillingPanel = () => {
     return getWorkspaceUsageMetrics({ forms, email, responsesByFormId });
   }, [useApiBilling, apiStatus, forms, email, responsesByFormId, billingVersion]);
 
-  const { formsUsed, responsesUsed, teamUsed, teamLimit: workspacesLimit, aiTokensUsed, aiTokensLimit, aiTokensPeriodLabel } = usageMetrics;
+  const {
+    formsUsed,
+    responsesUsed,
+    teamUsed,
+    teamLimit: workspacesLimit,
+    aiCreditsUsed,
+    aiCreditsLimit,
+    aiCreditsPeriodLabel,
+  } = usageMetrics;
 
   const invoice = useMemo(() => {
     if (useApiBilling && apiStatus?.receipt) {
@@ -252,18 +261,18 @@ const ProfileBillingPanel = () => {
   const showUpgradeCta = useMemo(() => {
     if (!useApiBilling || isPaid) return false;
     const responsesStatus = getUsageStatus(responsesUsed, plan.responsesLimit);
-    const tokensStatus =
-      Number(aiTokensLimit) > 0
-        ? getUsageStatus(aiTokensUsed ?? 0, aiTokensLimit)
+    const creditsStatus =
+      Number(aiCreditsLimit) > 0
+        ? getUsageStatus(aiCreditsUsed ?? 0, aiCreditsLimit)
         : 'normal';
     return (
       isPilotExpired ||
       responsesStatus === 'near-limit' ||
       responsesStatus === 'at-limit' ||
-      tokensStatus === 'near-limit' ||
-      tokensStatus === 'at-limit'
+      creditsStatus === 'near-limit' ||
+      creditsStatus === 'at-limit'
     );
-  }, [useApiBilling, isPaid, isPilotExpired, responsesUsed, plan.responsesLimit, aiTokensUsed, aiTokensLimit]);
+  }, [useApiBilling, isPaid, isPilotExpired, responsesUsed, plan.responsesLimit, aiCreditsUsed, aiCreditsLimit]);
 
 
   const formsUnlimited = plan.formsLimit == null;
@@ -396,13 +405,14 @@ const ProfileBillingPanel = () => {
                       limit={workspacesLimit ?? plan.workspacesLimit ?? plan.teamLimit ?? 1}
                       metric="team"
                     />
-                    {useApiBilling && Number(aiTokensLimit) > 0 ? (
+                    {useApiBilling && Number(aiCreditsLimit) > 0 ? (
                       <UsageMeter
-                        label={`AI tokens${aiTokensPeriodLabel ? ` · ${aiTokensPeriodLabel}` : ''}`}
-                        used={aiTokensUsed ?? 0}
-                        limit={aiTokensLimit}
-                        metric="ai_tokens"
+                        label={`AI credits${aiCreditsPeriodLabel ? ` · ${aiCreditsPeriodLabel}` : ''}`}
+                        used={aiCreditsUsed ?? 0}
+                        limit={aiCreditsLimit}
+                        metric="ai_credits"
                         warnOnNearLimit
+                        numberLocale="en-US"
                       />
                     ) : null}
                   </div>

@@ -5,6 +5,63 @@ import { appendFormResponse } from '@/features/forms/utils/formResponsesStorage'
 import { store } from '@/store/store';
 import { addFormResponse, loadFormsFromApi } from '@/store/slices/formsSlice';
 
+/** Upload a respondent file to durable storage (public HTTPS URL). */
+export async function uploadResponseFile(formId, file) {
+  if (!isApiConfigured()) {
+    throw new Error('API is not configured');
+  }
+  const formData = new FormData();
+  formData.append('file', file);
+  return apiClient(API_ENDPOINTS.responses.uploadFile(formId), {
+    method: 'POST',
+    body: formData,
+    isFormData: true,
+  });
+}
+
+/** Replace blob: URLs in upload snaps with hosted file metadata before submit. */
+async function persistBlobUploadFiles(formId, snapsByScreenId) {
+  if (!snapsByScreenId || !isApiConfigured()) return snapsByScreenId ?? {};
+
+  const out = { ...snapsByScreenId };
+  for (const [screenId, snap] of Object.entries(snapsByScreenId)) {
+    const files = snap?.uploadedFiles;
+    if (!Array.isArray(files) || files.length === 0) continue;
+
+    let changed = false;
+    const uploadedFiles = await Promise.all(
+      files.map(async (f) => {
+        const url = f?.url ?? f?.downloadUrl;
+        if (typeof url !== 'string' || !url.startsWith('blob:')) return f;
+
+        changed = true;
+        const resp = await fetch(url);
+        const blob = await resp.blob();
+        const upload = new File([blob], f.name || 'upload', {
+          type: f.type || blob.type || 'application/octet-stream',
+        });
+        const meta = await uploadResponseFile(formId, upload);
+        return {
+          ...f,
+          id: f.id ?? meta.storagePath,
+          name: meta.name ?? f.name,
+          url: meta.url,
+          downloadUrl: meta.url,
+          size: meta.size ?? f.size,
+          type: meta.type ?? f.type,
+          storagePath: meta.storagePath,
+          uploadedAt: f.uploadedAt ?? new Date().toISOString(),
+        };
+      }),
+    );
+
+    if (changed) {
+      out[screenId] = { ...snap, uploadedFiles };
+    }
+  }
+  return out;
+}
+
 /** Handoff B.2 — prefer answersByScreenId when snaps are available */
 function toSubmissionBody(response, snapsByScreenId) {
   const submittedAt = response?.submittedAt ?? new Date().toISOString();
@@ -74,9 +131,10 @@ export function sendAbandonBeacon(formId, snapsByScreenId, abandonedAtScreenId, 
 
 export async function submitFormResponse(formId, response, snapsByScreenId) {
   if (isApiConfigured()) {
+    const persistedSnaps = await persistBlobUploadFiles(formId, snapsByScreenId);
     const result = await apiClient(API_ENDPOINTS.responses.create(formId), {
       method: 'POST',
-      body: toSubmissionBody(response, snapsByScreenId),
+      body: toSubmissionBody(response, persistedSnaps),
     });
     store.dispatch(addFormResponse({ ...response, formId }));
     store.dispatch(loadFormsFromApi());

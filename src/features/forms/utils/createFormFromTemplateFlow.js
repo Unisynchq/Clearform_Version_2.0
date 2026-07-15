@@ -1,9 +1,10 @@
 import { isApiConfigured } from '@/config/env';
-import { createForm } from '@/api/services/formsService';
+import { createForm, saveBuilderSnapshot } from '@/api/services/formsService';
 import { addForm } from '@/store/slices/formsSlice';
 import { buildFormFromTemplate as buildTemplateScreens } from '@/features/templates/utils/buildFormFromTemplate';
 import { buildFormFromTemplate as buildFormMeta } from '@/features/onboarding/utils/createFormFromTemplate';
 import { navigateToFormBuilder } from '@/features/forms/utils/navigateToFormBuilder';
+import { setPendingFormId } from '@/features/forms/utils/ensureBuilderFormPersisted';
 
 /** @returns {string|undefined} API workspace id when a workspace is selected in the dashboard */
 export function resolveApiWorkspaceId(activeWorkspace) {
@@ -49,6 +50,7 @@ export async function createFormFromTemplateAndOpenBuilder({
       iconGradient: meta.iconGradient,
     });
     formId = created.id;
+    setPendingFormId(formId);
   }
 
   const builderSnapshot = {
@@ -63,6 +65,10 @@ export async function createFormFromTemplateAndOpenBuilder({
     settings: built.settings,
     savedAt: Date.now(),
   };
+
+  if (isApiConfigured()) {
+    await saveBuilderSnapshot(formId, builderSnapshot);
+  }
 
   dispatch(
     addForm({

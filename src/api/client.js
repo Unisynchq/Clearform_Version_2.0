@@ -15,6 +15,7 @@ export class ApiError extends Error {
 const PUBLIC_API_PATH_PATTERNS = [
   /^\/forms\/[^/]+\/published$/,
   /^\/forms\/[^/]+\/responses$/,
+  /^\/forms\/[^/]+\/responses\/files$/,
   /^\/forms\/[^/]+\/response-quality\/evaluate$/,
 ];
 
