@@ -1,6 +1,10 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { parseFormBuilderRouteId } from '@/features/forms/utils/formBuilderNavigation';
+import {
+  clearPendingFormId,
+  getPendingFormId,
+} from '@/features/forms/utils/ensureBuilderFormPersisted';
 
 /**
  * Resolves builder form identity from URL (:formId) with location.state fallback for legacy links.
@@ -11,7 +15,14 @@ export function useFormBuilderRoute() {
   const routeFormId = parseFormBuilderRouteId(formIdParam);
   const stateFormId = location.state?.formId ?? null;
 
-  const activeFormId = routeFormId ?? stateFormId ?? null;
+  const pendingFormId = getPendingFormId();
+  const activeFormId = routeFormId ?? stateFormId ?? pendingFormId ?? null;
+
+  useEffect(() => {
+    if (routeFormId != null && pendingFormId != null && String(routeFormId) === String(pendingFormId)) {
+      clearPendingFormId();
+    }
+  }, [routeFormId, pendingFormId]);
 
   const navigationMeta = useMemo(
     () => ({

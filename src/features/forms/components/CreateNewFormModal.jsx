@@ -17,6 +17,7 @@ import WorkspaceFolderIcon from '@/components/ui/WorkspaceFolderIcon';
 import { createForm } from '@/api/services/formsService';
 import { isApiConfigured } from '@/config/env';
 import { useToast } from '@/hooks/useToast';
+import { setPendingFormId } from '@/features/forms/utils/ensureBuilderFormPersisted';
 import {
   createFormModalTransition,
   logModalLifecycle,
@@ -172,6 +173,7 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
           iconGradient: theme.iconGradient,
         });
         formId = created.id;
+        setPendingFormId(formId);
       } catch (err) {
         const body = err?.body ?? {};
         if (err?.status === 403 && body.code === 'UPGRADE_REQUIRED') {

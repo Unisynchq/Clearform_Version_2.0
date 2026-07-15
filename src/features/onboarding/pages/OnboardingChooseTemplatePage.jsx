@@ -16,9 +16,10 @@ import {
   setOnboardingStep,
 } from '@/store/slices/onboardingSlice';
 import { addForm } from '@/store/slices/formsSlice';
-import { createForm } from '@/api/services/formsService';
+import { createForm, saveBuilderSnapshot } from '@/api/services/formsService';
 import { isApiConfigured } from '@/config/env';
 import { useToast } from '@/hooks/useToast';
+import { setPendingFormId } from '@/features/forms/utils/ensureBuilderFormPersisted';
 import OnboardingTopbar from '../components/OnboardingTopbar';
 import OnboardingTemplatePreviewModal from '../components/OnboardingTemplatePreviewModal';
 import { buildFormFromTemplate as buildBuilderScreensFromTemplate } from '@/features/templates/utils/buildFormFromTemplate';
@@ -72,6 +73,21 @@ const OnboardingChooseTemplatePage = () => {
     });
     let formId = newForm.id;
 
+    const builderSnapshot = built
+      ? {
+          screens: built.screens,
+          formId,
+          formTitle: built.formTitle ?? template.title,
+          templateId: template.id,
+          intro: built.intro,
+          end: built.end,
+          nextId: built.nextId,
+          theme: built.theme,
+          settings: built.settings,
+          savedAt: Date.now(),
+        }
+      : null;
+
     if (isApiConfigured()) {
       try {
         const created = await createForm({
@@ -83,6 +99,10 @@ const OnboardingChooseTemplatePage = () => {
           iconGradient: newForm.iconGradient,
         });
         formId = created.id;
+        setPendingFormId(formId);
+        if (builderSnapshot) {
+          await saveBuilderSnapshot(formId, { ...builderSnapshot, formId });
+        }
       } catch {
         showToast({ type: 'error', message: 'Could not create form. Please try again.' });
         return;
@@ -90,7 +110,13 @@ const OnboardingChooseTemplatePage = () => {
     }
 
     setPreviewTemplate(null);
-    dispatch(addForm({ ...newForm, id: formId }));
+    dispatch(
+      addForm({
+        ...newForm,
+        id: formId,
+        ...(builderSnapshot ? { builderSnapshot: { ...builderSnapshot, formId } } : {}),
+      }),
+    );
     dispatch(setOnboardingStep(3));
 
     navigateToFormBuilder(
@@ -127,6 +153,7 @@ const OnboardingChooseTemplatePage = () => {
           iconGradient: blankForm.iconGradient,
         });
         formId = created.id;
+        setPendingFormId(formId);
       } catch {
         showToast({ type: 'error', message: 'Could not create form. Please try again.' });
         return;

@@ -107,7 +107,7 @@ import FormBuilderSettingsPanel from '@/features/forms/components/FormBuilderSet
 import FormBuilderStepBar from '@/features/forms/formBuilder/FormBuilderStepBar';
 import { useFormBuilderRoute } from '@/features/forms/formBuilder/useFormBuilderRoute';
 import { getFormBuilderPath } from '@/features/forms/utils/formBuilderNavigation';
-import { createFormAndSaveSnapshot } from '@/features/forms/utils/ensureBuilderFormPersisted';
+import { createFormAndSaveSnapshot, getPendingFormId, runPersistFormInFlight } from '@/features/forms/utils/ensureBuilderFormPersisted';
 import { finishBuilderRouteTransition, openShareModal } from '@/store/slices/uiSlice';
 import FormBuilderLoadingFallback from '@/features/forms/pages/FormBuilderLoadingFallback';
 import * as builderScreenMaps from '@/features/forms/formBuilder/builderScreenMaps';
@@ -1358,7 +1358,6 @@ const FormBuilderPage = () => {
   const [builderSaveStatus, setBuilderSaveStatus] = useState('idle');
   const lastPersistedSnapshotRef = useRef(null);
   const ensureFormPersistedRef = useRef(async () => null);
-  const ensureFormInFlightRef = useRef(false);
   const formTouchedRef = useRef(false);
   const markFormTouched = () => {
     formTouchedRef.current = true;
@@ -5307,54 +5306,54 @@ const FormBuilderPage = () => {
     if (activeFormId || !isApiConfigured() || screens.length === 0) {
       return activeFormId ?? null;
     }
-    if (ensureFormInFlightRef.current) {
-      return ensureFormPersistedRef.current();
+    const pendingFormId = getPendingFormId();
+    if (pendingFormId) {
+      return pendingFormId;
     }
-    ensureFormInFlightRef.current = true;
-    try {
-      const snapshot = buildCurrentPublishSnapshot();
-      const title =
-        snapshot?.formTitle ??
-        loadedFormTitle ??
-        location.state?.formTitle ??
-        location.state?.templateTitle ??
-        'Untitled Form';
-      const workspaceId = resolveApiWorkspaceId(location.state?.workspaceId);
-      const created = await createFormAndSaveSnapshot({
-        title,
-        templateId: location.state?.templateId ?? lastHydratedTemplateIdRef.current,
-        snapshot,
-        workspaceId,
-      });
-      dispatch(
-        addForm({
-          id: created.id,
-          title: created.title,
-          status: 'draft',
-          responses: 0,
-          timeAgo: 'just now',
+    return runPersistFormInFlight(async () => {
+      try {
+        const snapshot = buildCurrentPublishSnapshot();
+        const title =
+          snapshot?.formTitle ??
+          loadedFormTitle ??
+          location.state?.formTitle ??
+          location.state?.templateTitle ??
+          'Untitled Form';
+        const workspaceId = resolveApiWorkspaceId(location.state?.workspaceId);
+        const created = await createFormAndSaveSnapshot({
+          title,
           templateId: location.state?.templateId ?? lastHydratedTemplateIdRef.current,
-          workspace: workspaceId ?? '',
-          gradientFrom: created.gradientFrom,
-          gradientTo: created.gradientTo,
-          overlayColor: created.overlayColor,
-          iconGradient: created.iconGradient,
-        }),
-      );
-      // Keep the user on the screen they're editing across this id-swap nav.
-      preserveActiveScreenOnNextHydrateRef.current = true;
-      navigate(getFormBuilderPath(created.id), {
-        state: { ...location.state, formId: created.id, formTitle: created.title },
-        replace: true,
-      });
-      setBuilderSaveStatus('saved');
-      return created.id;
-    } catch {
-      showToast({ type: 'error', message: 'Could not save form draft. Please try again.' });
-      return null;
-    } finally {
-      ensureFormInFlightRef.current = false;
-    }
+          snapshot,
+          workspaceId,
+        });
+        dispatch(
+          addForm({
+            id: created.id,
+            title: created.title,
+            status: 'draft',
+            responses: 0,
+            timeAgo: 'just now',
+            templateId: location.state?.templateId ?? lastHydratedTemplateIdRef.current,
+            workspace: workspaceId ?? '',
+            gradientFrom: created.gradientFrom,
+            gradientTo: created.gradientTo,
+            overlayColor: created.overlayColor,
+            iconGradient: created.iconGradient,
+          }),
+        );
+        // Keep the user on the screen they're editing across this id-swap nav.
+        preserveActiveScreenOnNextHydrateRef.current = true;
+        navigate(getFormBuilderPath(created.id), {
+          state: { ...location.state, formId: created.id, formTitle: created.title },
+          replace: true,
+        });
+        setBuilderSaveStatus('saved');
+        return created.id;
+      } catch {
+        showToast({ type: 'error', message: 'Could not save form draft. Please try again.' });
+        return null;
+      }
+    });
   }, [
     activeFormId,
     screens.length,

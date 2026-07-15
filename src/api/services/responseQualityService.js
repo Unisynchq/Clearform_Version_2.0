@@ -14,7 +14,7 @@ export async function evaluateResponseQualityApi(formId, body, { signal } = {}) 
     method: 'POST',
     body,
     signal,
-    timeoutMs: 12_000,
+    timeoutMs: 20_000,
   });
 }
 
@@ -31,6 +31,6 @@ export async function improveResponseQualityInstructionsApi(
     method: 'POST',
     body,
     signal,
-    timeoutMs: 15_000,
+    timeoutMs: 30_000,
   });
 }

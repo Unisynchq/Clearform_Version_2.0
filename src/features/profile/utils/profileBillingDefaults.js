@@ -30,10 +30,10 @@ export function getUsageHint(metric, used, limit, status) {
     if (used >= limit) return 'Upgrade to add members';
     return `${limit - used} seat available`;
   }
-  if (metric === 'ai_tokens') {
-    if (status === 'at-limit') return 'AI token limit reached — upgrade';
-    if (status === 'near-limit') return 'Near AI token limit — upgrade';
-    return `${Math.max(0, limit - used).toLocaleString()} AI tokens remaining`;
+  if (metric === 'ai_credits') {
+    if (status === 'at-limit') return 'AI credit limit reached — upgrade';
+    if (status === 'near-limit') return 'Near AI credit limit — upgrade';
+    return `${Math.max(0, limit - used).toLocaleString('en-US')} AI credits remaining`;
   }
   return '';
 }
