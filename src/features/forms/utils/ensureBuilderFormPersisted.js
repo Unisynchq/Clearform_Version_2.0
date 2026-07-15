@@ -61,6 +61,7 @@ export async function createFormAndSaveSnapshot({
   if (snapshot) {
     await saveBuilderSnapshot(formId, {
       ...snapshot,
+      version: snapshot.version ?? 1,
       formId,
       templateId: templateId ?? snapshot.templateId,
     });
