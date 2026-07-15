@@ -9,8 +9,8 @@ vi.mock('@/config/env', () => ({
   isFirebaseConfigured: () => false,
 }));
 
-vi.mock('@/api/services/formsService', () => ({
-  createForm: vi.fn(),
+vi.mock('@/store/slices/formsSlice', () => ({
+  addForm: (payload) => ({ type: 'forms/addForm', payload }),
 }));
 
 vi.mock('@/features/templates/utils/buildFormFromTemplate', () => ({
@@ -63,6 +63,7 @@ describe('createFormFromTemplateAndOpenBuilder', () => {
           templateId: 'tpl-1',
           title: 'Template Default Title',
           builderSnapshot: expect.objectContaining({
+            version: 1,
             formId: 'meta-template-id',
             formTitle: 'Template Default Title',
             templateId: 'tpl-1',

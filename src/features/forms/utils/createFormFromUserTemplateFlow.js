@@ -53,6 +53,8 @@ export async function createFormFromUserTemplateAndOpenBuilder({
 
   const builderSnapshot = {
     ...saved.snapshot,
+    // Draft saves require version — older saved templates may omit it.
+    version: saved.snapshot.version ?? 1,
     formId,
     formTitle: title,
     templateId: template.id,

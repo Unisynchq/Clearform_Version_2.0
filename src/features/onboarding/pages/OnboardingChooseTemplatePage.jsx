@@ -75,6 +75,7 @@ const OnboardingChooseTemplatePage = () => {
 
     const builderSnapshot = built
       ? {
+          version: 1,
           screens: built.screens,
           formId,
           formTitle: built.formTitle ?? template.title,
