@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { describe, expect, it, vi, beforeAll } from 'vitest';
+import { describe, expect, it, vi, beforeAll, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import {
   AI_GUIDANCE_MAX_LENGTH,
@@ -10,6 +10,11 @@ import {
   normalizeResponseQualityOptions,
 } from './ResponseQualityScoringCard';
 
+const { showToastSpy, improveApiMock } = vi.hoisted(() => ({
+  showToastSpy: vi.fn(),
+  improveApiMock: vi.fn(),
+}));
+
 vi.mock('@/features/billing/utils/useBillingStatus', () => ({
   useBillingStatus: () => ({
     entitlements: null,
@@ -19,9 +24,18 @@ vi.mock('@/features/billing/utils/useBillingStatus', () => ({
 
 vi.mock('@/hooks/useToast', () => ({
   useToast: () => ({
-    showToast: vi.fn(),
+    showToast: showToastSpy,
   }),
 }));
+
+vi.mock('@/api/services/responseQualityService', () => ({
+  improveResponseQualityInstructionsApi: (...args) => improveApiMock(...args),
+}));
+
+vi.mock('@/config/env', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, isApiConfigured: () => true };
+});
 
 function criterionEntries(options) {
   return Object.entries(options).filter(([key]) => key !== 'customInstructions');
@@ -31,6 +45,8 @@ function CardHarness({
   initialEnabled = true,
   initialOptions = DEFAULT_RESPONSE_QUALITY_OPTIONS,
   onSave = vi.fn(),
+  formId = null,
+  screenId = null,
 }) {
   const [enabled, setEnabled] = useState(initialEnabled);
   const [options, setOptions] = useState(initialOptions);
@@ -44,11 +60,18 @@ function CardHarness({
     onSave,
     questionText: 'How was your experience?',
     helperText: '',
+    formId,
+    screenId,
   });
 }
 
 beforeAll(() => {
   window.scrollTo = vi.fn();
+});
+
+beforeEach(() => {
+  showToastSpy.mockClear();
+  improveApiMock.mockReset();
 });
 
 describe('DEFAULT_RESPONSE_QUALITY_OPTIONS', () => {
@@ -138,8 +161,13 @@ describe('ResponseQualityScoringCard', () => {
 
   it('keeps criteria inside advanced options and runs improve then save flow', async () => {
     const onSave = vi.fn();
+    improveApiMock.mockResolvedValue({
+      customInstructions:
+        'For "How was your experience?": require the exact step where they got stuck and the outcome.',
+      meta: { source: 'llm' },
+    });
 
-    render(React.createElement(CardHarness, { onSave }));
+    render(React.createElement(CardHarness, { onSave, formId: 'form-1', screenId: 3 }));
 
     expect(screen.queryByText('Length')).not.toBeInTheDocument();
 
@@ -179,5 +207,102 @@ describe('ResponseQualityScoringCard', () => {
     const disabledDetails = screen.getByText('Detect trailing sentences').closest('fieldset');
     expect(disabledDetails).toHaveAttribute('disabled');
     expect(disabledDetails).toHaveClass('opacity-45');
+  });
+
+  it('shows the softer toast when improve returned the contextual fallback', async () => {
+    improveApiMock.mockResolvedValue({
+      customInstructions:
+        'For "How was your experience?": require the exact step where they got stuck and the outcome.',
+      meta: { source: 'contextual_fallback' },
+    });
+
+    render(React.createElement(CardHarness, { formId: 'form-1', screenId: 3 }));
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'Focus on specificity and relevance.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Improve with AI' }));
+
+    await waitFor(
+      () =>
+        expect(showToastSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            type: 'info',
+            message: expect.stringMatching(/AI polish was unavailable/i),
+          }),
+        ),
+      { timeout: 2000 },
+    );
+  }, 10000);
+
+  it('silently upgrades the local seed with the LLM version on toggle-on', async () => {
+    improveApiMock.mockResolvedValue({
+      customInstructions:
+        'Require the exact onboarding step and what they expected instead.',
+      meta: { source: 'llm' },
+    });
+
+    render(
+      React.createElement(CardHarness, {
+        initialEnabled: false,
+        formId: 'form-1',
+        screenId: 3,
+      }),
+    );
+
+    fireEvent.click(
+      screen.getByRole('switch', { name: 'Enable response quality scoring' }),
+    );
+
+    expect(
+      await screen.findByText(/Require the exact onboarding step/),
+    ).toBeInTheDocument();
+    expect(improveApiMock).toHaveBeenCalledWith(
+      'form-1',
+      expect.objectContaining({ draftInstructions: '', screenId: '3' }),
+    );
+  });
+
+  it('keeps the owner text when they edit before the seed upgrade arrives', async () => {
+    let resolveImprove;
+    improveApiMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveImprove = resolve;
+      }),
+    );
+
+    render(
+      React.createElement(CardHarness, {
+        initialEnabled: false,
+        formId: 'form-1',
+        screenId: 3,
+      }),
+    );
+
+    fireEvent.click(
+      screen.getByRole('switch', { name: 'Enable response quality scoring' }),
+    );
+    await waitFor(() => expect(improveApiMock).toHaveBeenCalledTimes(1));
+
+    // The seeded preference lands in the saved view — edit it before the upgrade arrives.
+    await screen.findByText('Preference Saved!');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    fireEvent.change(await screen.findByRole('textbox'), {
+      target: { value: 'Only accept answers naming the payment gateway.' },
+    });
+
+    resolveImprove({
+      customInstructions:
+        'Require the exact onboarding step and what they expected instead.',
+      meta: { source: 'llm' },
+    });
+    await Promise.resolve();
+
+    expect(
+      screen.getByDisplayValue('Only accept answers naming the payment gateway.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Require the exact onboarding step/),
+    ).not.toBeInTheDocument();
   });
 });
