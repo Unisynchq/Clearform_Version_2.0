@@ -105,6 +105,33 @@ function toSubmissionBody(response, snapsByScreenId) {
 }
 
 /**
+ * sendBeacon must fire synchronously at unload, so it can't await the
+ * blob->hosted-URL upload persistBlobUploadFiles does. A blob: URL is only
+ * valid in the tab that created it, so leaving one in a saved answer would
+ * be a permanently broken reference — drop those files instead of saving
+ * an unusable link.
+ */
+function dropUnresolvedBlobUploads(snapsByScreenId) {
+  if (!snapsByScreenId) return snapsByScreenId ?? {};
+  const out = {};
+  for (const [screenId, snap] of Object.entries(snapsByScreenId)) {
+    const files = snap?.uploadedFiles;
+    if (!Array.isArray(files) || files.length === 0) {
+      out[screenId] = snap;
+      continue;
+    }
+    const resolvedFiles = files.filter((f) => {
+      const url = f?.url ?? f?.downloadUrl;
+      return typeof url !== 'string' || !url.startsWith('blob:');
+    });
+    out[screenId] = resolvedFiles.length === files.length
+      ? snap
+      : { ...snap, uploadedFiles: resolvedFiles };
+  }
+  return out;
+}
+
+/**
  * Fires a fire-and-forget beacon when the user leaves mid-form.
  * Uses sendBeacon so the request survives page unload.
  */
@@ -118,7 +145,7 @@ export function sendAbandonBeacon(formId, snapsByScreenId, abandonedAtScreenId, 
     submittedAt: new Date(now).toISOString(),
     completed: false,
     abandonedAtScreenId: abandonedAtScreenId ?? null,
-    answersByScreenId: snapsByScreenId ?? {},
+    answersByScreenId: dropUnresolvedBlobUploads(snapsByScreenId),
     metadata: {
       userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
       referrer: typeof document !== 'undefined' ? document.referrer || undefined : undefined,

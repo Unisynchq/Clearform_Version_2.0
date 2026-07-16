@@ -1357,6 +1357,11 @@ const FormBuilderPage = () => {
   const [builderHydrated, setBuilderHydrated] = useState(false);
   const [builderSaveStatus, setBuilderSaveStatus] = useState('idle');
   const lastPersistedSnapshotRef = useRef(null);
+  // Compare-and-swap token for the builder-snapshot autosave: echoed back on
+  // every PUT so the server can reject a write if a newer one already
+  // landed, instead of two overlapping autosaves resolving out of order and
+  // silently reverting content.
+  const builderSnapshotVersionRef = useRef(null);
   const ensureFormPersistedRef = useRef(async () => null);
   const formTouchedRef = useRef(false);
   const markFormTouched = () => {
@@ -3776,6 +3781,9 @@ const FormBuilderPage = () => {
       try {
         const res = await getBuilderSnapshot(activeFormId);
         const apiSnap = res?.snapshot ?? res;
+        if (typeof res?.version === 'number') {
+          builderSnapshotVersionRef.current = res.version;
+        }
         if (cancelled || !isUsableBuilderSnapshot(apiSnap)) return;
         dispatch(updateForm({ id: activeFormId, changes: { builderSnapshot: apiSnap } }));
       } catch {
@@ -4190,8 +4198,27 @@ const FormBuilderPage = () => {
         return;
       }
       if (isApiConfigured()) setBuilderSaveStatus('saving');
-      saveBuilderSnapshot(activeFormId, snapshot)
-        .then(() => {
+      const outgoingVersion = builderSnapshotVersionRef.current;
+      saveBuilderSnapshot(
+        activeFormId,
+        typeof outgoingVersion === 'number'
+          ? { ...snapshot, version: outgoingVersion }
+          : snapshot
+      )
+        .then((res) => {
+          if (res?.conflict) {
+            // A newer autosave already landed server-side — resync our
+            // version token instead of clobbering it, and retry on the
+            // next debounce tick rather than silently dropping this edit.
+            if (typeof res.version === 'number') {
+              builderSnapshotVersionRef.current = res.version;
+            }
+            setBuilderSaveStatus('error');
+            return;
+          }
+          if (typeof res?.version === 'number') {
+            builderSnapshotVersionRef.current = res.version;
+          }
           lastPersistedSnapshotRef.current = snapshotKey;
           builderBaselineRef.current = serializeBuilderState();
           formTouchedRef.current = false;
@@ -5413,6 +5440,12 @@ const FormBuilderPage = () => {
       }
       await saveBuilderSnapshot(formId, publishSnapshot);
       const published = await publishFormToApi(formId, publishSnapshot);
+      // Publish always rewrites builderSnapshot too (bumping its version on
+      // the server) — resync our compare-and-swap token so the next autosave
+      // doesn't get rejected as a stale write against its own publish.
+      if (typeof published?.builderSnapshotVersion === 'number') {
+        builderSnapshotVersionRef.current = published.builderSnapshotVersion;
+      }
       setPublishedPublicUrl(published?.publicUrl ?? null);
       dispatch(
         updateForm({

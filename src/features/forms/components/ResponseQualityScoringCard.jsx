@@ -820,13 +820,21 @@ export default function ResponseQualityScoringCard({
     } catch (err) {
       if (improveRunRef.current !== runId) return;
       setImproveState('idle');
+      // apiClient's fetch() call isn't wrapped in try/catch, so a request a
+      // browser extension blocks at the network layer (net::ERR_BLOCKED_BY_CLIENT)
+      // rejects as a raw TypeError with no `.status`/`.body` — unlike a real
+      // API error, which is always a shaped ApiError. Surface that
+      // distinctly instead of the generic "service unavailable" message.
+      const isNetworkBlocked = err?.status === undefined && err?.body === undefined;
       const body = err?.body ?? {};
       showToast({
         type: 'error',
-        message:
-          body.message ??
-          err?.message ??
-          'AI could not improve these instructions. The service may be temporarily unavailable.',
+        message: isNetworkBlocked
+          ? 'This request was blocked, likely by an ad-blocker or privacy extension. Try disabling it for this site and retry.'
+          : body.message ??
+            err?.message ??
+            'AI could not improve these instructions. The service may be temporarily unavailable.',
+        duration: isNetworkBlocked ? 6000 : undefined,
       });
     } finally {
       window.clearTimeout(timeoutId);

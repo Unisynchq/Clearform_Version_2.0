@@ -141,6 +141,11 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
   const [colorId, setColorId] = useState(FORM_COLOR_OPTIONS[0].id);
   const [workspaceId, setWorkspaceId] = useState(defaultWorkspaceId);
   const [creating, setCreating] = useState(false);
+  // React state updates from an async handler aren't guaranteed to commit
+  // before a second click event fires (double-click, or Enter+click racing),
+  // so `creating` state alone can't reliably block a second createForm()
+  // call. A ref updates synchronously and closes that window.
+  const creatingRef = useRef(false);
 
   const resetFormFields = () => {
     setName('');
@@ -154,7 +159,8 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
   };
 
   const handleCreate = async () => {
-    if (creating) return;
+    if (creatingRef.current) return;
+    creatingRef.current = true;
     const title = name.trim() || 'Untitled';
     const theme = getFormColorTheme(colorId);
     const effectiveWorkspaceId = workspaceId !== NO_WORKSPACE_ID ? workspaceId : undefined;
@@ -181,6 +187,7 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
         } else {
           showToast({ type: 'error', message: 'Could not create form. Please try again.' });
         }
+        creatingRef.current = false;
         setCreating(false);
         return;
       }
@@ -208,6 +215,7 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
       formColor: theme.value,
     });
     resetFormFields();
+    creatingRef.current = false;
     setCreating(false);
     onClose();
   };

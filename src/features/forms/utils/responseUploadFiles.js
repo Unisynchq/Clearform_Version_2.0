@@ -191,41 +191,31 @@ export function uploadAnswerExportText(payload) {
     .join('; ');
 }
 
-/** @param {NormalizedResponseFile} file */
-export async function downloadResponseFile(file) {
+/**
+ * Triggers a browser download for a response file. Deliberately synchronous
+ * (no fetch/await before the click) — cross-origin fetch against the storage
+ * bucket has no CORS config, so an async fetch+blob attempt reliably fails,
+ * and a fallback `window.open` after an await falls outside the browser's
+ * user-gesture window and gets silently blocked. A direct anchor click stays
+ * inside the gesture window and needs no CORS: same-origin/data/blob URLs
+ * honor `download`, and cross-origin GCS URLs still open/save via the
+ * browser's native handling.
+ * @param {NormalizedResponseFile} file
+ */
+export function downloadResponseFile(file) {
   const url = file?.downloadUrl ?? file?.url;
   if (!url) return false;
   const filename = file.name || 'download';
 
-  try {
-    if (url.startsWith('data:') || url.startsWith('blob:')) {
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.rel = 'noopener';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      return true;
-    }
-
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`Download failed (${resp.status})`);
-    const blob = await resp.blob();
-    const blobUrl = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = blobUrl;
-    a.download = filename;
-    a.rel = 'noopener';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(blobUrl);
-    return true;
-  } catch {
-    window.open(url, '_blank', 'noopener,noreferrer');
-    return true;
-  }
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.rel = 'noopener';
+  a.target = '_blank';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  return true;
 }
 
 /** Table cell descriptor for upload answers. */
