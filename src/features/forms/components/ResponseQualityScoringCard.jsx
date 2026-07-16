@@ -645,6 +645,8 @@ export default function ResponseQualityScoringCard({
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const syncingPreferenceRef = useRef(false);
   const improveRunRef = useRef(0);
+  // In-flight silent seed upgrade (toggle-ON); nulled when the owner intervenes.
+  const seedUpgradeRef = useRef(null);
   const activeCount = criterionEntries(options).filter(([, criterion]) => criterion.enabled).length;
   const showExperienceHint = isExperienceFeedbackQuestion(questionText);
   const brevityHelper = /\b(as much or as little|as little as)\b/i.test(helperText ?? '');
@@ -716,20 +718,62 @@ export default function ResponseQualityScoringCard({
   const handleEnabledChange = useCallback(
     (next) => {
       onEnabledChange(next);
-      if (next) {
-        onOptionsChange((prev) => {
-          const normalized = normalizeResponseQualityOptions(prev);
-          if (!normalized.customInstructions?.trim()) {
-            const seeded = buildDefaultOwnerPromptForQuestion(questionText, helperText);
-            setDraftInstructions(seeded);
-            setIsEditingPreference(true);
-            return { ...normalized, customInstructions: seeded };
-          }
-          return normalized;
-        });
+      if (!next) {
+        seedUpgradeRef.current = null;
+        return;
       }
+      const hadSavedInstructions = Boolean((options.customInstructions ?? '').trim());
+      onOptionsChange((prev) => {
+        const normalized = normalizeResponseQualityOptions(prev);
+        if (!normalized.customInstructions?.trim()) {
+          const seeded = buildDefaultOwnerPromptForQuestion(questionText, helperText);
+          setDraftInstructions(seeded);
+          setIsEditingPreference(true);
+          return { ...normalized, customInstructions: seeded };
+        }
+        return normalized;
+      });
+      if (hadSavedInstructions || !isApiConfigured() || formId == null || aiTrialExhausted) {
+        return;
+      }
+
+      // Silently upgrade the local template seed to the doctrine-grounded LLM
+      // version — dropped if the owner touches the draft before it arrives.
+      const upgrade = {};
+      seedUpgradeRef.current = upgrade;
+      improveResponseQualityInstructionsApi(formId, {
+        screenId: screenId != null ? String(screenId) : undefined,
+        fieldId,
+        questionText,
+        helperText,
+        draftInstructions: '',
+      })
+        .then((apiResult) => {
+          if (seedUpgradeRef.current !== upgrade) return;
+          seedUpgradeRef.current = null;
+          const upgraded = apiResult?.customInstructions?.trim();
+          if (!upgraded || apiResult?.meta?.source !== 'llm') return;
+          setDraftInstructions(upgraded);
+          onOptionsChange((prev) => ({ ...prev, customInstructions: upgraded }));
+          setImproveState('improved');
+        })
+        .catch(() => {
+          if (seedUpgradeRef.current === upgrade) {
+            seedUpgradeRef.current = null;
+          }
+        });
     },
-    [onEnabledChange, onOptionsChange, questionText, helperText],
+    [
+      onEnabledChange,
+      onOptionsChange,
+      questionText,
+      helperText,
+      options.customInstructions,
+      formId,
+      fieldId,
+      screenId,
+      aiTrialExhausted,
+    ],
   );
 
   const savePreference = useCallback(
@@ -764,6 +808,7 @@ export default function ResponseQualityScoringCard({
       return;
     }
 
+    seedUpgradeRef.current = null;
     const runId = improveRunRef.current + 1;
     improveRunRef.current = runId;
     setImproveState('improving');
@@ -792,7 +837,15 @@ export default function ResponseQualityScoringCard({
       }
       setDraftInstructions(nextText);
       setImproveState('improved');
-      showToast({ type: 'success', message: 'Instructions improved with AI.' });
+      showToast(
+        source === 'contextual_fallback'
+          ? {
+              type: 'info',
+              message:
+                'Applied a question-based suggestion — AI polish was unavailable, try again for a tailored version.',
+            }
+          : { type: 'success', message: 'Instructions improved with AI.' },
+      );
       return true;
     };
 
@@ -816,7 +869,7 @@ export default function ResponseQualityScoringCard({
       });
       const improved = apiResult?.customInstructions?.trim() ?? null;
       await animation;
-      if (!applyImproved(improved, { source: 'llm' })) return;
+      if (!applyImproved(improved, { source: apiResult?.meta?.source ?? 'llm' })) return;
     } catch (err) {
       if (improveRunRef.current !== runId) return;
       setImproveState('idle');
@@ -846,6 +899,7 @@ export default function ResponseQualityScoringCard({
 
   const handleSaveClick = useCallback(async () => {
     if (saveState === 'saving' || improveState === 'improving' || !draftInstructions.trim()) return;
+    seedUpgradeRef.current = null;
 
     const trimmed = await savePreference(draftInstructions);
     if (!trimmed) {
@@ -860,6 +914,7 @@ export default function ResponseQualityScoringCard({
   }, [draftInstructions, improveState, savePreference, saveState]);
 
   const handleCancelClick = useCallback(() => {
+    seedUpgradeRef.current = null;
     improveRunRef.current += 1;
     const savedInstructions = options.customInstructions ?? '';
     setDraftInstructions(savedInstructions);
@@ -870,6 +925,7 @@ export default function ResponseQualityScoringCard({
 
   const handleDraftChange = useCallback(
     (nextValue) => {
+      seedUpgradeRef.current = null;
       setDraftInstructions(nextValue.slice(0, AI_GUIDANCE_MAX_LENGTH));
       if (improveState === 'improved') {
         setImproveState('idle');
