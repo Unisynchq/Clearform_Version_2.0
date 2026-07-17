@@ -6,9 +6,17 @@ import { trackPilotActivated, trackPromoRedeemed } from '@/analytics/track';
 
 /**
  * Invite-only promo code redemption — pastes a shared code to unlock a
- * 7-day Pilot trial. Hidden behind a link so it doesn't compete with the
- * primary paid upgrade CTA; only ever shown to free-tier users.
+ * Pilot trial (duration comes from the code). Hidden behind a link so it
+ * doesn't compete with the primary paid upgrade CTA; only ever shown to
+ * free-tier users.
  */
+const trialDaysFrom = (status) => {
+  if (Number.isFinite(status?.trialDays)) return status.trialDays;
+  const expiresAt = status?.expiresAt ? new Date(status.expiresAt).getTime() : NaN;
+  if (!Number.isFinite(expiresAt)) return null;
+  const days = Math.round((expiresAt - Date.now()) / (24 * 60 * 60 * 1000));
+  return days > 0 ? days : null;
+};
 const PromoCodeRedeemBox = ({ onRedeemed }) => {
   const { showToast } = useToast();
   const [expanded, setExpanded] = useState(false);
@@ -22,12 +30,15 @@ const PromoCodeRedeemBox = ({ onRedeemed }) => {
     setSubmitting(true);
     setError(null);
     try {
-      await redeemPromoCode(code);
+      const status = await redeemPromoCode(code);
       trackPromoRedeemed();
       trackPilotActivated({ source: 'promo' });
+      const days = trialDaysFrom(status);
       showToast({
         type: 'success',
-        message: 'Pilot trial activated — enjoy 7 days of full access.',
+        message: days
+          ? `Pilot trial activated — enjoy ${days} days of full access.`
+          : 'Pilot trial activated — full access unlocked.',
         duration: 5000,
       });
       setCode('');
@@ -60,7 +71,7 @@ const PromoCodeRedeemBox = ({ onRedeemed }) => {
       className="flex flex-col gap-2 rounded-[10px] border border-[#e8e8e6] bg-[#f7f7f6] p-3.5"
     >
       <p className="text-[11px] font-medium text-[#555350]">
-        Paste your invite code to unlock a 7-day Pilot trial
+        Paste your invite code to unlock your Pilot trial
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <input

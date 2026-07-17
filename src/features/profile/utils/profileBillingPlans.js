@@ -58,7 +58,7 @@ export function getActivePlanDisplay(planId, interval = 'monthly', { expiresAt, 
   if (planId === PILOT_35_PLAN_ID) {
     const meta = PLAN_STRIP.pilot_35;
     const expiryLabel = expiresAt ? formatExpiryDate(expiresAt) : null;
-    const fallbackLabel = isTrial ? '7-day pilot trial' : '90-day pilot access';
+    const fallbackLabel = isTrial ? 'Pilot trial' : '90-day pilot access';
     const renewLabel = expiryLabel
       ? isTrial
         ? `Trial ends ${expiryLabel}`
