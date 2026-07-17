@@ -19,10 +19,18 @@ export async function uploadResponseFile(formId, file) {
   });
 }
 
-/** Replace blob: URLs in upload snaps with hosted file metadata before submit. */
+/**
+ * Replace blob: URLs in upload snaps with hosted file metadata before submit.
+ * A failed upload must never sink the whole submission — the failed entry is
+ * left as a blob: URL for dropUnresolvedBlobUploads to strip, so the response
+ * (all typed answers) still reaches the backend minus that attachment.
+ */
 async function persistBlobUploadFiles(formId, snapsByScreenId) {
-  if (!snapsByScreenId || !isApiConfigured()) return snapsByScreenId ?? {};
+  if (!snapsByScreenId || !isApiConfigured()) {
+    return { snaps: snapsByScreenId ?? {}, uploadErrors: false };
+  }
 
+  let uploadErrors = false;
   const out = { ...snapsByScreenId };
   for (const [screenId, snap] of Object.entries(snapsByScreenId)) {
     const files = snap?.uploadedFiles;
@@ -35,23 +43,29 @@ async function persistBlobUploadFiles(formId, snapsByScreenId) {
         if (typeof url !== 'string' || !url.startsWith('blob:')) return f;
 
         changed = true;
-        const resp = await fetch(url);
-        const blob = await resp.blob();
-        const upload = new File([blob], f.name || 'upload', {
-          type: f.type || blob.type || 'application/octet-stream',
-        });
-        const meta = await uploadResponseFile(formId, upload);
-        return {
-          ...f,
-          id: f.id ?? meta.storagePath,
-          name: meta.name ?? f.name,
-          url: meta.url,
-          downloadUrl: meta.url,
-          size: meta.size ?? f.size,
-          type: meta.type ?? f.type,
-          storagePath: meta.storagePath,
-          uploadedAt: f.uploadedAt ?? new Date().toISOString(),
-        };
+        try {
+          const resp = await fetch(url);
+          const blob = await resp.blob();
+          const upload = new File([blob], f.name || 'upload', {
+            type: f.type || blob.type || 'application/octet-stream',
+          });
+          const meta = await uploadResponseFile(formId, upload);
+          return {
+            ...f,
+            id: f.id ?? meta.storagePath,
+            name: meta.name ?? f.name,
+            url: meta.url,
+            downloadUrl: meta.url,
+            size: meta.size ?? f.size,
+            type: meta.type ?? f.type,
+            storagePath: meta.storagePath,
+            uploadedAt: f.uploadedAt ?? new Date().toISOString(),
+          };
+        } catch (err) {
+          uploadErrors = true;
+          console.warn('[responses] file upload failed; submitting without it', err);
+          return f;
+        }
       }),
     );
 
@@ -59,11 +73,11 @@ async function persistBlobUploadFiles(formId, snapsByScreenId) {
       out[screenId] = { ...snap, uploadedFiles };
     }
   }
-  return out;
+  return { snaps: uploadErrors ? dropUnresolvedBlobUploads(out) : out, uploadErrors };
 }
 
 /** Handoff B.2 — prefer answersByScreenId when snaps are available */
-function toSubmissionBody(response, snapsByScreenId) {
+function toSubmissionBody(response, snapsByScreenId, uploadErrors = false) {
   const submittedAt = response?.submittedAt ?? new Date().toISOString();
   if (snapsByScreenId && Object.keys(snapsByScreenId).length > 0) {
     const answersByScreenId = {};
@@ -82,6 +96,9 @@ function toSubmissionBody(response, snapsByScreenId) {
     }
     if (response?.screenTimestamps && typeof response.screenTimestamps === 'object') {
       metadata.screenTimestamps = response.screenTimestamps;
+    }
+    if (uploadErrors) {
+      metadata.uploadErrors = true;
     }
     return {
       submittedAt,
@@ -158,10 +175,13 @@ export function sendAbandonBeacon(formId, snapsByScreenId, abandonedAtScreenId, 
 
 export async function submitFormResponse(formId, response, snapsByScreenId) {
   if (isApiConfigured()) {
-    const persistedSnaps = await persistBlobUploadFiles(formId, snapsByScreenId);
+    const { snaps: persistedSnaps, uploadErrors } = await persistBlobUploadFiles(
+      formId,
+      snapsByScreenId,
+    );
     const result = await apiClient(API_ENDPOINTS.responses.create(formId), {
       method: 'POST',
-      body: toSubmissionBody(response, persistedSnaps),
+      body: toSubmissionBody(response, persistedSnaps, uploadErrors),
     });
     store.dispatch(addFormResponse({ ...response, formId }));
     store.dispatch(loadFormsFromApi());

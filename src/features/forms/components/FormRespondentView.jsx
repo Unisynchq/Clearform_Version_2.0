@@ -7,6 +7,7 @@ import ContentCard, {
   PreviewCardStepNav,
 } from '@/features/forms/formBuilder/BuilderContentCard';
 import { createFormLogicRunner } from '@/features/forms/utils/formLogicRunner';
+import { trackEvent } from '@/analytics/track';
 import {
   buildLogicAnswersFromScreen,
   getSafeVisibilityAutoSkipTarget,
@@ -202,7 +203,11 @@ export default function FormRespondentView({ draft, formId }) {
         durationMs,
         screenTimestamps: { ...screenEnteredAtRef.current },
       });
-      submitFormResponse(formId, response, mergedSnaps).catch(() => {});
+      submitFormResponse(formId, response, mergedSnaps).catch((err) => {
+        // Non-blocking: the respondent has already advanced to the end screen.
+        console.warn('[responses] submit failed', err);
+        trackEvent('response_submit_failed', { formId });
+      });
       if (advanceId == null) return;
     }
 
