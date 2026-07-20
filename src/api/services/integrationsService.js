@@ -8,12 +8,14 @@ export const INTEGRATION_PROVIDER_SLUGS = {
   googleSheets: 'google_sheets',
   googleDrive: 'google_drive',
   slack: 'slack',
+  notion: 'notion',
 };
 
 const PROVIDER_TO_KEY = {
   google_sheets: 'googleSheets',
   google_drive: 'googleDrive',
   slack: 'slack',
+  notion: 'notion',
 };
 
 function mapIntegrationError(error) {
@@ -213,6 +215,25 @@ export async function createFormSheet(formId) {
     return await apiClient(API_ENDPOINTS.integrations.createFormSheet(formId), {
       method: 'POST',
     });
+  } catch (error) {
+    throw mapIntegrationError(error);
+  }
+}
+
+/**
+ * Creates a dedicated Notion database for a form under the given parent page
+ * and returns { databaseId, databaseUrl }. The backend stores the databaseId
+ * into formNotionDatabaseIds[formId] on the workspace's Notion connection.
+ */
+export async function createFormNotionDatabase(formId, parentPageId) {
+  if (!isApiConfigured() || !formId || !parentPageId) {
+    throw new Error('createFormNotionDatabase requires formId and parentPageId');
+  }
+  try {
+    return await apiClient(
+      API_ENDPOINTS.integrations.createFormNotionDatabase(formId),
+      { method: 'POST', body: { parentPageId } },
+    );
   } catch (error) {
     throw mapIntegrationError(error);
   }

@@ -20,7 +20,6 @@ const RANGE_OPTIONS = [
   { value: 'Last 7 days', label: 'Last 7 days' },
   { value: 'Last 30 days', label: 'Last 30 days' },
   { value: 'Last 90 days', label: 'Last 90 days' },
-  { value: 'This quarter', label: 'This quarter' },
 ];
 
 const RANGE_PARAM_MAP = {
@@ -28,7 +27,6 @@ const RANGE_PARAM_MAP = {
   'Last 7 days': '7d',
   'Last 30 days': '30d',
   'Last 90 days': '90d',
-  'This quarter': '90d',
 };
 
 const AnalyticsExportModal = ({

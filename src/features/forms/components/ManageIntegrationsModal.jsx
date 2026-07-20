@@ -9,6 +9,7 @@ import slackIcon from '@/assets/Icons/slack.svg';
 import { isApiConfigured } from '@/config/env';
 import {
   connectIntegration,
+  createFormNotionDatabase,
   disconnectIntegration,
   loadIntegrationUiState,
   redirectToOAuth,
@@ -102,7 +103,7 @@ function IntegrationCard({ card, connected, onToggle, busy }) {
       ) : (
         <button
           type="button"
-          disabled={busy || card.key === 'notion'}
+          disabled={busy}
           onClick={() => onToggle(true)}
           className="h-7 shrink-0 rounded-[6px] border border-[#e5e4e0] bg-white px-[13px] text-[11.5px] font-medium text-[#0a0a0a] transition-colors hover:bg-[#f7f7f6] disabled:opacity-50"
         >
@@ -121,6 +122,8 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
   const [connectingKey, setConnectingKey] = useState(null);
   const [spreadsheetId, setSpreadsheetId] = useState('');
   const [slackChannel, setSlackChannel] = useState('');
+  const [notionParentPageId, setNotionParentPageId] = useState('');
+  const [creatingNotionDb, setCreatingNotionDb] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const useApi = isApiConfigured();
@@ -169,10 +172,6 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
 
   const handleToggle = async (key, connected) => {
     if (authSubmitting) return;
-    if (key === 'notion') {
-      showToast({ type: 'info', message: 'Notion is not available yet.', duration: 2200 });
-      return;
-    }
 
     if (!connected) {
       const connectionId = integrations[key]?.connectionId;
@@ -235,6 +234,43 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
     });
   };
 
+  const notionDatabaseLinked = Boolean(
+    (formId && integrations.notion?.metadata?.formNotionDatabaseIds?.[formId]) ??
+      integrations.notion?.metadata?.notionDatabaseId,
+  );
+
+  const handleCreateNotionDatabase = async () => {
+    const pageId = notionParentPageId.trim();
+    if (!pageId) {
+      showToast({
+        type: 'error',
+        message: 'Paste the Notion page ID the database should live under.',
+        duration: 2800,
+      });
+      return;
+    }
+    if (!formId) return;
+    setCreatingNotionDb(true);
+    try {
+      const { databaseUrl } = await createFormNotionDatabase(formId, pageId);
+      await refreshFromApi();
+      showToast({
+        type: 'success',
+        message: 'Notion database created — new responses will sync to it.',
+        duration: 4000,
+      });
+      if (databaseUrl) window.open(databaseUrl, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      showToast({
+        type: 'error',
+        message: err?.message ?? 'Could not create the Notion database.',
+        duration: 3200,
+      });
+    } finally {
+      setCreatingNotionDb(false);
+    }
+  };
+
   const handleDone = async () => {
     if (!useApi) {
       showToast({
@@ -289,7 +325,10 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
         </p>
       </div>
 
-      {useApi && (integrations.googleSheets?.connected || integrations.slack?.connected) ? (
+      {useApi &&
+      (integrations.googleSheets?.connected ||
+        integrations.slack?.connected ||
+        integrations.notion?.connected) ? (
         <div className="space-y-2 px-6 pt-2">
           {integrations.googleSheets?.connected ? (
             <label className="block text-[12px] text-[#6b6965]">
@@ -314,6 +353,34 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
                 className="mt-1 w-full rounded-[8px] border border-[#e5e4e0] px-3 py-2 text-[13px] text-[#0a0a0a]"
               />
             </label>
+          ) : null}
+          {integrations.notion?.connected && formId ? (
+            notionDatabaseLinked ? (
+              <p className="text-[12px] text-[#16a34a]">
+                Notion database linked — new responses sync to it automatically.
+              </p>
+            ) : (
+              <label className="block text-[12px] text-[#6b6965]">
+                Notion parent page ID
+                <div className="mt-1 flex gap-2">
+                  <input
+                    type="text"
+                    value={notionParentPageId}
+                    onChange={(e) => setNotionParentPageId(e.target.value)}
+                    placeholder="Page ID from the Notion page URL"
+                    className="min-w-0 flex-1 rounded-[8px] border border-[#e5e4e0] px-3 py-2 text-[13px] text-[#0a0a0a]"
+                  />
+                  <button
+                    type="button"
+                    disabled={creatingNotionDb || !notionParentPageId.trim()}
+                    onClick={handleCreateNotionDatabase}
+                    className="h-[38px] shrink-0 rounded-[8px] border border-[#e5e4e0] bg-white px-3 text-[12px] font-medium text-[#0a0a0a] transition-colors hover:bg-[#f7f7f6] disabled:opacity-50"
+                  >
+                    {creatingNotionDb ? 'Creating…' : 'Create database'}
+                  </button>
+                </div>
+              </label>
+            )
           ) : null}
         </div>
       ) : null}
