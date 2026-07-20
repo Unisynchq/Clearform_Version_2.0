@@ -74,6 +74,8 @@ export const API_ENDPOINTS = {
       `/workspaces/${workspaceId}/integrations/${integrationId}/test-sheet`,
     createFormSheet: (formId) =>
       `/forms/${formId}/integrations/google-sheets/create-sheet`,
+    createFormNotionDatabase: (formId) =>
+      `/forms/${formId}/integrations/notion/create-database`,
   },
   webhooks: {
     list: (formId) => `/forms/${formId}/webhooks`,

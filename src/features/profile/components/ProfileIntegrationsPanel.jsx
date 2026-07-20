@@ -36,6 +36,12 @@ const AssetIcon = ({ src, className = 'size-4' }) => (
   <img src={src} alt="" className={`object-contain ${className}`} aria-hidden />
 );
 
+const NotionMark = () => (
+  <span className="text-[13px] font-bold leading-none text-[#0a0a0a]" aria-hidden>
+    N
+  </span>
+);
+
 const ProfileIntegrationsPanel = () => {
   const dispatch = useDispatch();
   const { showToast } = useToast();
@@ -267,6 +273,17 @@ const ProfileIntegrationsPanel = () => {
           onConnect={() => handleConnectProvider('googleDrive', 'Google Drive')}
           onConfigure={() => handleConfigure('Google Drive')}
           onDisconnect={() => handleDisconnect('googleDrive', 'Google Drive')}
+        />
+
+        <IntegrationAppRow
+          icon={<NotionMark />}
+          iconClassName="border-[rgba(81,76,84,0.15)] bg-[#f7f7f8]"
+          title="Notion"
+          description="Sync responses into a Notion database per form"
+          connected={integrations.notion?.connected}
+          onConnect={() => handleConnectProvider('notion', 'Notion')}
+          onConfigure={() => handleConfigure('Notion')}
+          onDisconnect={() => handleDisconnect('notion', 'Notion')}
         />
 
         {!useApi ? (
