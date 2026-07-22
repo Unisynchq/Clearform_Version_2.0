@@ -1,0 +1,106 @@
+import { useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
+import { FiTrash2, FiAlertTriangle } from 'react-icons/fi';
+import { closeDeleteModal } from '@/store/slices/uiSlice';
+import { deleteForm, loadFormsFromApi } from '@/store/slices/formsSlice';
+import { deleteFormRequest } from '@/components/analytics/analyticsFormActions';
+import { useToast } from '@/hooks/useToast';
+
+const DeleteFormModal = () => {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { showToast } = useToast();
+  const [deleting, setDeleting] = useState(false);
+  const { open, formId, formTitle, redirectAfterDelete } = useSelector((s) => s.ui.deleteModal);
+  const form = useSelector((s) => s.forms.forms.find((f) => f.id === formId));
+
+  const handleDelete = async () => {
+    if (!formId || deleting) return;
+    setDeleting(true);
+    try {
+      await deleteFormRequest({ formId });
+      dispatch(deleteForm(formId));
+      await dispatch(loadFormsFromApi());
+      dispatch(closeDeleteModal());
+      if (redirectAfterDelete) {
+        showToast({ type: 'success', message: 'Form moved to trash' });
+        navigate('/dashboard');
+      }
+    } catch (err) {
+      showToast({
+        type: 'error',
+        message: err?.message ?? 'Failed to delete form. Try again.',
+        duration: 4500,
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const responseCount = form?.responses ?? 0;
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={() => dispatch(closeDeleteModal())}
+            className="fixed inset-0 z-[300] bg-black/20"
+          />
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 8 }}
+            transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
+            className="fixed z-[301] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-[20px] shadow-[0_24px_60px_rgba(0,0,0,0.18)] w-[440px] p-6 flex flex-col gap-5"
+          >
+            {/* Icon + title */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-[10px] bg-[#fee2e2] flex items-center justify-center shrink-0">
+                <FiTrash2 size={18} color="#ef4444" strokeWidth={2} />
+              </div>
+              <p className="text-[17px] font-bold text-[#111827] leading-[24px]">
+                Delete &ldquo;{formTitle}&rdquo;?
+              </p>
+            </div>
+
+            {/* Warning notice */}
+            <div className="flex items-start gap-3 bg-[#fffbeb] border border-[#fde68a] rounded-[12px] px-4 py-3">
+              <FiAlertTriangle size={16} color="#d97706" strokeWidth={2} className="shrink-0 mt-[1px]" />
+              <p className="text-[13px] text-[#92400e] leading-[20px]">
+                Into the Trash it goes.{responseCount > 0 ? ` ${responseCount} responses` : ''} · 30 days to undo · restores as Draft
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 flex items-center justify-center gap-2 bg-[#e5483a] text-white text-[14px] font-semibold py-[11px] rounded-[10px] hover:bg-[#c93d30] transition-colors cursor-pointer disabled:opacity-60"
+              >
+                <FiTrash2 size={15} strokeWidth={2.2} />
+                Move to Trash
+              </button>
+              <button
+                onClick={() => dispatch(closeDeleteModal())}
+                className="px-5 py-[11px] text-[14px] font-medium text-[#374151] bg-white border border-[#d1d5db] rounded-[10px] hover:bg-[#f9fafb] transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+};
+
+export default DeleteFormModal;

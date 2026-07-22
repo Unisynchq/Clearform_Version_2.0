@@ -1,0 +1,95 @@
+# Deploy on the VPS via self-hosted runner (no SSH from GitHub cloud).
+# One-time setup: USE_GH_TOKEN=1 VPS_HOST=... VPS_SSH_KEY_PATH=... ./scripts/setup-github-runner-on-vps.sh
+# Manual fallback: ./scripts/deploy-vps.sh
+
+name: Deploy Backend to VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_migrate:
+        description: Run prisma migrate deploy before build
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, clearform-vps]
+    timeout-minutes: 25
+    steps:
+      - name: Deploy (pull, build, PM2)
+        env:
+          APP_DIR: /var/www/clearform-backend
+          RUN_MIGRATE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_migrate == 'true' && '1' || '0' }}
+        run: |
+          set -euo pipefail
+
+          export HOME="${HOME:-/root}"
+          export PATH="/usr/local/bin:/usr/bin:/bin:/root/.bun/bin:$PATH"
+
+          cd "$APP_DIR"
+
+          git config --global --add safe.directory "$APP_DIR" 2>/dev/null || \
+            git config --add safe.directory "$APP_DIR"
+          git checkout -- . 2>/dev/null || true
+          git fetch origin main
+          git reset --hard origin/main
+
+          bun install
+          rm -f package-lock.json
+          bunx prisma generate
+
+          if [ "$RUN_MIGRATE" = "1" ]; then
+            npx prisma migrate deploy
+          fi
+
+          bun run build
+          test -f dist/src/main.js
+
+          # Overlapping reloads (manual deploy + Actions) fail with
+          # "Reload already in progress" — retry, then force once.
+          if pm2 describe clearform-backend > /dev/null 2>&1; then
+            reload_ok=0
+            for attempt in $(seq 1 6); do
+              if pm2 reload ecosystem.config.cjs --update-env; then
+                reload_ok=1
+                break
+              fi
+              echo "PM2 reload busy (attempt ${attempt}/6); waiting 10s..."
+              sleep 10
+            done
+            if [ "$reload_ok" != "1" ]; then
+              echo "PM2 reload still busy; using --force"
+              pm2 reload ecosystem.config.cjs --update-env --force
+            fi
+          else
+            pm2 start ecosystem.config.cjs
+          fi
+
+          pm2 save
+          pm2 status clearform-backend
+
+      - name: Health check
+        run: |
+          set -euo pipefail
+          export HOME="${HOME:-/root}"
+
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/api/v1/health | head -c 500; then
+              echo ""
+              echo "Health OK (attempt ${attempt})"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Health check failed after 60s (localhost:3000)" >&2
+          pm2 logs clearform-backend --lines 40 --nostream || true
+          exit 1

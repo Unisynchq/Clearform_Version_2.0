@@ -1,0 +1,119 @@
+# Clearform LiteLLM router — Ollama (local) + OpenRouter (free + pro tiers)
+# Docs: https://docs.litellm.ai/docs/proxy/docker_quick_start
+
+model_list:
+  # ── Free tier (default for non-paying users) ──
+  # OpenRouter first for live response-quality latency (Ollama optional via legacy alias).
+  - model_name: clearform-free-fast
+    litellm_params:
+      model: openrouter/meta-llama/llama-3.2-3b-instruct:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 20
+  - model_name: clearform-free-fast
+    litellm_params:
+      model: openrouter/google/gemma-2-9b-it:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 20
+
+  - model_name: clearform-free-insights
+    litellm_params:
+      model: openrouter/qwen/qwen-2.5-7b-instruct:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 60
+  - model_name: clearform-free-insights
+    litellm_params:
+      model: openrouter/meta-llama/llama-3.2-3b-instruct:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 45
+
+  - model_name: clearform-free-logic
+    litellm_params:
+      model: openrouter/qwen/qwen-2.5-7b-instruct:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 45
+  - model_name: clearform-free-logic
+    litellm_params:
+      model: openrouter/meta-llama/llama-3.3-70b-instruct:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 90
+
+  # ── Pro tier (Pilot $35/mo — aiBundle) ──
+  - model_name: clearform-pro-fast
+    litellm_params:
+      model: openrouter/anthropic/claude-3.5-haiku
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 60
+  - model_name: clearform-pro-fast
+    litellm_params:
+      model: openrouter/google/gemini-2.0-flash-001
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 45
+
+  - model_name: clearform-pro-insights
+    litellm_params:
+      model: openrouter/anthropic/claude-3.5-sonnet
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 90
+  - model_name: clearform-pro-insights
+    litellm_params:
+      model: openrouter/openai/gpt-4o-mini
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 60
+
+  - model_name: clearform-pro-logic
+    litellm_params:
+      model: openrouter/anthropic/claude-3.5-sonnet
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 120
+  - model_name: clearform-pro-logic
+    litellm_params:
+      model: openrouter/meta-llama/llama-3.3-70b-instruct
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 90
+
+  # ── Legacy aliases (backward compatible) ──
+  - model_name: clearform-fast
+    litellm_params:
+      model: ollama/llama3.2:3b
+      api_base: os.environ/OLLAMA_API_BASE
+      timeout: 120
+  - model_name: clearform-fast
+    litellm_params:
+      model: openrouter/meta-llama/llama-3.2-3b-instruct:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 45
+
+  - model_name: clearform-insights
+    litellm_params:
+      model: openrouter/qwen/qwen-2.5-7b-instruct:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 60
+
+  - model_name: clearform-logic
+    litellm_params:
+      model: openrouter/qwen/qwen-2.5-7b-instruct:free
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 45
+
+  - model_name: clearform-embedding
+    litellm_params:
+      model: openrouter/openai/text-embedding-3-small
+      api_key: os.environ/OPENROUTER_API_KEY
+      timeout: 30
+
+router_settings:
+  routing_strategy: simple-shuffle
+  num_retries: 1
+  allowed_fails: 1
+
+litellm_settings:
+  cache: true
+  cache_params:
+    type: redis
+    host: os.environ/REDIS_HOST
+    port: os.environ/REDIS_PORT
+    password: os.environ/REDIS_PASSWORD
+    ssl: true
+
+# NestJS GroundingValidatorService validates outputs post-hoc.
+# Enable jsonMode in LlmGatewayService for quality/insights/logic tasks.

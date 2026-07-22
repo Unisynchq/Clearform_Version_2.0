@@ -1,0 +1,29 @@
+# LiteLLM Proxy — https://docs.litellm.ai/docs/proxy/docker_quick_start
+# host network: Ollama listens on 127.0.0.1:11434 (not reachable from bridge network)
+
+services:
+  litellm:
+    # SECURITY: pinned to v1.83.7-stable.patch.1 — patches CVE-2026-42271 (CVSS 8.7, RCE via MCP
+    # endpoints) + CVE-2026-48710 Starlette host-header auth bypass (chained CVSS 10.0).
+    # Tag format: v{version}-stable[.patch.N] — NOT main-v* (that format does not exist).
+    image: docker.litellm.ai/berriai/litellm:v1.83.7-stable.patch.1
+    container_name: clearform-litellm
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./litellm.config.yaml:/app/config.yaml:ro
+    command:
+      - '--config'
+      - '/app/config.yaml'
+      - '--port'
+      - '4000'
+    # Do NOT mount full ../../.env — NestJS DATABASE_URL triggers Prisma migrate and hangs startup.
+    environment:
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-}
+      OLLAMA_API_BASE: ${OLLAMA_API_BASE:-http://127.0.0.1:11434}
+      # Redis semantic cache — must match litellm.config.yaml cache_params.
+      # Set these in VPS .env alongside REDIS_URL.
+      REDIS_HOST: ${REDIS_HOST:-}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}

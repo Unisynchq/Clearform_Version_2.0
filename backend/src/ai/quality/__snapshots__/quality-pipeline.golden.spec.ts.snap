@@ -1,0 +1,31 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`executeQuality golden fixtures empty answer → red without LLM 1`] = `
+{
+  "failedIds": [
+    "length",
+    "specificity",
+    "relevance",
+    "completeness",
+  ],
+  "followUpQuestion": null,
+  "level": "red",
+  "message": "Please provide a response.",
+  "suggestions": null,
+}
+`;
+
+exports[`executeQuality golden fixtures pure gibberish → static red safety gate 1`] = `
+{
+  "failedIds": [
+    "relevance",
+    "completeness",
+  ],
+  "followUpQuestion": null,
+  "level": "red",
+  "message": "That reads as random characters — a genuine answer is needed here.",
+  "suggestions": [
+    "Delete the random characters and write one real sentence instead.",
+  ],
+}
+`;
