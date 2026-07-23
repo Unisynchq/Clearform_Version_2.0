@@ -20,11 +20,17 @@ export class UsersService {
   ) {}
 
   async create(data: Prisma.UserCreateInput): Promise<User> {
-    return this.prisma.user.create({ data });
+    return this.prisma.user.create({
+      data: {
+        ...data,
+        email: data.email ? data.email.trim().toLowerCase() : data.email,
+      },
+    });
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { email } });
+    const normalizedEmail = email ? email.trim().toLowerCase() : email;
+    return this.prisma.user.findUnique({ where: { email: normalizedEmail } });
   }
 
   async findById(id: string): Promise<User | null> {
@@ -36,7 +42,10 @@ export class UsersService {
    * Safe under parallel requests (create + P2002 retry).
    */
   async findOrCreateFromFirebase(payload: FirebaseUserPayload): Promise<User> {
-    const { id, email, firstName, lastName } = payload;
+    const id = payload.id;
+    const email = payload.email ? payload.email.trim().toLowerCase() : payload.email;
+    const firstName = payload.firstName;
+    const lastName = payload.lastName;
 
     const existingById = await this.findById(id);
     if (existingById) {
