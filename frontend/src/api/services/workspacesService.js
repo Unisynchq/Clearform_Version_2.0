@@ -24,7 +24,7 @@ export async function createWorkspace({ label, color }) {
   if (isApiConfigured()) {
     const created = await apiClient(API_ENDPOINTS.workspaces.list, {
       method: 'POST',
-      body: { label, colour: color },
+      body: { label, colour: color, color },
     });
     return mapWorkspace(created);
   }
@@ -39,7 +39,10 @@ export async function updateWorkspace(id, { label, color }) {
   if (isApiConfigured() && !String(id).startsWith('ws-')) {
     const body = {};
     if (label?.trim()) body.label = label.trim();
-    if (color) body.colour = color;
+    if (color) {
+      body.colour = color;
+      body.color = color;
+    }
     const updated = await apiClient(API_ENDPOINTS.workspaces.byId(id), {
       method: 'PATCH',
       body,

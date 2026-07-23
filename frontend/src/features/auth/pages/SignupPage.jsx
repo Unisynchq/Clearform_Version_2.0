@@ -205,6 +205,7 @@ const SignupPage = () => {
         applyBackendOnboardingState(dispatch, user.onboardingCompleted);
         const path = await completeAuthNavigationAfterSync(dispatch, {
           onboardingCompleted: user.onboardingCompleted,
+          isNewUser: user.isNewUser,
           returnTo: pilotReturnTo,
           showToast,
         });
@@ -252,6 +253,7 @@ const SignupPage = () => {
       applyBackendOnboardingState(dispatch, user.onboardingCompleted);
       const path = await completeAuthNavigationAfterSync(dispatch, {
         onboardingCompleted: user.onboardingCompleted,
+        isNewUser: user.isNewUser,
         returnTo: pilotReturnTo,
         showToast,
       });
@@ -263,8 +265,17 @@ const SignupPage = () => {
       });
       navigate(path, { replace: true });
     } catch (err) {
-      dispatch(setError(err.message));
-      setErrors({ email: err.message });
+      if (err.message.includes('already exists') || err.message.includes('email-already-in-use')) {
+        showToast({
+          type: 'info',
+          message: 'An account with this email already exists. Signing in instead.',
+          duration: 4000,
+        });
+        navigate('/signin', { state: { email: email.trim() } });
+      } else {
+        dispatch(setError(err.message));
+        setErrors({ email: err.message });
+      }
     } finally {
       dispatch(setSubmitting(false));
     }

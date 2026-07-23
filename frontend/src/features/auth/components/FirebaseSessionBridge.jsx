@@ -57,6 +57,7 @@ const FirebaseSessionBridge = () => {
         applyBackendOnboardingState(dispatch, user.onboardingCompleted);
         const path = await completeAuthNavigationAfterSync(dispatch, {
           onboardingCompleted: user.onboardingCompleted,
+          isNewUser: user.isNewUser,
           returnTo,
           showToast,
         });

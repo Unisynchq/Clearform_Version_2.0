@@ -65,6 +65,8 @@ export class ResponseProcessor extends WorkerHost {
       .slice(0, 5)
       .map((pair) => ({ label: pair.label, value: pair.value }));
 
+    const respondentName = extractRespondentName(answersMap);
+
     const webhookPayload = buildResponseCreatedPayload({
       formId,
       responseId: saved.id,
@@ -93,7 +95,7 @@ export class ResponseProcessor extends WorkerHost {
             responseId: saved.id,
             type: 'new_response',
             title: `New response on "${form.title}"`,
-            body: `Someone just completed your form.`,
+            body: `${respondentName} filled "${form.title}"`,
           })
         : Promise.resolve(),
       notificationsEnabled && form
@@ -116,4 +118,32 @@ export class ResponseProcessor extends WorkerHost {
     );
     return { responseId: saved.id };
   }
+}
+
+function extractRespondentName(
+  answersMap: Record<string, unknown>,
+): string {
+  const namePatterns = ['name', 'full_name', 'fullName', 'first_name', 'firstName', 'your_name', 'respondent_name'];
+  for (const screenId of Object.keys(answersMap)) {
+    const answer = answersMap[screenId];
+    if (answer && typeof answer === 'object') {
+      const value = (answer as Record<string, unknown>).value;
+      if (typeof value === 'string' && value.trim()) {
+        const lowerKey = screenId.toLowerCase().replace(/[^a-z]/g, '_');
+        for (const pattern of namePatterns) {
+          if (lowerKey.includes(pattern)) return value.trim();
+        }
+      }
+      const text = (answer as Record<string, unknown>).text;
+      if (typeof text === 'string' && text.trim()) {
+        const lowerKey = screenId.toLowerCase().replace(/[^a-z]/g, '_');
+        for (const pattern of namePatterns) {
+          if (lowerKey.includes(pattern)) return text.trim();
+        }
+      }
+    }
+  }
+  const meta = answersMap['_metadata'] as Record<string, unknown> | undefined;
+  if (meta?.respondentName && typeof meta.respondentName === 'string') return meta.respondentName;
+  return 'Someone';
 }

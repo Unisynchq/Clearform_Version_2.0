@@ -5,10 +5,11 @@ import {
 } from '@/store/slices/onboardingSlice';
 import { resetFormsForOnboarding } from '@/store/slices/formsSlice';
 import { claimPendingPurchaseIfPresent } from '@/features/billing/utils/claimPendingPurchase';
+import { isApiConfigured } from '@/config/env';
 
 /** Sign-in: dashboard by default; honors deep-link return path from RequireAuth. */
 export const resolveSignInNavigation = (dispatch, { returnTo } = {}) => {
-  dispatch(dismissOnboardingSession());
+  dispatch(completeOnboarding());
   if (typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//')) {
     return returnTo;
   }
@@ -44,9 +45,16 @@ export async function claimPendingPurchaseIfNeeded({ showToast } = {}) {
  */
 export const resolveAuthNavigationAfterSync = (
   dispatch,
-  { onboardingCompleted = false, returnTo } = {},
+  { onboardingCompleted = false, isNewUser, returnTo } = {},
 ) => {
-  if (onboardingCompleted) {
+  if (!isApiConfigured()) {
+    if (isNewUser) {
+      return resolveSignupNavigation(dispatch);
+    }
+    return resolveSignInNavigation(dispatch, { returnTo });
+  }
+
+  if (onboardingCompleted || !isNewUser) {
     return resolveSignInNavigation(dispatch, { returnTo });
   }
   return resolveSignupNavigation(dispatch);
@@ -57,8 +65,8 @@ export const resolveAuthNavigationAfterSync = (
  */
 export async function completeAuthNavigationAfterSync(
   dispatch,
-  { onboardingCompleted = false, returnTo, showToast } = {},
+  { onboardingCompleted = false, isNewUser, returnTo, showToast } = {},
 ) {
   await claimPendingPurchaseIfNeeded({ showToast });
-  return resolveAuthNavigationAfterSync(dispatch, { onboardingCompleted, returnTo });
+  return resolveAuthNavigationAfterSync(dispatch, { onboardingCompleted, isNewUser, returnTo });
 }

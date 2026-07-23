@@ -34,6 +34,7 @@ import {
   pushRecentResponseToHotCache,
 } from './response-hot-cache.util';
 import { BillingService } from '../billing/billing.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Controller('api/v1/forms/:id/responses')
 export class ResponsesController {
@@ -42,6 +43,7 @@ export class ResponsesController {
     private readonly responseFileStorage: ResponseFileStorageService,
     private readonly prisma: PrismaService,
     private readonly billingService: BillingService,
+    private readonly notificationsService: NotificationsService,
     @InjectQueue('responses') private readonly responseQueue: Queue,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
@@ -214,6 +216,12 @@ export class ResponsesController {
     @Res() res: Response,
   ) {
     const fmt = (format ?? 'csv').toLowerCase();
+    const form = await this.prisma.form.findUnique({
+      where: { id: formId },
+      select: { title: true },
+    });
+    const fileName = `responses-${formId}.${fmt}`;
+
     if (fmt === 'xlsx') {
       const buf = await this.responsesService.exportXlsx(formId, user.id, range);
       res.setHeader(
@@ -222,7 +230,7 @@ export class ResponsesController {
       );
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename="responses-${formId}.xlsx"`,
+        `attachment; filename="${fileName}"`,
       );
       res.send(buf);
     } else {
@@ -230,10 +238,19 @@ export class ResponsesController {
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename="responses-${formId}.csv"`,
+        `attachment; filename="${fileName}"`,
       );
       res.send(csv);
     }
+
+    this.notificationsService.create({
+      userId: user.id,
+      formId,
+      type: 'export',
+      title: 'Export completed',
+      body: `${form?.title ?? 'Form'} responses exported as ${fmt.toUpperCase()}.`,
+      action: { downloadLocation: fileName },
+    }).catch(() => {});
   }
 
   @Get(':responseId')

@@ -34,7 +34,7 @@ const Topbar = ({ title = 'All forms', titleSize = 'default', useFormsLoading = 
   const formsSearchQuery = useSelector((s) => s.forms.searchQuery);
   const formsLoading = useSelector((s) => s.forms.isLoading);
   const isLoading = useFormsLoading ? formsLoading : false;
-  const unreadCount = useSelector((s) => s.notifications.notifications.filter((item) => item.unread).length);
+  const unreadCount = useSelector((s) => s.notifications.unreadCount ?? s.notifications.notifications.filter((item) => item.unread).length);
   const [isOpen, setIsOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState('');
   const containerRef = useRef(null);

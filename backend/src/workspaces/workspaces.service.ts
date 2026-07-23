@@ -13,8 +13,13 @@ export class WorkspacesService {
 
   async create(createWorkspaceDto: CreateWorkspaceDto, userId: string) {
     await this.billingService.assertCanCreateWorkspace(userId);
+    const colour = createWorkspaceDto.colour ?? createWorkspaceDto.color;
     const ws = await this.prisma.workspace.create({
-      data: { ...createWorkspaceDto, ownerId: userId },
+      data: {
+        label: createWorkspaceDto.label,
+        colour: colour ?? null,
+        ownerId: userId,
+      },
     });
     return { ...ws, color: ws.colour, count: 0 };
   }
@@ -49,9 +54,15 @@ export class WorkspacesService {
     if (!workspace) {
       throw new NotFoundException('Workspace not found');
     }
+    const { color, colour, label } = updateWorkspaceDto;
+    const finalColour = colour ?? color;
+    const data: Record<string, any> = {};
+    if (label !== undefined) data.label = label;
+    if (finalColour !== undefined) data.colour = finalColour;
+
     return this.prisma.workspace.update({
       where: { id },
-      data: updateWorkspaceDto,
+      data,
     });
   }
 

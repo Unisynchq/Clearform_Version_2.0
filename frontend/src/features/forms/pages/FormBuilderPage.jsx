@@ -1,4 +1,4 @@
-﻿import { Fragment, useState, useRef, useEffect, useCallback, useLayoutEffect, useMemo, lazy, Suspense } from 'react';
+import { Fragment, useState, useRef, useEffect, useCallback, useLayoutEffect, useMemo, lazy, Suspense } from 'react';
 import { motion, AnimatePresence, LayoutGroup } from 'motion/react';
 import ToggleSwitch, { TOGGLE_TRACK_OFF, TOGGLE_TRACK_ON, toggleTrackClassName } from '@/components/ui/ToggleSwitch';
 import WorkspaceFolderIcon from '@/components/ui/WorkspaceFolderIcon';
@@ -11,6 +11,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { updateForm, loadFormsFromApi, addForm } from '@/store/slices/formsSlice';
 import { selectIsOnboardingActive } from '@/store/slices/onboardingSlice';
+import { addNotification } from '@/store/slices/notificationsSlice';
 import { useToast } from '@/hooks/useToast';
 import { readBuilderDraft, clearBuilderDraft } from '@/features/forms/utils/builderDraftStorage';
 import { readPublishedForm } from '@/features/forms/utils/publishedFormStorage';
@@ -5527,6 +5528,13 @@ const FormBuilderPage = () => {
           sourceFormId: activeFormId,
           snapshot,
         });
+        dispatch(
+          addNotification({
+            type: 'template_created',
+            title: 'Template created',
+            body: `Template "${name}" created successfully.`,
+          }),
+        );
         setTemplateSaveStatus('saved');
         setSaveTemplateModal({ open: true, phase: 'success', savedName: name });
       } catch {
@@ -5535,7 +5543,7 @@ const FormBuilderPage = () => {
         setSaveTemplateSaving(false);
       }
     },
-    [activeFormId, buildCurrentPublishSnapshot, showToast, userEmail]
+    [activeFormId, buildCurrentPublishSnapshot, showToast, userEmail, dispatch]
   );
 
   const restoreFromBuilderBaseline = useCallback(() => {
@@ -8282,6 +8290,15 @@ const FormBuilderPage = () => {
                   >
                     <RiEyeLine size={14} />
                   </button>
+                  {!isPreview && (
+                    <button
+                      onClick={() => setShowConfigPanel((p) => !p)}
+                      title={showConfigPanel ? "Close Configure sidebar" : "Open Configure sidebar"}
+                      className={`flex items-center justify-center w-[30px] h-[26px] rounded-[5px] transition-colors cursor-pointer ${showConfigPanel ? 'bg-[#1a1a1a] text-white' : 'text-[#9a9a92] hover:text-[#555] hover:bg-[#f4f3ef]'}`}
+                    >
+                      <RiSettings3Line size={14} />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

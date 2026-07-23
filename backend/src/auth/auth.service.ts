@@ -140,6 +140,7 @@ export class AuthService {
   ) {
     const onboardingCompleted =
       !!profile.onboardingCompletedAt || (profile._count?.forms ?? 0) > 0;
+    const hasPassword = Boolean(profile.passwordHash && profile.passwordHash.length > 0);
 
     return {
       id: profile.id,
@@ -147,6 +148,8 @@ export class AuthService {
       firstName: profile.firstName,
       lastName: profile.lastName,
       avatarUrl: profile.avatarUrl ?? null,
+      hasPassword,
+      passwordLastChangedAt: profile.passwordLastChangedAt ?? null,
       onboardingCompleted,
       needsOnboarding: !onboardingCompleted,
       plan: profile.subscription?.planId ?? 'trial',

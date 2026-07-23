@@ -8,4 +8,8 @@ export class UpdateWorkspaceDto {
   @IsString()
   @IsOptional()
   colour?: string;
+
+  @IsString()
+  @IsOptional()
+  color?: string;
 }

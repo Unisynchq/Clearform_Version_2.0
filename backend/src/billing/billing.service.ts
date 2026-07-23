@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -20,6 +21,7 @@ import { AiEntitlementsService } from './entitlements/ai-entitlements.service';
 import { RazorpayProvider } from './providers/razorpay.provider';
 import { PilotPurchaseService } from './purchases/pilot-purchase.service';
 import { RazorpayWebhookHandler } from './webhooks/razorpay-webhook.handler';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export type { BillingStatusResponse } from './billing.types';
 
@@ -30,6 +32,8 @@ function meterWorkspacesLimit(planLimit: number, used: number): number {
 
 @Injectable()
 export class BillingService {
+  private readonly logger = new Logger(BillingService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
@@ -38,6 +42,7 @@ export class BillingService {
     private readonly aiEntitlements: AiEntitlementsService,
     private readonly pilotPurchases: PilotPurchaseService,
     private readonly webhookHandler: RazorpayWebhookHandler,
+    private readonly notifications: NotificationsService,
   ) {}
 
   private pilotDurationDays(): number {
@@ -156,12 +161,45 @@ export class BillingService {
   async getStatus(userId: string): Promise<BillingStatusResponse> {
     const status = await this.buildStatus(userId);
     const aiCredits = await this.aiEntitlements.getAiCreditUsage(userId);
+
+    if (status.periodEnd) {
+      const daysUntilExpiry = Math.ceil(
+        (new Date(status.periodEnd).getTime() - Date.now()) / 86_400_000,
+      );
+      if (daysUntilExpiry > 0 && daysUntilExpiry <= 7) {
+        this.sendPlanExpiryNotification(userId, daysUntilExpiry).catch(() => {});
+      }
+    }
+
     return {
       ...status,
       aiCredits,
       aiTokens: aiCredits,
       entitlements: await this.buildEntitlementsDto(userId, status),
     };
+  }
+
+  private async sendPlanExpiryNotification(
+    userId: string,
+    daysUntilExpiry: number,
+  ): Promise<void> {
+    const existing = await this.prisma.notification.findFirst({
+      where: {
+        userId,
+        type: 'billing_expiring',
+        readAt: null,
+        createdAt: { gte: new Date(Date.now() - 86_400_000) },
+      },
+    });
+    if (existing) return;
+
+    await this.notifications.create({
+      userId,
+      type: 'billing_expiring',
+      title: 'Subscription expiring',
+      body: `Your subscription expires in ${daysUntilExpiry} day${daysUntilExpiry === 1 ? '' : 's'}. Manage your current plan.`,
+      action: { routeKey: 'billing', label: 'Manage plan' },
+    });
   }
 
   /**

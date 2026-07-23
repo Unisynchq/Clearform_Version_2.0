@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useDispatch } from 'react-redux';
 import { RiCheckLine, RiMailLine, RiSmartphoneLine } from 'react-icons/ri';
 import {
   readNotificationSettings,
@@ -11,6 +12,7 @@ import {
   mergeNotificationPreferences,
   notificationPreferencesEqual,
 } from '@/features/profile/utils/profileNotificationDefaults';
+import { addNotification } from '@/store/slices/notificationsSlice';
 import { useToast } from '@/hooks/useToast';
 
 const ghostBtnClass =
@@ -74,6 +76,7 @@ const NotificationRow = ({ event, channels, onToggle }) => (
 );
 
 const ProfileNotificationsPanel = ({ email }) => {
+  const dispatch = useDispatch();
   const { showToast } = useToast();
   const [preferences, setPreferences] = useState(() =>
     cloneNotificationPreferences(DEFAULT_NOTIFICATION_PREFERENCES)
@@ -115,6 +118,13 @@ const ProfileNotificationsPanel = ({ email }) => {
     writeNotificationSettings(email, next);
     savedRef.current = next;
     setIsSaving(false);
+    dispatch(
+      addNotification({
+        type: 'preferences_updated',
+        title: 'Notification preferences',
+        body: 'Notification preferences updated successfully.',
+      }),
+    );
     showToast({ type: 'success', message: 'Notification preferences saved.', duration: 2200 });
   };
 

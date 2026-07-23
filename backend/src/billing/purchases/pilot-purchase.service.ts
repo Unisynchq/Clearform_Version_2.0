@@ -368,6 +368,7 @@ export class PilotPurchaseService {
     });
 
     await this.recordPilotActivatedNotification(userId, purchase.razorpayPaymentId);
+    await this.recordReceiptNotification(user, purchase);
     await this.sendPilotUpgradeEmail(user, purchase);
     await this.aiEntitlements.resetAiTokenWallet(userId);
 
@@ -389,6 +390,24 @@ export class PilotPurchaseService {
       subscription,
       purchase,
     );
+  }
+
+  private async recordReceiptNotification(
+    user: { id: string; email: string },
+    purchase: { razorpayPaymentId: string; amountPaise: number },
+  ): Promise<void> {
+    try {
+      if (!user.email) return;
+      await this.notifications.create({
+        userId: user.id,
+        type: 'billing_receipt',
+        title: 'Receipt available',
+        body: `Receipt #${purchase.razorpayPaymentId.slice(-8)} has been sent to your registered email.`,
+        action: { routeKey: 'billing', label: 'View details' },
+      });
+    } catch {
+      // Non-blocking.
+    }
   }
 
   private async recordPilotActivatedNotification(

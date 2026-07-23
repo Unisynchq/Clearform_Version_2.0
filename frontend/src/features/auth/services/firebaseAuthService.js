@@ -9,6 +9,9 @@ import {
   getAdditionalUserInfo,
   sendPasswordResetEmail,
   onAuthStateChanged,
+  updatePassword,
+  EmailAuthProvider,
+  linkWithCredential,
 } from 'firebase/auth';
 import { auth, googleProvider, microsoftProvider, getFirebaseAuthOrigin } from '@/config/firebase';
 import { fetchMe } from '@/api/services/authMeService';
@@ -396,7 +399,7 @@ export async function signInWithEmail(email, password) {
     await storeToken(user);
     const { firstName, lastName } = parseDisplayName(user.displayName);
     const backend = await syncUserWithBackend();
-    const payload = { email: user.email, firstName, lastName, ...backend };
+    const payload = { email: user.email, firstName, lastName, isNewUser: false, ...backend };
     captureAuthAnalytics(payload, user, {
       isNewUser: false,
       method: 'email',
@@ -425,7 +428,7 @@ export async function signUpWithEmail(email, password, firstName, lastName) {
     if (displayName) await updateProfile(user, { displayName });
     await storeToken(user);
     const backend = await syncUserWithBackend();
-    const payload = { email: user.email, firstName, lastName, ...backend };
+    const payload = { email: user.email, firstName, lastName, isNewUser: true, ...backend };
     captureAuthAnalytics(payload, user, {
       isNewUser: true,
       method: 'email',
@@ -488,5 +491,24 @@ export async function requestPasswordResetEmail(email) {
     await sendPasswordResetEmail(auth, trimmed);
   } catch (error) {
     throw new Error(mapFirebaseError(error));
+  }
+}
+
+export async function updateUserPasswordInFirebase(newPassword) {
+  if (!auth?.currentUser) return false;
+  try {
+    await updatePassword(auth.currentUser, newPassword);
+    return true;
+  } catch (error) {
+    if (error?.code === 'auth/requires-recent-login') {
+      throw new Error('For security reasons, please sign in again before updating your password.');
+    }
+    try {
+      const credential = EmailAuthProvider.credential(auth.currentUser.email, newPassword);
+      await linkWithCredential(auth.currentUser, credential);
+      return true;
+    } catch (linkError) {
+      throw new Error(mapFirebaseError(error ?? linkError));
+    }
   }
 }

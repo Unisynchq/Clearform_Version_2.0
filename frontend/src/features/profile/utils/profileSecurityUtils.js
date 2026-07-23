@@ -46,3 +46,28 @@ export function strengthTextColor(level) {
 }
 
 export { getDefaultSessions } from '@/features/profile/utils/currentDeviceSession';
+
+export function formatPasswordLastChanged(timestamp, hasPassword = true) {
+  if (!hasPassword) {
+    return 'No password set';
+  }
+  if (!timestamp) {
+    return 'Recently set';
+  }
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) {
+    return 'Recently set';
+  }
+
+  const diffMs = Date.now() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return 'Last changed today';
+  if (diffDays === 1) return 'Last changed yesterday';
+  if (diffDays < 30) return `Last changed ${diffDays} days ago`;
+  const diffMonths = Math.floor(diffDays / 30);
+  if (diffMonths === 1) return 'Last changed 1 month ago';
+  if (diffMonths < 12) return `Last changed ${diffMonths} months ago`;
+  const diffYears = Math.floor(diffDays / 365);
+  return `Last changed ${diffYears} ${diffYears === 1 ? 'year' : 'years'} ago`;
+}
