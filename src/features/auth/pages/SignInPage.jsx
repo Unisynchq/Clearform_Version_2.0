@@ -174,6 +174,7 @@ const SignInPage = () => {
         applyBackendOnboardingState(dispatch, user.onboardingCompleted);
         const path = await completeAuthNavigationAfterSync(dispatch, {
           onboardingCompleted: user.onboardingCompleted,
+          isNewUser: user.isNewUser,
           returnTo: location.state?.from,
           showToast,
         });
@@ -219,6 +220,7 @@ const SignInPage = () => {
       applyBackendOnboardingState(dispatch, user.onboardingCompleted);
       const path = await completeAuthNavigationAfterSync(dispatch, {
         onboardingCompleted: user.onboardingCompleted,
+        isNewUser: user.isNewUser,
         returnTo: location.state?.from,
         showToast,
       });
@@ -266,6 +268,7 @@ const SignInPage = () => {
       applyBackendOnboardingState(dispatch, user.onboardingCompleted);
       const path = await completeAuthNavigationAfterSync(dispatch, {
         onboardingCompleted: user.onboardingCompleted,
+        isNewUser: user.isNewUser,
         returnTo: location.state?.from,
         showToast,
       });

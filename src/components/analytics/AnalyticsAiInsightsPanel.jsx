@@ -687,31 +687,30 @@ function AnalyticsAiInsightsPanel({
   useEffect(() => {
     if (insightsError) {
       setLoading(false);
-      return undefined;
-    }
-    if (showNoDataPeriod || !hasEnoughResponses) {
-      setLoading(false);
-      return undefined;
-    }
-    if (apiInsights?.status === 'ready') {
-      setLoading(false);
-      return undefined;
-    }
-    if (apiInsights?.status === 'processing') {
-      setLoading(true);
-      return undefined;
-    }
-    if (apiInsights?.status === 'error') {
-      setLoading(false);
-      return undefined;
+      return;
     }
     if (isApiConfigured() && apiInsights == null && !insightsError) {
       setLoading(true);
-      return undefined;
+      return;
+    }
+    if (apiInsights?.status === 'processing') {
+      setLoading(true);
+      return;
+    }
+    if (showNoDataPeriod || !hasEnoughResponses) {
+      setLoading(false);
+      return;
+    }
+    if (apiInsights?.status === 'ready') {
+      setLoading(false);
+      return;
+    }
+    if (apiInsights?.status === 'error') {
+      setLoading(false);
+      return;
     }
 
     setLoading(false);
-    return undefined;
   }, [
     hasEnoughResponses,
     form?.id,
@@ -748,6 +747,16 @@ function AnalyticsAiInsightsPanel({
     }
   };
 
+  if (!isApiConfigured()) {
+    return (
+      <AiInsightsFetchError message="AI insights require a connected API." />
+    );
+  }
+
+  if (loading) {
+    return <AiInsightsLoading />;
+  }
+
   if (showNoDataPeriod) {
     return (
       <div className="mx-auto w-full max-w-[480px]">
@@ -764,12 +773,6 @@ function AnalyticsAiInsightsPanel({
       <div className="mx-auto w-full max-w-[480px]">
         <AiInsightsEmpty onShareForm={onShareForm ?? (() => {})} />
       </div>
-    );
-  }
-
-  if (!isApiConfigured()) {
-    return (
-      <AiInsightsFetchError message="AI insights require a connected API." />
     );
   }
 

@@ -13,6 +13,7 @@ import { capturePendingPaymentFromUrl } from '@/features/billing/utils/pendingPa
 import { captureAndClaimPendingPurchase } from '@/features/billing/utils/billingReturnFlow';
 import { loadFormsFromApi, loadWorkspacesFromApi } from '@/store/slices/formsSlice';
 import { loadNotificationsFromApi } from '@/store/slices/notificationsSlice';
+import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
 import { useToast } from '@/hooks/useToast';
 import { isApiConfigured } from '@/config/env';
 
@@ -20,6 +21,7 @@ const App = () => {
   const dispatch = useDispatch();
   const { showToast } = useToast();
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
+  useRealtimeNotifications();
 
   useEffect(() => {
     capturePendingPaymentFromUrl();

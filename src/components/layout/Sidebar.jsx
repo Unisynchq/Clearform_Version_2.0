@@ -1,7 +1,7 @@
 import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   RiLayoutGridLine,
   RiAddLine,
@@ -215,7 +215,14 @@ const Sidebar = ({ hideLogo = false, exit }) => {
     !isHelpSupportActive &&
     !isProfileActive;
 
-  const showSidebarSkeleton = isDashboardActive && formsLoading;
+  const [initialLoad, setInitialLoad] = useState(true);
+  useEffect(() => {
+    if (!formsLoading) {
+      setInitialLoad(false);
+    }
+  }, [formsLoading]);
+
+  const showSidebarSkeleton = isDashboardActive && formsLoading && initialLoad;
 
   const [isCollapsed, setIsCollapsed] = useState(false);
 

@@ -60,6 +60,10 @@ export const API_ENDPOINTS = {
     list: '/notifications',
     readOne: (id) => `/notifications/${id}/read`,
     readAll: '/notifications/read-all',
+    unreadCount: '/notifications/unread-count',
+    deleteOne: (id) => `/notifications/${id}`,
+    deleteAll: '/notifications',
+    stream: '/notifications/stream',
   },
   integrations: {
     workspaceList: (workspaceId) => `/workspaces/${workspaceId}/integrations`,

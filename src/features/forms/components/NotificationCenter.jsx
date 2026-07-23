@@ -78,15 +78,10 @@ const BodyText = ({ segments }) => (
     {Array.isArray(segments) ? segments.map((seg, i) => (
 
       <span
-
         key={i}
-
         className={seg.bold ? 'font-medium text-[#3a3a3a]' : 'text-[#7a7670] font-normal'}
-
       >
-
         {seg.text}
-
       </span>
 
     )) : <span className="text-[#7a7670] font-normal">{segments}</span>}
@@ -98,109 +93,57 @@ const BodyText = ({ segments }) => (
 
 
 const NotificationItem = ({ item, onRead, onAction }) => (
-
   <div
-
     onClick={onRead}
-
     className="relative flex gap-3 items-start px-[18px] pt-[13px] pb-[14px] border-b border-[#f5f3f0] bg-[#fdfcfb] cursor-pointer hover:bg-[#f9f7f4] transition-colors"
-
   >
-
     {item.unread && (
-
       <div className="absolute left-[7px] top-[16px] w-[5px] h-[5px] rounded-[2.5px] bg-[#3b82b6]" />
-
     )}
 
-
-
     <div
-
       className="shrink-0 w-9 h-9 rounded-[10px] flex items-center justify-center"
-
       style={{ backgroundColor: item.iconBg }}
-
     >
-
       <IconDisplay item={item} />
-
     </div>
-
-
 
     <div className="flex-1 min-w-0 flex flex-col gap-[1.9px]">
-
       <div className="flex items-baseline justify-between gap-2">
-
         <span
-
           className="text-[12.5px] font-semibold leading-[16.88px]"
-
           style={{ color: item.titleColor || '#1a1a1a' }}
-
         >
-
           {item.title}
-
         </span>
-
         <span className="text-[10.5px] text-[#b0aba4] shrink-0 font-normal">{item.timestamp}</span>
-
       </div>
-
-
 
       <div className="pb-[5.1px]">
-
         <BodyText segments={item.bodySegments} />
-
       </div>
 
-
-
       {item.action && (
-
         <button
-
           type="button"
-
           onClick={(e) => {
-
             e.stopPropagation();
-
             onAction(item);
-
           }}
-
-          className={`self-start px-[10px] py-[4px] rounded-[8px] text-[11px] font-semibold leading-[14px] cursor-pointer transition-opacity hover:opacity-85 ${ACTION_STYLES[item.action.style]}`}
-
+          className={`self-start px-[10px] py-[4px] rounded-[8px] text-[11px] font-semibold leading-[14px] cursor-pointer transition-opacity hover:opacity-85 ${ACTION_STYLES[item.action.style || 'primary']}`}
         >
-
           {item.action.label}
-
         </button>
-
       )}
-
-
 
       {item.tag && (
-
         <div className="self-start flex items-center gap-1 px-2 py-[2px] rounded-[6px] bg-[#f5f3f0] border border-[#e2ded8]">
-
           <div className="w-[5px] h-[5px] rounded-[2.5px] shrink-0" style={{ backgroundColor: item.tag.color }} />
-
           <span className="text-[10.5px] font-medium text-[#5a5652] leading-[13px]">{item.tag.label}</span>
-
         </div>
-
       )}
-
     </div>
-
   </div>
-
 );
 
 
@@ -230,19 +173,18 @@ const NotificationCenter = () => {
     [displayNotifications],
   );
 
-  const handleMarkAllRead = () => {
-    if (!startClear(filteredNotifications)) return;
+  const handleClearAll = () => {
+    const allItems = filteredNotifications;
+    if (!startClear(allItems)) return;
     dispatch(clearAllNotificationsThunk());
   };
-
-
 
   const handleAction = (item) => {
     dispatch(markNotificationReadThunk(item.id));
     executeNotificationAction({ dispatch, navigate }, item.action);
   };
 
-
+  const hasNotifications = notifications.length > 0;
 
   return (
 
@@ -253,51 +195,28 @@ const NotificationCenter = () => {
         <>
 
           <motion.button
-
             type="button"
-
             initial={{ opacity: 0 }}
-
             animate={{ opacity: 1 }}
-
             exit={{ opacity: 0 }}
-
             transition={{ duration: 0.15, ease: panelEase }}
-
             onClick={() => dispatch(closeNotificationCenter())}
-
             className="fixed inset-0 z-30 cursor-default border-0 bg-black/5"
-
             aria-label="Close notifications"
-
           />
 
-
-
           <motion.div
-
             key="notification-center-panel"
-
             initial={{ opacity: 0, y: -8, scale: 0.98 }}
-
             animate={{ opacity: 1, y: 0, scale: 1 }}
-
             exit={{ opacity: 0, y: -6, scale: 0.98 }}
-
             transition={{ duration: 0.16, ease: panelEase }}
-
             style={{ transformOrigin: 'top right' }}
-
             className="fixed right-4 top-[62px] w-[360px] z-40 rounded-[16px] border border-[#e2ded8] bg-white shadow-[0px_8px_32px_0px_rgba(0,0,0,0.1),0px_1px_4px_0px_rgba(0,0,0,0.06)] flex flex-col overflow-hidden"
-
           >
-
             <div className="px-[18px] pt-4 pb-[13px] border-b border-[#eceae5] flex items-center justify-between">
-
               <div className="flex items-center gap-2">
-
                 <span className="text-[14px] font-semibold text-[#1a1a1a] leading-[18px]">Notifications</span>
-
                 <AnimatePresence initial={false}>
                   {unreadCount > 0 && !isClearingAll ? (
                     <motion.span
@@ -312,61 +231,42 @@ const NotificationCenter = () => {
                     </motion.span>
                   ) : null}
                 </AnimatePresence>
-
               </div>
 
-              {(unreadCount > 0 || notifications.length > 0) && !isClearingAll ? (
+              {(unreadCount > 0 || hasNotifications) && !isClearingAll ? (
                 <button
                   type="button"
-                  onClick={handleMarkAllRead}
+                  onClick={handleClearAll}
                   className="text-[11.5px] font-medium text-[#3b82b6] cursor-pointer hover:opacity-75 transition-opacity leading-normal"
                 >
                   Clear all
                 </button>
               ) : null}
-
             </div>
-
-
 
             <div className="px-[14px] pt-[10px] pb-px border-b border-[#eceae5] flex items-start gap-[2px]">
-
               {TABS.map((tab) => (
-
                 <button
-
                   key={tab.id}
-
                   type="button"
-
                   onClick={() => dispatch(setNotificationTab(tab.id))}
-
                   className={`px-3 pt-[6px] pb-[10px] text-[12px] font-medium leading-[16px] cursor-pointer border-b-2 transition-colors ${
-
                     activeTab === tab.id
-
                       ? 'border-[#1a1a1a] text-[#1a1a1a]'
-
                       : 'border-transparent text-[#8c8880] hover:text-[#1a1a1a]'
-
                   }`}
-
                 >
-
                   {tab.label}
-
                 </button>
-
               ))}
-
             </div>
-
-
 
             <div className="max-h-[420px] overflow-y-auto overflow-x-hidden">
               {Object.keys(groupedNotifications).length === 0 && !isClearingAll ? (
                 <div className="h-[120px] flex items-center justify-center">
-                  <p className="text-[13px] text-[#9b978d]">No notifications in this tab.</p>
+                  <p className="text-[13px] text-[#9b978d]">
+                    {hasNotifications ? 'No notifications in this tab.' : 'No notifications yet.'}
+                  </p>
                 </div>
               ) : (
                 <AnimatePresence initial={false}>
@@ -442,4 +342,3 @@ const NotificationCenter = () => {
 
 
 export default NotificationCenter;
-

@@ -51,7 +51,7 @@ const CreateWorkspaceModal = () => {
       setColor(COLOR_OPTIONS[0].value);
     } catch (err) {
       if (err?.status === 402 || err?.status === 403) {
-        const body = err?.data ?? err?.body ?? {};
+        const body = err?.body ?? err?.data ?? {};
         setUpgradeGate({
           reason:
             body.code === 'UPGRADE_REQUIRED' && body.message
@@ -59,8 +59,9 @@ const CreateWorkspaceModal = () => {
               : 'Free includes 1 workspace. Clearform Pilot includes 3.',
           quota: body.quota,
         });
-      } else if (isApiConfigured()) {
-        showToast({ type: 'error', message: 'Could not create workspace. Please try again.' });
+      } else {
+        const message = err?.body?.message ?? err?.message ?? 'Could not create workspace. Please try again.';
+        showToast({ type: 'error', message: typeof message === 'string' ? message : 'Could not create workspace.' });
       }
     } finally {
       setCreating(false);

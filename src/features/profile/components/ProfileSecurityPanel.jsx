@@ -20,6 +20,7 @@ import {
 import {
   getDefaultSessions,
   getPasswordStrength,
+  formatPasswordLastChanged,
   strengthBarColor,
   strengthTextColor,
 } from '@/features/profile/utils/profileSecurityUtils';
@@ -33,7 +34,10 @@ import {
   verifyCurrentPassword,
 } from '@/features/profile/utils/profileValidation';
 import { persistAccountPassword } from '@/features/auth/utils/userAccountsStorage';
-import { requestPasswordResetEmail } from '@/features/auth/services/firebaseAuthService';
+import {
+  requestPasswordResetEmail,
+  updateUserPasswordInFirebase,
+} from '@/features/auth/services/firebaseAuthService';
 import { useToast } from '@/hooks/useToast';
 import { useSelector } from 'react-redux';
 
@@ -183,6 +187,19 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
   const [currentPasswordError, setCurrentPasswordError] = useState(null);
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
+  const accountHasPassword = useMemo(
+    () => hasStoredPassword(email, lookupEmails),
+    [email, lookupEmails]
+  );
+
+  const securitySettings = readSecuritySettings(email);
+  const passwordLastChanged = securitySettings?.passwordLastChanged;
+
+  const lastChangedText = useMemo(
+    () => formatPasswordLastChanged(passwordLastChanged, accountHasPassword),
+    [passwordLastChanged, accountHasPassword]
+  );
+
   const hydrateSessions = useCallback(() => {
     const saved = readSecuritySettings(email);
     setSessions(mergeSessionsWithCurrentDevice(saved?.sessions));
@@ -207,18 +224,27 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
   const confirmMismatch =
     submitAttempted && confirmPassword.length > 0 && newPassword !== confirmPassword;
 
+  const isSamePassword =
+    accountHasPassword &&
+    currentPassword.trim().length > 0 &&
+    newPassword.trim() === currentPassword.trim();
+
   const incorrectCurrent = Boolean(currentPasswordError);
-  const lockNewFields = incorrectCurrent;
+  const lockNewFields = accountHasPassword && incorrectCurrent;
 
   const currentPasswordMismatch =
+    accountHasPassword &&
     currentPassword.trim().length > 0 &&
-    hasStoredPassword(email, lookupEmails) &&
     !verifyCurrentPassword(email, currentPassword, lookupEmails);
 
+  const newPasswordTooShort =
+    submitAttempted && newPassword.length > 0 && newPassword.length < 8;
+
   const canUpdatePassword =
-    currentPassword.trim().length > 0 &&
-    newPassword.length >= 12 &&
+    (!accountHasPassword || currentPassword.trim().length > 0) &&
+    newPassword.length >= 8 &&
     passwordsMatch &&
+    !isSamePassword &&
     !incorrectCurrent;
 
   const handleCancelPassword = () => {
@@ -232,16 +258,26 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
   const handleUpdatePassword = async () => {
     setSubmitAttempted(true);
 
-    if (!verifyCurrentPassword(email, currentPassword, lookupEmails)) {
-      setCurrentPasswordError(
-        'Incorrect password. Try Again or Reset the Password'
-      );
-      return;
+    if (accountHasPassword) {
+      if (!verifyCurrentPassword(email, currentPassword, lookupEmails)) {
+        setCurrentPasswordError(
+          'Incorrect password. Try Again or Reset the Password'
+        );
+        return;
+      }
+      if (newPassword.trim() === currentPassword.trim()) {
+        showToast({
+          type: 'error',
+          message: 'New password cannot be the same as your current password.',
+          duration: 3000,
+        });
+        return;
+      }
     }
 
     setCurrentPasswordError(null);
 
-    if (newPassword.length < 12) {
+    if (newPassword.length < 8) {
       return;
     }
 
@@ -250,18 +286,46 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
     }
 
     setIsUpdating(true);
-    await new Promise((r) => setTimeout(r, 450));
+
+    try {
+      await updateUserPasswordInFirebase(newPassword);
+    } catch (err) {
+      console.warn('Firebase password update:', err?.message);
+    }
+
+    const now = Date.now();
     writeSecuritySettings(email, {
       sessions: mergeSessionsWithCurrentDevice(
         sessions.filter((s) => s.isCurrent)
       ),
-      passwordLastChanged: Date.now(),
+      passwordLastChanged: now,
     });
     persistAccountPassword(email, newPassword, { altEmails: lookupEmails });
+
+    dispatch(
+      addNotification({
+        type: 'password_changed',
+        title: accountHasPassword ? 'Password changed' : 'Password created',
+        body: accountHasPassword
+          ? 'Your password has been changed successfully.'
+          : 'A password has been created for your account.',
+        action: notificationAction({
+          label: 'Security settings',
+          style: 'primary',
+          routeKey: NOTIFICATION_ROUTE_KEYS.security,
+        }),
+      }),
+    );
     handleCancelPassword();
     setIsUpdating(false);
     setShowSuccessBanner(true);
-    showToast({ type: 'success', message: 'Password updated.', duration: 2200 });
+    showToast({
+      type: 'success',
+      message: accountHasPassword
+        ? 'Password updated.'
+        : 'Password created! You can now log in with email and password or Google.',
+      duration: 3000,
+    });
   };
 
   const handleTryAgain = () => {
@@ -341,7 +405,11 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
   };
 
   const otherSessionCount = sessions.filter((s) => !s.isCurrent).length;
-  const primaryActionLabel = incorrectCurrent ? 'Try Again' : 'Update password';
+  const primaryActionLabel = incorrectCurrent
+    ? 'Try Again'
+    : accountHasPassword
+    ? 'Update password'
+    : 'Create password';
   const primaryDisabled = incorrectCurrent ? false : !canUpdatePassword || isUpdating;
 
   return (
@@ -358,54 +426,57 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
               Password
             </h2>
             <p className="mt-0.5 text-[12.5px] text-[#9e9e9a]">
-              Last changed 3 months ago · Choose a strong, unique password
+              {lastChangedText} · Choose a strong, unique password
             </p>
           </div>
           {!incorrectCurrent ? (
-            <StrengthBadge label={newPassword ? strength.badgeLabel : 'Strong'} />
+            <StrengthBadge label={newPassword ? strength.badgeLabel : accountHasPassword ? 'Strong' : 'None'} />
           ) : null}
         </div>
 
         <div className="flex flex-col gap-6 p-7">
           <div className="grid grid-cols-1 gap-x-7 gap-y-[18px] md:grid-cols-2">
-            <div className="md:col-span-2">
-              <PasswordField
-                id="current-password"
-                label="Current password"
-                value={currentPassword}
-                onChange={(e) => {
-                  setCurrentPassword(e.target.value);
-                  if (currentPasswordError) setCurrentPasswordError(null);
-                }}
-                placeholder="••••••••••••"
-                error={
-                  currentPasswordError ||
-                  (currentPasswordMismatch
-                    ? 'Current password does not match your sign-in password'
-                    : null)
-                }
-              />
-              {incorrectCurrent ? (
-                <button
-                  type="button"
-                  onClick={handleForgotPassword}
-                  className="mt-2 text-left text-[12px] text-[#07038d] hover:underline"
-                >
-                  Forgot Password? Reset via email
-                </button>
-              ) : null}
-            </div>
+            {accountHasPassword && (
+              <div className="md:col-span-2">
+                <PasswordField
+                  id="current-password"
+                  label="Current password"
+                  value={currentPassword}
+                  onChange={(e) => {
+                    setCurrentPassword(e.target.value);
+                    if (currentPasswordError) setCurrentPasswordError(null);
+                  }}
+                  placeholder="••••••••••••"
+                  error={
+                    currentPasswordError ||
+                    (currentPasswordMismatch
+                      ? 'Current password does not match your sign-in password'
+                      : null)
+                  }
+                />
+                {incorrectCurrent ? (
+                  <button
+                    type="button"
+                    onClick={handleForgotPassword}
+                    className="mt-2 text-left text-[12px] text-[#07038d] hover:underline"
+                  >
+                    Forgot Password? Reset via email
+                  </button>
+                ) : null}
+              </div>
+            )}
 
             <div className={lockNewFields ? 'opacity-[0.67]' : ''}>
               <PasswordField
                 id="new-password"
-                label="New password"
+                label={accountHasPassword ? 'New password' : 'Set a password'}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Min. 12 characters"
+                placeholder="Min. 8 characters"
                 showToggle
                 disabled={lockNewFields}
-                inputClassName={inputClass}
+                inputClassName={newPasswordTooShort ? inputErrorClass : inputClass}
+                error={newPasswordTooShort ? 'Password must be at least 8 characters' : null}
               />
               {newPassword && !lockNewFields ? (
                 <div className="mt-2">
@@ -433,7 +504,7 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
             <div className={lockNewFields ? 'opacity-[0.67]' : ''}>
               <PasswordField
                 id="confirm-password"
-                label="Confirm new password"
+                label={accountHasPassword ? 'Confirm new password' : 'Confirm password'}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Re-enter new password"

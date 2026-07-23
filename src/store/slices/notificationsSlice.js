@@ -4,6 +4,7 @@ import {
   listNotifications,
   markAllNotificationsReadOnServer,
   markNotificationReadOnServer,
+  deleteAllNotifications,
 } from '@/api/services/notificationsService';
 import { isApiConfigured } from '@/config/env';
 
@@ -35,12 +36,26 @@ const TYPE_ICON = {
   new_response: { iconType: 'check', iconBg: '#e8f5e9', category: 'forms' },
   ai_summary: { iconType: 'chat', iconBg: '#e3f2fd', category: 'alerts' },
   alert: { iconType: 'warning', iconBg: '#fff8e1', category: 'alerts' },
+  daily_report: { iconType: 'chat', iconBg: '#e3f2fd', category: 'alerts' },
+  billing_receipt: { iconType: 'check', iconBg: '#e8f5e9', category: 'alerts' },
+  billing_expiring: { iconType: 'warning', iconBg: '#fff8e1', category: 'alerts' },
+  billing_pilot_activated: { iconType: 'check', iconBg: '#e8f5e9', category: 'alerts' },
+  password_changed: { iconType: 'check', iconBg: '#e8f5e9', category: 'alerts' },
+  export: { iconType: 'check', iconBg: '#e8f5e9', category: 'forms' },
+  webhook_connected: { iconType: 'check', iconBg: '#e8f5e9', category: 'alerts' },
+  webhook_disconnected: { iconType: 'warning', iconBg: '#fff8e1', category: 'alerts' },
+  invite_single: { iconType: 'check', iconBg: '#e8f5e9', category: 'alerts' },
+  invite_multiple: { iconType: 'check', iconBg: '#e8f5e9', category: 'alerts' },
+  active_session: { iconType: 'warning', iconBg: '#fff8e1', category: 'alerts' },
+  template_created: { iconType: 'check', iconBg: '#e8f5e9', category: 'alerts' },
+  template_deleted: { iconType: 'warning', iconBg: '#fff8e1', category: 'alerts' },
+  preferences_updated: { iconType: 'check', iconBg: '#e8f5e9', category: 'alerts' },
 };
 
 function mapApiNotification(item) {
   const { iconType, iconBg, category } =
     TYPE_ICON[item.type] ?? { iconType: 'check', iconBg: '#f5f5f5', category: 'all' };
-  return {
+  const mapped = {
     id: item.id,
     unread: !item.readAt,
     title: item.title,
@@ -50,8 +65,15 @@ function mapApiNotification(item) {
     iconType,
     iconBg,
     category,
+    type: item.type,
     formId: item.formId,
+    readAt: item.readAt,
+    createdAt: item.createdAt,
   };
+  if (item.action) {
+    mapped.action = typeof item.action === 'object' ? item.action : JSON.parse(item.action);
+  }
+  return mapped;
 }
 
 function isLocalNotificationId(id) {
@@ -65,7 +87,6 @@ function persistNotifications(notifications) {
   }
 }
 
-/** Record current inbox items as dismissed so alert sync cannot immediately restore them. */
 function dismissAndClearInbox(state) {
   if (!state.dismissedKeys) state.dismissedKeys = {};
   for (const n of state.notifications) {
@@ -73,11 +94,16 @@ function dismissAndClearInbox(state) {
     if (n.id != null) state.dismissedKeys[String(n.id)] = true;
   }
   state.notifications = [];
+  state.unreadCount = 0;
   persistNotifications(state.notifications);
 }
 
 function isDismissedKey(state, key) {
   return key != null && !!state.dismissedKeys?.[String(key)];
+}
+
+function updateUnreadCount(state) {
+  state.unreadCount = state.notifications.filter((n) => n.unread).length;
 }
 
 export const loadNotificationsFromApi = createAsyncThunk(
@@ -86,7 +112,7 @@ export const loadNotificationsFromApi = createAsyncThunk(
     if (!isApiConfigured()) return [];
     try {
       const { items } = await listNotifications();
-      return items.filter((item) => !item.readAt).map(mapApiNotification);
+      return items.map(mapApiNotification);
     } catch {
       return [];
     }
@@ -112,7 +138,7 @@ export const clearAllNotificationsThunk = createAsyncThunk(
   async () => {
     if (isApiConfigured()) {
       try {
-        await markAllNotificationsReadOnServer();
+        await deleteAllNotifications();
       } catch {
         // Local clear still runs so the user is not stuck with a stale inbox.
       }
@@ -124,6 +150,7 @@ const initialState = {
   activeTab: 'all',
   notifications: isApiConfigured() ? [] : readNotifications(),
   dismissedKeys: {},
+  unreadCount: 0,
 };
 
 const notificationsSlice = createSlice({
@@ -134,20 +161,49 @@ const notificationsSlice = createSlice({
       state.activeTab = action.payload;
     },
     markNotificationRead(state, action) {
-      state.notifications = state.notifications.filter((n) => n.id !== action.payload);
+      const n = state.notifications.find((n) => n.id === action.payload);
+      if (n) {
+        n.unread = false;
+        n.readAt = new Date().toISOString();
+      }
+      updateUnreadCount(state);
       persistNotifications(state.notifications);
     },
-    /** Clears the inbox after UI exit animation (not individual mark-read). */
     clearAllNotifications(state) {
       dismissAndClearInbox(state);
     },
     markAllNotificationsRead(state) {
-      dismissAndClearInbox(state);
+      state.notifications.forEach((n) => {
+        n.unread = false;
+        n.readAt = new Date().toISOString();
+      });
+      state.unreadCount = 0;
+      persistNotifications(state.notifications);
     },
     addNotification(state, action) {
       const next = { unread: true, dateGroup: 'Today', timestamp: 'Just now', ...action.payload };
       if (!next.id) next.id = `n-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      if (!next.type) next.type = 'alert';
+      const { iconType, iconBg, category } = TYPE_ICON[next.type] ?? TYPE_ICON.alert;
+      next.iconType = next.iconType ?? iconType;
+      next.iconBg = next.iconBg ?? iconBg;
+      next.category = next.category ?? category;
+      if (typeof next.body === 'string') {
+        next.bodySegments = [{ bold: false, text: next.body }];
+      }
       state.notifications.unshift(next);
+      updateUnreadCount(state);
+      persistNotifications(state.notifications);
+    },
+    setUnreadCount(state, action) {
+      state.unreadCount = action.payload;
+    },
+    receiveRealtimeNotification(state, action) {
+      const item = mapApiNotification(action.payload);
+      const existing = state.notifications.find((n) => n.id === item.id);
+      if (existing) return;
+      state.notifications.unshift(item);
+      updateUnreadCount(state);
       persistNotifications(state.notifications);
     },
     upsertAlertNotification(state, action) {
@@ -156,6 +212,7 @@ const notificationsSlice = createSlice({
       const idx = state.notifications.findIndex((n) => n.dedupeKey === dedupeKey);
       if (!active) {
         if (idx >= 0) state.notifications.splice(idx, 1);
+        updateUnreadCount(state);
         persistNotifications(state.notifications);
         return;
       }
@@ -170,6 +227,7 @@ const notificationsSlice = createSlice({
       } else {
         state.notifications.unshift(item);
       }
+      updateUnreadCount(state);
       persistNotifications(state.notifications);
     },
     syncFormAlertNotifications(state, action) {
@@ -200,12 +258,14 @@ const notificationsSlice = createSlice({
         }
       });
 
+      updateUnreadCount(state);
       persistNotifications(state.notifications);
     },
     clearNotificationsForForm(state, action) {
       const formId = action.payload;
       const prefix = `alert:${formId}:`;
       state.notifications = state.notifications.filter((n) => !n.dedupeKey?.startsWith(prefix));
+      updateUnreadCount(state);
       persistNotifications(state.notifications);
     },
     syncSystemAlertNotifications(state, action) {
@@ -236,6 +296,7 @@ const notificationsSlice = createSlice({
         }
       });
 
+      updateUnreadCount(state);
       persistNotifications(state.notifications);
     },
   },
@@ -254,10 +315,16 @@ const notificationsSlice = createSlice({
           (n) => !apiIds.has(n.id) && !isDismissedKey(state, n.dedupeKey ?? n.id),
         );
         state.notifications = [...apiItems, ...mergedLocal];
+        updateUnreadCount(state);
         persistNotifications(state.notifications);
       })
       .addCase(markNotificationReadThunk.fulfilled, (state, action) => {
-        state.notifications = state.notifications.filter((n) => n.id !== action.payload);
+        const n = state.notifications.find((n) => n.id === action.payload);
+        if (n) {
+          n.unread = false;
+          n.readAt = new Date().toISOString();
+        }
+        updateUnreadCount(state);
         persistNotifications(state.notifications);
       })
       .addCase(clearAllNotificationsThunk.fulfilled, (state) => {
@@ -272,6 +339,8 @@ export const {
   clearAllNotifications,
   markAllNotificationsRead,
   addNotification,
+  setUnreadCount,
+  receiveRealtimeNotification,
   upsertAlertNotification,
   syncFormAlertNotifications,
   clearNotificationsForForm,
