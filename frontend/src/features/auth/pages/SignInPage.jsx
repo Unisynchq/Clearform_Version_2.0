@@ -10,11 +10,11 @@ import {
   completeAuthNavigationAfterSync,
 } from '@/features/onboarding/utils/authOnboarding';
 import {
+  requestPasswordResetEmail,
   signInWithEmail,
   signInWithGoogle,
-  startMicrosoftSignInRedirect,
-  startMicrosoftSignInPopup,
-} from '@/features/auth/services/firebaseAuthService';
+  signInWithMicrosoft,
+} from '@/features/auth/services/supabaseAuthService';
 import AuthFieldError from '@/features/auth/components/AuthFieldError';
 import AuthBrowserTipBanner from '@/features/auth/components/AuthBrowserTipBanner';
 import {
@@ -36,17 +36,18 @@ const MicrosoftIcon = memo(() => (
   </svg>
 ));
 
-const SocialButton = memo(({ children, label, onClick }) => (
+const SocialButton = memo(({ children, label, onClick, text }) => (
   <motion.button
     type="button"
     aria-label={label}
     onClick={onClick}
-    whileHover={{ scale: 1.03 }}
-    whileTap={{ scale: 0.96 }}
+    whileHover={{ scale: 1.01 }}
+    whileTap={{ scale: 0.98 }}
     transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
-    className="flex items-center justify-center w-[58px] h-[40px] bg-white border border-[rgba(81,76,84,0.15)] rounded-[10px] hover:bg-[#f4f4f4] cursor-pointer"
+    className="flex flex-1 items-center justify-center gap-2 h-[40px] bg-white border border-[rgba(81,76,84,0.15)] rounded-[10px] hover:bg-[#f4f4f4] cursor-pointer text-[13px] font-semibold text-[#18181b]"
   >
     {children}
+    {text && <span>{text}</span>}
   </motion.button>
 ));
 
@@ -272,8 +273,13 @@ const SignInPage = () => {
       showToast({ type: 'success', message: 'Signed in successfully', duration: 3000 });
       navigate(path, { replace: true });
     } catch (err) {
-      dispatch(setError(err.message));
-      setErrors({ password: err.message });
+      if (err.message.includes('No account found')) {
+        showToast({ type: 'info', message: "Account not found. Let's create one!", duration: 4000 });
+        navigate('/signup');
+      } else {
+        dispatch(setError(err.message));
+        setErrors({ password: err.message });
+      }
     } finally {
       dispatch(setSubmitting(false));
     }
@@ -314,13 +320,31 @@ const SignInPage = () => {
 
             <PasswordField value={password} onChange={handleChange} error={errors.password} />
 
+            {/* CTA */}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full h-[46px] bg-black text-white text-[15px] font-semibold rounded-[12px] flex items-center justify-center cursor-pointer hover:bg-[#2c2c2e] active:scale-[0.99] transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? (
+                <svg className="animate-spin w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" aria-label="Loading">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="white" strokeWidth="4" />
+                  <path className="opacity-75" fill="white" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : 'Sign In'}
+            </button>
+
             {/* Social login */}
-            {/* TODO: Restore Google Sign-In with Supabase OAuth
-            <div className="flex items-center justify-center gap-3 py-0.5">
-              <SocialButton label="Continue with Google" onClick={handleGoogleSignIn}><FcGoogle size={22} /></SocialButton>
-              <SocialButton label="Continue with Microsoft" onClick={handleMicrosoftSignIn}><MicrosoftIcon /></SocialButton>
+            <div className="flex items-center gap-4 py-2">
+              <div className="h-px bg-[rgba(81,76,84,0.15)] flex-1" />
+              <span className="text-[13px] font-medium text-[#655d67]">OR</span>
+              <div className="h-px bg-[rgba(81,76,84,0.15)] flex-1" />
             </div>
-            */}
+            
+            <div className="flex items-center justify-center gap-3 py-0.5">
+              <SocialButton label="Continue with Google" onClick={handleGoogleSignIn} text="Sign in with Google"><FcGoogle size={22} /></SocialButton>
+              <SocialButton label="Continue with Microsoft" onClick={handleMicrosoftSignIn} text="Sign in with Microsoft"><MicrosoftIcon /></SocialButton>
+            </div>
 
             {(showPopupFallback || (authError && /Microsoft sign-in did not finish/i.test(authError))) && (
               <div className="rounded-[10px] border border-[rgba(81,76,84,0.15)] bg-[#fafafa] px-3 py-2">
@@ -338,24 +362,10 @@ const SignInPage = () => {
               </div>
             )}
 
-            {/* CTA */}
-            <div className="flex flex-col gap-3">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full h-[46px] bg-black text-white text-[15px] font-semibold rounded-[12px] flex items-center justify-center cursor-pointer hover:bg-[#2c2c2e] active:scale-[0.99] transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? (
-                  <svg className="animate-spin w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" aria-label="Loading">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="white" strokeWidth="4" />
-                    <path className="opacity-75" fill="white" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                ) : 'Sign In'}
-              </button>
-
+            <div className="flex flex-col gap-3 mt-1">
               <button
                 type="button"
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/signup')}
                 className="w-full h-[46px] border border-[rgba(0,0,0,0.2)] text-[#737373] text-[15px] font-normal rounded-[12px] flex items-center justify-center cursor-pointer hover:bg-[rgba(0,0,0,0.02)] active:scale-[0.99] transition-all duration-150"
               >
                 Don't have an account? Sign up

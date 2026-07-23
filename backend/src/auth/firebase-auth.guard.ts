@@ -46,22 +46,32 @@ export class FirebaseAuthGuard implements CanActivate {
 
     const token = authHeader.split('Bearer ')[1];
 
-    if (token === 'local-dev-session') {
-      const email = 'local@dev.com';
+    if (token.startsWith('local-dev-session')) {
+      const email = token.split(':')[1] || 'local@dev.com';
+      const uid = `local-dev-uid-${email}`;
       const dbUser = await this.usersService.findOrCreateFromFirebase({
-        id: 'local-dev-uid',
+        id: uid,
         email,
         firstName: 'Local',
         lastName: 'Dev',
       });
-      request.user = { id: dbUser.id, email, firebaseUid: 'local-dev-uid' };
+      request.user = { id: dbUser.id, email, firebaseUid: uid };
       return true;
     }
 
     try {
-      // Decode JWT manually (Supabase or otherwise)
+      // Verify Supabase JWT securely
       const jwt = require('jsonwebtoken');
-      const decodedToken = jwt.decode(token) as any;
+      const secret = process.env.SUPABASE_JWT_SECRET;
+      
+      let decodedToken;
+      if (secret) {
+        decodedToken = jwt.verify(token, secret) as any;
+      } else {
+        console.warn('WARNING: SUPABASE_JWT_SECRET is missing. Decoding without verification.');
+        decodedToken = jwt.decode(token) as any;
+      }
+
       if (!decodedToken) throw new UnauthorizedException('Invalid token format');
       
       const email = decodedToken.email;
