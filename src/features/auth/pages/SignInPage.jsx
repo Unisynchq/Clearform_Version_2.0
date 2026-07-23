@@ -288,6 +288,27 @@ const SignInPage = () => {
     }
   }, [dispatch, navigate, location.state, email, password, showToast]);
 
+  const handleForgotPassword = useCallback(async () => {
+    if (!email || !email.trim()) {
+      setErrors((prev) => ({ ...prev, email: 'Please enter your email address first.' }));
+      showToast({ type: 'error', message: 'Please enter your email address first.', duration: 4000 });
+      return;
+    }
+    dispatch(setSubmitting(true));
+    try {
+      await requestPasswordResetEmail(email.trim());
+      showToast({
+        type: 'success',
+        message: `Password reset email sent to ${email.trim()}. Please check your inbox.`,
+        duration: 6000,
+      });
+    } catch (err) {
+      showToast({ type: 'error', message: err.message || 'Failed to send password reset email.', duration: 5000 });
+    } finally {
+      dispatch(setSubmitting(false));
+    }
+  }, [email, dispatch, showToast]);
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white">
 
@@ -321,7 +342,7 @@ const SignInPage = () => {
               error={errors.email}
             />
 
-            <PasswordField value={password} onChange={handleChange} error={errors.password} />
+            <PasswordField value={password} onChange={handleChange} error={errors.password} onForgotPassword={handleForgotPassword} />
 
             {/* CTA */}
             <button
@@ -383,7 +404,7 @@ const SignInPage = () => {
 
 /* ─── Password field with inline "Forgot password?" link ─── */
 
-const PasswordField = memo(({ value, onChange, error }) => {
+const PasswordField = memo(({ value, onChange, error, onForgotPassword }) => {
   const [showPassword, setShowPassword] = useState(false);
   const errorId = 'password-error';
 
@@ -393,12 +414,13 @@ const PasswordField = memo(({ value, onChange, error }) => {
         <label htmlFor="password" className="flex items-center gap-0.5 text-[13.5px] font-normal text-[#655d67] leading-[20px]">
           Password<span className="text-[#c74e43] text-[14px]" aria-hidden="true">*</span>
         </label>
-        <a
-          href="#"
-          className="text-[13px] text-[#3c323e] leading-[20px] underline hover:text-[#1a1a1c] transition-colors"
+        <button
+          type="button"
+          onClick={onForgotPassword}
+          className="text-[13px] text-[#3c323e] leading-[20px] underline hover:text-[#1a1a1c] transition-colors cursor-pointer bg-transparent border-none p-0"
         >
           Forgot password?
-        </a>
+        </button>
       </div>
       <div className="relative">
         <input
