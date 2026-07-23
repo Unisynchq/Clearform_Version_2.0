@@ -315,10 +315,12 @@ const SignInPage = () => {
             <PasswordField value={password} onChange={handleChange} error={errors.password} />
 
             {/* Social login */}
+            {/* TODO: Restore Google Sign-In with Supabase OAuth
             <div className="flex items-center justify-center gap-3 py-0.5">
               <SocialButton label="Continue with Google" onClick={handleGoogleSignIn}><FcGoogle size={22} /></SocialButton>
               <SocialButton label="Continue with Microsoft" onClick={handleMicrosoftSignIn}><MicrosoftIcon /></SocialButton>
             </div>
+            */}
 
             {(showPopupFallback || (authError && /Microsoft sign-in did not finish/i.test(authError))) && (
               <div className="rounded-[10px] border border-[rgba(81,76,84,0.15)] bg-[#fafafa] px-3 py-2">

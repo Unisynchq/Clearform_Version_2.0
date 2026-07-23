@@ -333,10 +333,12 @@ const SignupPage = () => {
             />
 
             {/* Social login */}
+            {/* TODO: Restore Google Sign-In with Supabase OAuth
             <div className="flex items-center justify-center gap-3 py-0.5">
               <SocialButton label="Continue with Google" onClick={handleGoogleSignIn}><FcGoogle size={22} /></SocialButton>
               <SocialButton label="Continue with Microsoft" onClick={handleMicrosoftSignIn}><MicrosoftIcon /></SocialButton>
             </div>
+            */}
 
             {/* CTA */}
             <div className="flex flex-col gap-3">

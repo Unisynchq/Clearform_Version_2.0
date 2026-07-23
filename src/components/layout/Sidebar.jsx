@@ -19,6 +19,7 @@ import {
 } from '@/store/slices/formsSlice';
 import { logout } from '@/store/slices/authSlice';
 import { signOutUser } from '@/features/auth/services/firebaseAuthService';
+import ConfirmActionModal from '@/components/ui/ConfirmActionModal';
 import { readProfileSettings } from '@/features/profile/utils/profileSettingsStorage';
 import {
   openCreateWorkspaceModal,
@@ -186,11 +187,21 @@ const Sidebar = ({ hideLogo = false, exit }) => {
     dispatch(openWorkspaceContextMenu({ workspaceId: wsId, x: e.clientX, y: e.clientY }));
   };
 
-  const handleLogout = () => {
-    dispatch(logout());
-    signOutUser();
-    navigate('/signin');
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+
+  const handleLogoutClick = () => {
+    setIsLogoutModalOpen(true);
   };
+
+  const confirmLogout = () => {
+    setIsLogoutModalOpen(false);
+    navigate('/signin', { replace: true, state: null });
+    setTimeout(() => {
+      dispatch(logout());
+      signOutUser();
+    }, 0);
+  };
+
   const totalFormCount = useSelector(selectTotalFormCount);
   const showFormCounts = !formsLoading;
 
@@ -229,12 +240,13 @@ const Sidebar = ({ hideLogo = false, exit }) => {
           className={`shrink-0 transition-transform duration-200 ${isCollapsed ? 'rotate-180' : ''}`}
         />
       </button>
-      <AnimatePresence mode="sync" initial={false}>
-        {showSidebarSkeleton ? (
-          <motion.div
-            key="skeleton"
-            className="flex flex-col h-full overflow-hidden"
-            initial={{ opacity: 0 }}
+      <div className="relative w-full h-full overflow-hidden">
+        <AnimatePresence mode="sync" initial={false}>
+          {showSidebarSkeleton ? (
+            <motion.div
+              key="skeleton"
+              className="absolute inset-0 flex flex-col h-full overflow-hidden bg-[#f7f7f8]"
+              initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
@@ -245,7 +257,7 @@ const Sidebar = ({ hideLogo = false, exit }) => {
           /* ── Collapsed sidebar ── */
           <motion.div
             key="collapsed"
-            className="flex flex-col h-full overflow-hidden"
+            className="absolute inset-0 flex flex-col h-full overflow-hidden bg-white"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -304,7 +316,7 @@ const Sidebar = ({ hideLogo = false, exit }) => {
               <div className="border-t border-[rgba(0,0,0,0.08)] px-[10px] pb-[14px] pt-[11px] flex flex-col gap-[2px] shrink-0">
                 <LogoutNavButton
                   expanded={false}
-                  onClick={handleLogout}
+                  onClick={handleLogoutClick}
                 />
                 <ProfileFooter
                   expanded={false}
@@ -320,7 +332,7 @@ const Sidebar = ({ hideLogo = false, exit }) => {
           /* ── Expanded sidebar ── */
           <motion.div
             key="expanded"
-            className="flex flex-col h-full overflow-hidden"
+            className="absolute inset-0 flex flex-col h-full w-[196px] overflow-hidden bg-white"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -419,7 +431,7 @@ const Sidebar = ({ hideLogo = false, exit }) => {
             <div className="border-t border-[#e5e3dc] px-2 py-[14px] flex flex-col gap-px shrink-0">
               <LogoutNavButton
                 expanded
-                onClick={handleLogout}
+                onClick={handleLogoutClick}
               />
               <ProfileFooter
                 expanded
@@ -432,6 +444,17 @@ const Sidebar = ({ hideLogo = false, exit }) => {
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
+
+      <ConfirmActionModal
+        open={isLogoutModalOpen}
+        onCancel={() => setIsLogoutModalOpen(false)}
+        onConfirm={confirmLogout}
+        title="Log out"
+        warning="You will be required to sign in again to access your forms."
+        confirmLabel="Log out"
+        confirmIcon={RiLogoutBoxRLine}
+      />
     </motion.aside>
   );
 };
