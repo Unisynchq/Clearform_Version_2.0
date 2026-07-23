@@ -49,7 +49,7 @@ export async function createForm({ title, workspaceId, gradientFrom, gradientTo,
 }
 
 export async function patchForm(formId, body) {
-  if (isApiConfigured()) {
+  if (isApiConfigured() && typeof formId !== 'number') {
     return apiClient(`${API_ENDPOINTS.forms.list}/${formId}`, {
       method: 'PATCH',
       body,
@@ -60,21 +60,21 @@ export async function patchForm(formId, body) {
 
 /** Soft-delete (trash) or hard-delete when already in trash — see backend forms.service.remove */
 export async function deleteForm(formId) {
-  if (isApiConfigured()) {
+  if (isApiConfigured() && typeof formId !== 'number') {
     return apiClient(API_ENDPOINTS.forms.byId(formId), { method: 'DELETE' });
   }
   return null;
 }
 
 export async function getBuilderSnapshot(formId) {
-  if (isApiConfigured()) {
+  if (isApiConfigured() && typeof formId !== 'number') {
     return apiClient(API_ENDPOINTS.forms.builderSnapshot(formId));
   }
   return readBuilderDraft(formId);
 }
 
 export async function saveBuilderSnapshot(formId, snapshot) {
-  if (isApiConfigured()) {
+  if (isApiConfigured() && typeof formId !== 'number') {
     return apiClient(API_ENDPOINTS.forms.builderSnapshot(formId), {
       method: 'PUT',
       body: snapshot,
@@ -86,7 +86,7 @@ export async function saveBuilderSnapshot(formId, snapshot) {
 
 export async function publishForm(formId, snapshot) {
   clearPublishedFormSessionCache(formId);
-  if (isApiConfigured()) {
+  if (isApiConfigured() && typeof formId !== 'number') {
     const result = await apiClient(API_ENDPOINTS.forms.publish(formId), {
       method: 'POST',
       body: snapshot,
@@ -100,7 +100,7 @@ export async function publishForm(formId, snapshot) {
 }
 
 export async function getPublishedForm(formId) {
-  if (isApiConfigured()) {
+  if (isApiConfigured() && typeof formId !== 'number') {
     const cached = readPublishedFormSessionCache(formId);
     try {
       const fresh = await apiClient(API_ENDPOINTS.forms.published(formId));

@@ -12,7 +12,7 @@ import {
   RiTimeLine,
 } from 'react-icons/ri';
 import { selectNavWorkspaces } from '@/store/slices/formsSlice';
-import { NO_WORKSPACE_ID } from '@/features/forms/constants/workspaces';
+
 import { getTemplatePreviewBlocks } from '@/features/onboarding/utils/templatePreviewBlocks';
 import { getUserTemplatePreviewBlocks } from '@/features/templates/utils/userTemplatePreview';
 import WorkspaceFolderIcon from '@/components/ui/WorkspaceFolderIcon';
@@ -42,10 +42,7 @@ function WorkspaceSelect({ value, onChange, workspaces }) {
   const rootRef = useRef(null);
 
   const options = useMemo(
-    () => [
-      { id: NO_WORKSPACE_ID, label: 'No workspace', color: null },
-      ...workspaces.map((ws) => ({ id: ws.id, label: ws.label, color: ws.color })),
-    ],
+    () => workspaces.map((ws) => ({ id: ws.id, label: ws.label, color: ws.color })),
     [workspaces]
   );
 
@@ -138,7 +135,7 @@ export default function StartWithTemplateModal({
 }) {
   const workspaces = useSelector(selectNavWorkspaces);
   const [formName, setFormName] = useState('');
-  const [workspaceId, setWorkspaceId] = useState(defaultWorkspaceId ?? NO_WORKSPACE_ID);
+  const [workspaceId, setWorkspaceId] = useState(defaultWorkspaceId ?? workspaces[0]?.id);
 
   const { meta } = useMemo(() => {
     if (template?.isUserTemplate && template.snapshot) {
@@ -150,7 +147,7 @@ export default function StartWithTemplateModal({
   useEffect(() => {
     if (!open || !template) return;
     setFormName('');
-    setWorkspaceId(defaultWorkspaceId ?? NO_WORKSPACE_ID);
+    setWorkspaceId(defaultWorkspaceId ?? workspaces[0]?.id);
   }, [open, template, defaultWorkspaceId]);
 
   useEffect(() => {
@@ -173,7 +170,7 @@ export default function StartWithTemplateModal({
     const trimmed = formName.trim();
     onCreate?.({
       formTitle: trimmed || displayTitle,
-      workspaceId: workspaceId === NO_WORKSPACE_ID ? undefined : workspaceId,
+      workspaceId,
     });
   };
 
@@ -213,10 +210,12 @@ export default function StartWithTemplateModal({
                     id="start-template-title"
                     className="text-[15px] font-semibold text-[#1a1814] tracking-[-0.2px] leading-[22.5px]"
                   >
-                    Start with this template
+                    {workspaces.length === 0 ? 'Workspace Required' : 'Start with this template'}
                   </h2>
                   <p className="mt-1 text-[12.5px] font-normal text-[#7a7670] leading-[18px]">
-                    A new form will be created based on &ldquo;{displayTitle}&rdquo;.
+                    {workspaces.length === 0 
+                      ? 'You must create a workspace before you can create a form. Organise your forms by team, project or client using workspaces.'
+                      : `A new form will be created based on "${displayTitle}".`}
                   </p>
                 </div>
                 <button
@@ -230,14 +229,28 @@ export default function StartWithTemplateModal({
                 </button>
               </div>
 
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                <MetaPill icon={RiQuestionLine}>{meta.questionCount} questions</MetaPill>
-                <MetaPill icon={RiTimeLine}>{durationLabel}</MetaPill>
-                <MetaPill icon={RiArticleLine}>{meta.structure}</MetaPill>
-              </div>
+              {workspaces.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  <MetaPill icon={RiQuestionLine}>{meta.questionCount} questions</MetaPill>
+                  <MetaPill icon={RiTimeLine}>{durationLabel}</MetaPill>
+                  <MetaPill icon={RiArticleLine}>{meta.structure}</MetaPill>
+                </div>
+              )}
             </div>
 
-            {/* Body */}
+            {workspaces.length === 0 ? (
+              <div className="shrink-0 border-t border-[#e8e6e1] px-6 py-3.5 flex justify-end bg-white">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="inline-flex items-center gap-1 bg-[#1a1814] text-white text-[12.5px] font-medium px-4 py-[9px] rounded-[8px] hover:bg-[#2c2c2c] cursor-pointer"
+                >
+                  Got it
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* Body */}
             <form
               id="start-template-form"
               onSubmit={handleSubmit}
@@ -305,6 +318,8 @@ export default function StartWithTemplateModal({
                 )}
               </button>
             </div>
+            </>
+            )}
           </motion.div>
           </div>
         </>

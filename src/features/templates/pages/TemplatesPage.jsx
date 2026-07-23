@@ -266,7 +266,7 @@ const TemplatesPage = () => {
   };
 
   const defaultStartWorkspaceId =
-    activeWorkspace && activeWorkspace !== 'all' ? activeWorkspace : NO_WORKSPACE_ID;
+    activeWorkspace && activeWorkspace !== 'all' ? activeWorkspace : undefined;
 
   const handleCreateFromStartModal = async ({ formTitle, workspaceId }) => {
     if (!startModalTemplate || loadingTemplateId) return;

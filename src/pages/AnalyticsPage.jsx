@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useHydrationFrame } from '@/hooks/useHydrationFrame';
 import { useAnalyticsPageState } from '@/hooks/useAnalyticsPageState';
 import { fadeUp, fadeUpTransition } from '@/motion/presets';
-import { RiDownloadLine, RiArrowDownSLine, RiPencilLine, RiFileList2Line } from 'react-icons/ri';
+import { RiDownloadLine, RiArrowDownSLine, RiFileList2Line } from 'react-icons/ri';
 import AnalyticsDateRangeControl from '@/components/analytics/AnalyticsDateRangeControl';
 import { openFormOverlay, openShareModal } from '@/store/slices/uiSlice';
 import AnalyticsExportModal from '@/components/analytics/AnalyticsExportModal';
@@ -339,9 +339,6 @@ const AnalyticsPage = () => {
     navigate('/dashboard');
   };
 
-  const goEditForm = () => {
-    goBuilder();
-  };
 
   const openExport = (fmt = 'PDF') => {
     setExportFormatDefault(fmt);
@@ -526,57 +523,14 @@ const AnalyticsPage = () => {
   };
 
   const headerActions = () => {
-    if ((activeTab === 'responses' && responsesView === 'all') || activeTab === 'compare') {
-      return (
-        <>
-          <button
-            type="button"
-            onClick={() => openExport('CSV')}
-            className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg border border-[#96948d] text-[12px] text-[#6a6860] hover:bg-[#f4f3ef] transition-colors cursor-pointer whitespace-nowrap"
-          >
-            <RiDownloadLine size={12} aria-hidden />
-            <span>Export CSV</span>
-          </button>
-          <button
-            type="button"
-            onClick={goEditForm}
-            className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg bg-[#17160e] text-[12px] font-medium text-white hover:bg-[#2c2c2e] cursor-pointer whitespace-nowrap"
-          >
-            <RiPencilLine size={13} aria-hidden />
-            <span>Edit form</span>
-          </button>
-        </>
-      );
-    }
-    if (activeTab === 'settings') {
-      return (
-        <>
-          <button
-            type="button"
-            onClick={() => openExport('PDF')}
-            className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg border border-[#96948d] text-[12px] text-[#6a6860] hover:bg-[#f4f3ef] cursor-pointer whitespace-nowrap"
-          >
-            <RiDownloadLine size={12} aria-hidden />
-            <span>Export</span>
-          </button>
-          <button
-            type="button"
-            onClick={goBuilder}
-            disabled={!selectedForm}
-            className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-[#17160e] text-[12px] font-medium text-white hover:bg-[#2c2c2e] disabled:opacity-45 cursor-pointer whitespace-nowrap"
-          >
-            Go to Builder →
-          </button>
-        </>
-      );
-    }
-    /* performance + ai */
+    const exportFormat = (activeTab === 'responses' && responsesView === 'all') || activeTab === 'compare' ? 'CSV' : 'PDF';
+
     return (
       <>
         <button
           type="button"
-          onClick={() => openExport('PDF')}
-          className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg border border-[#96948d] text-[12px] text-[#6a6860] hover:bg-[#f4f3ef] cursor-pointer whitespace-nowrap"
+          onClick={() => openExport(exportFormat)}
+          className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg border border-[#96948d] text-[12px] text-[#6a6860] hover:bg-[#f4f3ef] transition-colors cursor-pointer whitespace-nowrap"
         >
           <RiDownloadLine size={12} aria-hidden />
           <span>Export</span>
@@ -585,7 +539,7 @@ const AnalyticsPage = () => {
           type="button"
           onClick={goBuilder}
           disabled={!selectedForm}
-          className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-[#17160e] text-[12px] font-medium text-white hover:bg-[#2c2c2e] disabled:opacity-45 cursor-pointer whitespace-nowrap"
+          className="inline-flex items-center justify-center h-9 px-4 rounded-lg bg-[#17160e] text-[12px] font-medium text-white hover:bg-[#2c2c2e] disabled:opacity-45 cursor-pointer whitespace-nowrap transition-all"
         >
           Go to Builder →
         </button>

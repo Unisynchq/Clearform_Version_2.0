@@ -1,7 +1,7 @@
 import { apiClient } from '@/api/client';
 import { API_ENDPOINTS } from '@/api/endpoints';
 import { isApiConfigured } from '@/config/env';
-import { readWorkspaces } from '@/features/forms/utils/workspacesStorage';
+import { readWorkspaces, writeWorkspaces } from '@/features/forms/utils/workspacesStorage';
 
 function mapWorkspace(ws) {
   return {
@@ -29,28 +29,50 @@ export async function createWorkspace({ label, color }) {
     return mapWorkspace(created);
   }
   const id = `ws-${label.trim().toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
-  return { id, label: label.trim(), color, count: 0 };
+  const workspace = { id, label: label.trim(), color, count: 0 };
+  const workspaces = readWorkspaces() ?? [];
+  writeWorkspaces([...workspaces, workspace]);
+  return workspace;
 }
 
 export async function updateWorkspace(id, { label, color }) {
-  if (!isApiConfigured()) {
-    throw new Error('API is not configured');
+  if (isApiConfigured() && !String(id).startsWith('ws-')) {
+    const body = {};
+    if (label?.trim()) body.label = label.trim();
+    if (color) body.colour = color;
+    const updated = await apiClient(API_ENDPOINTS.workspaces.byId(id), {
+      method: 'PATCH',
+      body,
+    });
+    return mapWorkspace(updated);
   }
-  const body = {};
-  if (label?.trim()) body.label = label.trim();
-  if (color) body.colour = color;
-  const updated = await apiClient(API_ENDPOINTS.workspaces.byId(id), {
-    method: 'PATCH',
-    body,
+  
+  // Offline fallback
+  const workspaces = readWorkspaces() ?? [];
+  const updatedWorkspaces = workspaces.map((ws) => {
+    if (ws.id === id) {
+      return {
+        ...ws,
+        label: label?.trim() || ws.label,
+        color: color || ws.color,
+      };
+    }
+    return ws;
   });
-  return mapWorkspace(updated);
+  writeWorkspaces(updatedWorkspaces);
+  return updatedWorkspaces.find((ws) => ws.id === id);
 }
 
 export async function deleteWorkspace(id) {
-  if (!isApiConfigured()) {
-    throw new Error('API is not configured');
+  if (isApiConfigured() && !String(id).startsWith('ws-')) {
+    await apiClient(API_ENDPOINTS.workspaces.byId(id), {
+      method: 'DELETE',
+    });
+    return;
   }
-  await apiClient(API_ENDPOINTS.workspaces.byId(id), {
-    method: 'DELETE',
-  });
+  
+  // Offline fallback
+  const workspaces = readWorkspaces() ?? [];
+  const updatedWorkspaces = workspaces.filter((ws) => ws.id !== id);
+  writeWorkspaces(updatedWorkspaces);
 }
