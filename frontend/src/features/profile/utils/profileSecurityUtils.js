@@ -52,17 +52,22 @@ export function formatPasswordLastChanged(timestamp, hasPassword = true) {
     return 'No password set';
   }
   if (!timestamp) {
-    return 'Recently set';
+    return 'Set recently';
   }
   const date = new Date(timestamp);
   if (isNaN(date.getTime())) {
-    return 'Recently set';
+    return 'Set recently';
   }
 
   const diffMs = Date.now() - date.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHours = Math.floor(diffMin / 60);
+  const diffDays = Math.floor(diffHours / 24);
 
-  if (diffDays <= 0) return 'Last changed today';
+  if (diffSec < 60) return 'Last changed just now';
+  if (diffMin < 60) return `Last changed ${diffMin} ${diffMin === 1 ? 'minute' : 'minutes'} ago`;
+  if (diffHours < 24) return `Last changed ${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
   if (diffDays === 1) return 'Last changed yesterday';
   if (diffDays < 30) return `Last changed ${diffDays} days ago`;
   const diffMonths = Math.floor(diffDays / 30);

@@ -248,18 +248,32 @@ const ProfilePage = () => {
     (async () => {
       try {
         const data = await fetchMe();
+        if (cancelled) return;
+
         const avatarUrl = data?.user?.avatarUrl;
-        if (!cancelled && avatarUrl) {
+        if (avatarUrl) {
           setPhotoUrl(avatarUrl);
           setProfileBaseline((prev) =>
             prev ? { ...prev, photoUrl: avatarUrl } : prev,
           );
-          if (email) {
-            writeProfileSettings(email, {
-              ...readProfileSettings(email),
-              photoUrl: avatarUrl,
-            });
+        }
+
+        if (email) {
+          const patch = { ...readProfileSettings(email) };
+          if (avatarUrl) patch.photoUrl = avatarUrl;
+
+          // Sync passwordLastChangedAt from server into security settings
+          // so formatPasswordLastChanged shows accurate relative time ("X hours ago").
+          const pwdChangedAt = data?.user?.passwordLastChangedAt;
+          if (pwdChangedAt) {
+            const ts = new Date(pwdChangedAt).getTime();
+            if (!Number.isNaN(ts)) {
+              const existingSecurity = patch.security ?? {};
+              patch.security = { ...existingSecurity, passwordLastChanged: ts };
+            }
           }
+
+          writeProfileSettings(email, patch);
         }
       } catch {
         // keep localStorage fallback
