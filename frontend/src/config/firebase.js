@@ -15,16 +15,16 @@ let auth = null;
 let googleProvider = null;
 let microsoftProvider = null;
 
-if (isFirebaseConfigured()) {
-  const app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  googleProvider = new GoogleAuthProvider();
+// if (isFirebaseConfigured()) {
+//   const app = initializeApp(firebaseConfig);
+//   auth = getAuth(app);
+//   googleProvider = new GoogleAuthProvider();
 
-  microsoftProvider = new OAuthProvider('microsoft.com');
-  microsoftProvider.setCustomParameters({ prompt: 'login' });
-  microsoftProvider.addScope('email');
-  microsoftProvider.addScope('profile');
-}
+//   microsoftProvider = new OAuthProvider('microsoft.com');
+//   microsoftProvider.setCustomParameters({ prompt: 'login' });
+//   microsoftProvider.addScope('email');
+//   microsoftProvider.addScope('profile');
+// }
 
 export { auth, googleProvider, microsoftProvider };
 

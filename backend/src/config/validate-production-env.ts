@@ -43,11 +43,11 @@ export function validateProductionEnv(): void {
     }
   }
 
-  if (!hasFirebaseCredentials()) {
-    missing.push('FIREBASE_CREDENTIALS_JSON or FIREBASE_CREDENTIALS_PATH');
-  } else {
-    validateFirebaseCredentialsFormat();
-  }
+  // if (!hasFirebaseCredentials()) {
+  //   missing.push('FIREBASE_CREDENTIALS_JSON or FIREBASE_CREDENTIALS_PATH');
+  // } else {
+  //   validateFirebaseCredentialsFormat();
+  // }
 
   if (missing.length > 0) {
     const message = `Production startup aborted — missing or empty: ${missing.join(', ')}`;

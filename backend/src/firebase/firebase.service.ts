@@ -41,17 +41,18 @@ export class FirebaseService implements OnModuleInit {
   private defaultApp: admin.app.App;
 
   onModuleInit() {
-    if (admin.apps.length === 0) {
-      const serviceAccount = loadServiceAccount();
-
-      this.defaultApp = admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-      });
-      this.logger.log('Firebase Admin SDK initialised');
-    } else {
-      this.defaultApp = admin.app();
-    }
+    // if (admin.apps.length === 0) {
+    //   const serviceAccount = loadServiceAccount();
+    //
+    //   this.defaultApp = admin.initializeApp({
+    //     credential: admin.credential.cert(serviceAccount),
+    //     storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+    //   });
+    //   this.logger.log('Firebase Admin SDK initialised');
+    // } else {
+    //   this.defaultApp = admin.app();
+    // }
+    this.logger.log('Firebase Admin SDK is temporarily disabled for Supabase migration');
   }
 
   getAuth() {
