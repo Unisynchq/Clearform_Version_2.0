@@ -1,18 +1,27 @@
 import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'motion/react';
-import { RiCloseLine } from 'react-icons/ri';
+import { RiCloseLine, RiArrowRightSLine } from 'react-icons/ri';
 import { closeRenameWorkspaceModal } from '@/store/slices/uiSlice';
 import { renameWorkspace } from '@/store/slices/formsSlice';
 import { updateWorkspace } from '@/api/services/workspacesService';
 import { isApiConfigured } from '@/config/env';
 import { useToast } from '@/hooks/useToast';
 
+const COLOR_OPTIONS = [
+  { id: 'blue',   value: '#3b82f6' },
+  { id: 'green',  value: '#22c55e' },
+  { id: 'amber',  value: '#f59e0b' },
+  { id: 'red',    value: '#ef4444' },
+  { id: 'black',  value: '#1a1a1c' },
+];
+
 /* Remount when `workspaceId` changes so the input initializes without a sync effect. */
-const RenameWorkspaceModalInner = ({ workspaceId, workspaceName }) => {
+const RenameWorkspaceModalInner = ({ workspaceId, workspaceName, initialColor }) => {
   const dispatch = useDispatch();
   const { showToast } = useToast();
   const [name, setName] = useState(() => workspaceName);
+  const [color, setColor] = useState(() => initialColor || COLOR_OPTIONS[0].value);
   const [saving, setSaving] = useState(false);
 
   const handleClose = () => {
@@ -25,14 +34,14 @@ const RenameWorkspaceModalInner = ({ workspaceId, workspaceName }) => {
     setSaving(true);
     try {
       if (isApiConfigured()) {
-        await updateWorkspace(workspaceId, { label: trimmed });
+        await updateWorkspace(workspaceId, { label: trimmed, color });
       }
-      dispatch(renameWorkspace({ workspaceId, newName: trimmed }));
+      dispatch(renameWorkspace({ workspaceId, newName: trimmed, color }));
       dispatch(closeRenameWorkspaceModal());
     } catch (err) {
       showToast({
         type: 'error',
-        message: err?.message ?? 'Could not rename workspace.',
+        message: err?.message ?? 'Could not update workspace.',
         duration: 6000,
       });
     } finally {
@@ -47,16 +56,16 @@ const RenameWorkspaceModalInner = ({ workspaceId, workspaceName }) => {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 8 }}
         transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
-        className="bg-white rounded-[16px] shadow-[0_24px_64px_rgba(0,0,0,0.18)] w-[380px] p-6 flex flex-col gap-5"
+        className="bg-white rounded-[16px] shadow-[0_24px_64px_rgba(0,0,0,0.18)] w-[400px] p-6 flex flex-col gap-5"
       >
         {/* Header */}
         <div className="flex items-start justify-between">
           <div className="flex flex-col gap-0.5">
             <h2 className="text-[15px] font-semibold text-[#1a1a1c] leading-[22px] tracking-[-0.2px]">
-              Rename workspace
+              Manage workspace
             </h2>
             <p className="text-[13px] text-[#6b6966] leading-[19px]">
-              Give this workspace a new name.
+              Update the name and colour for this workspace.
             </p>
           </div>
           <button
@@ -83,6 +92,27 @@ const RenameWorkspaceModalInner = ({ workspaceId, workspaceName }) => {
           />
         </div>
 
+        {/* Colour picker */}
+        <div className="flex flex-col gap-2">
+          <label className="text-[12px] font-medium text-[#1a1a1c] leading-[18px]">
+            Colour
+          </label>
+          <div className="flex items-center gap-2">
+            {COLOR_OPTIONS.map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => setColor(opt.value)}
+                className="w-7 h-7 rounded-full flex items-center justify-center transition-transform hover:scale-110 cursor-pointer shrink-0"
+                style={{ backgroundColor: opt.value }}
+              >
+                {color === opt.value && (
+                  <span className="w-2.5 h-2.5 rounded-full bg-white/80 block" />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Actions */}
         <div className="flex items-center justify-between pt-1">
           <button
@@ -95,7 +125,7 @@ const RenameWorkspaceModalInner = ({ workspaceId, workspaceName }) => {
           <button
             type="button"
             onClick={handleSave}
-            disabled={!name.trim() || name.trim() === workspaceName || saving}
+            disabled={!name.trim() || (name.trim() === workspaceName && color === initialColor) || saving}
             className="bg-[#1a1a1c] text-white text-[13px] font-medium px-[15px] py-[8px] rounded-[8px] hover:bg-[#2c2c2e] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
           >
             {saving ? 'Saving…' : 'Save changes'}
@@ -109,6 +139,7 @@ const RenameWorkspaceModalInner = ({ workspaceId, workspaceName }) => {
 const RenameWorkspaceModal = () => {
   const dispatch = useDispatch();
   const { open, workspaceId, workspaceName } = useSelector((s) => s.ui.renameWorkspaceModal);
+  const workspace = useSelector((s) => s.forms.workspaces.find((w) => w.id === workspaceId));
 
   return (
     <AnimatePresence>
@@ -127,6 +158,7 @@ const RenameWorkspaceModal = () => {
             key={workspaceId ?? 'ws'}
             workspaceId={workspaceId}
             workspaceName={workspaceName}
+            initialColor={workspace?.color}
           />
         </>
       )}

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { RiFolderTransferLine } from 'react-icons/ri';
 import { closeAssignFormWorkspaceModal } from '@/store/slices/uiSlice';
 import { assignFormToWorkspace, selectNavWorkspaces } from '@/store/slices/formsSlice';
-import { NO_WORKSPACE_ID } from '@/features/forms/constants/workspaces';
+
 import { useToast } from '@/hooks/useToast';
 
 const AssignFormWorkspaceModalInner = ({ formId, formTitle, currentWorkspaceId }) => {
@@ -67,9 +67,8 @@ const AssignFormWorkspaceModalInner = ({ formId, formTitle, currentWorkspaceId }
             onChange={(e) => setSelectedId(e.target.value)}
             className="w-full text-[14px] text-[#1a1a1c] border border-[#e5e3dc] rounded-[10px] px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-[rgba(26,26,28,0.12)] cursor-pointer"
           >
-            <option value={NO_WORKSPACE_ID}>No workspace (all forms only)</option>
             {workspaces.map((ws) => (
-              <option key={ws.id} value={String(ws.id)}>
+              <option key={ws.id} value={ws.id}>
                 {ws.label}
               </option>
             ))}
@@ -99,11 +98,12 @@ const AssignFormWorkspaceModalInner = ({ formId, formTitle, currentWorkspaceId }
 };
 
 const AssignFormWorkspaceModal = () => {
+  const workspaces = useSelector(selectNavWorkspaces);
   const { open, formId, formTitle } = useSelector((s) => s.ui.assignFormWorkspaceModal);
   const form = useSelector((s) => s.forms.forms.find((f) => f.id === formId));
   const currentWorkspaceId =
     form?.workspace == null || form?.workspace === ''
-      ? NO_WORKSPACE_ID
+      ? workspaces[0]?.id
       : String(form.workspace);
 
   return (

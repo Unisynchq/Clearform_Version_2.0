@@ -10,7 +10,7 @@ import {
 } from '@/store/slices/uiSlice';
 import { addForm, selectNavWorkspaces } from '@/store/slices/formsSlice';
 import { completeOnboarding, selectIsOnboardingActive } from '@/store/slices/onboardingSlice';
-import { NO_WORKSPACE_ID } from '../constants/workspaces';
+
 import { FORM_COLOR_OPTIONS, getFormColorTheme } from '../constants/formColorThemes';
 import { navigateToFormBuilder } from '../utils/navigateToFormBuilder';
 import WorkspaceFolderIcon from '@/components/ui/WorkspaceFolderIcon';
@@ -44,10 +44,7 @@ function WorkspaceDropdown({ workspaceId, onChange, workspaces }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
 
-  const options = [
-    { id: NO_WORKSPACE_ID, label: 'No workspace', color: null },
-    ...workspaces.map((ws) => ({ id: ws.id, label: ws.label, color: ws.color })),
-  ];
+  const options = workspaces.map((ws) => ({ id: ws.id, label: ws.label, color: ws.color }));
 
   const selected = options.find((opt) => opt.id === workspaceId) ?? options[0];
 
@@ -80,8 +77,8 @@ function WorkspaceDropdown({ workspaceId, onChange, workspaces }) {
         className="flex w-full items-center justify-between gap-2 rounded-[8px] border border-[#e4e0da] bg-[#fafaf8] px-[13px] py-[11px] text-left text-[13px] text-[#1a1814] outline-none transition-colors focus:border-[#1a1814]"
       >
         <span className="flex min-w-0 items-center gap-2">
-          <WorkspaceDot color={selected.color} open={open} />
-          <span className="truncate">{selected.label}</span>
+          {selected && <WorkspaceDot color={selected.color} open={open} />}
+          <span className="truncate">{selected ? selected.label : 'Select a workspace'}</span>
         </span>
         <RiArrowDownSLine
           size={16}
@@ -104,7 +101,7 @@ function WorkspaceDropdown({ workspaceId, onChange, workspaces }) {
             className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-[160px] overflow-y-auto rounded-[8px] border border-[#e4e0da] bg-white py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)] origin-top"
           >
             {options.map((opt) => (
-              <li key={opt.id || 'no-workspace'} role="presentation">
+              <li key={opt.id} role="presentation">
                 <button
                   type="button"
                   role="option"
@@ -134,8 +131,44 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
   const isOnboardingActive = useSelector(selectIsOnboardingActive);
   const { showToast } = useToast();
 
+  if (workspaces.length === 0) {
+    return (
+      <>
+        <div className="flex items-start justify-between">
+          <div className="flex flex-col gap-0.5">
+            <h2 id="create-new-form-title" className="text-[15px] font-semibold text-[#1a1814] leading-[22.5px] tracking-[-0.2px]">
+              Workspace Required
+            </h2>
+            <p className="text-[13px] text-[#6b6966] leading-[19px] pt-2">
+              You must create a workspace before you can create a form. Organise your forms by team, project or client using workspaces.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="w-7 h-7 flex items-center justify-center rounded-[6px] text-[#a8a6a0] hover:text-[#1a1814] hover:bg-[#f4f3ef] transition-colors cursor-pointer shrink-0"
+          >
+            <RiCloseLine size={16} />
+          </button>
+        </div>
+        <div className="flex items-center justify-end pt-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="bg-[#1a1814] text-white text-[13px] font-medium px-[15px] py-[8px] rounded-[8px] hover:bg-[#2c2c2e] transition-colors cursor-pointer"
+          >
+            Got it
+          </button>
+        </div>
+      </>
+    );
+  }
+
   const defaultWorkspaceId =
-    activeWorkspace && activeWorkspace !== 'all' ? activeWorkspace : NO_WORKSPACE_ID;
+    activeWorkspace && activeWorkspace !== 'all' && workspaces.find(w => w.id === activeWorkspace)
+      ? activeWorkspace
+      : workspaces[0]?.id;
 
   const [name, setName] = useState('');
   const [colorId, setColorId] = useState(FORM_COLOR_OPTIONS[0].id);
@@ -163,7 +196,7 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
     creatingRef.current = true;
     const title = name.trim() || 'Untitled';
     const theme = getFormColorTheme(colorId);
-    const effectiveWorkspaceId = workspaceId !== NO_WORKSPACE_ID ? workspaceId : undefined;
+    const effectiveWorkspaceId = workspaceId;
 
     let formId;
     setCreating(true);

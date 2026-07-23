@@ -2,7 +2,7 @@ import { createSlice, createSelector } from '@reduxjs/toolkit';
 import { readPersistedForms, clearUserForms } from '@/features/forms/utils/userFormsStorage';
 import { listForms, patchForm } from '@/api/services/formsService';
 import { isApiConfigured } from '@/config/env';
-import { NO_WORKSPACE_ID } from '@/features/forms/constants/workspaces';
+
 import { listWorkspaces } from '@/api/services/workspacesService';
 import {
   readAllFormResponses,
@@ -116,9 +116,12 @@ const formsSlice = createSlice({
       state.activeWorkspace = id;
     },
     renameWorkspace(state, action) {
-      const { workspaceId, newName } = action.payload;
+      const { workspaceId, newName, color } = action.payload;
       const ws = state.workspaces.find((w) => w.id === workspaceId);
-      if (ws) ws.label = newName;
+      if (ws) {
+        if (newName) ws.label = newName;
+        if (color) ws.color = color;
+      }
     },
     deleteWorkspace(state, action) {
       const workspaceId = action.payload;
@@ -230,7 +233,7 @@ export const {
 /** Assign a form to a workspace (or remove from all workspaces). */
 export const assignFormToWorkspace = ({ formId, workspaceId }) => async (dispatch) => {
   const normalized =
-    workspaceId && workspaceId !== NO_WORKSPACE_ID ? String(workspaceId) : '';
+    workspaceId ? String(workspaceId) : '';
   if (isApiConfigured()) {
     await patchForm(formId, { workspaceId: normalized || null });
   }

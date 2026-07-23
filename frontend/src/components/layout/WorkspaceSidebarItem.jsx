@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { motion } from 'motion/react';
+import { RiMoreFill } from 'react-icons/ri';
 import WorkspaceFolderIcon from '@/components/ui/WorkspaceFolderIcon';
 import Tooltip from '@/components/ui/Tooltip';
 import { useIsTruncated } from '@/hooks/useIsTruncated';
@@ -22,7 +23,6 @@ export default function WorkspaceSidebarItem({
   const dispatch = useDispatch();
   const { showToast } = useToast();
   const color = workspace.color || '#6b6966';
-  const showCount = typeof workspace.count === 'number' && workspace.count > 0;
   const labelRef = useRef(null);
   const inputRef = useRef(null);
   const isTruncated = useIsTruncated(labelRef, [workspace.label, isRenaming]);
@@ -93,7 +93,7 @@ export default function WorkspaceSidebarItem({
       onDoubleClick={handleDoubleClick}
       onContextMenu={onContextMenu}
       title={frozen ? frozenHint : undefined}
-      className="flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-lg px-4 py-2 text-left transition-colors cursor-pointer"
+      className="group flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-lg px-4 py-2 text-left transition-colors cursor-pointer"
     >
       <WorkspaceFolderIcon color={color} open={active} size={18} className="shrink-0" />
       {isRenaming ? (
@@ -122,7 +122,7 @@ export default function WorkspaceSidebarItem({
         <Tooltip content={isTruncated ? workspace.label : null} disabled={!isTruncated}>
           <span
             ref={labelRef}
-            className={`block min-w-0 truncate text-left text-[13px] font-medium leading-[19.5px] ${
+            className={`block min-w-0 flex-1 truncate text-left text-[13px] font-medium leading-[19.5px] ${
               active ? 'text-[#1a1a1c]' : 'text-[#6b6966]'
             }`}
           >
@@ -135,10 +135,21 @@ export default function WorkspaceSidebarItem({
           Limit
         </span>
       ) : null}
-      {!isRenaming && showCount ? (
-        <span className="shrink-0 text-[12px] font-medium leading-[18px] text-[#a8a6a0] tabular-nums">
-          {workspace.count}
-        </span>
+      {!isRenaming ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onContextMenu(e);
+          }}
+          className={`shrink-0 flex items-center justify-center rounded-[6px] w-[22px] h-[22px] hover:bg-black/10 transition-colors ${
+            active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          }`}
+          aria-label="Manage workspace"
+        >
+          <RiMoreFill size={16} className={active ? 'text-[#1a1a1c]' : 'text-[#6b6966]'} />
+        </button>
       ) : null}
     </motion.button>
   );

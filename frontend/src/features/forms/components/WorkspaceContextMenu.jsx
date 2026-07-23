@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { RiEditLine, RiDeleteBinLine } from 'react-icons/ri';
 import {
   closeWorkspaceContextMenu,
-  startSidebarWorkspaceRename,
+  openRenameWorkspaceModal,
   openDeleteWorkspaceModal,
 } from '@/store/slices/uiSlice';
 
@@ -32,9 +32,6 @@ const WorkspaceContextMenu = () => {
     };
   }, [open, dispatch]);
 
-  const handleRename = () => {
-    dispatch(startSidebarWorkspaceRename(workspaceId));
-  };
 
   const handleDelete = () => {
     dispatch(openDeleteWorkspaceModal({
@@ -58,16 +55,15 @@ const WorkspaceContextMenu = () => {
           style={{ top: safeY, left: safeX }}
           className="fixed z-[200] bg-white border border-[#e5e3dc] rounded-[12px] shadow-[0_8px_32px_rgba(0,0,0,0.12)] py-1.5 w-[188px]"
         >
-          {/* Rename */}
+          {/* Manage Workspace */}
           <button
-            onClick={handleRename}
+            onClick={() => dispatch(openRenameWorkspaceModal({ workspaceId, workspaceName: workspace?.label ?? '' }))}
             className="w-full flex items-center justify-between gap-3 px-3.5 py-[7px] text-[13px] font-medium text-[#1a1a1c] leading-[19.5px] hover:bg-[#f4f3ef] transition-colors cursor-pointer"
           >
             <div className="flex items-center gap-3">
               <RiEditLine size={14} className="text-[#6b6966]" />
-              Rename
+              Manage workspace
             </div>
-            <span className="text-[11px] text-[#a8a6a0] font-normal">⌘R</span>
           </button>
 
           {/* Divider */}
