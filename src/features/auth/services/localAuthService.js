@@ -4,9 +4,9 @@ import { readOnboardingComplete } from '@/features/onboarding/utils/onboardingSt
 const TOKEN_KEY = 'clearform:auth-token';
 const LOCAL_DEV_TOKEN = 'local-dev-session';
 
-function storeLocalDevToken() {
+function storeLocalDevToken(email) {
   if (typeof window !== 'undefined') {
-    sessionStorage.setItem(TOKEN_KEY, LOCAL_DEV_TOKEN);
+    sessionStorage.setItem(TOKEN_KEY, `${LOCAL_DEV_TOKEN}:${email}`);
   }
 }
 
@@ -17,7 +17,7 @@ export function clearLocalDevToken() {
 }
 
 const oauthUnavailableMessage =
-  'Google and Microsoft sign-in need Firebase keys in .env.local. For local frontend work, use email sign-up or sign-in.';
+  'Social sign-in needs Supabase keys in .env. For local frontend work, use email sign-up or sign-in.';
 
 export async function localSignInWithEmail(email, password) {
   const account = getUserAccountByEmail(email);
@@ -27,7 +27,7 @@ export async function localSignInWithEmail(email, password) {
   if (!account.password || account.password !== password) {
     throw new Error('Incorrect password.');
   }
-  storeLocalDevToken();
+  storeLocalDevToken(account.email);
   return {
     email: account.email,
     firstName: account.firstName ?? '',
@@ -50,7 +50,7 @@ export async function localSignUpWithEmail(email, password, firstName, lastName)
     lastName,
     password,
   });
-  storeLocalDevToken();
+  storeLocalDevToken(trimmedEmail);
   return {
     email: trimmedEmail,
     firstName: firstName?.trim() ?? '',

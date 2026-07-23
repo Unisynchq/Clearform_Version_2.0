@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { AnimatePresence } from 'motion/react';
 import { getRouteTransitionKey } from '@/constants/routeTransitions';
 import RouteTransitionShell from '@/components/layout/RouteTransitionShell';
@@ -40,6 +40,11 @@ const AppRoutes = () => {
       <Routes location={location} key={transitionKey}>
         <Route
           path="/"
+          element={<Navigate to="/signup" replace />}
+        />
+
+        <Route
+          path="/signup"
           element={
             <RouteTransitionShell variant="auth">
               <GuestOnly>
