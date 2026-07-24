@@ -10,9 +10,7 @@ const CLEO_CRON = '0 20 * * *';
 export class CleoSchedulerService implements OnModuleInit {
   private readonly logger = new Logger(CleoSchedulerService.name);
 
-  constructor(
-    @InjectQueue(CLEO_QUEUE) private readonly queue: Queue,
-  ) {}
+  constructor(@InjectQueue(CLEO_QUEUE) private readonly queue: Queue) {}
 
   async onModuleInit() {
     try {

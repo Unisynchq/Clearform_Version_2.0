@@ -4,6 +4,7 @@ import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { FirebaseService } from '../firebase/firebase.service';
+import { TokenBlacklistService } from '../redis/redis-token-blacklist.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -16,6 +17,7 @@ describe('AuthService', () => {
         { provide: JwtService, useValue: {} },
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: FirebaseService, useValue: {} },
+        { provide: TokenBlacklistService, useValue: {} },
       ],
     }).compile();
 

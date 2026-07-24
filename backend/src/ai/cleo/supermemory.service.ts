@@ -15,7 +15,8 @@ export class SupermemoryService {
   private apiKey: string | null = null;
 
   constructor(private readonly config: ConfigService) {
-    this.apiKey = this.config.get<string>('SUPERMEMORY_API_KEY')?.trim() ?? null;
+    this.apiKey =
+      this.config.get<string>('SUPERMEMORY_API_KEY')?.trim() ?? null;
     if (!this.apiKey) {
       this.logger.log('SUPERMEMORY_API_KEY not set — Supermemory disabled');
     }
@@ -48,7 +49,9 @@ export class SupermemoryService {
         );
       }
     } catch (err) {
-      this.logger.warn(`Supermemory request failed: ${err instanceof Error ? err.message : err}`);
+      this.logger.warn(
+        `Supermemory request failed: ${err instanceof Error ? err.message : err}`,
+      );
     }
   }
 }

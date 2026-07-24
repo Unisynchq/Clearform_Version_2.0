@@ -63,6 +63,7 @@ function serializeForm(form: FormWithIncludes) {
 @Injectable()
 export class FormsService {
   private readonly logger = new Logger(FormsService.name);
+  private readonly authLogger = new Logger('Authorization');
 
   constructor(
     private readonly prisma: PrismaService,
@@ -319,8 +320,22 @@ export class FormsService {
   }
 
   private async findOneRaw(id: string, userId: string) {
-    const form = await this.prisma.form.findFirst({
-      where: { id, ownerId: userId },
+    const form = await this.prisma.form.findUnique({
+      where: { id },
+      select: { id: true, ownerId: true },
+    });
+    if (!form) {
+      this.authLogger.warn(`Form not found: id=${id} userId=${userId}`);
+      throw new NotFoundException('Form not found');
+    }
+    if (form.ownerId !== userId) {
+      this.authLogger.warn(
+        `Authorization failure: user ${userId} attempted to access form ${id} owned by ${form.ownerId}`,
+      );
+      throw new NotFoundException('Form not found');
+    }
+    return this.prisma.form.findUnique({
+      where: { id },
       include: {
         settings: true,
         _count: {
@@ -329,9 +344,7 @@ export class FormsService {
           },
         },
       },
-    });
-    if (!form) throw new NotFoundException('Form not found');
-    return form;
+    }) as Promise<FormWithIncludes>;
   }
 
   async findOne(id: string, userId: string) {

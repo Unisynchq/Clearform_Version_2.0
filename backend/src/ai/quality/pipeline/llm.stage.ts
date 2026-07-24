@@ -12,9 +12,7 @@ import {
 import { normalizeQualityOptions } from '../../ai-quality-rules.util';
 import { QUALITY_TIER_CONFIG } from '../quality-tier.config';
 import { suggestionSimilarity } from './anti-repeat.util';
-import {
-  logQualityEvalBreadcrumb,
-} from './quality-pipeline.util';
+import { logQualityEvalBreadcrumb } from './quality-pipeline.util';
 import type {
   QualityPipelineContext,
   QualityPipelineDeps,
@@ -25,7 +23,10 @@ import type { QualitySessionMemory } from '../quality-session-memory.service';
 function aggregateSessionShown(session: QualitySessionMemory): string[] {
   const shown: string[] = [];
   for (const screen of Object.values(session.screens)) {
-    shown.push(...(screen.shownMessages ?? []), ...(screen.shownSuggestions ?? []));
+    shown.push(
+      ...(screen.shownMessages ?? []),
+      ...(screen.shownSuggestions ?? []),
+    );
   }
   return shown;
 }
@@ -160,7 +161,10 @@ export async function llmStage(
     screenShown.some((seen) => suggestionSimilarity(candidate, seen) >= 0.8);
   let usedRepeatRetry = false;
 
-  const doctrinePrompt = deps.doctrine.getDoctrineSlim('response-quality', intent);
+  const doctrinePrompt = deps.doctrine.getDoctrineSlim(
+    'response-quality',
+    intent,
+  );
   const maxAttempts = tierConfig.llmAttempts;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const strict = attempt > 0;
@@ -229,7 +233,10 @@ export async function llmStage(
         continue;
       }
 
-      const candidateText = [finalized.message, ...(finalized.suggestions ?? [])]
+      const candidateText = [
+        finalized.message,
+        ...(finalized.suggestions ?? []),
+      ]
         .filter(Boolean)
         .join(' ');
       if (
@@ -261,7 +268,9 @@ export async function llmStage(
             deadlineMs: tier === 'pro' ? 6_000 : 14_000,
             maxFallbackModels: 1,
           });
-          const retryParsed = retryContent ? parseQualityJson(retryContent) : null;
+          const retryParsed = retryContent
+            ? parseQualityJson(retryContent)
+            : null;
           if (retryParsed) {
             const retryFinalized = finalizeQualityResult(
               retryParsed,

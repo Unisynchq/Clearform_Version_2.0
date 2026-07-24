@@ -112,7 +112,10 @@ export class GroundingValidatorService {
     ) {
       return { ok: false, reason: 'redundant topic coaching' };
     }
-    if (result.followUpQuestion && isMetaFollowUpLeak(result.followUpQuestion)) {
+    if (
+      result.followUpQuestion &&
+      isMetaFollowUpLeak(result.followUpQuestion)
+    ) {
       return { ok: false, reason: 'meta followUp question' };
     }
     // Tips must match THIS question — ban event-style "liked most" on unrelated asks.
@@ -124,16 +127,20 @@ export class GroundingValidatorService {
       .join(' ')
       .toLowerCase();
     const qLower = questionText.toLowerCase();
-    const asksLikedMost = /\b(liked most|like the most|favorite|favourite|best part)\b/.test(
-      qLower,
-    );
+    const asksLikedMost =
+      /\b(liked most|like the most|favorite|favourite|best part)\b/.test(
+        qLower,
+      );
     if (
       !asksLikedMost &&
       /\b(liked most|like the most|favorite part|favourite|what you liked)\b/.test(
         tipBlob,
       )
     ) {
-      return { ok: false, reason: 'off-topic liked-most tip for this question' };
+      return {
+        ok: false,
+        reason: 'off-topic liked-most tip for this question',
+      };
     }
     if (
       answerText &&
@@ -166,10 +173,16 @@ export class GroundingValidatorService {
       }
       // Green may include exactly one near-complete perfection tip (2/3 facets rule).
       if (tips.length > 1) {
-        return { ok: false, reason: 'green level allows at most one suggestion' };
+        return {
+          ok: false,
+          reason: 'green level allows at most one suggestion',
+        };
       }
       if (tips.length === 1 && !isPerfectionTip(tips[0])) {
-        return { ok: false, reason: 'green suggestion is not a perfection tip' };
+        return {
+          ok: false,
+          reason: 'green suggestion is not a perfection tip',
+        };
       }
       if (/great response|clear and detailed/i.test(result.message ?? '')) {
         return { ok: false, reason: 'green message is too generic' };

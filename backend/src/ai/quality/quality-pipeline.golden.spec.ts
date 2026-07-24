@@ -74,7 +74,7 @@ describe('executeQuality golden fixtures', () => {
 
   const run = (dto: Partial<EvaluateQualityDto>, intent = 'generic') => {
     questionIntent.classify.mockResolvedValue(intent);
-    return service().executeQuality(undefined, { ...baseDto, ...dto } as never);
+    return service().executeQuality(undefined, { ...baseDto, ...dto });
   };
 
   beforeEach(() => {

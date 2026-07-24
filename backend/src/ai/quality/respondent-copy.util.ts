@@ -26,8 +26,7 @@ const GENERIC_PERFECTION_DENYLIST = [
 const META_FOLLOWUP_LEAK =
   /\b(directly inform your understanding|inform your understanding or actions|how did your .+ inform|in what ways? has your experience shaped)\b/i;
 
-const NAME_SALUTATION_LEAK =
-  /^[A-Z][a-z]+(?:\s+[A-Z]\.?)?,\s+/;
+const NAME_SALUTATION_LEAK = /^[A-Z][a-z]+(?:\s+[A-Z]\.?)?,\s+/;
 
 const PARAPHRASE_GREEN_LEAK =
   /\b(great|good|nice)\s+(specific\s+)?(topic|idea|suggestion|direction)\b/i;
@@ -40,7 +39,10 @@ export function isRespondentNameSalutation(message?: string): boolean {
 }
 
 /** Green copy that only restates their topic without coaching value. */
-export function isParaphraseOnlyGreen(message: string, answerText: string): boolean {
+export function isParaphraseOnlyGreen(
+  message: string,
+  answerText: string,
+): boolean {
   const msg = normalizeCopy(message);
   const ans = normalizeCopy(answerText);
   if (!msg || !ans || msg.length < 20) return false;
@@ -66,7 +68,7 @@ export function isRedundantTopicCoaching(
 ): boolean {
   const q = (questionText ?? '').toLowerCase();
   if (!/\b(topic|explore|ideas?|further|anything else)\b/.test(q)) return false;
-  const combined = `${message} ${(answerText ?? '')}`.toLowerCase();
+  const combined = `${message} ${answerText ?? ''}`.toLowerCase();
   if (/you mentioned/i.test(message) && combined.length > 0) {
     const ans = normalizeCopy(answerText);
     const msgCore = normalizeCopy(message.replace(/you mentioned/gi, ''));
@@ -135,7 +137,10 @@ export function stripCoachingPrefix(text: string): string {
     .trim();
 }
 
-export function isAlreadyAnswerAnchored(message: string, answer: string): boolean {
+export function isAlreadyAnswerAnchored(
+  message: string,
+  answer: string,
+): boolean {
   const msg = message.trim();
   if (!msg) return false;
   if (!/^you (said|mentioned)\b/i.test(msg)) return false;
@@ -145,7 +150,10 @@ export function isAlreadyAnswerAnchored(message: string, answer: string): boolea
 }
 
 /** Quoted spans and file paths in feedback must appear in the answer. */
-export function messageGroundedInAnswer(message: string, answer: string): boolean {
+export function messageGroundedInAnswer(
+  message: string,
+  answer: string,
+): boolean {
   const msg = message.toLowerCase();
   const ans = answer.toLowerCase();
   if (!ans.trim()) return true;
@@ -160,9 +168,9 @@ export function messageGroundedInAnswer(message: string, answer: string): boolea
     if (hits.length / words.length < 0.5) return false;
   }
 
-  const paths = [...msg.matchAll(/\b[\w./-]+\.(py|ts|js|tsx|jsx|go|rb)\b/g)].map(
-    (m) => m[0],
-  );
+  const paths = [
+    ...msg.matchAll(/\b[\w./-]+\.(py|ts|js|tsx|jsx|go|rb)\b/g),
+  ].map((m) => m[0]);
   for (const path of paths) {
     const base = path.split('/').pop() ?? path;
     if (!ans.includes(path) && !ans.includes(base)) return false;

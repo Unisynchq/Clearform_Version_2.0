@@ -6,7 +6,8 @@ describe('GroundingValidatorService.validateQualityResult', () => {
   it('accepts green with empty suggestions (doctrine contract)', () => {
     const result = service.validateQualityResult({
       level: 'green',
-      message: 'You named the backend file and what to change — that is exactly what we needed.',
+      message:
+        'You named the backend file and what to change — that is exactly what we needed.',
       failedIds: [],
       suggestions: [],
       answerText: 'backend main.py file have to be changed',
@@ -17,9 +18,12 @@ describe('GroundingValidatorService.validateQualityResult', () => {
   it('accepts green with one near-complete perfection tip', () => {
     const result = service.validateQualityResult({
       level: 'green',
-      message: 'Strong start on "Clearform team" — add measurable impact to make it complete.',
+      message:
+        'Strong start on "Clearform team" — add measurable impact to make it complete.',
       failedIds: [],
-      suggestions: ['Add one measurable outcome (a number, %, or count) to make this complete.'],
+      suggestions: [
+        'Add one measurable outcome (a number, %, or count) to make this complete.',
+      ],
       answerText: 'I led the Clearform team through a major release.',
     });
     expect(result).toEqual({ ok: true });
@@ -83,7 +87,8 @@ describe('GroundingValidatorService.validateQualityResult', () => {
         screenId: '1',
         fieldId: '1',
         text: 'I dont to do any changes okay . Dont force me to do it.',
-        questionText: 'What specific thing you want to make correct in your project?',
+        questionText:
+          'What specific thing you want to make correct in your project?',
       },
       null,
       'pro',

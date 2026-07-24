@@ -28,19 +28,35 @@ export class CleoLearningService {
    * Main nightly run — processes the last 24h of builder corrections
    * and distils them into stored rules for both pgvector and Qdrant.
    */
-  async runNightlyLearning(): Promise<{ processed: number; rulesDistilled: number }> {
+  async runNightlyLearning(): Promise<{
+    processed: number;
+    rulesDistilled: number;
+  }> {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const corrections = await (this.prisma as any).aiFeedback.findMany({
+    const corrections = (await (this.prisma as any).aiFeedback.findMany({
       where: { rating: -1, createdAt: { gte: since } },
-      include: { form: { select: { id: true, title: true, publishedSnapshot: true, builderSnapshot: true } } },
-    }) as Array<{
+      include: {
+        form: {
+          select: {
+            id: true,
+            title: true,
+            publishedSnapshot: true,
+            builderSnapshot: true,
+          },
+        },
+      },
+    })) as Array<{
       formId: string;
       aiDecision: string;
       actualAnswer: string | null;
       screenId: string | null;
-      form: { id: string; title: string; publishedSnapshot: unknown; builderSnapshot: unknown };
+      form: {
+        id: string;
+        title: string;
+        publishedSnapshot: unknown;
+        builderSnapshot: unknown;
+      };
     }>;
 
     if (corrections.length === 0) {
@@ -51,7 +67,10 @@ export class CleoLearningService {
     this.logger.log(`Cleo: processing ${corrections.length} correction(s)`);
 
     // Group by (formId, aiDecision) so each group produces one focused rule.
-    const groups = new Map<string, CorrectionGroup & { formId: string; formTitle: string }>();
+    const groups = new Map<
+      string,
+      CorrectionGroup & { formId: string; formTitle: string }
+    >();
     for (const fb of corrections) {
       const key = `${fb.formId}:${fb.aiDecision}`;
       if (!groups.has(key)) {
@@ -84,7 +103,9 @@ export class CleoLearningService {
       await this.pushSupermemory(ruleSummaries, since);
     }
 
-    this.logger.log(`Cleo: distilled ${rulesDistilled} rule(s) from ${corrections.length} correction(s)`);
+    this.logger.log(
+      `Cleo: distilled ${rulesDistilled} rule(s) from ${corrections.length} correction(s)`,
+    );
     return { processed: corrections.length, rulesDistilled };
   }
 
@@ -106,7 +127,11 @@ export class CleoLearningService {
     const embedding = await this.llm.embed(queryText);
     if (!embedding) return [];
 
-    const rules = await this.qdrant.searchSimilar(embedding, { formArchetype }, limit);
+    const rules = await this.qdrant.searchSimilar(
+      embedding,
+      { formArchetype },
+      limit,
+    );
     return rules.map((r) => r.rule);
   }
 
@@ -152,8 +177,16 @@ export class CleoLearningService {
 
     // pgvector — per-form chunk so it surfaces when this form's scoring context is built
     if (embedding) {
-      await this.memory.storeChunk(formId, 'quality_feedback', rule, { aiDecision }, 'free');
-      this.logger.log(`Cleo: stored rule in pgvector for form ${formId} (decision=${aiDecision})`);
+      await this.memory.storeChunk(
+        formId,
+        'quality_feedback',
+        rule,
+        { aiDecision },
+        'free',
+      );
+      this.logger.log(
+        `Cleo: stored rule in pgvector for form ${formId} (decision=${aiDecision})`,
+      );
     }
 
     // Qdrant — platform-level, fast lookup across all forms
@@ -183,7 +216,10 @@ export class CleoLearningService {
       `Rules distilled:`,
       ...rules.map((r, i) => `${i + 1}. ${r}`),
     ].join('\n');
-    await this.supermemory.addMemory(summary, ['cleo', 'ai-quality', 'correction']);
+    await this.supermemory.addMemory(summary, [
+      'cleo',
+      'ai-quality',
+      'correction',
+    ]);
   }
-
 }

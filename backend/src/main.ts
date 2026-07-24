@@ -5,6 +5,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { validateProductionEnv } from './config/validate-production-env';
+import helmet from 'helmet';
 import * as express from 'express';
 
 async function bootstrap() {
@@ -15,9 +16,10 @@ async function bootstrap() {
     bodyParser: false,
   });
 
+  app.use(helmet());
+
   const expressApp = app.getHttpAdapter().getInstance() as express.Application;
 
-  // 10mb limit for publish payloads (base64 logos); verify preserves rawBody for Stripe/Razorpay/Resend webhooks.
   expressApp.use(
     express.json({
       limit: '10mb',
@@ -27,8 +29,6 @@ async function bootstrap() {
     }),
   );
   expressApp.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-  // Trust the first proxy hop (Cloudflare) so req.ip reflects the real client IP for rate limiting.
   expressApp.set('trust proxy', 1);
 
   const allowedOrigins = (
@@ -39,17 +39,32 @@ async function bootstrap() {
     .filter(Boolean);
 
   app.enableCors({
-    origin: allowedOrigins,
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Origin not allowed by CORS'));
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Accept',
+      'X-Correlation-Id',
+    ],
+    maxAge: 86400,
   });
 
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       transform: true,
-      forbidNonWhitelisted: false,
+      forbidNonWhitelisted: true,
     }),
   );
 
@@ -64,4 +79,5 @@ async function bootstrap() {
     );
   }
 }
-bootstrap();
+
+void bootstrap();

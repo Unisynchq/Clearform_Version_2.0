@@ -51,8 +51,17 @@ describe('PromoCodeService.redeem', () => {
     const createdSub = makeSubscription();
     const tx = {
       promoCode: {
-        findUnique: jest.fn().mockResolvedValue({ id: 'promo-1', code: 'TESTCODE1', active: true }),
-        update: jest.fn().mockResolvedValue({ id: 'promo-1', code: 'TESTCODE1', active: true, redemptionCount: 1 }),
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'promo-1',
+          code: 'TESTCODE1',
+          active: true,
+        }),
+        update: jest.fn().mockResolvedValue({
+          id: 'promo-1',
+          code: 'TESTCODE1',
+          active: true,
+          redemptionCount: 1,
+        }),
       },
       subscription: { upsert: jest.fn().mockResolvedValue(createdSub) },
       promoRedemption: { create: jest.fn().mockResolvedValue({}) },
@@ -61,10 +70,15 @@ describe('PromoCodeService.redeem', () => {
       $transaction: jest.fn(async (cb: any) => cb(tx)),
     });
 
-    const service = new PromoCodeService(prisma, makeAiEntitlementsMock() as any);
+    const service = new PromoCodeService(
+      prisma,
+      makeAiEntitlementsMock() as any,
+    );
     const result = await service.redeem('user-1', ' testcode1 ');
 
-    expect(tx.promoCode.findUnique).toHaveBeenCalledWith({ where: { code: 'TESTCODE1' } });
+    expect(tx.promoCode.findUnique).toHaveBeenCalledWith({
+      where: { code: 'TESTCODE1' },
+    });
     expect(tx.subscription.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: 'user-1' },
@@ -77,7 +91,10 @@ describe('PromoCodeService.redeem', () => {
       }),
     );
     expect(tx.promoRedemption.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ promoCodeId: 'promo-1', userId: 'user-1' }),
+      data: expect.objectContaining({
+        promoCodeId: 'promo-1',
+        userId: 'user-1',
+      }),
     });
     expect(tx.promoCode.update).toHaveBeenCalledWith({
       where: { id: 'promo-1' },
@@ -91,7 +108,9 @@ describe('PromoCodeService.redeem', () => {
     expect(result.trialDays).toBe(7);
 
     const upsertArgs = tx.subscription.upsert.mock.calls[0][0];
-    const grantedMs = upsertArgs.create.periodEnd.getTime() - upsertArgs.create.periodStart.getTime();
+    const grantedMs =
+      upsertArgs.create.periodEnd.getTime() -
+      upsertArgs.create.periodStart.getTime();
     expect(Math.round(grantedMs / (24 * 60 * 60 * 1000))).toBe(7);
   });
 
@@ -101,9 +120,12 @@ describe('PromoCodeService.redeem', () => {
     });
     const tx = {
       promoCode: {
-        findUnique: jest
-          .fn()
-          .mockResolvedValue({ id: 'promo-2', code: 'PARTNER1', active: true, durationDays: 60 }),
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'promo-2',
+          code: 'PARTNER1',
+          active: true,
+          durationDays: 60,
+        }),
         update: jest.fn().mockResolvedValue({}),
       },
       subscription: { upsert: jest.fn().mockResolvedValue(createdSub) },
@@ -113,12 +135,17 @@ describe('PromoCodeService.redeem', () => {
       $transaction: jest.fn(async (cb: any) => cb(tx)),
     });
 
-    const service = new PromoCodeService(prisma, makeAiEntitlementsMock() as any);
+    const service = new PromoCodeService(
+      prisma,
+      makeAiEntitlementsMock() as any,
+    );
     const result = await service.redeem('user-1', 'PARTNER1');
 
     expect(result.trialDays).toBe(60);
     const upsertArgs = tx.subscription.upsert.mock.calls[0][0];
-    const grantedMs = upsertArgs.create.periodEnd.getTime() - upsertArgs.create.periodStart.getTime();
+    const grantedMs =
+      upsertArgs.create.periodEnd.getTime() -
+      upsertArgs.create.periodStart.getTime();
     expect(Math.round(grantedMs / (24 * 60 * 60 * 1000))).toBe(60);
   });
 
@@ -129,31 +156,48 @@ describe('PromoCodeService.redeem', () => {
     const prisma = makePrismaMock({
       $transaction: jest.fn(async (cb: any) => cb(tx)),
     });
-    const service = new PromoCodeService(prisma, makeAiEntitlementsMock() as any);
+    const service = new PromoCodeService(
+      prisma,
+      makeAiEntitlementsMock() as any,
+    );
 
-    await expect(service.redeem('user-1', 'NOPE')).rejects.toThrow(NotFoundException);
+    await expect(service.redeem('user-1', 'NOPE')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
   it('rejects a user who already redeemed a promo code', async () => {
     const prisma = makePrismaMock({
       promoRedemption: {
-        findUnique: jest.fn().mockResolvedValue({ id: 'redemption-1', userId: 'user-1' }),
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 'redemption-1', userId: 'user-1' }),
       },
     });
-    const service = new PromoCodeService(prisma, makeAiEntitlementsMock() as any);
+    const service = new PromoCodeService(
+      prisma,
+      makeAiEntitlementsMock() as any,
+    );
 
-    await expect(service.redeem('user-1', 'TESTCODE1')).rejects.toThrow(BadRequestException);
+    await expect(service.redeem('user-1', 'TESTCODE1')).rejects.toThrow(
+      BadRequestException,
+    );
     await expect(service.redeem('user-1', 'TESTCODE1')).rejects.toThrow(
       "You've already used a promo code on this account.",
     );
   });
 
   it('rejects a user who already has an active paid (RAZORPAY) pilot plan', async () => {
-    const activePaidSub = makeSubscription({ source: SubscriptionSource.RAZORPAY });
+    const activePaidSub = makeSubscription({
+      source: SubscriptionSource.RAZORPAY,
+    });
     const prisma = makePrismaMock({
       subscription: { findUnique: jest.fn().mockResolvedValue(activePaidSub) },
     });
-    const service = new PromoCodeService(prisma, makeAiEntitlementsMock() as any);
+    const service = new PromoCodeService(
+      prisma,
+      makeAiEntitlementsMock() as any,
+    );
 
     await expect(service.redeem('user-1', 'TESTCODE1')).rejects.toThrow(
       'You already have an active pilot plan.',
@@ -168,8 +212,17 @@ describe('PromoCodeService.redeem', () => {
     const createdSub = makeSubscription();
     const tx = {
       promoCode: {
-        findUnique: jest.fn().mockResolvedValue({ id: 'promo-1', code: 'TESTCODE1', active: true }),
-        update: jest.fn().mockResolvedValue({ id: 'promo-1', code: 'TESTCODE1', active: true, redemptionCount: 1 }),
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'promo-1',
+          code: 'TESTCODE1',
+          active: true,
+        }),
+        update: jest.fn().mockResolvedValue({
+          id: 'promo-1',
+          code: 'TESTCODE1',
+          active: true,
+          redemptionCount: 1,
+        }),
       },
       subscription: { upsert: jest.fn().mockResolvedValue(createdSub) },
       promoRedemption: { create: jest.fn().mockResolvedValue({}) },
@@ -178,7 +231,10 @@ describe('PromoCodeService.redeem', () => {
       subscription: { findUnique: jest.fn().mockResolvedValue(expiredPaidSub) },
       $transaction: jest.fn(async (cb: any) => cb(tx)),
     });
-    const service = new PromoCodeService(prisma, makeAiEntitlementsMock() as any);
+    const service = new PromoCodeService(
+      prisma,
+      makeAiEntitlementsMock() as any,
+    );
 
     await expect(service.redeem('user-1', 'TESTCODE1')).resolves.toBeDefined();
   });

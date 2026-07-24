@@ -43,7 +43,9 @@ export class UsersService {
    */
   async findOrCreateFromFirebase(payload: FirebaseUserPayload): Promise<User> {
     const id = payload.id;
-    const email = payload.email ? payload.email.trim().toLowerCase() : payload.email;
+    const email = payload.email
+      ? payload.email.trim().toLowerCase()
+      : payload.email;
     const firstName = payload.firstName;
     const lastName = payload.lastName;
 
@@ -120,7 +122,10 @@ export class UsersService {
     });
   }
 
-  async updatePasswordHash(userId: string, passwordHash: string): Promise<User> {
+  async updatePasswordHash(
+    userId: string,
+    passwordHash: string,
+  ): Promise<User> {
     return this.prisma.user.update({
       where: { id: userId },
       data: {
@@ -130,6 +135,10 @@ export class UsersService {
     });
   }
 
+  async updatePassword(userId: string, passwordHash: string): Promise<User> {
+    return this.updatePasswordHash(userId, passwordHash);
+  }
+
   async exportAccountCsv(userId: string): Promise<string> {
     const forms = await this.prisma.form.findMany({
       where: { ownerId: userId },
@@ -137,7 +146,11 @@ export class UsersService {
         id: true,
         title: true,
         createdAt: true,
-        _count: { select: { responses: { where: { status: { not: 'ABANDONED' as any } } } } },
+        _count: {
+          select: {
+            responses: { where: { status: { not: 'ABANDONED' as any } } },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });

@@ -1,5 +1,8 @@
 import type { EvaluateQualityDto } from '../ai.service.types';
-import type { QualityCriterionId, QuestionIntent } from './question-intent.types';
+import type {
+  QualityCriterionId,
+  QuestionIntent,
+} from './question-intent.types';
 
 export function requiresFullName(
   questionText?: string,
@@ -42,7 +45,8 @@ export function deriveDefaultCriteriaForIntent(
         specificity: {
           enabled: true,
           sensitivity: 'Medium',
-          vagueWords: base.specificity?.vagueWords ?? 'good,fine,okay,great,work',
+          vagueWords:
+            base.specificity?.vagueWords ?? 'good,fine,okay,great,work',
         },
         relevance: {
           enabled: true,
@@ -113,7 +117,9 @@ export function interpretMetricsForIntent(
         break;
       case 'length':
         lines.push(
-          intent === 'identity' || intent === 'factual_short' || intent === 'yes_no'
+          intent === 'identity' ||
+            intent === 'factual_short' ||
+            intent === 'yes_no'
             ? '- length: Skip — brevity is correct for this question type.'
             : '- length: Is the answer long enough to be useful?',
         );
@@ -126,10 +132,10 @@ export function interpretMetricsForIntent(
   return lines.join('\n');
 }
 
-export function intentSkipsGreenMicroSuggestion(intent: QuestionIntent): boolean {
+export function intentSkipsGreenMicroSuggestion(
+  intent: QuestionIntent,
+): boolean {
   return (
-    intent === 'identity' ||
-    intent === 'factual_short' ||
-    intent === 'yes_no'
+    intent === 'identity' || intent === 'factual_short' || intent === 'yes_no'
   );
 }

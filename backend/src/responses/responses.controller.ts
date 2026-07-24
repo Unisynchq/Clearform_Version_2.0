@@ -94,7 +94,7 @@ export class ResponsesController {
         formId,
         payload: payload as Prisma.InputJsonValue,
         createdAt: new Date(submittedAt),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         status: (completed ? 'PROCESSED' : 'ABANDONED') as any,
         completedAt: completed ? new Date(submittedAt) : null,
         durationMs,
@@ -223,7 +223,11 @@ export class ResponsesController {
     const fileName = `responses-${formId}.${fmt}`;
 
     if (fmt === 'xlsx') {
-      const buf = await this.responsesService.exportXlsx(formId, user.id, range);
+      const buf = await this.responsesService.exportXlsx(
+        formId,
+        user.id,
+        range,
+      );
       res.setHeader(
         'Content-Type',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -243,14 +247,16 @@ export class ResponsesController {
       res.send(csv);
     }
 
-    this.notificationsService.create({
-      userId: user.id,
-      formId,
-      type: 'export',
-      title: 'Export completed',
-      body: `${form?.title ?? 'Form'} responses exported as ${fmt.toUpperCase()}.`,
-      action: { downloadLocation: fileName },
-    }).catch(() => {});
+    this.notificationsService
+      .create({
+        userId: user.id,
+        formId,
+        type: 'export',
+        title: 'Export completed',
+        body: `${form?.title ?? 'Form'} responses exported as ${fmt.toUpperCase()}.`,
+        action: { downloadLocation: fileName },
+      })
+      .catch(() => {});
   }
 
   @Get(':responseId')

@@ -107,8 +107,9 @@ function buildSlackResponseMessage(payload: {
     (s) => s.type === 'content' && s.id != null,
   );
   const answersMap =
-    (payload.answers.answersByScreenId as Record<string, unknown> | undefined) ??
-    {};
+    (payload.answers.answersByScreenId as
+      | Record<string, unknown>
+      | undefined) ?? {};
   const pairs = buildAnswersFromSnapshot(screens, answersMap).slice(0, 5);
 
   const lines = [
@@ -182,7 +183,13 @@ export class ComposioService {
         toolkitSlugs: [toolkit],
       });
       const items = (accounts as { items?: unknown[] }).items ?? [];
-      const match = (items as Array<{ appName?: string; toolkitSlug?: string; status?: string }>)[0];
+      const match = (
+        items as Array<{
+          appName?: string;
+          toolkitSlug?: string;
+          status?: string;
+        }>
+      )[0];
 
       if (!match) return 'FAILED';
 
@@ -308,9 +315,7 @@ export class ComposioService {
         });
         actionArgs = { channel, text };
       } else if (provider === 'google_sheets') {
-        const spreadsheetId = payload.metadata?.spreadsheetId as
-          | string
-          | undefined;
+        const spreadsheetId = payload.metadata?.spreadsheetId;
         const sheetRange =
           (payload.metadata?.sheetRange as string) ?? 'Sheet1!A1';
         if (!spreadsheetId) {
@@ -321,7 +326,9 @@ export class ComposioService {
         }
 
         const sheetTab = sheetRange.split('!')[0] || 'Sheet1';
-        const columns = buildSheetsColumnsFromSnapshot(payload.publishedSnapshot);
+        const columns = buildSheetsColumnsFromSnapshot(
+          payload.publishedSnapshot,
+        );
         const dataRow = buildSheetsDataRow(payload.publishedSnapshot, columns, {
           responseId: payload.responseId,
           submittedAt: payload.submittedAt,
@@ -367,7 +374,9 @@ export class ComposioService {
           return null;
         }
 
-        const columns = buildSheetsColumnsFromSnapshot(payload.publishedSnapshot);
+        const columns = buildSheetsColumnsFromSnapshot(
+          payload.publishedSnapshot,
+        );
         const cells = buildResponseCells(
           payload.publishedSnapshot,
           columns,
@@ -503,7 +512,9 @@ export class ComposioService {
         },
       );
       if (!result.successful) {
-        throw new Error(result.error ?? 'Composio create Notion database failed');
+        throw new Error(
+          result.error ?? 'Composio create Notion database failed',
+        );
       }
       const data = result.data as
         | { database_id?: string; id?: string; data?: { id?: string } }

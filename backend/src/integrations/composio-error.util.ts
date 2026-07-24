@@ -29,7 +29,10 @@ function composioStatus(err: ComposioLikeError): number | undefined {
 }
 
 function httpStatusFromCause(err: ComposioLikeError): number | undefined {
-  const cause = err.cause as { status?: number; response?: { status?: number } };
+  const cause = err.cause as {
+    status?: number;
+    response?: { status?: number };
+  };
   return cause?.status ?? cause?.response?.status;
 }
 
@@ -42,17 +45,14 @@ function composioMessage(err: ComposioLikeError): string {
 }
 
 function isLegacySdkCrash(err: Error): boolean {
-  return (
-    err instanceof TypeError &&
-    err.message.includes("reading 'message'")
-  );
+  return err instanceof TypeError && err.message.includes("reading 'message'");
 }
 
 function unwrapErrorChain(err: unknown): ComposioLikeError[] {
   const chain: ComposioLikeError[] = [];
   let current: unknown = err;
   for (let i = 0; i < 5 && current instanceof Error; i++) {
-    chain.push(current as ComposioLikeError);
+    chain.push(current);
     current = (current as ComposioLikeError).cause;
   }
   return chain;
@@ -95,7 +95,7 @@ export function toComposioHttpException(err: unknown): HttpException {
     if (mapped) return mapped;
   }
 
-  return new BadGatewayException(composioMessage(err as ComposioLikeError));
+  return new BadGatewayException(composioMessage(err));
 }
 
 export type DispatchErrorKind = 'retryable' | 'auth' | 'permanent';

@@ -1,5 +1,14 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { FormStatus, Prisma, SubscriptionSource, SubscriptionStatus } from '@prisma/client';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  FormStatus,
+  Prisma,
+  SubscriptionSource,
+  SubscriptionStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PILOT_35_PLAN, PROMO_TRIAL_DAYS } from '../../config/plans';
 import { BillingStatusResponse } from '../billing.types';
@@ -16,7 +25,10 @@ export class PromoCodeService {
 
   private async countFormsUsed(userId: string): Promise<number> {
     return this.prisma.form.count({
-      where: { ownerId: userId, status: { notIn: [FormStatus.TRASH, FormStatus.ARCHIVED] } },
+      where: {
+        ownerId: userId,
+        status: { notIn: [FormStatus.TRASH, FormStatus.ARCHIVED] },
+      },
     });
   }
 
@@ -24,7 +36,10 @@ export class PromoCodeService {
     return this.prisma.workspace.count({ where: { ownerId: userId } });
   }
 
-  async redeem(userId: string, rawCode: string): Promise<BillingStatusResponse> {
+  async redeem(
+    userId: string,
+    rawCode: string,
+  ): Promise<BillingStatusResponse> {
     const code = rawCode.trim().toUpperCase();
 
     const existingSub = await this.prisma.subscription.findUnique({
@@ -99,7 +114,10 @@ export class PromoCodeService {
       periodEnd = result.grantedExpiresAt;
       grantedTrialDays = result.trialDays;
     } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
         throw new BadRequestException(
           "You've already used a promo code on this account.",
         );

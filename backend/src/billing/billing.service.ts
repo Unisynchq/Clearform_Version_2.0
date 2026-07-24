@@ -6,7 +6,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { FormStatus, SubscriptionSource, SubscriptionStatus } from '@prisma/client';
+import {
+  FormStatus,
+  SubscriptionSource,
+  SubscriptionStatus,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { FREE_PLAN, getPlan, PILOT_35_PLAN } from '../config/plans';
 import {
@@ -59,7 +63,10 @@ export class BillingService {
     return end;
   }
 
-  async assertCanCreateForm(userId: string, workspaceId?: string): Promise<void> {
+  async assertCanCreateForm(
+    userId: string,
+    workspaceId?: string,
+  ): Promise<void> {
     return this.entitlements.assertCanCreateForm(userId, workspaceId);
   }
 
@@ -167,7 +174,9 @@ export class BillingService {
         (new Date(status.periodEnd).getTime() - Date.now()) / 86_400_000,
       );
       if (daysUntilExpiry > 0 && daysUntilExpiry <= 7) {
-        this.sendPlanExpiryNotification(userId, daysUntilExpiry).catch(() => {});
+        this.sendPlanExpiryNotification(userId, daysUntilExpiry).catch(
+          () => {},
+        );
       }
     }
 
@@ -228,7 +237,9 @@ export class BillingService {
           where: {
             planId: PILOT_35_PLAN.id,
             source: SubscriptionSource.RAZORPAY,
-            status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL] },
+            status: {
+              in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL],
+            },
             periodEnd: { gt: now },
           },
         }),
@@ -236,14 +247,18 @@ export class BillingService {
           where: {
             planId: PILOT_35_PLAN.id,
             source: SubscriptionSource.PROMO,
-            status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL] },
+            status: {
+              in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL],
+            },
             periodEnd: { gt: now },
           },
         }),
         this.prisma.subscription.count({
           where: {
             planId: PILOT_35_PLAN.id,
-            status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL] },
+            status: {
+              in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL],
+            },
             periodEnd: { gt: now },
           },
         }),
@@ -319,7 +334,10 @@ export class BillingService {
           formsUsed,
           formsLimit: FREE_PLAN.formsLimit,
           workspacesUsed,
-          workspacesLimit: meterWorkspacesLimit(FREE_PLAN.workspacesLimit, workspacesUsed),
+          workspacesLimit: meterWorkspacesLimit(
+            FREE_PLAN.workspacesLimit,
+            workspacesUsed,
+          ),
           periodEnd: null,
           expiresAt: purchase?.expiresAt ?? null,
           source: null,
@@ -344,7 +362,10 @@ export class BillingService {
           formsUsed,
           formsLimit: limits.formsLimit,
           workspacesUsed,
-          workspacesLimit: meterWorkspacesLimit(limits.workspacesLimit, workspacesUsed),
+          workspacesLimit: meterWorkspacesLimit(
+            limits.workspacesLimit,
+            workspacesUsed,
+          ),
           periodEnd: sub.periodEnd,
           expiresAt: purchase?.expiresAt ?? sub.periodEnd,
           source: sub.source,
@@ -364,7 +385,10 @@ export class BillingService {
           formsUsed,
           formsLimit: limits.formsLimit,
           workspacesUsed,
-          workspacesLimit: meterWorkspacesLimit(limits.workspacesLimit, workspacesUsed),
+          workspacesLimit: meterWorkspacesLimit(
+            limits.workspacesLimit,
+            workspacesUsed,
+          ),
           periodEnd: sub.periodEnd,
           expiresAt: purchase?.expiresAt ?? sub.periodEnd,
           source: sub.source,
@@ -385,7 +409,10 @@ export class BillingService {
         formsUsed,
         formsLimit: activeLimits.formsLimit,
         workspacesUsed,
-        workspacesLimit: meterWorkspacesLimit(activeLimits.workspacesLimit, workspacesUsed),
+        workspacesLimit: meterWorkspacesLimit(
+          activeLimits.workspacesLimit,
+          workspacesUsed,
+        ),
         periodEnd: sub.periodEnd,
         expiresAt: purchase?.expiresAt ?? sub.periodEnd,
         source: sub.source,

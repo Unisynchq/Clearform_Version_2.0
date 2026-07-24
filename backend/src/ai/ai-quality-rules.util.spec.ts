@@ -56,9 +56,7 @@ describe('ai-quality-rules.util (classifier)', () => {
 
   it('detects Hindi transliterated profanity', () => {
     expect(
-      containsProfanity(
-        'My goal is fuck and u fuck off bitch suyar ka bachaa',
-      ),
+      containsProfanity('My goal is fuck and u fuck off bitch suyar ka bachaa'),
     ).toBe(true);
     expect(
       classifyQualityViolation(
@@ -122,11 +120,13 @@ describe('ai-quality-rules.util (classifier)', () => {
     const question =
       'How is your experiance with participating in this hackathon , what you like the most?';
     const answer =
-      "It was great and i like this hackathon. I dont want to write synthetic answers okay . I want to give honest answer but i will not give that .";
+      'It was great and i like this hackathon. I dont want to write synthetic answers okay . I want to give honest answer but i will not give that .';
     expect(isMashToken('synthetic')).toBe(false);
     expect(hasKeyboardMashSegment(answer)).toBe(false);
     expect(classifyQualityViolation(answer, question)).toBe('low_value');
-    expect(classifyQualityViolation(answer, question)).not.toBe('pure_gibberish');
+    expect(classifyQualityViolation(answer, question)).not.toBe(
+      'pure_gibberish',
+    );
   });
 
   describe('experience / feedback (classifier)', () => {
@@ -156,7 +156,11 @@ describe('ai-quality-rules.util (classifier)', () => {
 
     it('never returns off_topic for brevity-helper short evaluative answer', () => {
       expect(
-        classifyQualityViolation('It was super confusing', EXPERIENCE_QUESTION, BREVITY_HELPER),
+        classifyQualityViolation(
+          'It was super confusing',
+          EXPERIENCE_QUESTION,
+          BREVITY_HELPER,
+        ),
       ).not.toBe('off_topic');
     });
   });
@@ -167,9 +171,7 @@ describe('ai-quality-rules.util (classifier)', () => {
         'What specific thing you want to make correct in your project';
       const answer = 'backend main.py file have to be changed';
       expect(lacksSemanticConnection(answer, question)).toBe(false);
-      expect(
-        classifyQualityViolation(answer, question),
-      ).not.toBe('off_topic');
+      expect(classifyQualityViolation(answer, question)).not.toBe('off_topic');
     });
 
     it('does not flag src/main.py path as gibberish on project fix question', () => {
@@ -178,7 +180,9 @@ describe('ai-quality-rules.util (classifier)', () => {
       const answer =
         "I want to correct my project's backend src/main.py file so that i should catch correct routes and bypass the latency issues";
       expect(isMashToken('src/main.py')).toBe(false);
-      expect(classifyQualityViolation(answer, question)).not.toBe('pure_gibberish');
+      expect(classifyQualityViolation(answer, question)).not.toBe(
+        'pure_gibberish',
+      );
       expect(classifyQualityViolation(answer, question)).not.toBe('off_topic');
     });
   });
@@ -196,7 +200,9 @@ describe('ai-quality-rules.util (classifier)', () => {
 
     it('Word 365 specific issue is not off-topic (Ex-4)', () => {
       const text = 'I fixed a very specific issue in Microsoft Word 365.';
-      expect(classifyQualityViolation(text, achievementQ)).not.toBe('off_topic');
+      expect(classifyQualityViolation(text, achievementQ)).not.toBe(
+        'off_topic',
+      );
     });
   });
 });

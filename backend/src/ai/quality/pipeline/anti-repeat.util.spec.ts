@@ -18,9 +18,7 @@ const amber = (suggestions: string[]): QualityResult => ({
 
 describe('suggestionSimilarity', () => {
   it('is 1 for identical text regardless of case/punctuation', () => {
-    expect(
-      suggestionSimilarity('Name the step!', 'name the step'),
-    ).toBe(1);
+    expect(suggestionSimilarity('Name the step!', 'name the step')).toBe(1);
   });
 
   it('is low for unrelated suggestions', () => {
@@ -36,9 +34,9 @@ describe('suggestionSimilarity', () => {
 describe('dedupeAgainstSession', () => {
   it('passes through with no session history', () => {
     const result = amber(['Name the step that was confusing.']);
-    expect(dedupeAgainstSession(result, undefined, { seed: 'x', poolSize: 2 })).toBe(
-      result,
-    );
+    expect(
+      dedupeAgainstSession(result, undefined, { seed: 'x', poolSize: 2 }),
+    ).toBe(result);
   });
 
   it('drops a suggestion nearly identical to one already shown', () => {
@@ -73,7 +71,10 @@ describe('dedupeAgainstSession', () => {
       suggestions: [],
     };
     expect(
-      dedupeAgainstSession(result, screen(['anything']), { seed: 'x', poolSize: 2 }),
+      dedupeAgainstSession(result, screen(['anything']), {
+        seed: 'x',
+        poolSize: 2,
+      }),
     ).toBe(result);
   });
 
@@ -117,7 +118,8 @@ describe('dedupeAgainstSession', () => {
       {
         seed: 'x',
         poolSize: 4,
-        answerText: 'I like the quiz between the hackathon and the easy food access.',
+        answerText:
+          'I like the quiz between the hackathon and the easy food access.',
         questionText: 'How is your experience with this hackathon?',
       },
     );

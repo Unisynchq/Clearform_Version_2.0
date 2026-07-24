@@ -21,9 +21,11 @@ describe('ImproveInstructionsService', () => {
   }) {
     const prisma = {
       form: {
-        findFirst: jest.fn().mockResolvedValue(
-          opts.formExists === false ? null : { id: 'form-1' },
-        ),
+        findFirst: jest
+          .fn()
+          .mockResolvedValue(
+            opts.formExists === false ? null : { id: 'form-1' },
+          ),
       },
     };
     const completion = jest.fn();
@@ -60,7 +62,10 @@ describe('ImproveInstructionsService', () => {
             customInstructions: '',
           },
         ],
-        snapshot: { screens: [{ id: 1, type: 'content' }], logicConnections: [] },
+        snapshot: {
+          screens: [{ id: 1, type: 'content' }],
+          logicConnections: [],
+        },
         currentScreenId: 1,
       }),
     };

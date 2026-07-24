@@ -167,9 +167,7 @@ export function computeScreenDropoff(
     const continuedCount = continued[i];
     const dropCount = Math.max(0, reachedCount - continuedCount);
     const dropPercent =
-      reachedCount > 0
-        ? Math.round((dropCount / reachedCount) * 100)
-        : 0;
+      reachedCount > 0 ? Math.round((dropCount / reachedCount) * 100) : 0;
     const { kind, alert } =
       i === 0 && reachedCount > 0
         ? { kind: 'healthy' as const, alert: false }
@@ -177,9 +175,7 @@ export function computeScreenDropoff(
 
     const label = questionLabel(screen);
     const avgTimeSeconds =
-      dwellCounts[i] > 0
-        ? Math.round(dwellTotals[i] / dwellCounts[i])
-        : null;
+      dwellCounts[i] > 0 ? Math.round(dwellTotals[i] / dwellCounts[i]) : null;
 
     steps.push({
       screenId: screen.id!,
@@ -208,7 +204,9 @@ export function computeScreenDropoff(
 }
 
 /** Worst drop step for overview / aiInsight banner (handoff B.13). */
-export function worstDropStep(steps: ScreenDropoffStep[]): ScreenDropoffStep | null {
+export function worstDropStep(
+  steps: ScreenDropoffStep[],
+): ScreenDropoffStep | null {
   if (steps.length === 0) return null;
   return (
     [...steps]

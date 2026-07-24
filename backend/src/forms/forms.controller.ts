@@ -20,18 +20,27 @@ import { Public } from '../common/decorators/public.decorator';
 import { FormStatus } from '@prisma/client';
 import { applyPublicFormCacheHeaders } from './public-form-cache.util';
 
+export interface AuthenticatedUser {
+  id: string;
+  email?: string;
+  firebaseUid?: string;
+}
+
 @Controller('api/v1/forms')
 export class FormsController {
   constructor(private readonly formsService: FormsService) {}
 
   @Post()
-  create(@Body() createFormDto: CreateFormDto, @CurrentUser() user: any) {
+  create(
+    @Body() createFormDto: CreateFormDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.formsService.create(createFormDto, user.id);
   }
 
   @Get()
   findAll(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('status') status?: FormStatus,
     @Query('workspaceId') workspaceId?: string,
     @Query('search') search?: string,
@@ -62,7 +71,7 @@ export class FormsController {
   }
 
   @Get(':id/builder-snapshot')
-  getSnapshot(@Param('id') id: string, @CurrentUser() user: any) {
+  getSnapshot(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.formsService.getSnapshot(id, user.id);
   }
 
@@ -71,7 +80,7 @@ export class FormsController {
   saveSnapshot(
     @Param('id') id: string,
     @Body() body: Record<string, unknown> & { version?: number },
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const { version, ...snapshot } = body;
     return this.formsService.saveSnapshot(
@@ -83,7 +92,7 @@ export class FormsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @CurrentUser() user: any) {
+  findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.formsService.findOne(id, user.id);
   }
 
@@ -91,7 +100,7 @@ export class FormsController {
   update(
     @Param('id') id: string,
     @Body() updateFormDto: UpdateFormDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.formsService.update(id, updateFormDto, user.id);
   }
@@ -100,28 +109,28 @@ export class FormsController {
   publish(
     @Param('id') id: string,
     @Body() body: Record<string, unknown>,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.formsService.publish(id, user.id, body);
   }
 
   @Post(':id/unpublish')
-  unpublish(@Param('id') id: string, @CurrentUser() user: any) {
+  unpublish(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.formsService.unpublish(id, user.id);
   }
 
   @Post(':id/duplicate')
-  duplicate(@Param('id') id: string, @CurrentUser() user: any) {
+  duplicate(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.formsService.duplicate(id, user.id);
   }
 
   @Patch(':id/archive')
-  archive(@Param('id') id: string, @CurrentUser() user: any) {
+  archive(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.formsService.archive(id, user.id);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @CurrentUser() user: any) {
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.formsService.remove(id, user.id);
   }
 }

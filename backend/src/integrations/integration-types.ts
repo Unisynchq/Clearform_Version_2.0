@@ -73,4 +73,8 @@ export type SheetsDispatchMetadataPatch = {
 };
 
 /** Status returned by ComposioService.verifyConnectedAccount. */
-export type ComposioAccountVerifyStatus = 'ACTIVE' | 'INITIATED' | 'FAILED' | 'EXPIRED';
+export type ComposioAccountVerifyStatus =
+  | 'ACTIVE'
+  | 'INITIATED'
+  | 'FAILED'
+  | 'EXPIRED';

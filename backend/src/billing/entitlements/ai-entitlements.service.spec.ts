@@ -189,17 +189,17 @@ describe('AiEntitlementsService', () => {
     it('peek mirrors trial vs exhausted without consuming', async () => {
       entitlements.getPlanForUser.mockResolvedValue(cappedFree);
       prisma.aiUsage.findUnique.mockResolvedValue({ qualitySessionsUsed: 2 });
-      await expect(
-        service.peekQualityAiAccess(userId, formId),
-      ).resolves.toBe('trial');
+      await expect(service.peekQualityAiAccess(userId, formId)).resolves.toBe(
+        'trial',
+      );
       expect(redis.sadd).not.toHaveBeenCalled();
 
       prisma.aiUsage.findUnique.mockResolvedValue({
         qualitySessionsUsed: cappedFree.ai.qualityTrialSessions,
       });
-      await expect(
-        service.peekQualityAiAccess(userId, formId),
-      ).resolves.toBe('rules-only');
+      await expect(service.peekQualityAiAccess(userId, formId)).resolves.toBe(
+        'rules-only',
+      );
     });
   });
 

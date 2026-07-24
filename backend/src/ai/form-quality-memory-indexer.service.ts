@@ -25,12 +25,8 @@ export class FormQualityMemoryIndexer {
     );
 
     for (const screen of screens) {
-      const questionText = resolveQuestionTextFromScreen(
-        screen as Record<string, unknown>,
-      );
-      const helperText = resolveHelperTextFromScreen(
-        screen as Record<string, unknown>,
-      );
+      const questionText = resolveQuestionTextFromScreen(screen);
+      const helperText = resolveHelperTextFromScreen(screen);
       if (!questionText.trim()) continue;
 
       const intent = this.questionIntent.classifyHeuristic({

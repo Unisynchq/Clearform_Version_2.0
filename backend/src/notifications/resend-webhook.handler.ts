@@ -52,7 +52,7 @@ export class ResendWebhookHandler {
       await this.emailLogs.applyWebhookEvent({
         resendEmailId: emailId,
         eventType: event.type,
-        payload: event as object,
+        payload: event,
       });
     }
 

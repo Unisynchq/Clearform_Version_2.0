@@ -32,14 +32,20 @@ export class WebhooksController {
     @Body() createWebhookDto: CreateWebhookDto,
     @CurrentUser() user: any,
   ) {
-    const result = await this.webhooksService.create(formId, user.id, createWebhookDto);
+    const result = await this.webhooksService.create(
+      formId,
+      user.id,
+      createWebhookDto,
+    );
     const name = createWebhookDto.url.split('/').pop() ?? createWebhookDto.url;
-    this.notificationsService.create({
-      userId: user.id,
-      type: 'webhook_connected',
-      title: 'Webhook connected',
-      body: `${name} connected successfully.`,
-    }).catch(() => {});
+    this.notificationsService
+      .create({
+        userId: user.id,
+        type: 'webhook_connected',
+        title: 'Webhook connected',
+        body: `${name} connected successfully.`,
+      })
+      .catch(() => {});
     return result;
   }
 
@@ -74,13 +80,19 @@ export class WebhooksController {
     @Param('wid') webhookId: string,
     @CurrentUser() user: any,
   ) {
-    const webhook = await this.webhooksService.remove(formId, webhookId, user.id);
+    const webhook = await this.webhooksService.remove(
+      formId,
+      webhookId,
+      user.id,
+    );
     const name = (webhook as any)?.url?.split('/')?.pop() ?? 'Webhook';
-    this.notificationsService.create({
-      userId: user.id,
-      type: 'webhook_disconnected',
-      title: 'Webhook disconnected',
-      body: `${name} disconnected successfully.`,
-    }).catch(() => {});
+    this.notificationsService
+      .create({
+        userId: user.id,
+        type: 'webhook_disconnected',
+        title: 'Webhook disconnected',
+        body: `${name} disconnected successfully.`,
+      })
+      .catch(() => {});
   }
 }

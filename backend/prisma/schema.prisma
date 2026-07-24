@@ -7,55 +7,50 @@ datasource db {
 }
 
 model User {
-  id                    String         @id @default(uuid())
-  email                 String         @unique
+  id                    String           @id @default(uuid())
+  email                 String           @unique
   firstName             String
   lastName              String
-  avatarUrl             String?
-  passwordHash          String         @default("")
-  passwordLastChangedAt DateTime?
+  passwordHash          String           @default("")
+  createdAt             DateTime         @default(now())
   onboardingCompletedAt DateTime?
-  createdAt             DateTime       @default(now())
-  workspaces            Workspace[]
-  forms                 Form[]
-  subscription          Subscription?
-  pilotPurchase         PilotPurchase?
-  notifications         Notification[]
+  avatarUrl             String?
+  passwordLastChangedAt DateTime?
   emailLogs             EmailLog[]
-  aiUsage               AiUsage?
-  aiCreditLedger        AiCreditLedger[]
+  forms                 Form[]
+  notifications         Notification[]
+  pilotPurchase         PilotPurchase?
   promoRedemption       PromoRedemption?
+  subscription          Subscription?
+  workspaces            Workspace[]
+  aiCreditLedger        AiCreditLedger[]
+  aiUsage               AiUsage?
 }
 
-/// Lifetime AI trial counters per account (free tier). Prisma is the source
-/// of truth — these must survive Redis flushes; Redis only dedups increments.
 model AiUsage {
   id                   String   @id @default(uuid())
   userId               String   @unique
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   logicGenerationsUsed Int      @default(0)
   qualitySessionsUsed  Int      @default(0)
-  /** Cumulative AI credits charged in the current credit period (product actions). */
-  aiCreditsUsed        Int      @default(0)
-  /** Free tier: calendar-month anchor. Pilot: reset when pilot activates. */
-  aiCreditsPeriodStart DateTime @default(now())
   createdAt            DateTime @default(now())
   updatedAt            DateTime @default(now()) @updatedAt
+  aiCreditsUsed        Int      @default(0)
+  aiCreditsPeriodStart DateTime @default(now())
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("ai_usage")
 }
 
-/** Append-only ledger of AI credit asserts/debits for transparency. */
 model AiCreditLedger {
   id        String   @id @default(uuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   action    String
   credits   Int
   formId    String?
   status    String
   meta      Json?
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([formId, createdAt(sort: Desc)])
@@ -65,7 +60,6 @@ model AiCreditLedger {
 model EmailLog {
   id            String    @id @default(uuid())
   userId        String?
-  user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
   toEmail       String
   template      String
   subject       String
@@ -75,6 +69,7 @@ model EmailLog {
   lastEventAt   DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  user          User?     @relation(fields: [userId], references: [id])
 
   @@index([userId, template])
   @@index([resendEmailId])
@@ -82,56 +77,46 @@ model EmailLog {
 }
 
 model Subscription {
-  id                  String             @id @default(uuid())
-  userId              String             @unique
-  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  planId              String
-  razorpaySubId       String?
-  razorpayPaymentId   String?            @unique
-  status              SubscriptionStatus @default(TRIAL)
-  responsesUsed       Int                @default(0)
-  responsesLimit      Int                @default(50)
-  periodStart         DateTime           @default(now())
-  periodEnd           DateTime
-  source              SubscriptionSource @default(RAZORPAY)
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @default(now()) @updatedAt
+  id                String             @id @default(uuid())
+  userId            String             @unique
+  planId            String
+  razorpaySubId     String?
+  status            SubscriptionStatus @default(TRIAL)
+  responsesUsed     Int                @default(0)
+  responsesLimit    Int                @default(50)
+  periodStart       DateTime           @default(now())
+  periodEnd         DateTime
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @default(now()) @updatedAt
+  razorpayPaymentId String?            @unique
+  source            SubscriptionSource @default(RAZORPAY)
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-enum SubscriptionSource {
-  RAZORPAY
-  PROMO
-}
-
-/// Single shared invite-only promo code (not per-user) — redeeming grants a
-/// pilot trial of `durationDays` days (fallback: PROMO_TRIAL_DAYS). Uniqueness
-/// is enforced on PromoRedemption.userId, not on the code itself, since many
-/// invited people share the same code string.
 model PromoCode {
-  id              String   @id @default(uuid())
-  code            String   @unique
-  active          Boolean  @default(true)
+  id              String            @id @default(uuid())
+  code            String            @unique
+  active          Boolean           @default(true)
   note            String?
+  redemptionCount Int               @default(0)
+  createdAt       DateTime          @default(now())
   durationDays    Int?
-  redemptionCount Int      @default(0)
-  createdAt       DateTime @default(now())
-
-  redemptions PromoRedemption[]
+  redemptions     PromoRedemption[]
 }
 
 model PromoRedemption {
   id               String    @id @default(uuid())
   promoCodeId      String
-  promoCode        PromoCode @relation(fields: [promoCodeId], references: [id])
   userId           String    @unique
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   redeemedAt       DateTime  @default(now())
   grantedExpiresAt DateTime
+  promoCode        PromoCode @relation(fields: [promoCodeId], references: [id])
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model PilotPurchase {
-  id                    String   @id @default(uuid())
-  razorpayPaymentId     String   @unique
+  id                    String    @id @default(uuid())
+  razorpayPaymentId     String    @unique
   razorpayOrderId       String?
   razorpayPaymentLinkId String?
   email                 String?
@@ -141,18 +126,11 @@ model PilotPurchase {
   planId                String
   purchasedAt           DateTime
   expiresAt             DateTime
-  userId                String?  @unique
-  user                  User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId                String?   @unique
   claimedAt             DateTime?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @default(now()) @updatedAt
-}
-
-enum SubscriptionStatus {
-  TRIAL
-  ACTIVE
-  PAST_DUE
-  CANCELLED
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @default(now()) @updatedAt
+  user                  User?     @relation(fields: [userId], references: [id])
 }
 
 model Workspace {
@@ -160,47 +138,39 @@ model Workspace {
   label                  String
   colour                 String?
   ownerId                String
-  owner                  User                    @relation(fields: [ownerId], references: [id])
+  createdAt              DateTime                @default(now())
   forms                  Form[]
   integrationConnections IntegrationConnection[]
-  createdAt              DateTime                @default(now())
+  owner                  User                    @relation(fields: [ownerId], references: [id])
 }
 
 model Form {
-  id                String         @id @default(uuid())
-  title             String
-  status            FormStatus     @default(DRAFT)
-  workspaceId       String?
-  workspace         Workspace?     @relation(fields: [workspaceId], references: [id])
-  ownerId           String
-  owner             User           @relation(fields: [ownerId], references: [id])
-  gradientFrom      String         @default("#6366f1")
-  gradientTo        String         @default("#8b5cf6")
-  overlayColor      String         @default("rgba(99,102,241,0.15)")
-  iconGradient      String         @default("linear-gradient(135deg,#6366f1,#8b5cf6)")
-  builderSnapshot   Json?
-  builderSnapshotVersion Int @default(0)
-  publishedSnapshot Json?
-  publishedAt       DateTime?
-  settings          FormSettings?
-  webhooks          Webhook[]
-  responses         FormResponse[]
-  aiFeedback        AiFeedback[]
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-}
-
-enum FormStatus {
-  LIVE
-  DRAFT
-  ARCHIVED
-  TRASH
+  id                     String         @id @default(uuid())
+  title                  String
+  status                 FormStatus     @default(DRAFT)
+  workspaceId            String?
+  ownerId                String
+  gradientFrom           String         @default("#6366f1")
+  gradientTo             String         @default("#8b5cf6")
+  overlayColor           String         @default("rgba(99,102,241,0.15)")
+  iconGradient           String         @default("linear-gradient(135deg,#6366f1,#8b5cf6)")
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+  builderSnapshot        Json?
+  publishedAt            DateTime?
+  publishedSnapshot      Json?
+  builderSnapshotVersion Int            @default(0)
+  aiFeedback             AiFeedback[]
+  owner                  User           @relation(fields: [ownerId], references: [id])
+  workspace              Workspace?     @relation(fields: [workspaceId], references: [id])
+  responses              FormResponse[]
+  settings               FormSettings?
+  webhooks               Webhook[]
 }
 
 model FormSettings {
   id                   String    @id @default(uuid())
   formId               String    @unique
-  form                 Form      @relation(fields: [formId], references: [id], onDelete: Cascade)
   responseLimit        Int?
   pauseUntil           DateTime?
   notificationsEnabled Boolean   @default(true)
@@ -208,32 +178,33 @@ model FormSettings {
   passwordHint         String?
   autoCloseAt          DateTime?
   shareEnabled         Boolean   @default(true)
+  form                 Form      @relation(fields: [formId], references: [id], onDelete: Cascade)
 }
 
 model Webhook {
   id              String            @id @default(uuid())
   formId          String
-  form            Form              @relation(fields: [formId], references: [id], onDelete: Cascade)
   url             String
   triggers        Json              @default("[]")
-  secret          String?
   active          Boolean           @default(true)
+  createdAt       DateTime          @default(now())
+  secret          String?
   lastDeliveredAt DateTime?
   lastError       String?
-  createdAt       DateTime          @default(now())
+  form            Form              @relation(fields: [formId], references: [id], onDelete: Cascade)
   deliveries      WebhookDelivery[]
 }
 
 model WebhookDelivery {
   id         String   @id @default(uuid())
   webhookId  String
-  webhook    Webhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
   event      String
   statusCode Int?
   success    Boolean  @default(false)
   error      String?
   attempt    Int      @default(1)
   createdAt  DateTime @default(now())
+  webhook    Webhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
 
   @@index([webhookId, createdAt(sort: Desc)])
 }
@@ -241,15 +212,15 @@ model WebhookDelivery {
 model FormResponse {
   id             String         @id @default(uuid())
   formId         String
-  form           Form           @relation(fields: [formId], references: [id], onDelete: Cascade)
   payload        Json
   status         ResponseStatus @default(PENDING)
   qualityScore   Int?
   completedAt    DateTime?
   durationMs     Int?
-  dropOffFieldId String?
   createdAt      DateTime       @default(now())
+  dropOffFieldId String?
   aiFeedback     AiFeedback[]
+  form           Form           @relation(fields: [formId], references: [id], onDelete: Cascade)
 
   @@index([formId, createdAt])
   @@index([formId, status])
@@ -257,18 +228,18 @@ model FormResponse {
 }
 
 model AiFeedback {
-  id           String      @id @default(uuid())
+  id           String       @id @default(uuid())
   formId       String
-  form         Form        @relation(fields: [formId], references: [id], onDelete: Cascade)
   responseId   String
-  response     FormResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
   screenId     String?
   rating       Int
   note         String?
   aiDecision   String
   actualAnswer String?
   createdBy    String
-  createdAt    DateTime    @default(now())
+  createdAt    DateTime     @default(now())
+  form         Form         @relation(fields: [formId], references: [id], onDelete: Cascade)
+  response     FormResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
 
   @@index([formId, createdAt])
   @@index([responseId])
@@ -276,25 +247,18 @@ model AiFeedback {
   @@index([formId, rating, createdAt])
 }
 
-enum ResponseStatus {
-  PENDING
-  PROCESSED
-  FAILED
-  ABANDONED
-}
-
 model Notification {
   id         String    @id @default(uuid())
   userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   formId     String?
   responseId String?
   type       String
   title      String
   body       String
-  action     Json?
   readAt     DateTime?
   createdAt  DateTime  @default(now())
+  action     Json?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, readAt])
@@ -302,24 +266,21 @@ model Notification {
 }
 
 model FormMemoryChunk {
-  id        String                       @id @default(uuid())
+  id        String                 @id @default(uuid())
   formId    String
   chunkType String
   content   String
-  embedding Unsupported("vector(1536)")?
+  embedding Unsupported("vector")?
   metadata  Json?
-  createdAt DateTime                     @default(now())
+  createdAt DateTime               @default(now())
 
   @@index([formId])
   @@map("form_memory_chunks")
 }
 
-/// One row per resolved LLM attempt — observability for the Gemini rollout
-/// (provider/model/latency/tokens). Written fire-and-forget by LlmGatewayService.
 model AiCallLog {
   id           String   @id @default(uuid())
   formId       String?
-  ownerUserId  String?
   task         String
   tier         String
   provider     String
@@ -327,10 +288,11 @@ model AiCallLog {
   latencyMs    Int
   promptTokens Int?
   outputTokens Int?
-  costUsd      Float?
   success      Boolean  @default(true)
   errorSnippet String?
   createdAt    DateTime @default(now())
+  ownerUserId  String?
+  costUsd      Float?
 
   @@index([createdAt(sort: Desc)])
   @@index([provider, task, createdAt(sort: Desc)])
@@ -341,11 +303,37 @@ model AiCallLog {
 model IntegrationConnection {
   id               String    @id @default(uuid())
   workspaceId      String
-  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   provider         String
   composioEntityId String?
   metadata         Json?
   active           Boolean   @default(true)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+enum SubscriptionSource {
+  RAZORPAY
+  PROMO
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  TRIAL
+}
+
+enum FormStatus {
+  LIVE
+  DRAFT
+  ARCHIVED
+  TRASH
+}
+
+enum ResponseStatus {
+  PENDING
+  PROCESSED
+  FAILED
+  ABANDONED
 }

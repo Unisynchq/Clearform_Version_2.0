@@ -1,4 +1,8 @@
-import type { EvaluateQualityDto, NormalizedQualityOptions, QualityResult } from './ai.service.types';
+import type {
+  EvaluateQualityDto,
+  NormalizedQualityOptions,
+  QualityResult,
+} from './ai.service.types';
 import { pickCopy } from './doctrine/copy.registry';
 import { containsProfanity } from './profanity-lists';
 import {
@@ -20,7 +24,11 @@ import {
 } from './question-intent/metric-interpreter';
 import type { QuestionIntent } from './question-intent/question-intent.types';
 
-type QualityCriterionId = 'length' | 'specificity' | 'relevance' | 'completeness';
+type QualityCriterionId =
+  | 'length'
+  | 'specificity'
+  | 'relevance'
+  | 'completeness';
 
 export type QualityViolationKind =
   | 'pure_gibberish'
@@ -33,14 +41,16 @@ export type QualityViolationKind =
   | 'none';
 
 /** Violation kinds passed to the LLM as a signal block in the user prompt. */
-export const NUDGE_VIOLATION_KINDS: ReadonlySet<QualityViolationKind> = new Set([
-  'profanity',
-  'hostile_dismissive',
-  'off_topic',
-  'low_value',
-  'too_short',
-  'prompt_injection',
-]);
+export const NUDGE_VIOLATION_KINDS: ReadonlySet<QualityViolationKind> = new Set(
+  [
+    'profanity',
+    'hostile_dismissive',
+    'off_topic',
+    'low_value',
+    'too_short',
+    'prompt_injection',
+  ],
+);
 
 /** Mandatory instant-red violations — never defer to the full quality LLM. */
 export const HARD_VIOLATION_KINDS: ReadonlySet<QualityViolationKind> = new Set([
@@ -225,12 +235,47 @@ const ASPIRATION_TOKENS = new Set([
 // Sentiment/evaluative words that are valid short feedback answers.
 // "It was confusing" → confusing is here → answer is valid, just brief.
 const EVALUATIVE_TOKENS = new Set([
-  'confusing', 'confused', 'difficult', 'hard', 'easy', 'unclear', 'clear',
-  'frustrating', 'frustrated', 'helpful', 'useless', 'good', 'bad', 'great',
-  'poor', 'slow', 'fast', 'broken', 'complicated', 'simple', 'overwhelming',
-  'intuitive', 'smooth', 'buggy', 'weird', 'fine', 'okay', 'terrible',
-  'excellent', 'disappointing', 'amazing', 'annoying', 'boring', 'engaging',
-  'better', 'worse', 'perfect', 'awful', 'painful', 'enjoyable', 'stressful',
+  'confusing',
+  'confused',
+  'difficult',
+  'hard',
+  'easy',
+  'unclear',
+  'clear',
+  'frustrating',
+  'frustrated',
+  'helpful',
+  'useless',
+  'good',
+  'bad',
+  'great',
+  'poor',
+  'slow',
+  'fast',
+  'broken',
+  'complicated',
+  'simple',
+  'overwhelming',
+  'intuitive',
+  'smooth',
+  'buggy',
+  'weird',
+  'fine',
+  'okay',
+  'terrible',
+  'excellent',
+  'disappointing',
+  'amazing',
+  'annoying',
+  'boring',
+  'engaging',
+  'better',
+  'worse',
+  'perfect',
+  'awful',
+  'painful',
+  'enjoyable',
+  'stressful',
 ]);
 
 // Feedback/improvement question signals — when the question uses these words,
@@ -252,9 +297,13 @@ const COLOR_LIST_PATTERN =
   /^(?:\b(?:red|blue|green|yellow|orange|purple|pink|white|black|gray|grey|violet|indigo)\b[\s,]*){3,}$/i;
 
 function isEmojiSpam(text: string): boolean {
-  const emojiMatches = text.match(/\p{Emoji_Presentation}|\p{Extended_Pictographic}/gu) ?? [];
+  const emojiMatches =
+    text.match(/\p{Emoji_Presentation}|\p{Extended_Pictographic}/gu) ?? [];
   const wordTokens = text.trim().split(/\s+/).filter(Boolean);
-  return emojiMatches.length >= 4 && emojiMatches.length / (wordTokens.length + emojiMatches.length) > 0.5;
+  return (
+    emojiMatches.length >= 4 &&
+    emojiMatches.length / (wordTokens.length + emojiMatches.length) > 0.5
+  );
 }
 
 function isRepetitiveSpam(text: string): boolean {
@@ -301,7 +350,11 @@ export function isMashToken(token: string): boolean {
   const alpha = clean.replace(/[^a-zA-Z]/g, '');
   // 4+ consecutive consonants AND low vowel ratio → mash (e.g. "nfkndnfdsn").
   // Real English words like "instructions" or "workspace" still have vowel ratios ≥ 0.25.
-  if (alpha.length >= 8 && /[bcdfghjklmnpqrstvwxyz]{4,}/i.test(alpha) && tokenVowelRatio(alpha) < 0.25) {
+  if (
+    alpha.length >= 8 &&
+    /[bcdfghjklmnpqrstvwxyz]{4,}/i.test(alpha) &&
+    tokenVowelRatio(alpha) < 0.25
+  ) {
     return true;
   }
   if (alpha.length >= 12 && tokenVowelRatio(alpha) < 0.15) {
@@ -357,14 +410,15 @@ export function lacksSemanticConnection(
   if (fillerCount / tokens.length > 0.4 && tokens.length < 12) return true;
 
   const questionWords = extractContentWords(questionText);
-  const answerStems = tokens.map((t) => normalizeStem(t)).filter((t) => t.length >= 3);
+  const answerStems = tokens
+    .map((t) => normalizeStem(t))
+    .filter((t) => t.length >= 3);
   const overlap = questionWords.filter((qw) =>
     answerStems.some((as) => as.includes(qw) || qw.includes(as)),
   ).length;
 
-  const isAspirationQ = /\b(goal|life|dream|career|future|aspir|ambition|plan)\b/.test(
-    q,
-  );
+  const isAspirationQ =
+    /\b(goal|life|dream|career|future|aspir|ambition|plan)\b/.test(q);
   if (isAspirationQ) {
     const hasAspiration = tokens.some((t) => ASPIRATION_TOKENS.has(t));
     if (!hasAspiration && overlap === 0) return true;
@@ -412,19 +466,29 @@ export function isFillerHeavy(text: string, questionText?: string): boolean {
     .filter(Boolean);
   if (tokens.length === 0) return false;
 
-  const fillerCount = tokens.filter((t) => FILLER_TOKENS.has(t) || t === 'nth').length;
+  const fillerCount = tokens.filter(
+    (t) => FILLER_TOKENS.has(t) || t === 'nth',
+  ).length;
   if (fillerCount >= 2 && fillerCount / tokens.length >= 0.25) return true;
-  if (/\bnth\b/i.test(trimmed) && /\b(whatever|nothing|else)\b/i.test(trimmed)) {
+  if (
+    /\bnth\b/i.test(trimmed) &&
+    /\b(whatever|nothing|else)\b/i.test(trimmed)
+  ) {
     return true;
   }
 
-  if (/\bgoal\s+is\s+goal\b/i.test(trimmed) || /\bfine\s+is\s+life\b/i.test(trimmed)) {
+  if (
+    /\bgoal\s+is\s+goal\b/i.test(trimmed) ||
+    /\bfine\s+is\s+life\b/i.test(trimmed)
+  ) {
     return true;
   }
 
   const words = trimmed.split(/\s+/).filter(Boolean);
   if (words.length >= 4) {
-    const unique = new Set(words.map((w) => w.toLowerCase().replace(/[^a-z]/g, '')));
+    const unique = new Set(
+      words.map((w) => w.toLowerCase().replace(/[^a-z]/g, '')),
+    );
     if (unique.size <= Math.ceil(words.length * 0.45)) {
       const q = (questionText ?? '').toLowerCase();
       if (/\b(goal|life|describe|detail|experience)\b/.test(q)) return true;
@@ -485,7 +549,10 @@ export function classifyQualityViolation(
     return 'low_value';
   }
 
-  if (isFillerHeavy(trimmed, questionText) || isLowValueVerbose(trimmed, questionText)) {
+  if (
+    isFillerHeavy(trimmed, questionText) ||
+    isLowValueVerbose(trimmed, questionText)
+  ) {
     return 'low_value';
   }
 
@@ -538,9 +605,7 @@ export function resolveViolationLevelHint(
   return violationKindToLevel(kind);
 }
 
-export function violationKindToFailedIds(
-  kind: QualityViolationKind,
-): string[] {
+export function violationKindToFailedIds(kind: QualityViolationKind): string[] {
   switch (kind) {
     case 'profanity':
     case 'hostile_dismissive':
@@ -593,7 +658,9 @@ export function isDefinitelyGibberish(text: string): boolean {
   // Alternating 2-char pattern repeating 3+ times: "dfdfdf", "ababab", "nfnfnf"
   if (noSpace.length >= 6) {
     const pair = noSpace.slice(0, 2);
-    const expected = pair.repeat(Math.ceil(noSpace.length / 2)).slice(0, noSpace.length);
+    const expected = pair
+      .repeat(Math.ceil(noSpace.length / 2))
+      .slice(0, noSpace.length);
     if (noSpace === expected) return true;
   }
 
@@ -601,7 +668,7 @@ export function isDefinitelyGibberish(text: string): boolean {
   const lettersOnly = noSpace.replace(/[^a-z]/g, '');
   if (lettersOnly.length >= 5) {
     const vowels = (lettersOnly.match(/[aeiou]/g) ?? []).length;
-    if (vowels / lettersOnly.length < 0.10) return true;
+    if (vowels / lettersOnly.length < 0.1) return true;
   }
 
   return false;
@@ -635,8 +702,7 @@ const GREETING_NAME_PATTERN =
   /^(hey|hi|hello|yo|sup|hola|heya|hii+|helloo+|howdy|hiya|namaste)$/i;
 
 /** Titles / honorifics that precede a name — not counted toward first+last. */
-const NAME_HONORIFIC =
-  /^(mr|mrs|ms|miss|dr|prof|sir|md|m\.d|phd|ph\.d)\.?$/i;
+const NAME_HONORIFIC = /^(mr|mrs|ms|miss|dr|prof|sir|md|m\.d|phd|ph\.d)\.?$/i;
 
 function nameTokens(text: string): string[] {
   return text.trim().split(/\s+/).filter(Boolean);
@@ -717,7 +783,7 @@ function readCriteriaBlock(
 ): Record<string, unknown> | undefined {
   const top = raw?.[id];
   if (top && typeof top === 'object' && !Array.isArray(top)) {
-    return top as Record<string, unknown>;
+    return top;
   }
   const nested = raw?.criteria;
   if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
@@ -759,19 +825,19 @@ export function normalizeQualityOptions(
 
   return {
     minWords: Number(lengthOpts.minWords ?? raw?.minWords ?? 10),
-    sensitivity: (specificityOpts.sensitivity ?? raw?.sensitivity ?? 'Medium') as
-      | 'Low'
-      | 'Medium'
-      | 'High',
-    vagueWords: String(
-      specificityOpts.vagueWords ?? raw?.vagueWords ?? '',
-    ).trim() || undefined,
-    topicKeywords: String(
-      relevanceOpts.keywords ??
-        relevanceOpts.topicKeywords ??
-        raw?.topicKeywords ??
-        '',
-    ).trim() || undefined,
+    sensitivity: (specificityOpts.sensitivity ??
+      raw?.sensitivity ??
+      'Medium') as 'Low' | 'Medium' | 'High',
+    vagueWords:
+      String(specificityOpts.vagueWords ?? raw?.vagueWords ?? '').trim() ||
+      undefined,
+    topicKeywords:
+      String(
+        relevanceOpts.keywords ??
+          relevanceOpts.topicKeywords ??
+          raw?.topicKeywords ??
+          '',
+      ).trim() || undefined,
     keywordThreshold: Number(
       relevanceOpts.matchThreshold ??
         relevanceOpts.keywordThreshold ??
@@ -790,7 +856,10 @@ export function normalizeQualityOptions(
 }
 
 /** Detect vague praise, refusal, or filler on detail-oriented questions. */
-export function isLowValueVerbose(text: string, questionText?: string): boolean {
+export function isLowValueVerbose(
+  text: string,
+  questionText?: string,
+): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;
   const q = (questionText ?? '').toLowerCase();
@@ -798,33 +867,47 @@ export function isLowValueVerbose(text: string, questionText?: string): boolean 
     /\b(detail|describe|experience|experiance|explain|specific|why|how|tell us|form|filling|feedback)\b/.test(
       q,
     );
-  const experienceIntent = /\b(experience|form|filling|how is|how was)\b/.test(q);
+  const experienceIntent = /\b(experience|form|filling|how is|how was)\b/.test(
+    q,
+  );
   const wc = wordCount(trimmed);
   const vagueOnly =
     /^(it'?s?\s+(good|fine|great|awesome|ok|okay)|really\s+(good|great|love)|going\s+awesome)/i.test(
       trimmed,
     ) && !CONCRETE_NOUNS.test(trimmed);
   const informalPraise =
-    /\b(fun|bro|kinda|like it|not much|it'?s good|pretty good)\b/i.test(trimmed) &&
-    !CONCRETE_NOUNS.test(trimmed);
+    /\b(fun|bro|kinda|like it|not much|it'?s good|pretty good)\b/i.test(
+      trimmed,
+    ) && !CONCRETE_NOUNS.test(trimmed);
   if (detailIntent && wc < 15 && vagueOnly) return true;
   if (wc >= 8 && wc < 30 && vagueOnly) return true;
   if (experienceIntent && informalPraise) return true;
-  if (/\bnot much\b/i.test(trimmed) && /\b(good|fine|great|ok|okay)\b/i.test(trimmed)) {
-    return true;
-  }
-  if (/\b(don'?t|dont)\s+wanna|get out of here|not giving|won'?t answer|will\s+not\s+give|won'?t\s+give|not\s+give\s+that/i.test(trimmed)) {
+  if (
+    /\bnot much\b/i.test(trimmed) &&
+    /\b(good|fine|great|ok|okay)\b/i.test(trimmed)
+  ) {
     return true;
   }
   if (
-    /\b(don'?t|dont)\s+want\s+to\s+(write|give|answer|share)\b/i.test(trimmed) &&
+    /\b(don'?t|dont)\s+wanna|get out of here|not giving|won'?t answer|will\s+not\s+give|won'?t\s+give|not\s+give\s+that/i.test(
+      trimmed,
+    )
+  ) {
+    return true;
+  }
+  if (
+    /\b(don'?t|dont)\s+want\s+to\s+(write|give|answer|share)\b/i.test(
+      trimmed,
+    ) &&
     /\b(honest|synthetic|real)\s+answer/i.test(trimmed)
   ) {
     return true;
   }
   // Asking the form back instead of answering ("what should I write then?")
   // or a bare "I don't know" with no substance is a non-answer.
-  if (/\bwhat\s+should\s+(i|we)?\s*(write|say|answer|put|type)\b/i.test(trimmed)) {
+  if (
+    /\bwhat\s+should\s+(i|we)?\s*(write|say|answer|put|type)\b/i.test(trimmed)
+  ) {
     return true;
   }
   if (

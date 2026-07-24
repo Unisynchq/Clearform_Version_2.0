@@ -64,7 +64,7 @@ export class EmailLogService {
       data: {
         status: 'failed',
         lastEventAt: new Date(),
-        metadata: metadata as Prisma.InputJsonValue,
+        metadata: metadata,
       },
     });
   }
@@ -94,7 +94,7 @@ export class EmailLogService {
       data: {
         status,
         lastEventAt: new Date(),
-        metadata: metadata as Prisma.InputJsonValue,
+        metadata: metadata,
       },
     });
   }

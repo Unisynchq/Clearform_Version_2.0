@@ -18,21 +18,23 @@ export type BestResponsesTierConfig = {
   useLlmRank: boolean;
 };
 
-export const BEST_RESPONSES_BY_TIER: Record<'free' | 'pro', BestResponsesTierConfig> =
-  {
-    free: {
-      limit: 3,
-      minCompositeScore: 88,
-      minPerAnswerScore: 75,
-      useLlmRank: true,
-    },
-    pro: {
-      limit: 5,
-      minCompositeScore: 85,
-      minPerAnswerScore: 70,
-      useLlmRank: true,
-    },
-  };
+export const BEST_RESPONSES_BY_TIER: Record<
+  'free' | 'pro',
+  BestResponsesTierConfig
+> = {
+  free: {
+    limit: 3,
+    minCompositeScore: 88,
+    minPerAnswerScore: 75,
+    useLlmRank: true,
+  },
+  pro: {
+    limit: 5,
+    minCompositeScore: 85,
+    minPerAnswerScore: 70,
+    useLlmRank: true,
+  },
+};
 
 const DISMISSIVE_PATTERN =
   /\b(don'?t\s+want\s+to\s+(make|correct)|won'?t\s+give|not\s+giving|fuc+k?\s*off|nothing\s+but\s+to\s+explore)\b/i;
@@ -78,7 +80,7 @@ export function responseMatchesCurrentForm(
 
   const byScreen = payload.answersByScreenId;
   if (byScreen && typeof byScreen === 'object' && !Array.isArray(byScreen)) {
-    const answerIds = Object.keys(byScreen as Record<string, unknown>);
+    const answerIds = Object.keys(byScreen);
     if (answerIds.length === 0) return false;
     const hasValidScreen = answerIds.some((id) => currentIds.has(String(id)));
     if (!hasValidScreen) return false;
@@ -87,9 +89,7 @@ export function responseMatchesCurrentForm(
   if (Array.isArray(payload.answers) && payload.answers.length > 0) {
     const storedLabels = payload.answers
       .map((a) =>
-        normalizeQuestionKey(
-          String((a as { label?: string }).label ?? ''),
-        ),
+        normalizeQuestionKey(String((a as { label?: string }).label ?? '')),
       )
       .filter(Boolean);
     if (storedLabels.length > 0 && currentQuestions.size > 0) {
@@ -205,7 +205,9 @@ export function filterResponsesForBestList(
 
   for (const row of rows) {
     const payload =
-      row.payload && typeof row.payload === 'object' && !Array.isArray(row.payload)
+      row.payload &&
+      typeof row.payload === 'object' &&
+      !Array.isArray(row.payload)
         ? (row.payload as Record<string, unknown>)
         : {};
 

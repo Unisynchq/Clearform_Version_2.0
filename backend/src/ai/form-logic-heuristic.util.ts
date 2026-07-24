@@ -218,7 +218,7 @@ export function repairLogicGraph(
   return {
     connections,
     ifRulesByEdge,
-    showIfByScreenId: (graph.showIfByScreenId ?? {}) as Record<string, never>,
+    showIfByScreenId: graph.showIfByScreenId ?? {},
   };
 }
 

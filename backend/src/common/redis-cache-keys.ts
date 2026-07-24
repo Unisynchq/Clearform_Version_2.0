@@ -22,7 +22,8 @@ export const REDIS_KEYS = {
   aiDoctrineVersion: 'ai:doctrine:version',
   embeddingCache: (formId: string, contentHash: string) =>
     `ai:embed:${formId}:${contentHash}`,
-  aiQualityEval: (formId: string, payloadHash: string) => `ai:quality:eval:${formId}:${payloadHash}`,
+  aiQualityEval: (formId: string, payloadHash: string) =>
+    `ai:quality:eval:${formId}:${payloadHash}`,
   aiLogic: (formId: string, snapshotHash: string) =>
     `ai:logic:v1:${formId}:${snapshotHash}`,
   aiTrialQualitySessions: (ownerUserId: string) =>

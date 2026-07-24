@@ -32,7 +32,11 @@ export type ImproveInstructionsDto = {
 
 export type ImproveInstructionsResult = {
   customInstructions: string;
-  meta: { source: 'llm' | 'contextual_fallback'; model?: string; reason?: string };
+  meta: {
+    source: 'llm' | 'contextual_fallback';
+    model?: string;
+    reason?: string;
+  };
 };
 
 function readImproveDoctrine(
@@ -146,7 +150,8 @@ function distillOwnerIntent(draft: string): string {
  * fragments like "amber when thin" appear in legitimate grounded directives
  * (the doctrine's own examples use them) and must not be flagged alone.
  */
-const CANNED_GENERIC_GREEN = /green when (they('re| are) )?on-?topic with useful detail/i;
+const CANNED_GENERIC_GREEN =
+  /green when (they('re| are) )?on-?topic with useful detail/i;
 
 /** Empty phrases banned by tasks/improve-instructions.md rules 6 and 11. */
 const BANNED_FLUFF_PATTERNS = [
@@ -226,7 +231,8 @@ export function contextualImproveInstructions(
     const draftLooksOffTopic =
       /\b(taste|sweet|looks?|apple|fruit|liked most|favorite)\b/i.test(
         normalized,
-      ) && !/\b(error|stack|log|exception|crash|5\d\d|4\d\d)\b/i.test(normalized);
+      ) &&
+      !/\b(error|stack|log|exception|crash|5\d\d|4\d\d)\b/i.test(normalized);
     if (!normalized || draftLooksOffTopic) {
       return (
         `For "${(questionText ?? 'this question').trim().slice(0, 90)}": ` +

@@ -1,6 +1,6 @@
 /**
- * Fail fast when NODE_ENV=production and required secrets are missing.
- * Dev/local starts are unchanged.
+ * Fail fast when required env vars are missing.
+ * In production additional checks run.
  */
 const REQUIRED_STRING_VARS = [
   'DATABASE_URL',
@@ -12,25 +12,29 @@ const REQUIRED_STRING_VARS = [
   'APP_URL',
 ] as const;
 
-function hasFirebaseCredentials(): boolean {
-  return Boolean(
-    process.env.FIREBASE_CREDENTIALS_JSON?.trim() ||
-    process.env.FIREBASE_CREDENTIALS_PATH?.trim(),
-  );
-}
-
-function validateFirebaseCredentialsFormat(): void {
-  const json = process.env.FIREBASE_CREDENTIALS_JSON?.trim();
-  if (json) {
-    try {
-      JSON.parse(json);
-    } catch {
-      throw new Error('FIREBASE_CREDENTIALS_JSON is not valid JSON');
+/**
+ * Throws on startup if JWT secrets are missing — these are required
+ * in ALL environments because the JwtStrategy initialises eagerly.
+ */
+function checkJwtSecrets(): void {
+  for (const key of ['JWT_SECRET', 'JWT_REFRESH_SECRET'] as const) {
+    if (!process.env[key]?.trim()) {
+      const msg = [
+        `${key} is not set.`,
+        'Generate one with:',
+        "node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"",
+        'and add it to your .env file.',
+      ].join(' ');
+      console.error(`[startup] ${msg}`);
+      process.exit(1);
     }
   }
 }
 
 export function validateProductionEnv(): void {
+  // JWT secrets are always required — the JwtStrategy is eagerly initialised
+  checkJwtSecrets();
+
   if (process.env.NODE_ENV !== 'production') {
     return;
   }
@@ -42,12 +46,6 @@ export function validateProductionEnv(): void {
       missing.push(key);
     }
   }
-
-  // if (!hasFirebaseCredentials()) {
-  //   missing.push('FIREBASE_CREDENTIALS_JSON or FIREBASE_CREDENTIALS_PATH');
-  // } else {
-  //   validateFirebaseCredentialsFormat();
-  // }
 
   if (missing.length > 0) {
     const message = `Production startup aborted — missing or empty: ${missing.join(', ')}`;

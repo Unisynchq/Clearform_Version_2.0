@@ -11,7 +11,9 @@ const MAX_PROMPT_LENGTH = 600;
 
 let doctrineRegistry: DoctrineRegistry | null = null;
 
-export function setDefaultOwnerPromptRegistry(registry: DoctrineRegistry): void {
+export function setDefaultOwnerPromptRegistry(
+  registry: DoctrineRegistry,
+): void {
   doctrineRegistry = registry;
 }
 
@@ -48,8 +50,13 @@ function intentKeyForQuestion(questionText?: string): string {
   if (isNameIntentQuestion(questionText)) return 'identity';
   if (isProjectOrFixQuestion(questionText)) return 'project_or_fix';
   if (isProfessionalExperienceQuestion(questionText)) return 'factual_short';
-  if (isExperienceOrFeedbackQuestion(questionText)) return 'experience_narrative';
-  if (/\bachievement|significant|accomplish|professional\b/i.test(questionText ?? '')) {
+  if (isExperienceOrFeedbackQuestion(questionText))
+    return 'experience_narrative';
+  if (
+    /\bachievement|significant|accomplish|professional\b/i.test(
+      questionText ?? '',
+    )
+  ) {
     return 'achievement';
   }
   return 'generic';
@@ -98,7 +105,10 @@ export function deriveFacetsFromHelper(
   if (/\bexample|concrete|detail|instance\b/.test(h)) {
     facets.push('concrete example');
   }
-  if (/\bachievement|accomplish|significant\b/.test(q) && !facets.includes('measurable impact')) {
+  if (
+    /\bachievement|accomplish|significant\b/.test(q) &&
+    !facets.includes('measurable impact')
+  ) {
     facets.push('what you achieved');
   }
   if (/\bexperience|onboard|feedback|hackathon\b/.test(q)) {
@@ -108,7 +118,11 @@ export function deriveFacetsFromHelper(
       if (/\b(describe|detail|in detail)\b/.test(q)) {
         facets.push('specific detail relevant to this form');
       }
-      if (/\b(what you like|liked most|like the most|favorite part|best part)\b/.test(q)) {
+      if (
+        /\b(what you like|liked most|like the most|favorite part|best part)\b/.test(
+          q,
+        )
+      ) {
         facets.push('what you liked most');
       }
       if (/\b(how is|how was|experience|participating)\b/.test(q)) {

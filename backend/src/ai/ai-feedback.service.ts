@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface CreateAiFeedbackDto {
@@ -31,7 +35,6 @@ export class AiFeedbackService {
     });
     if (!response) throw new NotFoundException('Response not found');
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (this.prisma as any).aiFeedback.create({
       data: {
         formId,
@@ -52,7 +55,6 @@ export class AiFeedbackService {
     });
     if (!form) throw new ForbiddenException('Form not found or access denied');
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (this.prisma as any).aiFeedback.findMany({
       where: { formId },
       orderBy: { createdAt: 'desc' },

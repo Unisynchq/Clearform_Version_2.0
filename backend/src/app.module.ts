@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerExceptionFilter } from './common/filters/throttler-exception.filter';
 import { SentryModule, SentryGlobalFilter } from '@sentry/nestjs/setup';
 import { BullModule } from '@nestjs/bullmq';
@@ -28,6 +28,9 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { createBullMqConnection } from './redis/connection.options';
 import { CommonModule } from './common/common.module';
 import { sentryEnabled } from './instrument';
+import { GlobalExceptionFilter } from './common/exceptions/global-exception.filter';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { TokenBlacklistService } from './redis/redis-token-blacklist.service';
 
 @Module({
   imports: [
@@ -72,12 +75,21 @@ import { sentryEnabled } from './instrument';
   controllers: [AppController],
   providers: [
     AppService,
+    TokenBlacklistService,
+    {
+      provide: APP_FILTER,
+      useClass: GlobalExceptionFilter,
+    },
     ...(sentryEnabled
       ? [{ provide: APP_FILTER, useClass: SentryGlobalFilter }]
       : []),
     { provide: APP_FILTER, useClass: ThrottlerExceptionFilter },
     { provide: APP_GUARD, useClass: FirebaseAuthGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: LoggingInterceptor,
+    },
   ],
 })
 export class AppModule {}

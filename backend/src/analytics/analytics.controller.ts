@@ -30,10 +30,7 @@ export class AnalyticsController {
 
   @Get(':formId/overview')
   @Header('Cache-Control', 'private, max-age=60')
-  getOverview(
-    @Param('formId') formId: string,
-    @CurrentUser() user: any,
-  ) {
+  getOverview(@Param('formId') formId: string, @CurrentUser() user: any) {
     return this.analyticsService.getOverview(formId, user.id);
   }
 

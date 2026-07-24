@@ -3,18 +3,30 @@ import {
   CanActivate,
   ExecutionContext,
   UnauthorizedException,
+  Logger,
 } from '@nestjs/common';
 import { FirebaseService } from '../firebase/firebase.service';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator';
 import { UsersService } from '../users/users.service';
+import { verify } from 'jsonwebtoken';
+import { ConfigService } from '@nestjs/config';
+import type { IncomingMessage } from 'http';
+
+interface RequestWithUser extends IncomingMessage {
+  headers: { authorization?: string };
+  user?: Record<string, unknown>;
+}
 
 @Injectable()
 export class FirebaseAuthGuard implements CanActivate {
+  private readonly logger = new Logger(FirebaseAuthGuard.name);
+
   constructor(
     private firebaseService: FirebaseService,
     private reflector: Reflector,
     private usersService: UsersService,
+    private configService: ConfigService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -23,7 +35,8 @@ export class FirebaseAuthGuard implements CanActivate {
       context.getClass(),
     ]);
 
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<RequestWithUser>();
+
     if (isPublic) {
       await this.tryAttachUser(request);
       return true;
@@ -31,20 +44,17 @@ export class FirebaseAuthGuard implements CanActivate {
 
     const attached = await this.tryAttachUser(request);
     if (!attached) {
-      throw new UnauthorizedException('No token provided');
+      throw new UnauthorizedException('Authentication required');
     }
     return true;
   }
 
-  /** Best-effort auth for public routes; required auth throws on missing/invalid token. */
-  private async tryAttachUser(request: {
-    headers: { authorization?: string };
-    user?: unknown;
-  }): Promise<boolean> {
+  private async tryAttachUser(request: RequestWithUser): Promise<boolean> {
     const authHeader = request.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) return false;
 
     const token = authHeader.split('Bearer ')[1];
+    if (!token) return false;
 
     if (token.startsWith('local-dev-session')) {
       const email = token.split(':')[1] || 'local@dev.com';
@@ -60,25 +70,30 @@ export class FirebaseAuthGuard implements CanActivate {
     }
 
     try {
-      // Verify Supabase JWT securely
-      const jwt = require('jsonwebtoken');
-      const secret = process.env.SUPABASE_JWT_SECRET;
-      
-      let decodedToken;
-      if (secret) {
-        decodedToken = jwt.verify(token, secret) as any;
-      } else {
-        console.warn('WARNING: SUPABASE_JWT_SECRET is missing. Decoding without verification.');
-        decodedToken = jwt.decode(token) as any;
+      const supabaseJwtSecret = this.configService.get<string>(
+        'SUPABASE_JWT_SECRET',
+      );
+      if (!supabaseJwtSecret) {
+        this.logger.error('SUPABASE_JWT_SECRET is not configured');
+        throw new UnauthorizedException('Authentication configuration error');
       }
 
-      if (!decodedToken) throw new UnauthorizedException('Invalid token format');
-      
+      const decodedToken = verify(token, supabaseJwtSecret, {
+        algorithms: ['HS256'],
+      }) as {
+        sub?: string;
+        email?: string;
+        user_metadata?: Record<string, string | undefined>;
+        uid?: string;
+      };
+
       const email = decodedToken.email;
       const uid = decodedToken.sub || decodedToken.uid;
 
-      if (!email) {
-        throw new UnauthorizedException('Token missing email claim');
+      if (!email || !uid) {
+        throw new UnauthorizedException(
+          'Invalid token: missing required claims',
+        );
       }
 
       const firstName = decodedToken.user_metadata?.first_name || 'User';
@@ -92,15 +107,16 @@ export class FirebaseAuthGuard implements CanActivate {
       });
 
       request.user = {
-        ...decodedToken,
         id: dbUser.id,
+        email,
         firebaseUid: uid,
       };
       return true;
     } catch (error) {
       if (error instanceof UnauthorizedException) throw error;
-      const message = error instanceof Error ? error.message : String(error);
-      console.error('Auth Guard Error:', message);
+      this.logger.error(
+        `Auth guard error: ${error instanceof Error ? error.message : String(error)}`,
+      );
       throw new UnauthorizedException('Invalid or expired token');
     }
   }

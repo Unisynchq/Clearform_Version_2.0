@@ -12,7 +12,7 @@ export function parseIntegrationMetadata(
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
   }
-  return value as IntegrationConnectionMetadata;
+  return value;
 }
 
 export function resolveSlackChannel(
@@ -22,7 +22,8 @@ export function resolveSlackChannel(
   const perForm = metadata.formSlackChannels?.[formId];
   if (typeof perForm === 'string' && perForm.trim()) return perForm.trim();
   const global =
-    (typeof metadata.slackChannel === 'string' && metadata.slackChannel.trim()) ||
+    (typeof metadata.slackChannel === 'string' &&
+      metadata.slackChannel.trim()) ||
     (typeof metadata.channel === 'string' && metadata.channel.trim());
   return global || '#general';
 }
@@ -34,7 +35,9 @@ export function resolveSpreadsheetId(
   const perForm = metadata.formSpreadsheetIds?.[formId];
   if (typeof perForm === 'string' && perForm.trim()) return perForm.trim();
   const global = metadata.spreadsheetId;
-  return typeof global === 'string' && global.trim() ? global.trim() : undefined;
+  return typeof global === 'string' && global.trim()
+    ? global.trim()
+    : undefined;
 }
 
 export function resolveNotionDatabaseId(
@@ -44,7 +47,9 @@ export function resolveNotionDatabaseId(
   const perForm = metadata.formNotionDatabaseIds?.[formId];
   if (typeof perForm === 'string' && perForm.trim()) return perForm.trim();
   const global = metadata.notionDatabaseId;
-  return typeof global === 'string' && global.trim() ? global.trim() : undefined;
+  return typeof global === 'string' && global.trim()
+    ? global.trim()
+    : undefined;
 }
 
 export function isFormEnabledForIntegration(

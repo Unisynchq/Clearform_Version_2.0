@@ -74,14 +74,24 @@ export function normalizeQuestionText(questionText?: string): string {
 }
 
 /** Job-application / factual duration — not product or form-filling feedback. */
-export function isProfessionalExperienceQuestion(questionText?: string): boolean {
+export function isProfessionalExperienceQuestion(
+  questionText?: string,
+): boolean {
   const q = normalizeQuestionText(questionText);
   if (!q.trim()) return false;
-  if (/\b(how many|number of|years? of|months? of|yoe)\b/.test(q) && /\b(experience|exp)\b/.test(q)) {
+  if (
+    /\b(how many|number of|years? of|months? of|yoe)\b/.test(q) &&
+    /\b(experience|exp)\b/.test(q)
+  ) {
     return true;
   }
-  if (/\b(relevant|professional|work)\b.*\b(experience|exp)\b/.test(q)) return true;
-  if (/\b(experience|exp)\b.*\b(in this category|in this field|in this role)\b/.test(q)) {
+  if (/\b(relevant|professional|work)\b.*\b(experience|exp)\b/.test(q))
+    return true;
+  if (
+    /\b(experience|exp)\b.*\b(in this category|in this field|in this role)\b/.test(
+      q,
+    )
+  ) {
     return true;
   }
   return false;
@@ -118,7 +128,10 @@ export function isProjectOrFixQuestion(questionText?: string): boolean {
 }
 
 export function hasArtifactDetail(text: string): boolean {
-  return ARTIFACT_DETAIL_PATTERN.test(text) || /\b[a-z0-9_-]+\.[a-z]{2,4}\b/i.test(text);
+  return (
+    ARTIFACT_DETAIL_PATTERN.test(text) ||
+    /\b[a-z0-9_-]+\.[a-z]{2,4}\b/i.test(text)
+  );
 }
 
 export function hasProjectActionDetail(text: string): boolean {
@@ -132,8 +145,26 @@ export function helperAllowsBrevity(helperText?: string): boolean {
 }
 
 const ANSWER_STOPWORDS = new Set([
-  'what', 'how', 'your', 'the', 'with', 'this', 'that', 'was', 'were', 'are',
-  'have', 'has', 'had', 'about', 'from', 'they', 'them', 'their', 'you', 'for',
+  'what',
+  'how',
+  'your',
+  'the',
+  'with',
+  'this',
+  'that',
+  'was',
+  'were',
+  'are',
+  'have',
+  'has',
+  'had',
+  'about',
+  'from',
+  'they',
+  'them',
+  'their',
+  'you',
+  'for',
 ]);
 
 /** Meaningful phrase from the answer — first substantive sentence or clause, not random prefix words. */
@@ -147,13 +178,19 @@ export function extractAnswerExcerpt(text: string, maxWords = 6): string {
   const skipFillers = (words: string[]) => {
     const fillers = new Set(['that', 'so', 'well', 'and', 'but', 'a', 'the']);
     let start = 0;
-    while (start < words.length - 4 && fillers.has(words[start].toLowerCase())) {
+    while (
+      start < words.length - 4 &&
+      fillers.has(words[start].toLowerCase())
+    ) {
       start += 1;
     }
     return words.slice(start);
   };
 
-  const sentences = cleaned.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
+  const sentences = cleaned
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
   for (const sentence of sentences) {
     const words = skipFillers(sentence.split(/\s+/).filter(Boolean));
     if (words.length >= 4) {
@@ -176,7 +213,9 @@ export function answerHasSubstance(text: string): boolean {
   const trimmed = text.trim();
   const words = trimmed.split(/\s+/).filter(Boolean);
   if (words.length >= 14) return true;
-  const clauses = trimmed.split(/[,;]/).filter((c) => c.trim().split(/\s+/).length >= 5);
+  const clauses = trimmed
+    .split(/[,;]/)
+    .filter((c) => c.trim().split(/\s+/).length >= 5);
   if (clauses.length >= 2) return true;
   return false;
 }
@@ -196,7 +235,10 @@ function partKeywords(part: string): string[] {
 }
 
 /** True when enough question keywords appear in the answer (generic overlap). */
-export function answerRelatesToQuestionPart(answer: string, questionPart: string): boolean {
+export function answerRelatesToQuestionPart(
+  answer: string,
+  questionPart: string,
+): boolean {
   const keywords = partKeywords(questionPart);
   if (keywords.length === 0) return true;
   const lower = answer.toLowerCase();

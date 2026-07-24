@@ -1,6 +1,11 @@
-import { IsEmail, IsOptional, IsString, IsUrl, MaxLength, ValidateIf } from 'class-validator';
-
-const HTTPS_URL = /^https:\/\/.+/i;
+import {
+  IsEmail,
+  IsOptional,
+  IsString,
+  MaxLength,
+  ValidateIf,
+  Matches,
+} from 'class-validator';
 
 export class UpdateProfileDto {
   @IsOptional()
@@ -21,12 +26,6 @@ export class UpdateProfileDto {
   @ValidateIf((_, v) => v != null && v !== '')
   @IsString()
   @MaxLength(2048)
-  @IsUrl({ protocols: ['https'], require_protocol: true })
+  @Matches(/^https:\/\/.+/, { message: 'avatarUrl must be a valid HTTPS URL' })
   avatarUrl?: string | null;
-}
-
-export function isAllowedAvatarUrl(url: string): boolean {
-  if (!HTTPS_URL.test(url)) return false;
-  if (url.startsWith('data:')) return false;
-  return true;
 }

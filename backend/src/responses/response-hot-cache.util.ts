@@ -100,8 +100,11 @@ export function hotPreviewFromPayload(
     answers: [],
     answerCount: summary.answerCount,
     qualityScore: null,
-    ...(payload.answersByScreenId && typeof payload.answersByScreenId === 'object'
-      ? { answersByScreenId: payload.answersByScreenId as Record<string, unknown> }
+    ...(payload.answersByScreenId &&
+    typeof payload.answersByScreenId === 'object'
+      ? {
+          answersByScreenId: payload.answersByScreenId,
+        }
       : {}),
   };
 }

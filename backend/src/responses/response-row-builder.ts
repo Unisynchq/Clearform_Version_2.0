@@ -121,9 +121,7 @@ export function buildResponseCells(
     if (answersMap) {
       const raw = answersMap[col.screenId];
       const snap =
-        raw && typeof raw === 'object' && !Array.isArray(raw)
-          ? (raw as Record<string, unknown>)
-          : undefined;
+        raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : undefined;
       const isUpload =
         screen.label === 'Upload' || screen.label === 'Multi-image upload';
       return {

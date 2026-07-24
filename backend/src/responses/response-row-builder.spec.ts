@@ -92,8 +92,12 @@ describe('extractAnswersMap', () => {
   });
 
   it('reads legacy nested data.answersByScreenId', () => {
-    const nested = { data: { answersByScreenId: { '2': { shortTextDraft: 'hi' } } } };
-    expect(extractAnswersMap(nested)).toEqual({ '2': { shortTextDraft: 'hi' } });
+    const nested = {
+      data: { answersByScreenId: { '2': { shortTextDraft: 'hi' } } },
+    };
+    expect(extractAnswersMap(nested)).toEqual({
+      '2': { shortTextDraft: 'hi' },
+    });
   });
 
   it('returns null for legacy answers[] and malformed payloads', () => {
@@ -170,14 +174,19 @@ describe('buildResponseCells', () => {
       },
     };
     const cells = buildResponseCells(snapshot, columns, payload);
-    expect(cells[2].files).toEqual([{ name: 'ok.png', url: 'https://x/ok.png' }]);
+    expect(cells[2].files).toEqual([
+      { name: 'ok.png', url: 'https://x/ok.png' },
+    ]);
   });
 });
 
 describe('cellTextWithLinks', () => {
   it('single file → bare URL', () => {
     expect(
-      cellTextWithLinks({ text: 'x.png', files: [{ name: 'x.png', url: 'https://u/x' }] }),
+      cellTextWithLinks({
+        text: 'x.png',
+        files: [{ name: 'x.png', url: 'https://u/x' }],
+      }),
     ).toBe('https://u/x');
   });
 
@@ -216,7 +225,9 @@ describe('guardCellText (formula injection)', () => {
 
 describe('buildResponsesCsv', () => {
   it('builds header + one row per response with proper quoting', () => {
-    const csv = buildResponsesCsv(snapshot, [makeResponse(currentShapePayload())]);
+    const csv = buildResponsesCsv(snapshot, [
+      makeResponse(currentShapePayload()),
+    ]);
     const lines = csv.trimEnd().split('\n');
     expect(lines[0]).toBe(
       'Response ID,Submitted At,Status,Quality Score,What went wrong?,How annoyed are you?,Attach a screenshot',
@@ -225,7 +236,9 @@ describe('buildResponsesCsv', () => {
     // Quoted because the answer contains a comma and quotes.
     expect(lines[1]).toContain('"The export button, does ""nothing"""');
     // Multiple uploads → name (url) pairs.
-    expect(lines[1]).toContain('bug.png (https://storage.googleapis.com/b/bug.png)');
+    expect(lines[1]).toContain(
+      'bug.png (https://storage.googleapis.com/b/bug.png)',
+    );
   });
 
   it('emits real header row for a form with zero responses', () => {
@@ -289,7 +302,11 @@ describe('buildResponseRowForXlsx', () => {
     const payload = {
       answersByScreenId: { '2': { shortTextDraft: 'x'.repeat(40_000) } },
     };
-    const { values } = buildResponseRowForXlsx(snapshot, columns, makeResponse(payload));
+    const { values } = buildResponseRowForXlsx(
+      snapshot,
+      columns,
+      makeResponse(payload),
+    );
     expect(String(values[4]).length).toBeLessThanOrEqual(32_001);
   });
 });

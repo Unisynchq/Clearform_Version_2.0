@@ -9,12 +9,16 @@ export class ResponseQueueMonitor implements OnModuleInit {
   onModuleInit() {
     const redisUrl = process.env.REDIS_URL;
     if (!redisUrl) {
-      this.logger.warn('REDIS_URL not set — skipping responses queue event monitor');
+      this.logger.warn(
+        'REDIS_URL not set — skipping responses queue event monitor',
+      );
       return;
     }
 
     const events = new QueueEvents('responses', {
-      connection: { url: redisUrl } as unknown as import('ioredis').RedisOptions,
+      connection: {
+        url: redisUrl,
+      } as unknown as import('ioredis').RedisOptions,
     });
 
     events.on('failed', ({ jobId, failedReason }) => {

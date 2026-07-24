@@ -15,7 +15,11 @@ describe('buildDefaultOwnerInstructions', () => {
 
   it('returns name guidance for name questions', () => {
     const text = buildDefaultOwnerInstructions(
-      { screenId: '1', fieldId: 'short-text', questionText: 'What is your full name?' },
+      {
+        screenId: '1',
+        fieldId: 'short-text',
+        questionText: 'What is your full name?',
+      },
       'identity',
     );
     expect(text).toMatch(/first.*last/i);
@@ -26,7 +30,8 @@ describe('buildDefaultOwnerInstructions', () => {
       {
         screenId: '1',
         fieldId: 'short-text',
-        questionText: 'What specific thing you want to make correct in your project',
+        questionText:
+          'What specific thing you want to make correct in your project',
       },
       'generic',
     );
@@ -40,7 +45,9 @@ describe('buildDefaultOwnerInstructions', () => {
         undefined,
         'achievement',
       );
-      expect(text).toMatch(/^For "Describe your most significant achievement":/);
+      expect(text).toMatch(
+        /^For "Describe your most significant achievement":/,
+      );
       expect(text).toMatch(/measurable impact/i);
     });
 

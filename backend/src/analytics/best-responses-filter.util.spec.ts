@@ -73,7 +73,8 @@ describe('best-responses-filter', () => {
           payload: {
             answersByScreenId: {
               '2': {
-                shortTextDraft: 'nothing and nothing and whatever and which where i am',
+                shortTextDraft:
+                  'nothing and nothing and whatever and which where i am',
               },
               '3': { longTextDraft: 'nth' },
             },
@@ -114,7 +115,7 @@ describe('best-responses-filter', () => {
     ).toBe(0);
     expect(
       heuristicAnswerScore(
-        "I dont want to make anything correct here in my project",
+        'I dont want to make anything correct here in my project',
         'What specific thing you want to make correct',
       ),
     ).toBe(0);

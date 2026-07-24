@@ -21,7 +21,11 @@ export type UpgradeRequiredPayload = {
   code: 'UPGRADE_REQUIRED';
   feature: string;
   message: string;
-  quota?: { used: number; limit: number; period: 'lifetime' | 'daily' | 'month' };
+  quota?: {
+    used: number;
+    limit: number;
+    period: 'lifetime' | 'daily' | 'month';
+  };
   upgradePlanId: string;
 };
 
@@ -76,7 +80,10 @@ export class BillingEntitlementsService {
     return isPilotSubscriptionActive(sub, purchase);
   }
 
-  async assertCanCreateForm(userId: string, workspaceId?: string): Promise<void> {
+  async assertCanCreateForm(
+    userId: string,
+    workspaceId?: string,
+  ): Promise<void> {
     const { limits } = await this.loadEntitlementContext(userId);
 
     // Workspaces beyond the plan limit are grandfathered (never deleted or
@@ -113,7 +120,9 @@ export class BillingEntitlementsService {
 
   async assertCanCreateWorkspace(userId: string): Promise<void> {
     const { limits } = await this.loadEntitlementContext(userId);
-    const used = await this.prisma.workspace.count({ where: { ownerId: userId } });
+    const used = await this.prisma.workspace.count({
+      where: { ownerId: userId },
+    });
     if (used >= limits.workspacesLimit) {
       throw upgradeRequired(
         'workspace',

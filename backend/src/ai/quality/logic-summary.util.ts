@@ -17,7 +17,9 @@ const MAX_LOGIC_SUMMARY_EDGES = 15;
 export function buildLogicSummary(
   snapshot: Record<string, unknown>,
   screens: Record<string, unknown>[],
-  labelFor: (screen: Record<string, unknown>) => string | undefined = resolveQuestionTextFromScreen,
+  labelFor: (
+    screen: Record<string, unknown>,
+  ) => string | undefined = resolveQuestionTextFromScreen,
 ): string | undefined {
   const connections =
     (snapshot.logicConnections as Record<string, unknown>[]) ?? [];

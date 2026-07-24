@@ -3,7 +3,11 @@ import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { InsightsGeneratorService } from '../insights-generator.service';
 
-@Processor('ai-insights', { drainDelay: 30_000, stalledInterval: 300_000, concurrency: 2 })
+@Processor('ai-insights', {
+  drainDelay: 30_000,
+  stalledInterval: 300_000,
+  concurrency: 2,
+})
 export class InsightsProcessor extends WorkerHost {
   private readonly logger = new Logger(InsightsProcessor.name);
 

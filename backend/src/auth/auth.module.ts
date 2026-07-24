@@ -5,11 +5,21 @@ import { JwtModule } from '@nestjs/jwt';
 import { UsersModule } from '../users/users.module';
 import { FirebaseModule } from '../firebase/firebase.module';
 import { AvatarStorageService } from './avatar-storage.service';
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
+import { TokenBlacklistService } from '../redis/redis-token-blacklist.service';
+import { ConfigModule } from '@nestjs/config';
 
-/** Legacy email/password routes only; global auth uses FirebaseAuthGuard (see app.module). */
 @Module({
-  imports: [UsersModule, JwtModule.register({}), FirebaseModule],
+  imports: [UsersModule, JwtModule.register({}), FirebaseModule, ConfigModule],
   controllers: [AuthController],
-  providers: [AuthService, AvatarStorageService],
+  providers: [
+    AuthService,
+    AvatarStorageService,
+    JwtStrategy,
+    JwtRefreshStrategy,
+    TokenBlacklistService,
+  ],
+  exports: [AuthService, TokenBlacklistService],
 })
 export class AuthModule {}

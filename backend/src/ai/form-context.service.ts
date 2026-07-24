@@ -306,8 +306,8 @@ export class FormContextService {
 
     const snapshot = (
       opts.preferBuilderSnapshot
-        ? form.builderSnapshot ?? form.publishedSnapshot
-        : form.publishedSnapshot ?? form.builderSnapshot
+        ? (form.builderSnapshot ?? form.publishedSnapshot)
+        : (form.publishedSnapshot ?? form.builderSnapshot)
     ) as Record<string, unknown> | null;
     const title = titleFromSnapshotOrForm(snapshot, form.title);
     const purpose = resolveFormPurpose(snapshot, title);
@@ -357,7 +357,9 @@ export class FormContextService {
       contentScreens,
       allQuestions,
       currentScreenId: screenId,
-      logicGraph: snapshot ? extractLogicGraph(snapshot) : { connections: [], ifRulesByEdge: {} },
+      logicGraph: snapshot
+        ? extractLogicGraph(snapshot)
+        : { connections: [], ifRulesByEdge: {} },
       responseStats: {
         count: 0,
         processedCount: 0,

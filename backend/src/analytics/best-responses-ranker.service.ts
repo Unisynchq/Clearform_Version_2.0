@@ -51,11 +51,15 @@ function parseRankJson(
       rationale?: string;
     };
     if (!Array.isArray(parsed.rankedResponseIds)) return null;
-    const ids = parsed.rankedResponseIds.filter((id) => validIds.has(String(id)));
+    const ids = parsed.rankedResponseIds.filter((id) =>
+      validIds.has(String(id)),
+    );
     return {
       ids,
       rationale:
-        typeof parsed.rationale === 'string' ? parsed.rationale.trim() : undefined,
+        typeof parsed.rationale === 'string'
+          ? parsed.rationale.trim()
+          : undefined,
     };
   } catch {
     return null;
@@ -125,7 +129,10 @@ export class BestResponsesRankerService {
           : {};
       return !responseMatchesCurrentForm(payload, snapshot);
     }).length;
-    const excludedLowQuality = Math.max(0, rows.length - excludedStale - filtered.length);
+    const excludedLowQuality = Math.max(
+      0,
+      rows.length - excludedStale - filtered.length,
+    );
 
     if (filtered.length === 0) {
       return {

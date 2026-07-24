@@ -7,10 +7,7 @@ import { safeRedisSet } from '../redis/redis-cache.util';
 import { AiOrchestratorService } from '../ai/ai-orchestrator.service';
 import { FormContextService } from '../ai/form-context.service';
 import { AiTierService } from '../ai/ai-tier.service';
-import {
-  computeScreenDropoff,
-  worstDropStep,
-} from './analytics-snapshot.util';
+import { computeScreenDropoff, worstDropStep } from './analytics-snapshot.util';
 import { buildInsightsReadyPayload } from './insights-payload.util';
 import {
   collectQuestionAnswers,
@@ -20,7 +17,13 @@ import {
 function rangeCutoff(range?: string): Date | undefined {
   if (!range || range === 'all') return undefined;
   const days =
-    range === '7d' ? 7 : range === '30d' ? 30 : range === '90d' ? 90 : undefined;
+    range === '7d'
+      ? 7
+      : range === '30d'
+        ? 30
+        : range === '90d'
+          ? 90
+          : undefined;
   if (!days) return undefined;
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -41,11 +44,7 @@ export class InsightsGeneratorService {
     private readonly aiTier: AiTierService,
   ) {}
 
-  async generateReady(
-    formId: string,
-    cacheKey?: string,
-    range = 'all',
-  ) {
+  async generateReady(formId: string, cacheKey?: string, range = 'all') {
     const tier = await this.aiTier.resolveTierForFormOwner(formId);
     const cutoff = rangeCutoff(range);
     const dateFilter = cutoff ? { gte: cutoff } : undefined;
@@ -122,7 +121,12 @@ export class InsightsGeneratorService {
     }
 
     const patternMin = tier === 'pro' ? 15 : 25;
-    const patterns = this.buildPatternsFromAnswers(qaRows, total, patternMin, tier);
+    const patterns = this.buildPatternsFromAnswers(
+      qaRows,
+      total,
+      patternMin,
+      tier,
+    );
 
     const result = buildInsightsReadyPayload({
       summaryText,
@@ -135,9 +139,7 @@ export class InsightsGeneratorService {
       sevenDayTrend,
       topIssueCategory,
       topIssuePercent:
-        completionRate < 50
-          ? Math.max(0, 100 - completionRate)
-          : undefined,
+        completionRate < 50 ? Math.max(0, 100 - completionRate) : undefined,
       confidencePercent,
       patterns: patterns.length > 0 ? patterns : undefined,
       worstDrop,

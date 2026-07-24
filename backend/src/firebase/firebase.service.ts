@@ -52,7 +52,9 @@ export class FirebaseService implements OnModuleInit {
     // } else {
     //   this.defaultApp = admin.app();
     // }
-    this.logger.log('Firebase Admin SDK is temporarily disabled for Supabase migration');
+    this.logger.log(
+      'Firebase Admin SDK is temporarily disabled for Supabase migration',
+    );
   }
 
   getAuth() {

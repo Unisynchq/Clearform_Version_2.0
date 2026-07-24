@@ -26,7 +26,11 @@ const POLICY_FILES = ['policies/respondent-conduct.md'] as const;
 
 const NUDGE_TASK_FILES = ['tasks/response-quality-nudges.md'] as const;
 
-const SIGNAL_FILES = ['signals/red.md', 'signals/amber.md', 'signals/green.md'] as const;
+const SIGNAL_FILES = [
+  'signals/red.md',
+  'signals/amber.md',
+  'signals/green.md',
+] as const;
 
 const CONTEXT_FILES = [
   'context/multi-part-questions.md',
@@ -34,9 +38,7 @@ const CONTEXT_FILES = [
   'context/respondent-voice.md',
 ] as const;
 
-const IMPROVE_CONTEXT_FILES = [
-  'context/form-purpose-coaching.md',
-] as const;
+const IMPROVE_CONTEXT_FILES = ['context/form-purpose-coaching.md'] as const;
 
 const INTENT_FILES: Record<QuestionIntent, string> = {
   identity: 'intents/identity.md',
@@ -89,9 +91,8 @@ export class DoctrineRegistry implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     this.refreshCache();
-    const { setDefaultOwnerPromptRegistry } = await import(
-      '../quality/default-owner-quality-prompt'
-    );
+    const { setDefaultOwnerPromptRegistry } =
+      await import('../quality/default-owner-quality-prompt');
     setDefaultOwnerPromptRegistry(this);
     const redisKey = 'ai:doctrine:version';
     const prior = await safeRedisGet(this.redis, redisKey);
@@ -186,7 +187,10 @@ export class DoctrineRegistry implements OnModuleInit {
     return composed;
   }
 
-  getDoctrine(task: DoctrineTask, archetype: FormArchetype = 'generic'): string {
+  getDoctrine(
+    task: DoctrineTask,
+    archetype: FormArchetype = 'generic',
+  ): string {
     const cacheKey = `${task}:${archetype}`;
     const hit = this.cache.get(cacheKey);
     if (hit) return hit;

@@ -7,7 +7,9 @@ export function questionGroundedSuggestion(
 ): string {
   const q = (questionText ?? '').trim();
   const lower = q.toLowerCase();
-  if (/\b(error|stack|log|exception|traceback|crash|5\d\d|4\d\d)\b/.test(lower)) {
+  if (
+    /\b(error|stack|log|exception|traceback|crash|5\d\d|4\d\d)\b/.test(lower)
+  ) {
     return 'Paste the full error text if you have it.';
   }
   if (/\b(bug|broken|issue|fail|repro|reproduce)\b/.test(lower)) {

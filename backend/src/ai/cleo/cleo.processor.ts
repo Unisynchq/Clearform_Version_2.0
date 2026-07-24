@@ -7,7 +7,11 @@ import { CleoJarvisService } from './cleo-jarvis.service';
 export const CLEO_QUEUE = 'cleo-learning';
 export const CLEO_JOB_NAME = 'nightly-learning';
 
-@Processor(CLEO_QUEUE, { drainDelay: 60_000, stalledInterval: 600_000, concurrency: 1 })
+@Processor(CLEO_QUEUE, {
+  drainDelay: 60_000,
+  stalledInterval: 600_000,
+  concurrency: 1,
+})
 export class CleoProcessor extends WorkerHost {
   private readonly logger = new Logger(CleoProcessor.name);
 

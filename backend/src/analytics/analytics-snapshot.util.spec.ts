@@ -2,9 +2,24 @@ import { computeScreenDropoff } from './analytics-snapshot.util';
 
 const snapshot = {
   screens: [
-    { id: 1, type: 'content', label: 'Short text', config: { shortTextQuestion: 'Your name' } },
-    { id: 2, type: 'content', label: 'Long text', config: { longTextQuestion: 'Feedback' } },
-    { id: 3, type: 'content', label: 'Rating', config: { ratingQuestion: 'Score us' } },
+    {
+      id: 1,
+      type: 'content',
+      label: 'Short text',
+      config: { shortTextQuestion: 'Your name' },
+    },
+    {
+      id: 2,
+      type: 'content',
+      label: 'Long text',
+      config: { longTextQuestion: 'Feedback' },
+    },
+    {
+      id: 3,
+      type: 'content',
+      label: 'Rating',
+      config: { ratingQuestion: 'Score us' },
+    },
   ],
 };
 

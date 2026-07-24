@@ -3,7 +3,7 @@ import {
   UnauthorizedException,
   ConflictException,
   NotFoundException,
-  InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import * as Sentry from '@sentry/nestjs';
 import { UsersService } from '../users/users.service';
@@ -12,54 +12,113 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
 import { ConfigService } from '@nestjs/config';
-import { User } from '@prisma/client';
 import { FirebaseService } from '../firebase/firebase.service';
+import { TokenBlacklistService } from '../redis/redis-token-blacklist.service';
+import { randomUUID } from 'crypto';
+
+const BCRYPT_ROUNDS = 12;
+const ACCESS_TOKEN_EXPIRY = '15m';
+const REFRESH_TOKEN_EXPIRY = '24h';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private usersService: UsersService,
     private jwtService: JwtService,
     private configService: ConfigService,
     private firebaseService: FirebaseService,
+    private tokenBlacklist: TokenBlacklistService,
   ) {}
 
-  /** @deprecated SPA uses Firebase; kept for legacy tooling only */
   async register(registerDto: RegisterDto) {
     const existing = await this.usersService.findByEmail(registerDto.email);
     if (existing) {
       throw new ConflictException('Email already in use');
     }
-    const passwordHash = await bcrypt.hash(registerDto.password, 10);
+    const passwordHash = await bcrypt.hash(registerDto.password, BCRYPT_ROUNDS);
     const user = await this.usersService.create({
       email: registerDto.email,
       firstName: registerDto.firstName,
       lastName: registerDto.lastName,
       passwordHash,
     });
+    this.logger.log(`User registered: ${user.id}`);
     return this.generateTokens(user);
   }
 
-  /** @deprecated SPA uses Firebase; kept for legacy tooling only */
   async login(loginDto: LoginDto) {
     const user = await this.usersService.findByEmail(loginDto.email);
     if (!user) {
+      this.logger.warn(
+        `Login failed: no user found for email ${loginDto.email}`,
+      );
       throw new UnauthorizedException('Invalid credentials');
     }
+
     const isMatch = await bcrypt.compare(loginDto.password, user.passwordHash);
     if (!isMatch) {
+      this.logger.warn(`Login failed: invalid password for user ${user.id}`);
       throw new UnauthorizedException('Invalid credentials');
     }
+
+    this.logger.log(`User logged in: ${user.id}`);
     return this.generateTokens(user);
   }
 
-  async getMe(userId: string, email?: string) {
-    let profile = await this.loadProfileSafe(userId);
+  async refreshAccessToken(
+    userId: string,
+    refreshTokenJti: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _refreshTokenIat: number,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    const isBlacklisted = await this.tokenBlacklist.isBlacklisted(
+      refreshTokenJti,
+      'refresh',
+    );
+    if (isBlacklisted) {
+      await this.tokenBlacklist.blacklistUserTokens(userId);
+      this.logger.warn(`Refresh token reuse detected for user ${userId}`);
+      throw new UnauthorizedException('Token has been revoked');
+    }
+
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    await this.tokenBlacklist.blacklistToken(refreshTokenJti, 'refresh');
+
+    const tokens = this.generateTokens(user);
+    this.logger.log(`Tokens rotated for user ${userId}`);
+    return tokens;
+  }
+
+  async logout(
+    userId: string,
+    accessTokenJti: string,
+    accessTokenExp?: number,
+  ): Promise<void> {
+    await this.tokenBlacklist.blacklistToken(
+      accessTokenJti,
+      'access',
+      accessTokenExp,
+    );
+    await this.tokenBlacklist.blacklistUserTokens(userId);
+    this.logger.log(`User logged out: ${userId}`);
+  }
+
+  async getMe(
+    userId: string,
+    email?: string,
+  ): Promise<{ user: ReturnType<AuthService['serializeUserProfile']> }> {
+    const profile = await this.loadProfileSafe(userId);
 
     if (!profile && email) {
       const byEmail = await this.usersService.findByEmail(email);
       if (byEmail) {
-        profile = await this.loadProfileSafe(byEmail.id);
+        return this.getMe(byEmail.id);
       }
     }
 
@@ -73,14 +132,13 @@ export class AuthService {
     try {
       return await this.usersService.getProfile(userId);
     } catch (err) {
-      if (process.env.SENTRY_DSN) {
-        Sentry.captureException(err, {
-          tags: { area: 'auth/me' },
-          extra: { userId },
-        });
-      }
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`getProfile failed for ${userId}: ${msg}`);
+      Sentry.captureException(err, {
+        tags: { area: 'auth/me' },
+        extra: { userId },
+      });
+      this.logger.error(
+        `getProfile failed for ${userId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
       const basic = await this.usersService.findById(userId);
       if (!basic) return null;
       return { ...basic, subscription: null, _count: { forms: 0 } };
@@ -96,16 +154,13 @@ export class AuthService {
       avatarUrl?: string | null;
     },
   ) {
-    // If email changes, sync it in Firebase too
     if (data.email) {
       try {
         await this.firebaseService
           .getAuth()
           .updateUser(userId, { email: data.email });
-      } catch (err) {
-        // Firebase user may be legacy (no Firebase record) — continue with DB update
-        const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`Firebase email update skipped for ${userId}: ${msg}`);
+      } catch {
+        this.logger.warn(`Firebase email update skipped for ${userId}`);
       }
     }
     const updated = await this.usersService.updateProfile(userId, data);
@@ -113,14 +168,14 @@ export class AuthService {
   }
 
   async deleteAccount(userId: string): Promise<void> {
-    // Delete Firebase user first (throws if uid doesn't exist in Firebase, which we swallow)
     try {
       await this.firebaseService.getAuth().deleteUser(userId);
     } catch {
-      // Firebase user may not exist (legacy JWT account) — continue with DB cleanup
+      // Firebase user may not exist
     }
-    // Prisma cascade handles forms, workspaces, responses, webhooks, subscriptions, notifications
+    await this.tokenBlacklist.blacklistUserTokens(userId);
     await this.usersService.deleteById(userId);
+    this.logger.log(`Account deleted: ${userId}`);
   }
 
   async exportAccountCsv(userId: string): Promise<string> {
@@ -132,15 +187,44 @@ export class AuthService {
     return this.getMe(userId);
   }
 
-  serializeUserProfile(
-    profile: User & {
-      subscription?: { planId: string; status: string } | null;
-      _count?: { forms: number };
-    },
-  ) {
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isMatch) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    const newHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    await this.usersService.updatePassword(userId, newHash);
+    await this.tokenBlacklist.blacklistUserTokens(userId);
+    this.logger.log(`Password changed for user ${userId}`);
+  }
+
+  serializeUserProfile(profile: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    avatarUrl?: string | null;
+    passwordHash?: string;
+    passwordLastChangedAt?: Date | null;
+    onboardingCompletedAt?: Date | null;
+    subscription?: { planId: string; status: string } | null;
+    _count?: { forms: number };
+  }) {
     const onboardingCompleted =
       !!profile.onboardingCompletedAt || (profile._count?.forms ?? 0) > 0;
-    const hasPassword = Boolean(profile.passwordHash && profile.passwordHash.length > 0);
+    const hasPassword = Boolean(
+      profile.passwordHash && profile.passwordHash.length > 0,
+    );
 
     return {
       id: profile.id,
@@ -156,24 +240,25 @@ export class AuthService {
     };
   }
 
-  private generateTokens(user: any) {
-    const payload = { email: user.email, sub: user.id };
+  private generateTokens(user: { id: string; email: string }) {
+    const jti = randomUUID();
+    const payload = { email: user.email, sub: user.id, jti };
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: '15m',
+      expiresIn: ACCESS_TOKEN_EXPIRY,
     });
     const refreshToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-      expiresIn: '7d',
+      expiresIn: REFRESH_TOKEN_EXPIRY,
     });
-
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { passwordHash, ...userWithoutPassword } = user;
 
     return {
       accessToken,
       refreshToken,
-      user: userWithoutPassword,
+      user: {
+        id: user.id,
+        email: user.email,
+      },
     };
   }
 }

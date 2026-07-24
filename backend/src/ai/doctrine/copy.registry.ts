@@ -95,7 +95,10 @@ export type PickCopyOptions = {
 export function pickCopy(key: string, opts: PickCopyOptions = {}): string {
   const variants = load().map.get(key);
   if (!variants?.length) {
-    return interpolate(opts.fallback ?? 'Please improve your answer.', opts.vars);
+    return interpolate(
+      opts.fallback ?? 'Please improve your answer.',
+      opts.vars,
+    );
   }
   let pool = variants.slice(0, Math.max(1, opts.poolSize ?? variants.length));
   if (opts.exclude?.length) {

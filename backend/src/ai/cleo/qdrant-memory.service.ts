@@ -23,7 +23,9 @@ const VECTOR_SIZE = 1536;
 export class QdrantMemoryService implements OnModuleInit {
   private readonly logger = new Logger(QdrantMemoryService.name);
   private base: string | null = null;
-  private headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  private headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
 
   constructor(private readonly config: ConfigService) {}
 
@@ -69,14 +71,20 @@ export class QdrantMemoryService implements OnModuleInit {
       must.push({ key: 'aiDecision', match: { value: filter.aiDecision } });
     }
     if (filter?.formArchetype) {
-      must.push({ key: 'formArchetype', match: { value: filter.formArchetype } });
+      must.push({
+        key: 'formArchetype',
+        match: { value: filter.formArchetype },
+      });
     }
 
     const body: Record<string, unknown> = { vector, limit, with_payload: true };
     if (must.length > 0) body.filter = { must };
 
     try {
-      const data = await this.post(`/collections/${COLLECTION}/points/search`, body);
+      const data = await this.post(
+        `/collections/${COLLECTION}/points/search`,
+        body,
+      );
       return ((data?.result ?? []) as QdrantSearchHit[]).map((hit) => ({
         id: String(hit.id),
         rule: String(hit.payload?.rule ?? ''),
@@ -86,7 +94,9 @@ export class QdrantMemoryService implements OnModuleInit {
         createdAt: String(hit.payload?.createdAt ?? ''),
       }));
     } catch (err) {
-      this.logger.warn(`Qdrant search failed: ${err instanceof Error ? err.message : err}`);
+      this.logger.warn(
+        `Qdrant search failed: ${err instanceof Error ? err.message : err}`,
+      );
       return [];
     }
   }
@@ -104,7 +114,9 @@ export class QdrantMemoryService implements OnModuleInit {
       });
       this.logger.log(`Qdrant collection '${COLLECTION}' created`);
     } catch (err) {
-      this.logger.error(`Failed to create Qdrant collection: ${err instanceof Error ? err.message : err}`);
+      this.logger.error(
+        `Failed to create Qdrant collection: ${err instanceof Error ? err.message : err}`,
+      );
       this.base = null;
     }
   }
@@ -115,7 +127,10 @@ export class QdrantMemoryService implements OnModuleInit {
     return res.json() as Promise<Record<string, unknown>>;
   }
 
-  private async post(path: string, body: unknown): Promise<Record<string, unknown> | null> {
+  private async post(
+    path: string,
+    body: unknown,
+  ): Promise<Record<string, unknown> | null> {
     const res = await fetch(`${this.base}${path}`, {
       method: 'POST',
       headers: this.headers,

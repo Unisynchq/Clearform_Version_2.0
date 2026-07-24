@@ -178,7 +178,7 @@ export class IntegrationsService {
       where: { id },
       data: {
         composioEntityId: data.composioEntityId,
-        metadata: mergedMetadata as Prisma.InputJsonValue,
+        metadata: mergedMetadata,
         active: data.active,
       },
     });
@@ -246,10 +246,14 @@ export class IntegrationsService {
     if (provider && this.composioService.isEnabled()) {
       try {
         verifyStatus = await Promise.race([
-          this.composioService.verifyConnectedAccount(composioEntityId, provider),
+          this.composioService.verifyConnectedAccount(
+            composioEntityId,
+            provider,
+          ),
           new Promise<ComposioAccountVerifyStatus>((_, reject) =>
             setTimeout(
-              () => reject(new Error('verifyConnectedAccount timeout after 10s')),
+              () =>
+                reject(new Error('verifyConnectedAccount timeout after 10s')),
               10_000,
             ),
           ),
@@ -276,7 +280,7 @@ export class IntegrationsService {
             provider: provider ?? 'unknown',
             composioEntityId,
             active: true,
-            metadata: { lastSyncError: null } as Prisma.InputJsonValue,
+            metadata: { lastSyncError: null },
           },
         });
       } else {
@@ -300,7 +304,7 @@ export class IntegrationsService {
             metadata: {
               ...meta,
               lastSyncError: errorMsg,
-            } as Prisma.InputJsonValue,
+            },
           },
         });
       }),
@@ -324,7 +328,7 @@ export class IntegrationsService {
     };
     await this.prisma.integrationConnection.update({
       where: { id: connectionId },
-      data: { metadata: merged as Prisma.InputJsonValue },
+      data: { metadata: merged },
     });
   }
 
@@ -364,7 +368,10 @@ export class IntegrationsService {
     });
 
     const eligible = connections.filter((conn) =>
-      isFormEnabledForIntegration(parseIntegrationMetadata(conn.metadata), formId),
+      isFormEnabledForIntegration(
+        parseIntegrationMetadata(conn.metadata),
+        formId,
+      ),
     );
 
     await Promise.allSettled(
@@ -499,7 +506,13 @@ export class IntegrationsService {
         }
       }
 
-      await this.recordSyncAttempt(conn.id, metadata, null, responseId, message);
+      await this.recordSyncAttempt(
+        conn.id,
+        metadata,
+        null,
+        responseId,
+        message,
+      );
 
       if (kind === 'permanent') {
         throw new UnrecoverableError(message);
@@ -545,7 +558,8 @@ export class IntegrationsService {
         where: { id: targetFormId, workspaceId },
         select: { title: true, publishedSnapshot: true },
       });
-      if (!form) throw new NotFoundException('Form not found in this workspace');
+      if (!form)
+        throw new NotFoundException('Form not found in this workspace');
       formTitle = form.title;
       publishedSnapshot = parsePublishedSnapshot(form.publishedSnapshot);
     }
@@ -602,11 +616,21 @@ export class IntegrationsService {
     integrationId: string,
     userId: string,
     formId: string,
-  ): Promise<{ synced: number; total: number; formId: string; error?: string }> {
+  ): Promise<{
+    synced: number;
+    total: number;
+    formId: string;
+    error?: string;
+  }> {
     await this.assertWorkspaceOwner(workspaceId, userId);
 
     const conn = await this.prisma.integrationConnection.findFirst({
-      where: { id: integrationId, workspaceId, provider: 'google_sheets', active: true },
+      where: {
+        id: integrationId,
+        workspaceId,
+        provider: 'google_sheets',
+        active: true,
+      },
     });
     if (!conn?.composioEntityId) {
       throw new NotFoundException('Active Google Sheets integration not found');
@@ -616,7 +640,9 @@ export class IntegrationsService {
 
     // Task 8.1 — check form enablement before any other guard
     if (!isFormEnabledForIntegration(metadata, formId)) {
-      throw new BadRequestException('This form is not enabled for this integration.');
+      throw new BadRequestException(
+        'This form is not enabled for this integration.',
+      );
     }
 
     const spreadsheetId = resolveSpreadsheetId(metadata, formId);
@@ -749,7 +775,7 @@ export class IntegrationsService {
     };
     await this.prisma.integrationConnection.update({
       where: { id: conn.id },
-      data: { metadata: updatedMeta as Prisma.InputJsonValue },
+      data: { metadata: updatedMeta },
     });
 
     return {
@@ -782,7 +808,12 @@ export class IntegrationsService {
 
     const form = await this.prisma.form.findFirst({
       where: { id: formId, ownerId: userId },
-      select: { title: true, workspaceId: true, publishedSnapshot: true, builderSnapshot: true },
+      select: {
+        title: true,
+        workspaceId: true,
+        publishedSnapshot: true,
+        builderSnapshot: true,
+      },
     });
     if (!form?.workspaceId) throw new NotFoundException('Form not found');
 
@@ -800,9 +831,8 @@ export class IntegrationsService {
       );
     }
 
-    const { buildResponseColumns } = await import(
-      '../responses/response-row-builder'
-    );
+    const { buildResponseColumns } =
+      await import('../responses/response-row-builder');
     const columns = buildResponseColumns(
       form.publishedSnapshot ?? form.builderSnapshot,
     );
@@ -827,7 +857,7 @@ export class IntegrationsService {
     };
     await this.prisma.integrationConnection.update({
       where: { id: conn.id },
-      data: { metadata: updatedMeta as Prisma.InputJsonValue },
+      data: { metadata: updatedMeta },
     });
 
     return {
@@ -855,7 +885,12 @@ export class IntegrationsService {
       const hasNotionRef = meta.formNotionDatabaseIds?.[formId] !== undefined;
       const hasEnabledRef = meta.enabledFormIds?.includes(formId) ?? false;
 
-      if (!hasSpreadsheetRef && !hasSlackRef && !hasNotionRef && !hasEnabledRef) {
+      if (
+        !hasSpreadsheetRef &&
+        !hasSlackRef &&
+        !hasNotionRef &&
+        !hasEnabledRef
+      ) {
         continue; // row does not reference this form — leave untouched
       }
 
@@ -897,7 +932,7 @@ export class IntegrationsService {
 
       await tx.integrationConnection.update({
         where: { id: conn.id },
-        data: { metadata: updatedMeta as Prisma.InputJsonValue },
+        data: { metadata: updatedMeta },
       });
     }
   }

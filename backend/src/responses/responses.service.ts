@@ -352,13 +352,18 @@ export class ResponsesService {
       userId,
       range,
     );
-    const { buildResponseColumns, buildResponseRowForXlsx, RESPONSE_META_HEADERS } =
-      await import('./response-row-builder');
+    const {
+      buildResponseColumns,
+      buildResponseRowForXlsx,
+      RESPONSE_META_HEADERS,
+    } = await import('./response-row-builder');
 
     const columns = buildResponseColumns(snapshot);
     const header = [...RESPONSE_META_HEADERS, ...columns.map((c) => c.header)];
 
-    const rows = responses.map((r) => buildResponseRowForXlsx(snapshot, columns, r));
+    const rows = responses.map((r) =>
+      buildResponseRowForXlsx(snapshot, columns, r),
+    );
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([

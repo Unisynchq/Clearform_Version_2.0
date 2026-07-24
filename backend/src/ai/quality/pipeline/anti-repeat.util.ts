@@ -12,7 +12,8 @@ import { questionGroundedSuggestion } from './question-grounded-suggestion.util'
 
 /** Token-set Jaccard similarity on normalized text. */
 export function suggestionSimilarity(a: string, b: string): number {
-  const tokens = (s: string) => new Set(normalizeCopy(s).split(' ').filter(Boolean));
+  const tokens = (s: string) =>
+    new Set(normalizeCopy(s).split(' ').filter(Boolean));
   const ta = tokens(a);
   const tb = tokens(b);
   if (ta.size === 0 || tb.size === 0) return 0;
@@ -37,10 +38,7 @@ function aggregateShown(session?: QualitySessionMemory): {
   return { messages, suggestions };
 }
 
-function simplerMessageVariant(
-  shown: string[],
-  seed: string,
-): string {
+function simplerMessageVariant(shown: string[], seed: string): string {
   const candidates = [
     pickCopy('amber.fallback', { seed, exclude: shown, poolSize: 4 }),
     'Try one short sentence with a specific detail from your experience.',
@@ -80,7 +78,9 @@ export function dedupeAgainstSession(
   const screenSuggestions = screenMemory?.shownSuggestions ?? [];
   const shownMessages = screenMessages;
   const shownSuggestions = screenSuggestions;
-  const excludeMessages = [...new Set([...screenMessages, ...formWide.messages])];
+  const excludeMessages = [
+    ...new Set([...screenMessages, ...formWide.messages]),
+  ];
   const excludeSuggestions = [
     ...new Set([...screenSuggestions, ...formWide.suggestions]),
   ];
@@ -143,9 +143,7 @@ export function dedupeAgainstSession(
   if (fresh.length === 0 && next.level !== 'green') {
     return {
       ...next,
-      suggestions: [
-        questionGroundedSuggestion(opts.questionText, opts.seed),
-      ],
+      suggestions: [questionGroundedSuggestion(opts.questionText, opts.seed)],
     };
   }
   return { ...next, suggestions: fresh };

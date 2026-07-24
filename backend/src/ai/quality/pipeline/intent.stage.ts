@@ -29,7 +29,9 @@ export async function intentStage(
       result: {
         level: 'red',
         message: 'Please provide a response.',
-        failedIds: ctx.normalized.criteria.length ? ctx.normalized.criteria : [],
+        failedIds: ctx.normalized.criteria.length
+          ? ctx.normalized.criteria
+          : [],
       },
       cache: false,
     };

@@ -57,7 +57,10 @@ function isYesNoQuestion(questionText?: string, fieldType?: string): boolean {
   return /^(do you|did you|are you|is this|have you|would you)\b/.test(q);
 }
 
-function isFactualShortQuestion(questionText?: string, fieldType?: string): boolean {
+function isFactualShortQuestion(
+  questionText?: string,
+  fieldType?: string,
+): boolean {
   if (
     fieldType === 'email' ||
     fieldType === 'phone' ||
@@ -73,10 +76,18 @@ function isFactualShortQuestion(questionText?: string, fieldType?: string): bool
   }
   // Quantity / duration questions (job apps, surveys) — not narrative feedback.
   if (/\b(how many|number of|count of|total)\b/.test(q)) return true;
-  if (/\b(years?|months?)\b.*\b(experience|exp|relevant|professional|work)\b/.test(q)) {
+  if (
+    /\b(years?|months?)\b.*\b(experience|exp|relevant|professional|work)\b/.test(
+      q,
+    )
+  ) {
     return true;
   }
-  if (/\b(years?|months?)\b.*\b(of|in)\b.*\b(role|field|industry|position|category)\b/.test(q)) {
+  if (
+    /\b(years?|months?)\b.*\b(of|in)\b.*\b(role|field|industry|position|category)\b/.test(
+      q,
+    )
+  ) {
     return true;
   }
   return false;
@@ -97,7 +108,8 @@ export class QuestionIntentService {
   ): QuestionIntent {
     if (isNameIntentQuestion(dto.questionText)) return 'identity';
     if (isYesNoQuestion(dto.questionText, fieldType)) return 'yes_no';
-    if (isFactualShortQuestion(dto.questionText, fieldType)) return 'factual_short';
+    if (isFactualShortQuestion(dto.questionText, fieldType))
+      return 'factual_short';
     if (isOptionalTopicQuestion(dto.questionText, dto.helperText)) {
       return 'optional_topic';
     }

@@ -120,10 +120,16 @@ export class ResponseProcessor extends WorkerHost {
   }
 }
 
-function extractRespondentName(
-  answersMap: Record<string, unknown>,
-): string {
-  const namePatterns = ['name', 'full_name', 'fullName', 'first_name', 'firstName', 'your_name', 'respondent_name'];
+function extractRespondentName(answersMap: Record<string, unknown>): string {
+  const namePatterns = [
+    'name',
+    'full_name',
+    'fullName',
+    'first_name',
+    'firstName',
+    'your_name',
+    'respondent_name',
+  ];
   for (const screenId of Object.keys(answersMap)) {
     const answer = answersMap[screenId];
     if (answer && typeof answer === 'object') {
@@ -144,6 +150,7 @@ function extractRespondentName(
     }
   }
   const meta = answersMap['_metadata'] as Record<string, unknown> | undefined;
-  if (meta?.respondentName && typeof meta.respondentName === 'string') return meta.respondentName;
+  if (meta?.respondentName && typeof meta.respondentName === 'string')
+    return meta.respondentName;
   return 'Someone';
 }

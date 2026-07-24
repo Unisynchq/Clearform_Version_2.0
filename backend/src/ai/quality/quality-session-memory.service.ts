@@ -1,9 +1,4 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-} from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { createHash } from 'crypto';
 import type { Redis } from 'ioredis';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -124,7 +119,9 @@ export class QualitySessionMemoryService implements OnModuleDestroy {
 
     screen.verdicts = [...screen.verdicts, result.level].slice(-MAX_VERDICTS);
     if (typeof answerText === 'string' && answerText.trim()) {
-      screen.lastAnswerExcerpt = answerText.trim().slice(0, ANSWER_EXCERPT_TRUNCATE);
+      screen.lastAnswerExcerpt = answerText
+        .trim()
+        .slice(0, ANSWER_EXCERPT_TRUNCATE);
     }
     if (result.message) {
       screen.shownMessages = dedupePush(

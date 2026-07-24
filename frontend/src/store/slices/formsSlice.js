@@ -54,6 +54,7 @@ const initialState = {
   viewMode: savedUi.viewMode,
   sortOrder: savedUi.sortOrder,
   isLoading: false,
+  error: null,
   advancedFilters: savedUi.advancedFilters ?? { status: [], responses: [] },
   responsesByFormId: bootstrapResponses,
 };
@@ -86,6 +87,9 @@ const formsSlice = createSlice({
     },
     setLoading(state, action) {
       state.isLoading = action.payload;
+    },
+    setError(state, action) {
+      state.error = action.payload;
     },
     addForm(state, action) {
       state.forms.unshift(action.payload);
@@ -196,6 +200,7 @@ const formsSlice = createSlice({
       state.activeWorkspace = 'all';
       state.searchQuery = '';
       state.isLoading = false;
+      state.error = null;
       clearUserForms();
       clearWorkspaces();
       clearFormResponses();
@@ -213,6 +218,7 @@ export const {
   setViewMode,
   setSortOrder,
   setLoading,
+  setError,
   addForm,
   updateForm,
   setFormPause,
@@ -247,11 +253,16 @@ export const assignFormToWorkspace = ({ formId, workspaceId }) => async (dispatc
 
 /** Load forms from the API (falls back to localStorage when API not configured). */
 export const loadFormsFromApi = () => async (dispatch) => {
+  dispatch(setLoading(true));
+  dispatch(setError(null));
   try {
     const forms = await listForms();
     if (Array.isArray(forms)) dispatch(setForms(forms));
-  } catch {
-    // silently keep the localStorage bootstrap already in state
+  } catch (err) {
+    const msg = err?.message || 'Failed to load forms from server';
+    dispatch(setError(msg));
+  } finally {
+    dispatch(setLoading(false));
   }
 };
 
@@ -260,8 +271,9 @@ export const loadWorkspacesFromApi = () => async (dispatch) => {
   try {
     const workspaces = await listWorkspaces();
     if (Array.isArray(workspaces)) dispatch(setWorkspaces(workspaces));
-  } catch {
-    // keep localStorage bootstrap already in state
+  } catch (err) {
+    const msg = err?.message || 'Failed to load workspaces from server';
+    dispatch(setError(msg));
   }
 };
 

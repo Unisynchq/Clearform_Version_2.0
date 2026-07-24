@@ -32,8 +32,7 @@ export class MailService {
       this.resend = new Resend(apiKey);
     }
     this.from =
-      config.get<string>('RESEND_FROM') ??
-      'Clearform <hello@app.clearform.in>';
+      config.get<string>('RESEND_FROM') ?? 'Clearform <hello@app.clearform.in>';
     this.appUrl = config.get<string>('APP_URL') ?? 'https://app.clearform.in';
     this.supportEmail =
       config.get<string>('RESEND_REPLY_TO') ?? 'hello@app.clearform.in';
@@ -66,7 +65,8 @@ export class MailService {
       resendVariables: {
         TO_NAME: opts.toName,
         FORM_TITLE: opts.formTitle,
-        TOP_ANSWERS_HTML: topAnswersHtml || '<p>No preview answers available.</p>',
+        TOP_ANSWERS_HTML:
+          topAnswersHtml || '<p>No preview answers available.</p>',
         ANALYTICS_URL: analyticsUrl,
         RESPONSE_ID: opts.responseId,
       },

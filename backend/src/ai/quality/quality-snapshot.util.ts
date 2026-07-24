@@ -16,7 +16,7 @@ export function qualityOptionsFromScreen(
   screen: SnapshotScreen,
   fieldId?: string,
 ): Record<string, unknown> | undefined {
-  const config = (screen.config ?? {}) as Record<string, unknown>;
+  const config = screen.config ?? {};
   // Frontend persists per-field-kind option objects; prefer the one matching
   // the field being evaluated, then the other kind, then legacy keys.
   const isLongText = String(fieldId ?? '').includes('long');

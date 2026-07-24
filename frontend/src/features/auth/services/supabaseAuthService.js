@@ -81,13 +81,13 @@ async function syncUserWithBackend() {
 
 export async function storeToken(sessionOrUser) {
   if (typeof window !== 'undefined' && sessionOrUser?.access_token) {
-    sessionStorage.setItem(TOKEN_KEY, sessionOrUser.access_token);
+    localStorage.setItem(TOKEN_KEY, sessionOrUser.access_token);
   }
 }
 
 export function clearToken() {
   if (typeof window !== 'undefined') {
-    sessionStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_KEY);
   }
 }
 

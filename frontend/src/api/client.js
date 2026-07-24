@@ -86,7 +86,7 @@ export async function apiClient(path, {
 
   const publicRoute = isPublicApiPath(path) || skipAuth;
   let token =
-    typeof window !== 'undefined' ? sessionStorage.getItem('clearform:auth-token') : null;
+    typeof window !== 'undefined' ? (localStorage.getItem('clearform:auth-token') || sessionStorage.getItem('clearform:auth-token')) : null;
   if (typeof window !== 'undefined' && auth?.currentUser) {
     try {
       token = await getFreshAuthToken();

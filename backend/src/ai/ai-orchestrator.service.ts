@@ -28,9 +28,7 @@ import type {
   GenerateLogicDto,
   QualityResult,
 } from './ai.service.types';
-import {
-  normalizeQualityOptions,
-} from './ai-quality-rules.util';
+import { normalizeQualityOptions } from './ai-quality-rules.util';
 import { QuestionIntentService } from './question-intent/question-intent.service';
 import {
   computeScreenDropoff,

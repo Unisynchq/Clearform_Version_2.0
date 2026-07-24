@@ -1,6 +1,10 @@
 import type { FormContext } from './form-context.types';
 import { pickCopy } from './doctrine/copy.registry';
-import type { EvaluateQualityDto, NormalizedQualityOptions, QualityResult } from './ai.service.types';
+import type {
+  EvaluateQualityDto,
+  NormalizedQualityOptions,
+  QualityResult,
+} from './ai.service.types';
 import type { QualityViolationKind } from './ai-quality-rules.util';
 import {
   normalizeQualityOptions,
@@ -18,7 +22,10 @@ import {
   sanitizeRespondentCopy,
 } from './quality/respondent-copy.util';
 
-export { buildDefaultOwnerPromptForQuestion, deriveFacetsFromHelper } from './quality/default-owner-quality-prompt';
+export {
+  buildDefaultOwnerPromptForQuestion,
+  deriveFacetsFromHelper,
+} from './quality/default-owner-quality-prompt';
 
 export { normalizeQualityOptions } from './ai-quality-rules.util';
 export type { NormalizedQualityOptions } from './ai.service.types';
@@ -44,7 +51,9 @@ export function finalizeQualityResult(
     parsed.message = pickCopy('amber.not_configured', {
       seed: `${dto.questionText ?? ''}:${dto.text ?? dto.answerText ?? ''}`,
     });
-    parsed.failedIds = parsed.failedIds?.length ? parsed.failedIds : ['completeness'];
+    parsed.failedIds = parsed.failedIds?.length
+      ? parsed.failedIds
+      : ['completeness'];
     parsed.followUpQuestion = null;
   }
   // Gemini (and others) often mark amber/red correctly but omit failedIds.
@@ -82,12 +91,11 @@ export function finalizeQualityResult(
   }
   parsed.message = sanitizeRespondentCopy(parsed.message ?? '');
   if (parsed.suggestions?.length) {
-    parsed.suggestions = parsed.suggestions.map((s) => sanitizeRespondentCopy(s));
+    parsed.suggestions = parsed.suggestions.map((s) =>
+      sanitizeRespondentCopy(s),
+    );
   }
-  if (
-    parsed.followUpQuestion &&
-    isMetaFollowUpLeak(parsed.followUpQuestion)
-  ) {
+  if (parsed.followUpQuestion && isMetaFollowUpLeak(parsed.followUpQuestion)) {
     parsed.followUpQuestion = null;
   }
   return parsed;
@@ -110,7 +118,11 @@ export function buildSuggestionsFromContext(
     );
   }
   if (failedIds.includes('length')) {
-    if (intent !== 'identity' && intent !== 'factual_short' && intent !== 'yes_no') {
+    if (
+      intent !== 'identity' &&
+      intent !== 'factual_short' &&
+      intent !== 'yes_no'
+    ) {
       suggestions.push(
         `Add at least ${minWords} words that directly answer: "${q.slice(0, 80)}".`,
       );
@@ -138,14 +150,18 @@ export function parseQualityJson(content: string): QualityResult | null {
   const jsonMatch = content.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return null;
   try {
-    const parsed = JSON.parse(jsonMatch[0]) as QualityResult & { followUpQuestion?: string | null };
+    const parsed = JSON.parse(jsonMatch[0]) as QualityResult & {
+      followUpQuestion?: string | null;
+    };
     if (!['green', 'amber', 'red'].includes(parsed.level)) return null;
     const failedIds = Array.isArray(parsed.failedIds) ? parsed.failedIds : [];
     const suggestions = Array.isArray(parsed.suggestions)
       ? parsed.suggestions.filter((s) => typeof s === 'string').slice(0, 2)
       : undefined;
     const followUpQuestion =
-      parsed.level !== 'green' && typeof parsed.followUpQuestion === 'string' && parsed.followUpQuestion.trim()
+      parsed.level !== 'green' &&
+      typeof parsed.followUpQuestion === 'string' &&
+      parsed.followUpQuestion.trim()
         ? parsed.followUpQuestion.trim()
         : null;
     return {
@@ -193,8 +209,7 @@ function buildOwnerInstructionsBlock(
   intent: QuestionIntent,
 ): string {
   const custom = dto.customInstructions?.trim();
-  const base =
-    custom || buildDefaultOwnerInstructions(dto, intent);
+  const base = custom || buildDefaultOwnerInstructions(dto, intent);
   const purpose = (dto.formPurpose ?? context?.purpose ?? '').trim();
   const helper = (dto.helperText ?? '').trim();
   const parts = [base];
@@ -260,25 +275,26 @@ export function buildEvalPromptFromContext(
     intentDoctrine,
   );
   const ownerInstructions = buildOwnerInstructionsBlock(dto, context, intent);
-  const facets =
-    dto.facetsRequested?.length
-      ? dto.facetsRequested
-      : deriveFacetsFromHelper(dto.helperText, dto.questionText);
+  const facets = dto.facetsRequested?.length
+    ? dto.facetsRequested
+    : deriveFacetsFromHelper(dto.helperText, dto.questionText);
   const answerCharCount = dto.answerCharCount ?? text.length;
   const maxChars = dto.maxChars;
-  const formMap =
-    context?.allQuestions?.length
-      ? context.allQuestions
-          .map(
-            (q) =>
-              `- [${q.screenId}] ${q.label}${q.helperText ? ` (helper: ${q.helperText})` : ''}`,
-          )
-          .join('\n')
-      : '';
+  const formMap = context?.allQuestions?.length
+    ? context.allQuestions
+        .map(
+          (q) =>
+            `- [${q.screenId}] ${q.label}${q.helperText ? ` (helper: ${q.helperText})` : ''}`,
+        )
+        .join('\n')
+    : '';
 
   const resolvedTitle = dto.formTitle ?? context?.title;
   const resolvedPurpose = dto.formPurpose ?? context?.purpose;
-  const resolvedArchetype = context?.archetype && context.archetype !== 'generic' ? context.archetype : null;
+  const resolvedArchetype =
+    context?.archetype && context.archetype !== 'generic'
+      ? context.archetype
+      : null;
 
   return (
     `[FORM OWNER'S INSTRUCTIONS — HIGHEST AUTHORITY]\n` +

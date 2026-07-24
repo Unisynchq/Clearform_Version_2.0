@@ -7,7 +7,11 @@ import { WebhookProcessor } from './processors/webhook.processor';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [PrismaModule, BullModule.registerQueue({ name: 'webhooks' }), NotificationsModule],
+  imports: [
+    PrismaModule,
+    BullModule.registerQueue({ name: 'webhooks' }),
+    NotificationsModule,
+  ],
   providers: [WebhooksService, WebhookProcessor],
   controllers: [WebhooksController],
   exports: [WebhooksService],

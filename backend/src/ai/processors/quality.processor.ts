@@ -3,9 +3,7 @@ import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AiOrchestratorService } from '../ai-orchestrator.service';
-import {
-  resolveHelperTextFromScreen,
-} from '../snapshot-screen.util';
+import { resolveHelperTextFromScreen } from '../snapshot-screen.util';
 import { AiEntitlementsService } from '../../billing/entitlements/ai-entitlements.service';
 import { AiTierService } from '../ai-tier.service';
 import {
@@ -37,7 +35,11 @@ function answersMapFromPayload(raw: unknown): Record<string, unknown> {
   );
 }
 
-@Processor('ai-quality', { drainDelay: 30_000, stalledInterval: 300_000, concurrency: 2 })
+@Processor('ai-quality', {
+  drainDelay: 30_000,
+  stalledInterval: 300_000,
+  concurrency: 2,
+})
 export class QualityProcessor extends WorkerHost {
   private readonly logger = new Logger(QualityProcessor.name);
 
@@ -80,14 +82,18 @@ export class QualityProcessor extends WorkerHost {
         snapshotRecord?.title ?? snapshotRecord?.name ?? '',
       ).trim();
       const formPurpose = String(
-        intro.description ?? intro.subtitle ?? snapshotRecord?.description ?? '',
+        intro.description ??
+          intro.subtitle ??
+          snapshotRecord?.description ??
+          '',
       ).trim();
       const answersMap = answersMapFromPayload(answers);
       const screens = parseSnapshotScreens(snapshot).filter(
         (s) => s.type === 'content' && s.id != null,
       );
 
-      const { tier, ownerUserId } = await this.aiTier.resolveTierAndOwner(formId);
+      const { tier, ownerUserId } =
+        await this.aiTier.resolveTierAndOwner(formId);
       let accessBlocked = false;
       if (ownerUserId) {
         const access = await this.aiEntitlements.peekQualityAiAccess(
@@ -116,9 +122,7 @@ export class QualityProcessor extends WorkerHost {
           text: pair.value,
           answerText: pair.value,
           questionText: pair.label,
-          helperText: resolveHelperTextFromScreen(
-            screen as Record<string, unknown>,
-          ),
+          helperText: resolveHelperTextFromScreen(screen),
           formTitle: formTitle || undefined,
           formPurpose: formPurpose || undefined,
           options: qualityOptionsFromScreen(screen),
@@ -126,9 +130,14 @@ export class QualityProcessor extends WorkerHost {
         };
 
         try {
-          const result = await this.orchestrator.executeQuality(formId, dto, tier, {
-            ownerUserId: ownerUserId ?? undefined,
-          });
+          const result = await this.orchestrator.executeQuality(
+            formId,
+            dto,
+            tier,
+            {
+              ownerUserId: ownerUserId ?? undefined,
+            },
+          );
           evalResults.push(qualityLevelToScore(result.level));
         } catch (err) {
           this.logger.warn(

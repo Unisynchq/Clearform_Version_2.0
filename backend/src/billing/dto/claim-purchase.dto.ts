@@ -1,8 +1,4 @@
-import {
-  IsString,
-  MinLength,
-  ValidateIf,
-} from 'class-validator';
+import { IsString, MinLength, ValidateIf } from 'class-validator';
 
 export class ClaimPurchaseDto {
   @ValidateIf((o: ClaimPurchaseDto) => !o.orderId?.trim())

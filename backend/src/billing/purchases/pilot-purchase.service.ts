@@ -5,7 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { FormStatus, SubscriptionSource, SubscriptionStatus } from '@prisma/client';
+import {
+  FormStatus,
+  SubscriptionSource,
+  SubscriptionStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { MailService } from '../../notifications/mail.service';
@@ -289,7 +293,9 @@ export class PilotPurchaseService {
     }
 
     if (purchase.userId && purchase.userId !== userId) {
-      throw new BadRequestException('Payment already claimed by another account');
+      throw new BadRequestException(
+        'Payment already claimed by another account',
+      );
     }
 
     if (purchase.userId === userId) {
@@ -318,8 +324,10 @@ export class PilotPurchaseService {
       }
     }
 
-    const platformCheckout =
-      await this.isPlatformCheckoutForUser(purchase, userId);
+    const platformCheckout = await this.isPlatformCheckoutForUser(
+      purchase,
+      userId,
+    );
     if (
       !platformCheckout &&
       purchase.email &&
@@ -367,7 +375,10 @@ export class PilotPurchaseService {
       },
     });
 
-    await this.recordPilotActivatedNotification(userId, purchase.razorpayPaymentId);
+    await this.recordPilotActivatedNotification(
+      userId,
+      purchase.razorpayPaymentId,
+    );
     await this.recordReceiptNotification(user, purchase);
     await this.sendPilotUpgradeEmail(user, purchase);
     await this.aiEntitlements.resetAiTokenWallet(userId);

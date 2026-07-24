@@ -54,7 +54,7 @@ describe('LlmGatewayService hardening', () => {
       ok: false,
       status: 500,
       text: async () => 'boom',
-    } as never);
+    });
 
   it('opens the provider circuit after 5 consecutive failures and skips the rung', async () => {
     failingFetch();
@@ -115,7 +115,7 @@ describe('LlmGatewayService hardening', () => {
         choices: [{ message: { content: 'ok' } }],
         usage: { prompt_tokens: 5, completion_tokens: 5 },
       }),
-    } as never);
+    });
     gemini.isEnabled.mockReturnValue(true);
     const result = await service.completion(options);
     expect(result).toBe('ok');
@@ -155,7 +155,7 @@ describe('LlmGatewayService hardening', () => {
         choices: [{ message: { content: 'ok' } }],
         usage: { prompt_tokens: 5, completion_tokens: 5 },
       }),
-    } as never);
+    });
     const result = await service.completion(options);
     expect(result).toBe('ok');
     expect(gemini.completion).not.toHaveBeenCalled();

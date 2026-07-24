@@ -10,9 +10,7 @@ import { DailyReportScheduler } from './daily-report.scheduler';
 import { DailyReportProcessor } from './daily-report.processor';
 
 @Module({
-  imports: [
-    BullModule.registerQueue({ name: 'daily-report' }),
-  ],
+  imports: [BullModule.registerQueue({ name: 'daily-report' })],
   providers: [
     NotificationsService,
     MailService,
@@ -23,6 +21,11 @@ import { DailyReportProcessor } from './daily-report.processor';
     DailyReportProcessor,
   ],
   controllers: [NotificationsController],
-  exports: [NotificationsService, MailService, EmailLogService, NotificationSseService],
+  exports: [
+    NotificationsService,
+    MailService,
+    EmailLogService,
+    NotificationSseService,
+  ],
 })
 export class NotificationsModule {}

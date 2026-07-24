@@ -1,7 +1,4 @@
-import {
-  detectArchetype,
-  detectArchetypeFromSnapshot,
-} from './archetype.util';
+import { detectArchetype, detectArchetypeFromSnapshot } from './archetype.util';
 
 /** Pins form-context's detection behaviour — the version live evals use. */
 describe('archetype.util', () => {
@@ -13,7 +10,11 @@ describe('archetype.util', () => {
 
   it('academic template ids win regardless of copy', () => {
     expect(
-      detectArchetype(snapshot({ templateId: 'academic-research-v2' }), 'x', 'y'),
+      detectArchetype(
+        snapshot({ templateId: 'academic-research-v2' }),
+        'x',
+        'y',
+      ),
     ).toBe('academic-research');
   });
 

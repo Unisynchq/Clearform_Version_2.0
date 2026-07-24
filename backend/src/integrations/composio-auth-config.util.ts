@@ -2,7 +2,11 @@ import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Composio } from '@composio/core';
 
-type ComposioProviderSlug = 'google_sheets' | 'slack' | 'google_drive' | 'notion';
+type ComposioProviderSlug =
+  | 'google_sheets'
+  | 'slack'
+  | 'google_drive'
+  | 'notion';
 
 /** Clearform provider slug → Composio toolkit slug (v3). */
 export const PROVIDER_TOOLKIT_SLUG: Record<ComposioProviderSlug, string> = {

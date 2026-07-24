@@ -30,9 +30,7 @@ import {
 import { LlmGatewayService } from './llm-gateway.service';
 import { aiServiceUnavailable } from './errors/ai-service-unavailable.error';
 import { buildLogicSummary } from './quality/logic-summary.util';
-import {
-  resolveFormPurpose,
-} from './quality/form-purpose.util';
+import { resolveFormPurpose } from './quality/form-purpose.util';
 
 /** Respondent-supplied session ids are opaque tokens — never trust free text. */
 function sanitizeSessionId(raw: unknown): string | undefined {
@@ -297,8 +295,8 @@ export class AiController {
 
       const snapshot = (
         requestOwnerFields
-          ? form?.builderSnapshot ?? form?.publishedSnapshot
-          : form?.publishedSnapshot ?? form?.builderSnapshot
+          ? (form?.builderSnapshot ?? form?.publishedSnapshot)
+          : (form?.publishedSnapshot ?? form?.builderSnapshot)
       ) as Record<string, unknown> | null;
       if (!snapshot) return dto;
 

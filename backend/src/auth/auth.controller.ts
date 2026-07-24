@@ -20,8 +20,16 @@ import { AvatarStorageService } from './avatar-storage.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { Public } from '../common/decorators/public.decorator';
-import { Response } from 'express';
+import type { Response, Request } from 'express';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict' as const,
+  path: '/api/v1/auth',
+  maxAge: 24 * 60 * 60 * 1000,
+};
 
 @Controller('api/v1/auth')
 export class AuthController {
@@ -30,9 +38,8 @@ export class AuthController {
     private readonly avatarStorage: AvatarStorageService,
   ) {}
 
-  /** Handoff contract alias — SPA uses Firebase; maps to legacy register. */
   @Public()
-  @Throttle({ strict: { limit: 10, ttl: 60_000 } })
+  @Throttle({ strict: { limit: 5, ttl: 300_000 } })
   @Post('sign-up')
   async signUp(
     @Body() registerDto: RegisterDto,
@@ -41,9 +48,8 @@ export class AuthController {
     return this.register(registerDto, res);
   }
 
-  /** @deprecated SPA uses Firebase Auth */
   @Public()
-  @Throttle({ strict: { limit: 10, ttl: 60_000 } })
+  @Throttle({ strict: { limit: 5, ttl: 300_000 } })
   @Post('register')
   async register(
     @Body() registerDto: RegisterDto,
@@ -54,9 +60,8 @@ export class AuthController {
     return { accessToken: result.accessToken, user: result.user };
   }
 
-  /** Handoff contract alias — SPA uses Firebase; maps to legacy login. */
   @Public()
-  @Throttle({ strict: { limit: 10, ttl: 60_000 } })
+  @Throttle({ strict: { limit: 5, ttl: 300_000 } })
   @Post('sign-in')
   async signIn(
     @Body() loginDto: LoginDto,
@@ -65,9 +70,8 @@ export class AuthController {
     return this.login(loginDto, res);
   }
 
-  /** @deprecated SPA uses Firebase Auth */
   @Public()
-  @Throttle({ strict: { limit: 10, ttl: 60_000 } })
+  @Throttle({ strict: { limit: 5, ttl: 300_000 } })
   @Post('login')
   async login(
     @Body() loginDto: LoginDto,
@@ -78,15 +82,27 @@ export class AuthController {
     return { accessToken: result.accessToken, user: result.user };
   }
 
-  /** Handoff contract alias for `endpoints.js` `/auth/sign-out`. */
   @Post('sign-out')
-  signOut(@Res({ passthrough: true }) res: Response) {
-    return this.logout(res);
+  async signOut(
+    @CurrentUser() user: { id: string; jti?: string; exp?: number },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    if (user?.jti) {
+      await this.authService.logout(user.id, user.jti, user.exp);
+    }
+    res.clearCookie('refresh_token', { path: '/api/v1/auth' });
+    return { message: 'Logged out successfully' };
   }
 
   @Post('logout')
-  logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('refresh_token');
+  async logout(
+    @CurrentUser() user: { id: string; jti?: string; exp?: number },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    if (user?.jti) {
+      await this.authService.logout(user.id, user.jti, user.exp);
+    }
+    res.clearCookie('refresh_token', { path: '/api/v1/auth' });
     return { message: 'Logged out successfully' };
   }
 
@@ -104,7 +120,9 @@ export class AuthController {
   }
 
   @Post('me/avatar')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024 } }))
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024 } }),
+  )
   async uploadAvatar(
     @CurrentUser() user: { id: string },
     @UploadedFile() file?: { buffer: Buffer; mimetype: string; size: number },
@@ -125,9 +143,24 @@ export class AuthController {
     return this.authService.completeOnboarding(user.id);
   }
 
+  @Post('me/change-password')
+  changePassword(
+    @CurrentUser() user: { id: string },
+    @Body() body: { currentPassword: string; newPassword: string },
+  ) {
+    return this.authService.changePassword(
+      user.id,
+      body.currentPassword,
+      body.newPassword,
+    );
+  }
+
   @Get('me/export')
   @Header('Content-Type', 'text/csv')
-  @Header('Content-Disposition', 'attachment; filename="clearform-account-data.csv"')
+  @Header(
+    'Content-Disposition',
+    'attachment; filename="clearform-account-data.csv"',
+  )
   async exportAccount(@CurrentUser() user: { id: string }): Promise<string> {
     return this.authService.exportAccountCsv(user.id);
   }
@@ -135,19 +168,17 @@ export class AuthController {
   @Delete('me')
   @HttpCode(204)
   async deleteAccount(
-    @CurrentUser() user: { id: string },
+    @CurrentUser() user: { id: string; jti?: string },
     @Res({ passthrough: true }) res: Response,
   ) {
+    if (user?.jti) {
+      await this.authService.logout(user.id, user.jti);
+    }
     await this.authService.deleteAccount(user.id);
-    (res as any).clearCookie('refresh_token');
+    res.clearCookie('refresh_token', { path: '/api/v1/auth' });
   }
 
   private setRefreshCookie(res: Response, token: string) {
-    res.cookie('refresh_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
+    res.cookie('refresh_token', token, COOKIE_OPTIONS);
   }
 }

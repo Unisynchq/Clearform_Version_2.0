@@ -11,9 +11,7 @@ export const DAILY_REPORT_JOB = 'send-daily-report';
 export class DailyReportScheduler implements OnModuleInit {
   private readonly logger = new Logger(DailyReportScheduler.name);
 
-  constructor(
-    @InjectQueue(DAILY_REPORT_QUEUE) private readonly queue: Queue,
-  ) {}
+  constructor(@InjectQueue(DAILY_REPORT_QUEUE) private readonly queue: Queue) {}
 
   async onModuleInit() {
     try {
@@ -22,7 +20,9 @@ export class DailyReportScheduler implements OnModuleInit {
         { pattern: DAILY_REPORT_CRON, tz: 'UTC' },
         { name: DAILY_REPORT_JOB, data: {} },
       );
-      this.logger.log(`Daily report job scheduled (cron: ${DAILY_REPORT_CRON} UTC)`);
+      this.logger.log(
+        `Daily report job scheduled (cron: ${DAILY_REPORT_CRON} UTC)`,
+      );
     } catch (err) {
       this.logger.warn(
         `Could not schedule daily report job: ${err instanceof Error ? err.message : err}`,

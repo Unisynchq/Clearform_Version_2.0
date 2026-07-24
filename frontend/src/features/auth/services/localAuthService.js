@@ -6,14 +6,21 @@ const LOCAL_DEV_TOKEN = 'local-dev-session';
 
 function storeLocalDevToken(email) {
   if (typeof window !== 'undefined') {
-    sessionStorage.setItem(TOKEN_KEY, `${LOCAL_DEV_TOKEN}:${email}`);
+    localStorage.setItem(TOKEN_KEY, `${LOCAL_DEV_TOKEN}:${email}`);
   }
 }
 
 export function clearLocalDevToken() {
   if (typeof window !== 'undefined') {
-    sessionStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(TOKEN_KEY);
   }
+}
+
+export function restoreLocalDevToken() {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem(TOKEN_KEY);
+  }
+  return null;
 }
 
 const oauthUnavailableMessage =

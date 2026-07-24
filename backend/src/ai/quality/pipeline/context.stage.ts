@@ -34,9 +34,7 @@ export async function contextStage(
     (snapshot && screens.length
       ? buildLogicSummary(snapshot, screens)
       : undefined);
-  const mergedOptions =
-    ctx.dto.options ??
-    (screenContext?.qualityOptions as EvaluateQualityDto['options']);
+  const mergedOptions = ctx.dto.options ?? screenContext?.qualityOptions;
   const customInstructions =
     ctx.dto.customInstructions?.trim() ||
     screenContext?.customInstructions?.trim() ||
@@ -48,10 +46,9 @@ export async function contextStage(
     ...ctx.dto,
     text,
     answerCharCount: ctx.dto.answerCharCount ?? text.length,
-    facetsRequested:
-      ctx.dto.facetsRequested?.length
-        ? ctx.dto.facetsRequested
-        : deriveFacetsFromHelper(ctx.dto.helperText, ctx.dto.questionText),
+    facetsRequested: ctx.dto.facetsRequested?.length
+      ? ctx.dto.facetsRequested
+      : deriveFacetsFromHelper(ctx.dto.helperText, ctx.dto.questionText),
     options: mergedOptions,
     customInstructions,
     logicSummary,
@@ -59,7 +56,9 @@ export async function contextStage(
     formPurpose:
       ctx.dto.formPurpose ??
       ctx.context?.purpose ??
-      (snapshot ? resolveFormPurpose(snapshot, ctx.context?.title ?? '') : undefined),
+      (snapshot
+        ? resolveFormPurpose(snapshot, ctx.context?.title ?? '')
+        : undefined),
   };
   return null;
 }

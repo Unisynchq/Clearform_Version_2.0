@@ -83,7 +83,10 @@ function rangeCutoff(range?: string): Date | undefined {
 
 type PerformanceStatus = 'ON_TARGET' | 'BELOW_TARGET' | 'EXCEEDING_TARGET';
 
-type InsightsResponse = Record<string, string | number | boolean | object | null>;
+type InsightsResponse = Record<
+  string,
+  string | number | boolean | object | null
+>;
 
 type KpiStatus = 'ON_TARGET' | 'BELOW_TARGET' | 'EXCEEDING_TARGET';
 
@@ -118,7 +121,10 @@ function kpiStatusForDuration(seconds: number | null): KpiStatus {
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
-  private readonly insightsInFlight = new Map<string, Promise<InsightsResponse>>();
+  private readonly insightsInFlight = new Map<
+    string,
+    Promise<InsightsResponse>
+  >();
 
   constructor(
     private prisma: PrismaService,
@@ -163,32 +169,33 @@ export class AnalyticsService {
 
     // "total" = non-abandoned submissions — matches what the Responses tab lists.
     // "abandoned" = sessions that started but did not submit — used for funnel start count.
-    const [total, abandoned, processed, agg, responsePayloads] = await Promise.all([
-      this.prisma.formResponse.count({
-        where: { ...responseWhere, status: { not: 'ABANDONED' as any } },
-      }),
-      this.prisma.formResponse.count({
-        where: { ...responseWhere, status: 'ABANDONED' as any },
-      }),
-      this.prisma.formResponse.count({
-        where: {
-          ...responseWhere,
-          status: { in: [...completedStatuses] },
-        },
-      }),
-      this.prisma.formResponse.aggregate({
-        where: {
-          formId,
-          durationMs: { not: null },
-          ...(dateFilter && { createdAt: dateFilter }),
-        },
-        _avg: { durationMs: true },
-      }),
-      this.prisma.formResponse.findMany({
-        where: responseWhere,
-        select: { payload: true, durationMs: true, status: true },
-      }),
-    ]);
+    const [total, abandoned, processed, agg, responsePayloads] =
+      await Promise.all([
+        this.prisma.formResponse.count({
+          where: { ...responseWhere, status: { not: 'ABANDONED' as any } },
+        }),
+        this.prisma.formResponse.count({
+          where: { ...responseWhere, status: 'ABANDONED' as any },
+        }),
+        this.prisma.formResponse.count({
+          where: {
+            ...responseWhere,
+            status: { in: [...completedStatuses] },
+          },
+        }),
+        this.prisma.formResponse.aggregate({
+          where: {
+            formId,
+            durationMs: { not: null },
+            ...(dateFilter && { createdAt: dateFilter }),
+          },
+          _avg: { durationMs: true },
+        }),
+        this.prisma.formResponse.findMany({
+          where: responseWhere,
+          select: { payload: true, durationMs: true, status: true },
+        }),
+      ]);
 
     const snapshot = form.publishedSnapshot ?? form.builderSnapshot ?? null;
     const contentScreenCount = contentScreenCountFromSnapshot(snapshot);
@@ -256,7 +263,11 @@ export class AnalyticsService {
 
     // Funnel start = everyone who interacted with the form (including abandoned).
     // Funnel submitted = non-abandoned submissions (= total).
-    const funnelCounts = deriveFunnelCounts(total + abandoned, total, completionRate);
+    const funnelCounts = deriveFunnelCounts(
+      total + abandoned,
+      total,
+      completionRate,
+    );
     const worst = worstDropStep(screenDropoff);
     const avgDurationSeconds = avgDurationMs
       ? Math.round(avgDurationMs / 1000)
@@ -281,7 +292,9 @@ export class AnalyticsService {
                     dropPercent: worst.dropPercent,
                     estimatedGain: Math.max(
                       1,
-                      Math.round((worst.dropCount / Math.max(total, 1)) * total),
+                      Math.round(
+                        (worst.dropCount / Math.max(total, 1)) * total,
+                      ),
                     ),
                     action: 'improve_screen' as const,
                   }
@@ -333,7 +346,9 @@ export class AnalyticsService {
     if (overviewCached) {
       try {
         return JSON.parse(overviewCached) as object;
-      } catch { /* regenerate */ }
+      } catch {
+        /* regenerate */
+      }
     }
 
     const ctx = await this.formContext.buildForForm(formId);
@@ -418,7 +433,12 @@ export class AnalyticsService {
       aiInsight,
     };
 
-    void safeRedisSet(this.redis, overviewCacheKey, JSON.stringify(result), REDIS_TTL.analyticsOverviewSeconds);
+    void safeRedisSet(
+      this.redis,
+      overviewCacheKey,
+      JSON.stringify(result),
+      REDIS_TTL.analyticsOverviewSeconds,
+    );
     return result;
   }
 
@@ -488,9 +508,7 @@ export class AnalyticsService {
       const vals = rows
         .map((r) => r.durationMs)
         .filter((v): v is number => v != null && v > 0);
-      return vals.length
-        ? vals.reduce((a, b) => a + b, 0) / vals.length
-        : null;
+      return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
     };
     const thisAvg = avg(thisWeek);
     const lastAvg = avg(lastWeek);
@@ -567,7 +585,7 @@ export class AnalyticsService {
 
     const where = {
       formId,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       status: { not: 'ABANDONED' as any },
       ...(cutoff && { createdAt: { gte: cutoff } }),
     };
@@ -654,9 +672,15 @@ export class AnalyticsService {
     if (!form) throw new NotFoundException('Form not found');
 
     const [total, withScore, agg] = await Promise.all([
-      this.prisma.formResponse.count({ where: { formId, status: { not: 'ABANDONED' as any } } }),
       this.prisma.formResponse.count({
-        where: { formId, qualityScore: { not: null }, status: { not: 'ABANDONED' as any } },
+        where: { formId, status: { not: 'ABANDONED' as any } },
+      }),
+      this.prisma.formResponse.count({
+        where: {
+          formId,
+          qualityScore: { not: null },
+          status: { not: 'ABANDONED' as any },
+        },
       }),
       this.prisma.formResponse.aggregate({
         where: { formId, qualityScore: { not: null } },
@@ -884,10 +908,9 @@ export class AnalyticsService {
     const completionRate = Number(cached.completionRate ?? 0);
     const avgQuality = Number(cached.avgQuality ?? cached.npsScore ?? 0);
     return buildInsightsReadyPayload({
-      summaryText: summary || `${total} responses · ${completionRate}% completion.`,
-      priorityTitle: String(
-        cached.priorityTitle ?? 'Review recent feedback',
-      ),
+      summaryText:
+        summary || `${total} responses · ${completionRate}% completion.`,
+      priorityTitle: String(cached.priorityTitle ?? 'Review recent feedback'),
       priorityBody:
         priorityBody ||
         'Open the Responses tab to read what respondents are saying.',

@@ -1,4 +1,12 @@
-import { Controller, Post, Get, Param, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Param,
+  Body,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AiFeedbackService, CreateAiFeedbackDto } from './ai-feedback.service';
@@ -23,10 +31,7 @@ export class AiFeedbackController {
   /** List all AI feedback for a form (for the Cleo learning pipeline). */
   @Get('ai-feedback')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  list(
-    @Param('formId') formId: string,
-    @CurrentUser() user: { id: string },
-  ) {
+  list(@Param('formId') formId: string, @CurrentUser() user: { id: string }) {
     return this.aiFeedbackService.listForForm(formId, user.id);
   }
 }

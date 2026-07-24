@@ -129,9 +129,7 @@ export class AiEntitlementsService {
           credits,
           formId: opts.formId,
           status: 'debited',
-          meta: opts.meta
-            ? (opts.meta as Prisma.InputJsonValue)
-            : undefined,
+          meta: opts.meta ? (opts.meta as Prisma.InputJsonValue) : undefined,
         },
       }),
     ]);
