@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { RiArrowDownSLine, RiArrowRightSLine, RiCloseLine, RiLoader4Line } from 'react-icons/ri';
 import {
   closeCreateNewFormModal,
+  openCreateWorkspaceModal,
   startBuilderRouteTransition,
 } from '@/store/slices/uiSlice';
 import { addForm, selectNavWorkspaces } from '@/store/slices/formsSlice';
@@ -155,7 +156,10 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
         <div className="flex items-center justify-end pt-4">
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              onClose();
+              dispatch(openCreateWorkspaceModal());
+            }}
             className="bg-[#1a1814] text-white text-[13px] font-medium px-[15px] py-[8px] rounded-[8px] hover:bg-[#2c2c2e] transition-colors cursor-pointer"
           >
             Got it
