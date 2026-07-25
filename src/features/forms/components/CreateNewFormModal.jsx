@@ -45,7 +45,10 @@ function WorkspaceDropdown({ workspaceId, onChange, workspaces }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
 
-  const options = workspaces.map((ws) => ({ id: ws.id, label: ws.label, color: ws.color }));
+  const options = [
+    { id: null, label: 'No Workspace', color: null },
+    ...workspaces.map((ws) => ({ id: ws.id, label: ws.label, color: ws.color }))
+  ];
 
   const selected = options.find((opt) => opt.id === workspaceId) ?? options[0];
 
@@ -133,47 +136,10 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
   const userEmail = useSelector((s) => s.auth.email);
   const { showToast } = useToast();
 
-  if (workspaces.length === 0) {
-    return (
-      <>
-        <div className="flex items-start justify-between">
-          <div className="flex flex-col gap-0.5">
-            <h2 id="create-new-form-title" className="text-[15px] font-semibold text-[#1a1814] leading-[22.5px] tracking-[-0.2px]">
-              Workspace Required
-            </h2>
-            <p className="text-[13px] text-[#6b6966] leading-[19px] pt-2">
-              You must create a workspace before you can create a form. Organise your forms by team, project or client using workspaces.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="w-7 h-7 flex items-center justify-center rounded-[6px] text-[#a8a6a0] hover:text-[#1a1814] hover:bg-[#f4f3ef] transition-colors cursor-pointer shrink-0"
-          >
-            <RiCloseLine size={16} />
-          </button>
-        </div>
-        <div className="flex items-center justify-end pt-4">
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              dispatch(openCreateWorkspaceModal());
-            }}
-            className="bg-[#1a1814] text-white text-[13px] font-medium px-[15px] py-[8px] rounded-[8px] hover:bg-[#2c2c2e] transition-colors cursor-pointer"
-          >
-            Got it
-          </button>
-        </div>
-      </>
-    );
-  }
-
   const defaultWorkspaceId =
     activeWorkspace && activeWorkspace !== 'all' && workspaces.find(w => w.id === activeWorkspace)
       ? activeWorkspace
-      : workspaces[0]?.id;
+      : (workspaces[0]?.id ?? null);
 
   const [name, setName] = useState('');
   const [colorId, setColorId] = useState(FORM_COLOR_OPTIONS[0].id);
