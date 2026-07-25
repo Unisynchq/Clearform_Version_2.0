@@ -287,6 +287,7 @@ const TemplatesPage = () => {
       } else {
         await createFormFromTemplateAndOpenBuilder({
           template,
+          userEmail,
           activeWorkspace,
           workspaceId: workspaceId ?? undefined,
           formTitle,

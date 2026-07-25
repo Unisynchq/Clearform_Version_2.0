@@ -130,6 +130,7 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
   const workspaces = useSelector(selectNavWorkspaces);
   const activeWorkspace = useSelector((s) => s.forms.activeWorkspace);
   const isOnboardingActive = useSelector(selectIsOnboardingActive);
+  const userEmail = useSelector((s) => s.auth.email);
   const { showToast } = useToast();
 
   if (workspaces.length === 0) {
@@ -214,6 +215,7 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
           gradientTo: theme.gradientTo,
           overlayColor: theme.overlayColor,
           iconGradient: theme.iconGradient,
+          ownerEmail: userEmail || '',
         });
         formId = created.id;
         setPendingFormId(formId);
@@ -243,6 +245,7 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
       gradientTo: theme.gradientTo,
       overlayColor: theme.overlayColor,
       iconGradient: theme.iconGradient,
+      ownerEmail: userEmail || '',
     }));
     if (isOnboardingActive) dispatch(completeOnboarding());
 

@@ -6,6 +6,14 @@ import { formatResponseCount } from '@/constants';
 import { isFormPaused } from '../utils/formPause';
 
 const StatusBadge = ({ status, isTargetReached, isPaused }) => {
+  if (status === 'trash') {
+    return (
+      <span className="inline-flex items-center px-[8px] py-[3px] rounded-[6px] text-[11px] font-medium leading-[15px] bg-[#fee2e2] text-[#dc2626] border border-[#fca5a5]">
+        Trash
+      </span>
+    );
+  }
+
   if (isPaused) {
     return (
       <span className="inline-flex items-center px-[8px] py-[3px] rounded-[6px] text-[11px] font-medium leading-[15px] bg-[#fffbeb] text-[#92400e] border border-[#fde68a]">

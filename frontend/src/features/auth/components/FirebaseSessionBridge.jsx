@@ -15,6 +15,7 @@ import {
 import { shouldSessionBridgeNavigate } from '@/features/auth/utils/authBootstrapCoordinator';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useToast } from '@/hooks/useToast';
+import { useCrossTabSync } from '@/hooks/useCrossTabSync';
 
 /**
  * Hydrates Redux when Firebase has a session but local auth session was not written
@@ -25,6 +26,7 @@ const FirebaseSessionBridge = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useToast();
+  useCrossTabSync();
   const isAuthenticated = useSelector((s) => s.auth.isAuthenticated);
   const syncingRef = useRef(false);
 

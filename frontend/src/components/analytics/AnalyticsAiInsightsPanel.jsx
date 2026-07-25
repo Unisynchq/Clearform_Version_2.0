@@ -652,13 +652,15 @@ function AnalyticsAiInsightsPanel({
   const [successVisible, setSuccessVisible] = useState(false);
   const successTimerRef = useRef(null);
 
-  if (dismissals.urlKey !== urlSyncKey) {
-    setDismissals({
-      urlKey: urlSyncKey,
-      patternFailure: false,
-      exportToast: false,
-    });
-  }
+  useEffect(() => {
+    if (dismissals.urlKey !== urlSyncKey) {
+      setDismissals({
+        urlKey: urlSyncKey,
+        patternFailure: false,
+        exportToast: false,
+      });
+    }
+  }, [urlSyncKey]);
 
   const responseCount = responseCountProp ?? form?.responses ?? 0;
   const hasEnoughResponses = responseCount >= MIN_RESPONSES_FOR_AI;

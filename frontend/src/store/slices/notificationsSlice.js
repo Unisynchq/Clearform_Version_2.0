@@ -81,7 +81,7 @@ function isLocalNotificationId(id) {
   return value.includes(':') || value.startsWith('n-');
 }
 
-function persistNotifications(notifications) {
+export function persistNotifications(notifications) {
   if (!isApiConfigured()) {
     writeNotifications(notifications);
   }

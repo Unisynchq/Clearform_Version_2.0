@@ -6,6 +6,7 @@ export const FILTER_TABS = [
   { id: 'live', label: 'Live' },
   { id: 'draft', label: 'Drafts' },
   { id: 'archived', label: 'Archived' },
+  { id: 'trash', label: 'Trash' },
 ];
 
 export const WORKSPACES = [

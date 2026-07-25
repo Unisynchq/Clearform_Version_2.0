@@ -30,44 +30,57 @@ import { useToast } from '@/hooks/useToast';
 import { dispatchSyncFormAlerts } from '@/utils/syncFormAlertsToStore';
 
 /* ── Empty state: no forms from filter ── */
-const FilterEmptyState = ({ hasFilters, onClearFilters, onNewForm }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 8 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, y: 6 }}
-    transition={{ duration: 0.3, ease: DASHBOARD_PAGE_EASE }}
-    className="flex flex-col items-center justify-center py-16 gap-4"
-  >
-    <div className="w-14 h-14 bg-[#f4f3ef] border border-[#e5e3dc] rounded-[12px] flex items-center justify-center">
-      <RiLayoutGridLine size={16} className="text-[#a8a6a0]" />
-    </div>
-    <div className="flex flex-col items-center gap-1 text-center">
-      <p className="text-[16px] font-medium text-[#1a1a1c] tracking-[-0.1px] leading-[20.8px]">
-        No forms made
-      </p>
-      <p className="text-[14px] font-normal text-[#6b6966] leading-[21px]">
-        Create your first form or start from a template.
-      </p>
-    </div>
-    <div className="flex items-center gap-4">
-      <button
-        onClick={onNewForm}
-        className="flex items-center gap-2 bg-[#1a1a1c] text-white text-[14px] font-medium px-[17px] py-[9px] rounded-lg hover:bg-[#2c2c2e] transition-colors cursor-pointer"
-      >
-        <RiAddLine size={14} />
-        New Form
-      </button>
-      {hasFilters && (
-        <button
-          onClick={onClearFilters}
-          className="bg-white border border-[#e5e3dc] text-[#1a1a1c] text-[14px] font-medium px-[17px] py-[9px] rounded-lg hover:bg-[#f4f3ef] transition-colors cursor-pointer"
-        >
-          Clear filters
-        </button>
-      )}
-    </div>
-  </motion.div>
-);
+const FilterEmptyState = ({ hasFilters, onClearFilters, onNewForm, activeFilter }) => {
+  const isTrash = activeFilter === 'trash';
+  const isArchive = activeFilter === 'archived';
+  const title = isTrash ? 'Trash is empty' : isArchive ? 'No archived forms' : 'No forms made';
+  const subtitle = isTrash
+    ? 'Deleted forms will appear here.'
+    : isArchive
+      ? 'Archived forms will appear here.'
+      : 'Create your first form or start from a template.';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 6 }}
+      transition={{ duration: 0.3, ease: DASHBOARD_PAGE_EASE }}
+      className="flex flex-col items-center justify-center py-16 gap-4"
+    >
+      <div className="w-14 h-14 bg-[#f4f3ef] border border-[#e5e3dc] rounded-[12px] flex items-center justify-center">
+        <RiLayoutGridLine size={16} className="text-[#a8a6a0]" />
+      </div>
+      <div className="flex flex-col items-center gap-1 text-center">
+        <p className="text-[16px] font-medium text-[#1a1a1c] tracking-[-0.1px] leading-[20.8px]">
+          {title}
+        </p>
+        <p className="text-[14px] font-normal text-[#6b6966] leading-[21px]">
+          {subtitle}
+        </p>
+      </div>
+      <div className="flex items-center gap-4">
+        {!isTrash && !isArchive ? (
+          <button
+            onClick={onNewForm}
+            className="flex items-center gap-2 bg-[#1a1a1c] text-white text-[14px] font-medium px-[17px] py-[9px] rounded-lg hover:bg-[#2c2c2e] transition-colors cursor-pointer"
+          >
+            <RiAddLine size={14} />
+            New Form
+          </button>
+        ) : null}
+        {hasFilters && (
+          <button
+            onClick={onClearFilters}
+            className="bg-white border border-[#e5e3dc] text-[#1a1a1c] text-[14px] font-medium px-[17px] py-[9px] rounded-lg hover:bg-[#f4f3ef] transition-colors cursor-pointer"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+    </motion.div>
+  );
+};
 
 /* ── List view table ── */
 const ListView = ({ forms }) => (
@@ -279,6 +292,7 @@ const AllFormsPage = () => {
                   hasFilters={hasActiveFilters}
                   onClearFilters={handleClearFilters}
                   onNewForm={openNewFormModal}
+                  activeFilter={activeFilter}
                 />
               </motion.div>
             ) : viewMode === 'list' ? (

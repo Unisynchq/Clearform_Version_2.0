@@ -28,9 +28,24 @@ export function shouldFailFormAction() {
 }
 
 export async function pauseFormRequest({ signal, forceFail } = {}) {
-  await delay(DEFAULT_MS + Math.random() * 500, signal);
+  try {
+    await delay(DEFAULT_MS + Math.random() * 500, signal);
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err;
+  }
   if (forceFail ?? shouldFailFormAction()) {
     throw new Error('Failed to pause form');
+  }
+}
+
+export async function resumeFormRequest({ signal, forceFail } = {}) {
+  try {
+    await delay(DEFAULT_MS + Math.random() * 500, signal);
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err;
+  }
+  if (forceFail ?? shouldFailFormAction()) {
+    throw new Error('Failed to resume form');
   }
 }
 

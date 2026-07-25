@@ -23,12 +23,20 @@ export async function listForms() {
   return readPersistedForms();
 }
 
-export async function createForm({ title, workspaceId, gradientFrom, gradientTo, overlayColor, iconGradient }) {
+export async function getForm(formId) {
+  if (isApiConfigured() && typeof formId !== 'number') {
+    return apiClient(API_ENDPOINTS.forms.byId(formId));
+  }
+  const forms = readPersistedForms();
+  return forms.find((f) => Number(f.id) === Number(formId)) ?? null;
+}
+
+export async function createForm({ title, workspaceId, gradientFrom, gradientTo, overlayColor, iconGradient, ownerEmail }) {
   let created;
   if (isApiConfigured()) {
     created = await apiClient(API_ENDPOINTS.forms.list, {
       method: 'POST',
-      body: { title, workspaceId, gradientFrom, gradientTo, overlayColor, iconGradient },
+      body: { title, workspaceId, gradientFrom, gradientTo, overlayColor, iconGradient, ownerEmail },
     });
   } else {
     created = {

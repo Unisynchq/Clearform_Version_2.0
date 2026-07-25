@@ -13,8 +13,8 @@ import {
 import Select from '../ui/Select';
 import { useToast } from '../../hooks/useToast';
 import { DeleteFormModal, PauseFormModal } from './AnalyticsFormActionModals';
-import { deleteFormRequest, pauseFormRequest } from './analyticsFormActions';
-import { updateForm, deleteForm, setFormPause, loadFormsFromApi } from '@/store/slices/formsSlice';
+import { deleteFormRequest } from './analyticsFormActions';
+import { updateForm, deleteForm, pauseFormOnServer, resumeFormOnServer, loadFormsFromApi } from '@/store/slices/formsSlice';
 import { setConfirmModalOpen } from '@/store/slices/uiSlice';
 import {
   buildIndefinitePausePayload,
@@ -255,14 +255,11 @@ function AnalyticsSettingsPanel({ form }) {
 
   const runPauseForm = useCallback(async () => {
     if (!form?.id) return;
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
     setActionLoading(true);
 
     try {
-      await pauseFormRequest({ signal: controller.signal });
-      dispatch(setFormPause(buildIndefinitePausePayload(form.id)));
+      const payload = buildIndefinitePausePayload(form.id);
+      await dispatch(pauseFormOnServer(form.id, payload));
       setPauseModalOpen(false);
       showToast({
         type: 'warning',
@@ -276,6 +273,30 @@ function AnalyticsSettingsPanel({ form }) {
         message: 'Failed to pause form. Try again.',
         duration: 4500,
         action: { label: 'Retry', onClick: () => runPauseForm() },
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  }, [dispatch, form?.id, showToast]);
+
+  const runResumeForm = useCallback(async () => {
+    if (!form?.id) return;
+    setActionLoading(true);
+
+    try {
+      await dispatch(resumeFormOnServer(form.id));
+      showToast({
+        type: 'success',
+        message: 'Form resumed successfully',
+        duration: 6000,
+      });
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
+      showToast({
+        type: 'error',
+        message: 'Failed to resume form. Try again.',
+        duration: 4500,
+        action: { label: 'Retry', onClick: () => runResumeForm() },
       });
     } finally {
       setActionLoading(false);
@@ -475,14 +496,25 @@ function AnalyticsSettingsPanel({ form }) {
                     Temporarily stop accepting new responses. You can resume anytime.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  disabled={formPaused || actionLoading}
-                  onClick={() => setPauseModalOpen(true)}
-                  className="shrink-0 rounded-[8px] border border-[#ea580c] px-3 py-2 text-[12px] font-medium text-[#c2410c] transition-colors hover:bg-[#fff7ed] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {formPaused ? 'Form paused' : 'Pause form'}
-                </button>
+                {formPaused ? (
+                  <button
+                    type="button"
+                    disabled={actionLoading}
+                    onClick={runResumeForm}
+                    className="shrink-0 rounded-[8px] border border-[#16a34a] bg-[#16a34a] px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-[#15803d] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Resume form
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={actionLoading}
+                    onClick={() => setPauseModalOpen(true)}
+                    className="shrink-0 rounded-[8px] border border-[#ea580c] px-3 py-2 text-[12px] font-medium text-[#c2410c] transition-colors hover:bg-[#fff7ed] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Pause form
+                  </button>
+                )}
               </div>
               <div className="border-t border-[#fce4e4] pt-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">

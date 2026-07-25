@@ -3,6 +3,7 @@ import { writeUserForms } from '@/features/forms/utils/userFormsStorage';
 import { writeAllFormResponses } from '@/features/forms/utils/formResponsesStorage';
 import { writeWorkspaces, syncWorkspaceCounts } from '@/features/forms/utils/workspacesStorage';
 import { writeFormsUi } from '@/features/forms/utils/formsUiStorage';
+import { writeStoredPauseSettings } from '@/features/forms/utils/pauseSettingsStorage';
 
 const FORMS_ACTIONS = new Set([
   'forms/addForm',
@@ -38,6 +39,14 @@ const persistFormsSlice = (formsState) => {
     writeAllFormResponses(formsState.responsesByFormId ?? {});
     writeWorkspaces(syncWorkspaceCounts(formsState.workspaces, formsState.forms));
   }
+  // Always persist pause settings for every form (survives hard refresh in API mode)
+  formsState.forms.forEach((form) => {
+    if (form.pauseSettings) {
+      writeStoredPauseSettings(form.id, form.pauseSettings, form.ownerEmail);
+    } else {
+      writeStoredPauseSettings(form.id, null);
+    }
+  });
   writeFormsUi({
     activeFilter: formsState.activeFilter,
     activeWorkspace: formsState.activeWorkspace,
