@@ -6,7 +6,9 @@ const LOCAL_DEV_TOKEN = 'local-dev-session';
 
 function storeLocalDevToken(email) {
   if (typeof window !== 'undefined') {
-    localStorage.setItem(TOKEN_KEY, `${LOCAL_DEV_TOKEN}:${email}`);
+    const val = `${LOCAL_DEV_TOKEN}:${email}`;
+    localStorage.setItem(TOKEN_KEY, val);
+    sessionStorage.setItem(TOKEN_KEY, val);
   }
 }
 

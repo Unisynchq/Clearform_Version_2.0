@@ -95,6 +95,7 @@ function waitForFirebaseAuthInit() {
 async function storeToken(user) {
   const token = await user.getIdToken();
   sessionStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(TOKEN_KEY, token);
 }
 
 function parseDisplayName(displayName) {
@@ -409,6 +410,20 @@ export async function signInWithEmail(email, password) {
   } catch (error) {
     try {
       const user = await localSignInWithEmail(email, password);
+      // Attempt backend API login to fetch production JWT token
+      try {
+        const authData = await apiClient('/auth/login', {
+          method: 'POST',
+          body: { email, password },
+          skipAuth: true,
+        });
+        if (authData?.accessToken) {
+          sessionStorage.setItem(TOKEN_KEY, authData.accessToken);
+          localStorage.setItem(TOKEN_KEY, authData.accessToken);
+        }
+      } catch {
+        // Fallback to local dev session token
+      }
       const payload = { ...user, user: null };
       captureAuthAnalytics(payload, null, {
         isNewUser: false,
@@ -449,6 +464,20 @@ export async function signUpWithEmail(email, password, firstName, lastName) {
   } catch (error) {
     try {
       const user = await localSignUpWithEmail(email, password, firstName, lastName);
+      // Attempt backend API register to fetch production JWT token
+      try {
+        const authData = await apiClient('/auth/register', {
+          method: 'POST',
+          body: { email, password, firstName, lastName },
+          skipAuth: true,
+        });
+        if (authData?.accessToken) {
+          sessionStorage.setItem(TOKEN_KEY, authData.accessToken);
+          localStorage.setItem(TOKEN_KEY, authData.accessToken);
+        }
+      } catch {
+        // Fallback to local dev session token
+      }
       const payload = { ...user, user: null };
       captureAuthAnalytics(payload, null, {
         isNewUser: true,

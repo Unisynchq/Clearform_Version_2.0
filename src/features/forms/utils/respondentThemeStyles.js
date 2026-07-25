@@ -47,7 +47,7 @@ export function resolveThemeFromSnapshot(theme) {
   const cardOpacity = typeof theme.cardOpacity === 'number' ? theme.cardOpacity : 74;
   const cardColor = cardImage ? cardColorRaw : hexToRgba(cardColorRaw, cardOpacity);
   const textColor = theme.textColor ?? DEFAULTS.textColor;
-  const accentColor = DEFAULT_BUTTON_ACCENT;
+  const accentColor = theme.accentColor ?? DEFAULT_BUTTON_ACCENT;
   const typography = resolveTypography(theme);
 
   return {

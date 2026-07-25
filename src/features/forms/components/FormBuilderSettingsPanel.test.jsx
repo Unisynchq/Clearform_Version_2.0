@@ -6,6 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 import uiReducer from '@/store/slices/uiSlice';
 import authReducer from '@/store/slices/authSlice';
 import toastReducer from '@/store/slices/toastSlice';
+import formsReducer from '@/store/slices/formsSlice';
 import FormBuilderSettingsPanel from './FormBuilderSettingsPanel';
 
 const mockNavigate = vi.fn();
@@ -43,8 +44,11 @@ const baseProps = {
 
 function renderPanel(overrides = {}) {
   const store = configureStore({
-    reducer: { ui: uiReducer, auth: authReducer, toast: toastReducer },
-    preloadedState: { auth: { email: 'test@example.com' } },
+    reducer: { ui: uiReducer, auth: authReducer, toast: toastReducer, forms: formsReducer },
+    preloadedState: { 
+      auth: { email: 'test@example.com' },
+      forms: { forms: [], workspaces: [] }
+    },
   });
   return render(
     <Provider store={store}>

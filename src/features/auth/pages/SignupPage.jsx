@@ -76,7 +76,7 @@ const InputField = memo(({ label, required, type = 'text', placeholder, value, o
           id={name}
           type={isPassword && showPassword ? 'text' : type}
           name={name}
-          value={value}
+          value={value ?? ''}
           onChange={onChange}
           placeholder={placeholder}
           autoComplete={isPassword ? 'new-password' : name === 'email' ? 'email' : 'given-name'}
@@ -87,9 +87,11 @@ const InputField = memo(({ label, required, type = 'text', placeholder, value, o
         {isPassword && (
           <button
             type="button"
+            tabIndex={-1}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => setShowPassword((v) => !v)}
             aria-label={showPassword ? 'Hide password' : 'Show password'}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#a8a6a0] hover:text-[#6b6966] transition-colors cursor-pointer"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#a8a6a0] hover:text-[#6b6966] transition-colors cursor-pointer p-1"
           >
             {showPassword ? <RiEyeOffLine size={16} /> : <RiEyeLine size={16} />}
           </button>
@@ -112,7 +114,7 @@ const NameField = memo(({ id, label, name, value, onChange, placeholder, autoCom
         id={id}
         type="text"
         name={name}
-        value={value}
+        value={value ?? ''}
         onChange={onChange}
         placeholder={placeholder}
         autoComplete={autoComplete}

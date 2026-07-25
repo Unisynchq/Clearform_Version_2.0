@@ -12,13 +12,14 @@ import { readPersistedForms } from '@/features/forms/utils/userFormsStorage';
 import { trackFormCreated } from '@/analytics/track';
 
 /**
- * Forms API facade — today reads/writes localStorage when API is not configured.
- * Swap implementations per method when backend is live (keep return shapes stable).
+ * Forms API facade — reads/writes localStorage only when API is not configured.
+ * When API is configured, the database is the single source of truth.
  */
 
-export async function listForms() {
+export async function listForms(status) {
   if (isApiConfigured()) {
-    return apiClient(API_ENDPOINTS.forms.list);
+    const url = status ? `${API_ENDPOINTS.forms.list}?status=${status}` : API_ENDPOINTS.forms.list;
+    return apiClient(url);
   }
   return readPersistedForms();
 }
@@ -74,6 +75,41 @@ export async function deleteForm(formId) {
   return null;
 }
 
+export async function pauseForm(formId, isPaused) {
+  if (isApiConfigured() && typeof formId !== 'number') {
+    return apiClient(`${API_ENDPOINTS.forms.list}/${formId}/pause`, {
+      method: 'PATCH',
+      body: { isPaused },
+    });
+  }
+  return null;
+}
+
+export async function getTrashForms() {
+  if (isApiConfigured()) {
+    return apiClient(API_ENDPOINTS.forms.trash);
+  }
+  return [];
+}
+
+export async function restoreForm(formId) {
+  if (isApiConfigured() && typeof formId !== 'number') {
+    return apiClient(`${API_ENDPOINTS.forms.list}/${formId}/restore`, {
+      method: 'PATCH',
+    });
+  }
+  return null;
+}
+
+export async function permanentDeleteForm(formId) {
+  if (isApiConfigured() && typeof formId !== 'number') {
+    return apiClient(`${API_ENDPOINTS.forms.list}/${formId}/permanent`, {
+      method: 'DELETE',
+    });
+  }
+  return null;
+}
+
 export async function getBuilderSnapshot(formId) {
   if (isApiConfigured() && typeof formId !== 'number') {
     return apiClient(API_ENDPOINTS.forms.builderSnapshot(formId));
@@ -109,18 +145,24 @@ export async function publishForm(formId, snapshot) {
 
 export async function getPublishedForm(formId) {
   if (isApiConfigured() && typeof formId !== 'number') {
-    const cached = readPublishedFormSessionCache(formId);
     try {
       const fresh = await apiClient(API_ENDPOINTS.forms.published(formId));
+      // If form is paused, clear any cached snapshot so we never serve stale data
+      if (fresh?._paused === true || fresh?.isPaused === true) {
+        clearPublishedFormSessionCache(formId);
+        return fresh?.snapshot ?? fresh;
+      }
+      // Cache live snapshot for performance (cleared on publish/unpublish/pause)
       if (fresh?.screens?.length) {
         writePublishedFormSessionCache(formId, fresh);
-        return fresh;
       }
+      return fresh;
     } catch (err) {
-      if (cached?.snapshot) return cached.snapshot;
+      // On network error, try session cache (not paused, not stale)
+      const cached = readPublishedFormSessionCache(formId);
+      if (cached?.snapshot && !cached.snapshot._paused) return cached.snapshot;
       throw err;
     }
-    return cached?.snapshot ?? null;
   }
   return readPublishedForm(formId);
 }
