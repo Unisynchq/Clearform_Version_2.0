@@ -35,7 +35,7 @@ export class FormsController {
     @Body() createFormDto: CreateFormDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.formsService.create(createFormDto, user.id);
+    return this.formsService.create(createFormDto, user.id, user.email);
   }
 
   @Get()

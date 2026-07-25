@@ -37,4 +37,9 @@ export class CreateFormDto {
   @IsOptional()
   @MaxLength(100)
   iconGradient?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(255)
+  ownerEmail?: string;
 }

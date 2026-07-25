@@ -36,7 +36,11 @@ export type PublicFormRenderResult = {
 };
 
 type FormWithIncludes = Prisma.FormGetPayload<{
-  include: { settings: true; _count: { select: { responses: true } } };
+  include: {
+    settings: true;
+    _count: { select: { responses: true } };
+    owner: { select: { email: true } };
+  };
 }>;
 
 function timeAgo(date: Date): string {
@@ -49,14 +53,15 @@ function timeAgo(date: Date): string {
   return `${Math.floor(s / 2592000)}mo ago`;
 }
 
-function serializeForm(form: FormWithIncludes) {
-  const { _count, workspaceId, ...rest } = form;
+function serializeForm(form: FormWithIncludes, ownerEmail?: string) {
+  const { _count, owner, workspaceId, ...rest } = form;
   return {
     ...rest,
     status: form.status.toLowerCase(),
     workspace: workspaceId ?? null,
     responses: _count.responses,
     timeAgo: timeAgo(new Date(form.updatedAt)),
+    ownerEmail: ownerEmail ?? owner?.email ?? '',
   };
 }
 
@@ -234,8 +239,9 @@ export class FormsService {
     return snapshot;
   }
 
-  async create(createFormDto: CreateFormDto, userId: string) {
-    const { workspaceId, ...formData } = createFormDto;
+  async create(createFormDto: CreateFormDto, userId: string, ownerEmail?: string) {
+    const { workspaceId, ownerEmail: _dtoOwnerEmail, ...formData } = createFormDto;
+    const resolvedOwnerEmail = ownerEmail || _dtoOwnerEmail || '';
     const resolvedWorkspaceId = await this.resolveWorkspaceId(
       workspaceId,
       userId,
@@ -262,10 +268,11 @@ export class FormsService {
             responses: { where: { status: { not: ResponseStatus.ABANDONED } } },
           },
         },
+        owner: { select: { email: true } },
       },
     });
     if (recentDuplicate) {
-      return serializeForm(recentDuplicate);
+      return serializeForm(recentDuplicate, resolvedOwnerEmail);
     }
 
     const form = await this.prisma.form.create({
@@ -282,9 +289,10 @@ export class FormsService {
             responses: { where: { status: { not: ResponseStatus.ABANDONED } } },
           },
         },
+        owner: { select: { email: true } },
       },
     });
-    return serializeForm(form);
+    return serializeForm(form, resolvedOwnerEmail);
   }
 
   async findAll(
@@ -314,9 +322,10 @@ export class FormsService {
             responses: { where: { status: { not: ResponseStatus.ABANDONED } } },
           },
         },
+        owner: { select: { email: true } },
       },
     });
-    return forms.map(serializeForm);
+    return forms.map((f) => serializeForm(f));
   }
 
   private async findOneRaw(id: string, userId: string) {
@@ -343,6 +352,7 @@ export class FormsService {
             responses: { where: { status: { not: ResponseStatus.ABANDONED } } },
           },
         },
+        owner: { select: { email: true } },
       },
     }) as Promise<FormWithIncludes>;
   }
@@ -375,6 +385,7 @@ export class FormsService {
             responses: { where: { status: { not: ResponseStatus.ABANDONED } } },
           },
         },
+        owner: { select: { email: true } },
       },
     });
     await this.evictRenderCache(id);
@@ -415,6 +426,7 @@ export class FormsService {
             responses: { where: { status: { not: ResponseStatus.ABANDONED } } },
           },
         },
+        owner: { select: { email: true } },
       },
     });
     return serializeForm(copy);
@@ -510,6 +522,7 @@ export class FormsService {
             responses: { where: { status: { not: ResponseStatus.ABANDONED } } },
           },
         },
+        owner: { select: { email: true } },
       },
     });
     await Promise.all([
@@ -556,6 +569,7 @@ export class FormsService {
             responses: { where: { status: { not: ResponseStatus.ABANDONED } } },
           },
         },
+        owner: { select: { email: true } },
       },
     });
     await Promise.all([
