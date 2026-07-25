@@ -10,11 +10,12 @@ import {
   completeAuthNavigationAfterSync,
 } from '@/features/onboarding/utils/authOnboarding';
 import {
-  requestPasswordResetEmail,
   signInWithEmail,
+  requestPasswordResetEmail,
   signInWithGoogle,
-  signInWithMicrosoft,
-} from '@/features/auth/services/supabaseAuthService';
+  startMicrosoftSignInRedirect,
+  startMicrosoftSignInPopup,
+} from '@/features/auth/services/firebaseAuthService';
 import AuthFieldError from '@/features/auth/components/AuthFieldError';
 import AuthBrowserTipBanner from '@/features/auth/components/AuthBrowserTipBanner';
 import {

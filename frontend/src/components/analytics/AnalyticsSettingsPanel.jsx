@@ -151,9 +151,6 @@ function AnalyticsSettingsPanel({ form }) {
   const [lifecycle, setLifecycle] = useState(form?.lifecycleMode ?? DEFAULT_LIFECYCLE_MODE);
   const [partial, setPartial] = useState(form?.capturePartialSubmissions ?? true);
 
-  const [completionPct, setCompletionPct] = useState(
-    String(alertSettings.completion.thresholdPct ?? 10),
-  );
   const [milestoneVal, setMilestoneVal] = useState(String(alertSettings.milestone.value ?? 500));
   const [sentimentPct, setSentimentPct] = useState(
     String(alertSettings.sentiment.thresholdPct ?? 1),
@@ -165,7 +162,6 @@ function AnalyticsSettingsPanel({ form }) {
     setLifecycle(form?.lifecycleMode ?? DEFAULT_LIFECYCLE_MODE);
     setPartial(form?.capturePartialSubmissions ?? true);
     const merged = mergeAlertSettings(form?.alertSettings);
-    setCompletionPct(String(merged.completion.thresholdPct ?? 10));
     setMilestoneVal(String(merged.milestone.value ?? 500));
     setSentimentPct(String(merged.sentiment.thresholdPct ?? 1));
   }, [form?.id, form?.title, form?.responseLimit, form?.lifecycleMode, form?.capturePartialSubmissions, form?.alertSettings]);
@@ -402,37 +398,6 @@ function AnalyticsSettingsPanel({ form }) {
             Active alerts appear in your notification center when conditions are met.
           </p>
           <div>
-            <SettingRow
-              label="Completion rate drops below"
-              description="Get notified when completion rate falls under this threshold"
-              control={
-                <div className="flex items-center gap-2">
-                  <input
-                    value={completionPct}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setCompletionPct(v);
-                      patchAlert({
-                        completion: {
-                          ...alertSettings.completion,
-                          thresholdPct: Number(v) || 10,
-                        },
-                      });
-                    }}
-                    className={`${inputBase} h-8 w-20 text-center`}
-                  />
-                  <span className="text-[13px] text-[#6a6860]">%</span>
-                  <div className="pl-2">
-                    <Toggle
-                      checked={alertSettings.completion.enabled}
-                      onChange={(enabled) =>
-                        patchAlert({ completion: { ...alertSettings.completion, enabled } })
-                      }
-                    />
-                  </div>
-                </div>
-              }
-            />
             <SettingRow
               label="Responses hit milestone"
               description="Celebrate when you hit 100, 250, 500, or custom milestones"

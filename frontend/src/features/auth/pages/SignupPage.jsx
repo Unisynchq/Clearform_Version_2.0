@@ -13,7 +13,7 @@ import {
   signUpWithEmail,
   signInWithGoogle,
   startMicrosoftSignInRedirect,
-} from '@/features/auth/services/supabaseAuthService';
+} from '@/features/auth/services/firebaseAuthService';
 import AuthFieldError from '@/features/auth/components/AuthFieldError';
 import AuthBrowserTipBanner from '@/features/auth/components/AuthBrowserTipBanner';
 import {
