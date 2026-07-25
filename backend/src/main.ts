@@ -42,18 +42,31 @@ async function bootstrap() {
     process.env.CORS_ORIGIN ?? 'http://localhost:5174,http://localhost:5173'
   )
     .split(',')
-    .map((s) => s.trim())
+    .map((s) => s.trim().replace(/\/$/, ''))
     .filter(Boolean);
+
+  // Fallbacks to prevent user misconfiguration lockouts
+  const knownOrigins = [
+    'https://change-cf.vercel.app',
+    'https://app.clearform.in',
+    'http://localhost:5173',
+    'http://localhost:5174',
+  ];
+  for (const ko of knownOrigins) {
+    if (!allowedOrigins.includes(ko)) {
+      allowedOrigins.push(ko);
+    }
+  }
 
   app.enableCors({
     origin: (
       origin: string | undefined,
       callback: (err: Error | null, allow?: boolean) => void,
     ) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || allowedOrigins.includes(origin.replace(/\/$/, ''))) {
         callback(null, true);
       } else {
-        callback(new Error('Origin not allowed by CORS'));
+        callback(null, false);
       }
     },
     credentials: true,

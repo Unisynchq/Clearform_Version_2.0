@@ -135,6 +135,16 @@ export async function publishForm(formId, snapshot) {
       method: 'POST',
       body: snapshot,
     });
+    if (result && result.publicUrl && typeof window !== 'undefined') {
+      try {
+        const url = new URL(result.publicUrl);
+        url.protocol = window.location.protocol;
+        url.host = window.location.host;
+        result.publicUrl = url.toString();
+      } catch (e) {
+        // fallback
+      }
+    }
     writePublishedFormSessionCache(formId, snapshot);
     return result;
   }
