@@ -10,7 +10,7 @@ import {
   RiPencilLine, RiEyeLine, RiArchiveLine,
 } from 'react-icons/ri';
 import { closeFormOverlay } from '@/store/slices/uiSlice';
-import { setFormPause, clearFormPause, unarchiveForm, updateForm } from '@/store/slices/formsSlice';
+import { setFormPause, clearFormPause, unarchiveForm, updateForm, pauseFormOnServer, resumeFormOnServer } from '@/store/slices/formsSlice';
 import { updateFormResponseLimit } from '@/api/services/formSettingsService';
 import { isFormPaused } from '../utils/formPause';
 import { formatResponseCount } from '@/constants';
@@ -331,7 +331,7 @@ const FormOverlayModal = () => {
     } else if (selectedPause === 'permanent') {
       endLabel = 'permanently';
     }
-    dispatch(setFormPause({ formId, endLabel, endTimestamp, pauseType: selectedPause, viewYear, viewMonth, selDay, hour, minute, ampm }));
+    dispatch(pauseFormOnServer(formId, { formId, endLabel, endTimestamp, pauseType: selectedPause, viewYear, viewMonth, selDay, hour, minute, ampm }));
     setSelectedPause(null);
   };
 
@@ -536,7 +536,7 @@ const FormOverlayModal = () => {
                 </button>
                 {confirmedPause ? (
                   <button
-                    onClick={() => dispatch(clearFormPause(formId))}
+                    onClick={() => dispatch(resumeFormOnServer(formId))}
                     className="flex items-center gap-1.5 px-3 py-[6px] text-[12px] font-medium text-white bg-[#1a1a1c] rounded-[8px] hover:bg-[#2c2c2e] transition-colors cursor-pointer whitespace-nowrap"
                   >
                     <RiPlayLine size={12} />
@@ -1045,14 +1045,14 @@ const FormOverlayModal = () => {
                       {/* Buttons */}
                       <div className="flex items-center gap-[6px] shrink-0">
                         <button
-                          onClick={() => { dispatch(clearFormPause(formId)); setSelectedPause('custom'); }}
+                          onClick={() => { dispatch(resumeFormOnServer(formId)); setSelectedPause('custom'); }}
                           className="flex items-center gap-[4px] px-[10px] py-[5px] text-[11.5px] font-medium text-[#1a1a1c] border border-[#e5e3dc] rounded-[7px] bg-white hover:bg-[#f4f3ef] transition-colors cursor-pointer"
                         >
                           <RiEditLine size={11} />
                           Edit
                         </button>
                         <button
-                          onClick={() => dispatch(clearFormPause(formId))}
+                          onClick={() => dispatch(resumeFormOnServer(formId))}
                           className="px-[10px] py-[5px] text-[11.5px] font-semibold text-white bg-[#16a34a] rounded-[7px] hover:bg-[#15803d] transition-colors cursor-pointer"
                         >
                           Resume now
@@ -1297,7 +1297,7 @@ const FormOverlayModal = () => {
                               ? parseInt(hour) + 12
                               : ampm === 'AM' && parseInt(hour) === 12 ? 0 : parseInt(hour);
                             const endDate = new Date(viewYear, viewMonth, selDay, h24, parseInt(minute));
-                            dispatch(setFormPause({
+                            dispatch(pauseFormOnServer(formId, {
                               formId,
                               endLabel: label,
                               endTimestamp: endDate.getTime(),

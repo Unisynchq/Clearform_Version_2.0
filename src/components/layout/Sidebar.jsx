@@ -16,6 +16,7 @@ import {
   selectNavWorkspaces,
   selectTotalFormCount,
   clearAllFormFilters,
+  resetFormsState,
 } from '@/store/slices/formsSlice';
 import { logout } from '@/store/slices/authSlice';
 import { signOutUser } from '@/features/auth/services/firebaseAuthService';
@@ -26,6 +27,9 @@ import {
   openWorkspaceContextMenu,
   startSidebarWorkspaceRename,
 } from '@/store/slices/uiSlice';
+import { resetUiState } from '@/store/slices/uiSlice';
+import { clearAllNotifications } from '@/store/slices/notificationsSlice';
+import { useToast } from '@/hooks/useToast';
 import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.png';
 import clearformLogoIcon from '@/assets/clearform-high-resolution-logo-transparent (1).png';
 import SidebarSkeleton from './SidebarSkeleton';
@@ -187,19 +191,25 @@ const Sidebar = ({ hideLogo = false, exit }) => {
     dispatch(openWorkspaceContextMenu({ workspaceId: wsId, x: e.clientX, y: e.clientY }));
   };
 
+  const { showToast } = useToast();
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
   const handleLogoutClick = () => {
     setIsLogoutModalOpen(true);
   };
 
-  const confirmLogout = () => {
+  const confirmLogout = async () => {
+    dispatch(clearAllFormFilters());
+    dispatch(resetFormsState());
+    dispatch(resetUiState());
+    dispatch(clearAllNotifications());
+    dispatch(logout());
     setIsLogoutModalOpen(false);
+    try {
+      await signOutUser();
+    } catch {}
+    showToast({ type: 'info', message: "You've been logged out.", duration: 3000 });
     navigate('/signin', { replace: true, state: null });
-    setTimeout(() => {
-      dispatch(logout());
-      signOutUser();
-    }, 0);
   };
 
   const totalFormCount = useSelector(selectTotalFormCount);

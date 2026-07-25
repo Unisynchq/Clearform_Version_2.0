@@ -6,6 +6,7 @@ import toastReducer from './slices/toastSlice';
 import notificationsReducer from './slices/notificationsSlice';
 import onboardingReducer from './slices/onboardingSlice';
 import { persistAppMiddleware } from './middleware/persistAppMiddleware';
+import { broadcastMiddleware } from './middleware/broadcastMiddleware';
 
 export const store = configureStore({
   reducer: {
@@ -17,5 +18,5 @@ export const store = configureStore({
     onboarding: onboardingReducer,
   },
   middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware().concat(persistAppMiddleware),
+    getDefaultMiddleware().concat(persistAppMiddleware, broadcastMiddleware),
 });

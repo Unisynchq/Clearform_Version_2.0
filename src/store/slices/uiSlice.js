@@ -314,6 +314,9 @@ const uiSlice = createSlice({
     setConfirmModalOpen(state, action) {
       state.confirmModal.open = Boolean(action.payload);
     },
+    resetUiState() {
+      return initialState;
+    },
   },
 });
 
@@ -366,6 +369,7 @@ export const {
   openAnalyticsComparePicker,
   deactivateCompareModeKeepSelection,
   setConfirmModalOpen,
+  resetUiState,
 } = uiSlice.actions;
 
 export default uiSlice.reducer;

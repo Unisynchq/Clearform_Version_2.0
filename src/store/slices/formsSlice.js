@@ -1,7 +1,8 @@
 import { createSlice, createSelector } from '@reduxjs/toolkit';
 import { readPersistedForms, clearUserForms } from '@/features/forms/utils/userFormsStorage';
-import { listForms, patchForm } from '@/api/services/formsService';
+import { listForms, patchForm, getPublishedForm, publishForm } from '@/api/services/formsService';
 import { isApiConfigured } from '@/config/env';
+import { readStoredPauseSettings, writeStoredPauseSettings } from '@/features/forms/utils/pauseSettingsStorage';
 
 import { listWorkspaces } from '@/api/services/workspacesService';
 import {
@@ -205,6 +206,16 @@ const formsSlice = createSlice({
       clearWorkspaces();
       clearFormResponses();
     },
+    resetFormsState(state) {
+      state.forms = [];
+      state.workspaces = [];
+      state.responsesByFormId = {};
+      state.isLoading = false;
+      state.error = null;
+      clearUserForms();
+      clearWorkspaces();
+      clearFormResponses();
+    },
   },
 });
 
@@ -234,6 +245,7 @@ export const {
   clearAdvancedFilters,
   clearAllFormFilters,
   resetFormsForOnboarding,
+  resetFormsState,
 } = formsSlice.actions;
 
 /** Assign a form to a workspace (or remove from all workspaces). */
@@ -251,13 +263,55 @@ export const assignFormToWorkspace = ({ formId, workspaceId }) => async (dispatc
   );
 };
 
+/** Pause a form on the server, then apply to Redux optimistically. */
+export const pauseFormOnServer = (formId, pausePayload) => async (dispatch) => {
+  // Persist pause state in the published snapshot so it blocks respondents
+  // across devices (the snapshot is publicly readable without auth).
+  try {
+    const published = await getPublishedForm(formId);
+    if (published) {
+      await publishForm(formId, {
+        ...published,
+        _paused: { ...pausePayload, confirmed: true },
+      });
+    }
+  } catch (err) {
+    // Published snapshot pause failed — non-fatal, Redux still applies
+  }
+  dispatch(setFormPause(pausePayload));
+};
+
+/** Resume a form on the server, then apply to Redux optimistically. */
+export const resumeFormOnServer = (formId) => async (dispatch) => {
+  // Remove paused flag from the published snapshot.
+  try {
+    const published = await getPublishedForm(formId);
+    if (published && published._paused) {
+      const { _paused, ...clean } = published;
+      await publishForm(formId, clean);
+    }
+  } catch (err) {
+    // Published snapshot resume failed — non-fatal
+  }
+  dispatch(clearFormPause(formId));
+};
+
 /** Load forms from the API (falls back to localStorage when API not configured). */
 export const loadFormsFromApi = () => async (dispatch) => {
   dispatch(setLoading(true));
   dispatch(setError(null));
   try {
     const forms = await listForms();
-    if (Array.isArray(forms)) dispatch(setForms(forms));
+    if (Array.isArray(forms)) {
+      const merged = forms.map((f) => {
+        const stored = readStoredPauseSettings(f.id);
+        if (stored?.pauseSettings?.confirmed) {
+          return { ...f, pauseSettings: stored.pauseSettings };
+        }
+        return f;
+      });
+      dispatch(setForms(merged));
+    }
   } catch (err) {
     const msg = err?.message || 'Failed to load forms from server';
     dispatch(setError(msg));

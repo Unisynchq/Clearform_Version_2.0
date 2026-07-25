@@ -18,7 +18,7 @@ export const clearWorkspaces = () => {
 /** Forms included in sidebar / workspace badges (archived forms are excluded). */
 export const countNavForms = (forms, { workspaceId } = {}) =>
   forms.filter((f) => {
-    if (f.status === 'archived') return false;
+    if (f.status === 'archived' || f.status === 'trash') return false;
     if (workspaceId != null && workspaceId !== 'all') {
       const fw = f.workspace == null || f.workspace === '' ? '' : String(f.workspace);
       return fw === String(workspaceId);

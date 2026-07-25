@@ -2,7 +2,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'motion/react';
 import { RiPauseLine, RiAlertLine } from 'react-icons/ri';
 import { closePauseModal } from '@/store/slices/uiSlice';
-import { setFormPause } from '@/store/slices/formsSlice';
+import { pauseFormOnServer } from '@/store/slices/formsSlice';
 import { buildOneDayPausePayload } from '../utils/formPause';
 
 const PauseFormModal = () => {
@@ -11,7 +11,7 @@ const PauseFormModal = () => {
 
   const handlePause = () => {
     if (formId) {
-      dispatch(setFormPause(buildOneDayPausePayload(formId)));
+      dispatch(pauseFormOnServer(formId, buildOneDayPausePayload(formId)));
     }
     dispatch(closePauseModal());
   };

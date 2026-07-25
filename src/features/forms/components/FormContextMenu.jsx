@@ -25,7 +25,7 @@ import {
   openCompareMode,
   openAssignFormWorkspaceModal,
 } from '@/store/slices/uiSlice';
-import { clearFormPause } from '@/store/slices/formsSlice';
+import { resumeFormOnServer } from '@/store/slices/formsSlice';
 import { isFormPaused } from '../utils/formPause';
 import { getFormBuilderState } from '../utils/formBuilderNavigation';
 import { navigateToFormBuilder } from '../utils/navigateToFormBuilder';
@@ -93,7 +93,7 @@ const FormContextMenu = () => {
       dispatch(closeContextMenu());
     } else if (itemId === 'pause') {
       if (isFormPaused(form)) {
-        dispatch(clearFormPause(formId));
+        dispatch(resumeFormOnServer(formId));
       } else {
         dispatch(openPauseModal({ formId, formTitle: form?.title ?? '' }));
       }

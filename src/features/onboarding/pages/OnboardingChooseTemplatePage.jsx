@@ -35,6 +35,7 @@ const OnboardingChooseTemplatePage = () => {
   const step = useSelector(selectOnboardingStep);
   const selectedTemplateId = useSelector((s) => s.onboarding.selectedTemplateId);
   const workspaces = useSelector(selectNavWorkspaces);
+  const userEmail = useSelector((s) => s.auth.email);
 
   useEffect(() => {
     if (step < 1) {
@@ -118,6 +119,7 @@ const OnboardingChooseTemplatePage = () => {
           gradientTo: newForm.gradientTo,
           overlayColor: newForm.overlayColor,
           iconGradient: newForm.iconGradient,
+          ownerEmail: userEmail || '',
         });
         formId = created.id;
         setPendingFormId(formId);
@@ -137,6 +139,7 @@ const OnboardingChooseTemplatePage = () => {
         workspace: effectiveWorkspaceId,
         id: formId,
         ...(builderSnapshot ? { builderSnapshot: { ...builderSnapshot, formId } } : {}),
+        ownerEmail: userEmail || '',
       }),
     );
     dispatch(setOnboardingStep(3));
@@ -191,6 +194,7 @@ const OnboardingChooseTemplatePage = () => {
           gradientTo: blankForm.gradientTo,
           overlayColor: blankForm.overlayColor,
           iconGradient: blankForm.iconGradient,
+          ownerEmail: userEmail || '',
         });
         formId = created.id;
         setPendingFormId(formId);
@@ -200,7 +204,7 @@ const OnboardingChooseTemplatePage = () => {
       }
     }
 
-    const newForm = { ...blankForm, id: formId, workspace: effectiveWorkspaceId };
+    const newForm = { ...blankForm, id: formId, workspace: effectiveWorkspaceId, ownerEmail: userEmail || '' };
     dispatch(addForm(newForm));
     dispatch(setOnboardingStep(3));
     navigateToFormBuilder(

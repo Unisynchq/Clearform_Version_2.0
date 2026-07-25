@@ -1,6 +1,6 @@
 /** Score 0–4 for the four-segment strength meter. */
 export function getPasswordStrength(password) {
-  if (!password) return { level: 0, label: '', badgeLabel: 'Strong' };
+  if (!password) return { level: 0, label: '', badgeLabel: '' };
 
   let score = 0;
   if (password.length >= 8) score += 1;
@@ -47,12 +47,16 @@ export function strengthTextColor(level) {
 
 export { getDefaultSessions } from '@/features/profile/utils/currentDeviceSession';
 
-export function formatPasswordLastChanged(timestamp, hasPassword = true) {
+export function formatPasswordLastChanged(timestamp, hasPassword = true, accountCreatedAt) {
   if (!hasPassword) {
     return 'No password set';
   }
   if (!timestamp) {
-    return 'Set recently';
+    if (accountCreatedAt) {
+      timestamp = accountCreatedAt;
+    } else {
+      return 'Set recently';
+    }
   }
   const date = new Date(timestamp);
   if (isNaN(date.getTime())) {

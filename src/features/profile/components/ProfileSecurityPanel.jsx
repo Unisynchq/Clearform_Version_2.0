@@ -33,7 +33,10 @@ import {
   hasStoredPassword,
   verifyCurrentPassword,
 } from '@/features/profile/utils/profileValidation';
-import { persistAccountPassword } from '@/features/auth/utils/userAccountsStorage';
+import {
+  persistAccountPassword,
+  getUserAccountByEmail,
+} from '@/features/auth/utils/userAccountsStorage';
 import {
   requestPasswordResetEmail,
   updateUserPasswordInFirebase,
@@ -194,10 +197,14 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
 
   const securitySettings = readSecuritySettings(email);
   const passwordLastChanged = securitySettings?.passwordLastChanged;
+  const userAccount = useMemo(
+    () => getUserAccountByEmail(email),
+    [email]
+  );
 
   const lastChangedText = useMemo(
-    () => formatPasswordLastChanged(passwordLastChanged, accountHasPassword),
-    [passwordLastChanged, accountHasPassword]
+    () => formatPasswordLastChanged(passwordLastChanged, accountHasPassword, userAccount?.updatedAt),
+    [passwordLastChanged, accountHasPassword, userAccount?.updatedAt]
   );
 
   const hydrateSessions = useCallback(() => {
@@ -429,8 +436,8 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
               {lastChangedText} · Choose a strong, unique password
             </p>
           </div>
-          {!incorrectCurrent ? (
-            <StrengthBadge label={newPassword ? strength.badgeLabel : accountHasPassword ? 'Strong' : 'None'} />
+          {!incorrectCurrent && newPassword && strength.badgeLabel ? (
+            <StrengthBadge label={strength.badgeLabel} />
           ) : null}
         </div>
 
