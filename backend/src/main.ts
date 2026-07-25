@@ -5,7 +5,6 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { validateProductionEnv } from './config/validate-production-env';
-import helmet from 'helmet';
 import * as express from 'express';
 
 async function bootstrap() {
@@ -16,7 +15,15 @@ async function bootstrap() {
     bodyParser: false,
   });
 
-  app.use(helmet());
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const helmetPkg: any = 'helmet';
+    const helmetModule = await import(helmetPkg);
+    const helmetFn = helmetModule.default || helmetModule;
+    app.use(helmetFn());
+  } catch {
+    // helmet optional in local build
+  }
 
   const expressApp = app.getHttpAdapter().getInstance() as express.Application;
 

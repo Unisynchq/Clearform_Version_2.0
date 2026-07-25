@@ -208,11 +208,21 @@ export class AuthService {
     this.logger.log(`Password changed for user ${userId}`);
   }
 
+  async checkEmailAvailable(email: string): Promise<boolean> {
+    return this.usersService.checkEmailAvailable(email);
+  }
+
+  async checkUsernameAvailable(username: string): Promise<boolean> {
+    return this.usersService.checkUsernameAvailable(username);
+  }
+
   serializeUserProfile(profile: {
     id: string;
     email: string;
+    username?: string | null;
     firstName: string;
     lastName: string;
+    timezone?: string;
     avatarUrl?: string | null;
     passwordHash?: string;
     passwordLastChangedAt?: Date | null;
@@ -229,8 +239,10 @@ export class AuthService {
     return {
       id: profile.id,
       email: profile.email,
+      username: profile.username ?? null,
       firstName: profile.firstName,
       lastName: profile.lastName,
+      timezone: profile.timezone ?? 'UTC',
       avatarUrl: profile.avatarUrl ?? null,
       hasPassword,
       passwordLastChangedAt: profile.passwordLastChangedAt ?? null,

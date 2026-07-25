@@ -17,9 +17,12 @@ describe('AuthService - Security Tests', () => {
   const mockUser = {
     id: 'user-1',
     email: 'test@example.com',
+    username: 'testuser',
     firstName: 'Test',
     lastName: 'User',
+    timezone: 'UTC',
     passwordHash: '',
+    deletedAt: null,
     avatarUrl: null,
     onboardingCompletedAt: null,
     passwordLastChangedAt: null,

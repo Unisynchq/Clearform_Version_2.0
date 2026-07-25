@@ -32,6 +32,8 @@ import { GlobalExceptionFilter } from './common/exceptions/global-exception.filt
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { TokenBlacklistService } from './redis/redis-token-blacklist.service';
 
+import { CleanupTaskService } from './common/tasks/cleanup.service';
+
 @Module({
   imports: [
     ...(sentryEnabled ? [SentryModule.forRoot()] : []),
@@ -75,6 +77,7 @@ import { TokenBlacklistService } from './redis/redis-token-blacklist.service';
   controllers: [AppController],
   providers: [
     AppService,
+    CleanupTaskService,
     TokenBlacklistService,
     {
       provide: APP_FILTER,

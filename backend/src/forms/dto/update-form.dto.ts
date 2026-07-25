@@ -2,6 +2,7 @@ import {
   IsString,
   IsOptional,
   IsEnum,
+  IsBoolean,
   MaxLength,
   Validate,
 } from 'class-validator';
@@ -17,6 +18,10 @@ export class UpdateFormDto {
   @IsEnum(FormStatus)
   @IsOptional()
   status?: FormStatus;
+
+  @IsBoolean()
+  @IsOptional()
+  isPaused?: boolean;
 
   @IsString()
   @IsOptional()

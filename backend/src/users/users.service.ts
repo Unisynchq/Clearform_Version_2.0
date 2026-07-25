@@ -20,21 +20,62 @@ export class UsersService {
   ) {}
 
   async create(data: Prisma.UserCreateInput): Promise<User> {
+    const email = data.email ? data.email.trim().toLowerCase() : data.email;
+    let username = data.username;
+    if (!username && data.firstName) {
+      username = await this.generateUsername(`${data.firstName} ${data.lastName || ''}`);
+    }
     return this.prisma.user.create({
       data: {
         ...data,
-        email: data.email ? data.email.trim().toLowerCase() : data.email,
+        email,
+        username,
       },
     });
   }
 
   async findByEmail(email: string): Promise<User | null> {
     const normalizedEmail = email ? email.trim().toLowerCase() : email;
-    return this.prisma.user.findUnique({ where: { email: normalizedEmail } });
+    return this.prisma.user.findFirst({
+      where: { email: normalizedEmail, deletedAt: null },
+    });
   }
 
   async findById(id: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { id } });
+    return this.prisma.user.findFirst({
+      where: { id, deletedAt: null },
+    });
+  }
+
+  async generateUsername(displayName: string): Promise<string> {
+    let base = displayName
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, '')
+      .substring(0, 20);
+    if (!base) base = 'user';
+
+    let candidate = base;
+    let attempt = 0;
+    while (await this.prisma.user.findUnique({ where: { username: candidate } })) {
+      const suffix = Math.random().toString(36).substring(2, 6);
+      candidate = `${base.substring(0, 15)}_${suffix}`;
+      attempt++;
+      if (attempt > 10) break;
+    }
+    return candidate;
+  }
+
+  async checkEmailAvailable(email: string): Promise<boolean> {
+    const user = await this.findByEmail(email);
+    return !user;
+  }
+
+  async checkUsernameAvailable(username: string): Promise<boolean> {
+    const normalized = username.trim().toLowerCase();
+    const user = await this.prisma.user.findFirst({
+      where: { username: normalized },
+    });
+    return !user;
   }
 
   /**
@@ -62,11 +103,14 @@ export class UsersService {
       return this.linkLegacyUserToFirebaseUid(existingByEmail, payload);
     }
 
+    const username = await this.generateUsername(`${firstName} ${lastName}`);
+
     try {
       const created = await this.prisma.user.create({
         data: {
           id,
           email,
+          username,
           firstName,
           lastName,
           passwordHash: '',
@@ -92,7 +136,19 @@ export class UsersService {
   }
 
   async deleteById(userId: string): Promise<void> {
-    await this.prisma.user.delete({ where: { id: userId } });
+    // Soft delete user & cascade delete their forms, responses, notifications
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { deletedAt: new Date() },
+      }),
+      this.prisma.form.deleteMany({
+        where: { ownerId: userId },
+      }),
+      this.prisma.notification.deleteMany({
+        where: { userId },
+      }),
+    ]);
   }
 
   async updateProfile(
@@ -101,13 +157,17 @@ export class UsersService {
       firstName?: string;
       lastName?: string;
       email?: string;
+      username?: string;
+      timezone?: string;
       avatarUrl?: string | null;
     },
   ): Promise<User> {
     const patch: Prisma.UserUpdateInput = {};
     if (data.firstName !== undefined) patch.firstName = data.firstName;
     if (data.lastName !== undefined) patch.lastName = data.lastName;
-    if (data.email !== undefined) patch.email = data.email;
+    if (data.email !== undefined) patch.email = data.email.trim().toLowerCase();
+    if (data.username !== undefined) patch.username = data.username.trim().toLowerCase();
+    if (data.timezone !== undefined) patch.timezone = data.timezone;
     if (data.avatarUrl !== undefined) patch.avatarUrl = data.avatarUrl;
     return this.prisma.user.update({
       where: { id: userId },

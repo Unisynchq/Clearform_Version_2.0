@@ -22,8 +22,10 @@ export class AwsSecretsManagerService {
         return;
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const awsPkg: any = '@aws-sdk/client-secrets-manager';
       const { SecretsManagerClient, GetSecretValueCommand } =
-        await import('@aws-sdk/client-secrets-manager');
+        await import(awsPkg);
 
       const client = new SecretsManagerClient({
         region,

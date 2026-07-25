@@ -7,7 +7,14 @@ import { isApiConfigured } from '@/config/env';
  */
 export async function fetchMe() {
   if (!isApiConfigured()) return null;
-  return apiClient(API_ENDPOINTS.auth.me);
+  try {
+    return await apiClient(API_ENDPOINTS.auth.me);
+  } catch (err) {
+    if (err?.status === 401) {
+      return null;
+    }
+    throw err;
+  }
 }
 
 export async function markOnboardingCompleteOnServer() {

@@ -9,10 +9,13 @@ datasource db {
 model User {
   id                    String           @id @default(uuid())
   email                 String           @unique
+  username              String?          @unique
   firstName             String
   lastName              String
+  timezone              String           @default("UTC")
   passwordHash          String           @default("")
   createdAt             DateTime         @default(now())
+  deletedAt             DateTime?        @map("deleted_at")
   onboardingCompletedAt DateTime?
   avatarUrl             String?
   passwordLastChangedAt DateTime?
@@ -148,6 +151,10 @@ model Form {
   id                     String         @id @default(uuid())
   title                  String
   status                 FormStatus     @default(DRAFT)
+  isPaused               Boolean        @default(false) @map("is_paused")
+  pausedAt               DateTime?      @map("paused_at")
+  deletedAt              DateTime?      @map("deleted_at")
+  permanentDeleteAt      DateTime?      @map("permanent_delete_at")
   workspaceId            String?
   ownerId                String
   gradientFrom           String         @default("#6366f1")

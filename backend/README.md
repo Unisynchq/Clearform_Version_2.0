@@ -1,112 +1,97 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Clearforms - Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+This is the backend API for Clearforms, built with NestJS. It provides a robust, scalable, and secure foundation for managing users, workspaces, complex form structures, form submissions, and background processing.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Tech Stack
 
-## Description
+- **Framework**: NestJS (Node.js)
+- **Database ORM**: Prisma
+- **Database Engine**: PostgreSQL (via `@prisma/adapter-pg`)
+- **Queue & Background Jobs**: BullMQ & Redis (ioredis)
+- **Authentication**: JWT, Passport, Firebase Admin, Supabase
+- **Integrations**: AI (Anthropic / AI SDK), Resend (Emails), Razorpay (Billing), AWS Secrets Manager, Composio
+- **Monitoring**: Sentry, NestJS Terminus (Health checks)
+- **Testing**: Jest (Unit & E2E)
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Project Structure
 
-```bash
-$ npm install
+```text
+src/
+├── app.module.ts       # Root module of the application
+├── main.ts             # Application entry point
+├── billing/            # Razorpay integration, subscription management
+├── common/             # Shared guards, decorators, interceptors, and filters
+├── forms/              # Form CRUD, publishing, and pause/archive workflows
+├── prisma/             # Prisma service initialization and configuration
+├── redis/              # Redis connection and caching configuration
+├── responses/          # Form submission handling and response management
+├── users/              # User management and authentication
+└── workspaces/         # Workspace CRUD and access control
 ```
 
-## Firebase Admin SDK Setup
+## Setup & Installation
 
-The backend uses **Firebase Admin SDK** for securing endpoints. It verifies the Firebase ID Token sent from the frontend.
+### Prerequisites
 
-1. Obtain a service account credentials JSON file from the Firebase Console (Project Settings -> Service Accounts -> Generate New Private Key).
-2. Save this JSON file in the root of the `clearform-backend` project directory.
-3. Define the path to this credentials file in your `.env` file via the `FIREBASE_CREDENTIALS_PATH` variable:
+- Node.js (v18 or higher recommended)
+- PostgreSQL database
+- Redis server (required for BullMQ and caching)
+- npm or bun
+
+### Step-by-Step Guide
+
+1. **Install Dependencies**
+   Navigate to the backend directory and install the required packages:
+   ```bash
+   npm install
+   ```
+
+2. **Environment Variables**
+   Create a `.env` file in the root of the `backend` directory. You will need to configure your database connection and other secrets. Example configuration:
    ```env
-   FIREBASE_CREDENTIALS_PATH="your-firebase-credentials.json"
+   # Application
+   PORT=3000
+   NODE_ENV=development
+
+   # Database (Prisma)
+   DATABASE_URL="postgresql://user:password@localhost:5432/clearforms?schema=public"
+
+   # Redis
+   REDIS_URL="redis://localhost:6379"
+
+   # JWT Auth
+   JWT_SECRET="your_jwt_secret"
+   
+   # Add other integration keys (Resend, Razorpay, Supabase, Anthropic) as needed
    ```
-4. Authenticated client requests must pass the Firebase ID Token in the Authorization header:
-   ```http
-   Authorization: Bearer <firebase-id-token>
+
+3. **Database Setup**
+   Apply the Prisma migrations to set up your PostgreSQL schema and generate the Prisma Client:
+   ```bash
+   npx prisma migrate dev
+   npx prisma generate
    ```
-   On the first successful API request, the user's account is automatically provisioned/synchronized in the local PostgreSQL database.
 
-## Compile and run the project
+4. **Start the Server**
+   Start the application in development mode with hot-reloading:
+   ```bash
+   npm run start:dev
+   ```
+   The API will typically be available at `http://localhost:3000`.
 
-```bash
-# development
-$ npm run start
+## Available Scripts
 
-# watch mode
-$ npm run start:dev
+- `npm run start:dev`: Starts the server in watch mode for local development.
+- `npm run build`: Compiles the application into the `dist` folder.
+- `npm run start:prod`: Runs the compiled application in production.
+- `npm run format`: Runs Prettier to format the codebase.
+- `npm run lint`: Runs ESLint to identify and fix code issues.
+- `npm run test`: Runs unit tests using Jest.
+- `npm run test:e2e`: Runs end-to-end tests.
+- `npm run billing:verify-env`: Utility script to verify billing environment configuration.
 
-# production mode
-$ npm run start:prod
-```
+## Architecture Notes
 
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- **Database as Source of Truth**: The backend manages all authoritative state. Endpoints are designed to ensure data consistency, particularly around form status (e.g., Live, Paused, Archived).
+- **Caching**: Redis is utilized extensively to cache public form configurations, ensuring high performance and minimal database load when rendering live forms to respondents.
+- **Background Processing**: BullMQ is used to handle asynchronous tasks such as AI processing, email notifications, and data exports, ensuring the main API thread remains responsive.

@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -103,10 +104,20 @@ export class ResponsesService {
       include: { settings: true },
     });
 
-    if (!form) throw new NotFoundException('Form not found');
+    if (!form || form.deletedAt != null) {
+      throw new NotFoundException('Form not found or no longer exists');
+    }
 
     if (form.status !== 'LIVE') {
       throw new BadRequestException('Form is not published');
+    }
+
+    if (form.isPaused) {
+      throw new ForbiddenException({
+        success: false,
+        code: 'FORM_PAUSED',
+        message: 'This form is temporarily paused.',
+      });
     }
 
     if (

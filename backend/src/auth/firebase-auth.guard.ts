@@ -70,12 +70,49 @@ export class FirebaseAuthGuard implements CanActivate {
     }
 
     try {
+      const jwtSecret = this.configService.get<string>('JWT_SECRET');
+      if (jwtSecret) {
+        try {
+          const decoded = verify(token, jwtSecret, { algorithms: ['HS256'] }) as {
+            sub?: string;
+            email?: string;
+          };
+          if (decoded.sub) {
+            const dbUser = await this.usersService.findById(decoded.sub);
+            if (dbUser) {
+              request.user = { id: dbUser.id, email: dbUser.email };
+              return true;
+            }
+          }
+        } catch {
+          // fall through to Firebase or Supabase verification
+        }
+      }
+
+      // Try Firebase Admin token verification if available
+      try {
+        const decodedFirebase = await this.firebaseService.getAuth().verifyIdToken(token);
+        if (decodedFirebase?.uid && decodedFirebase?.email) {
+          const names = (decodedFirebase.name || '').split(' ');
+          const dbUser = await this.usersService.findOrCreateFromFirebase({
+            id: decodedFirebase.uid,
+            email: decodedFirebase.email,
+            firstName: names[0] || 'User',
+            lastName: names.slice(1).join(' ') || '',
+          });
+          request.user = { id: dbUser.id, email: decodedFirebase.email, firebaseUid: decodedFirebase.uid };
+          return true;
+        }
+      } catch {
+        // fall through to Supabase token verification
+      }
+
       const supabaseJwtSecret = this.configService.get<string>(
         'SUPABASE_JWT_SECRET',
       );
       if (!supabaseJwtSecret) {
-        this.logger.error('SUPABASE_JWT_SECRET is not configured');
-        throw new UnauthorizedException('Authentication configuration error');
+        this.logger.error('SUPABASE_JWT_SECRET and JWT_SECRET validation failed');
+        throw new UnauthorizedException('Authentication failed');
       }
 
       const decodedToken = verify(token, supabaseJwtSecret, {

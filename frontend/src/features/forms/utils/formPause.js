@@ -2,6 +2,7 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /** True when the form has an active, non-expired pause. */
 export function isFormPaused(form) {
+  if (form?.isPaused === true || form?.status === 'paused') return true;
   const ps = form?.pauseSettings;
   if (!ps?.confirmed) return false;
   if (ps.pauseType === 'permanent' || ps.pauseType === 'indefinite' || !ps.endTimestamp) {

@@ -61,6 +61,22 @@ export class AuthController {
   }
 
   @Public()
+  @Post('check-email')
+  async checkEmail(@Body() body: { email: string }) {
+    if (!body?.email) throw new BadRequestException('Email is required');
+    const available = await this.authService.checkEmailAvailable(body.email);
+    return { available, message: available ? 'Email available' : 'Email already in use' };
+  }
+
+  @Public()
+  @Post('check-username')
+  async checkUsername(@Body() body: { username: string }) {
+    if (!body?.username) throw new BadRequestException('Username is required');
+    const available = await this.authService.checkUsernameAvailable(body.username);
+    return { available, message: available ? 'Username available' : 'Username already in use' };
+  }
+
+  @Public()
   @Throttle({ strict: { limit: 5, ttl: 300_000 } })
   @Post('sign-in')
   async signIn(

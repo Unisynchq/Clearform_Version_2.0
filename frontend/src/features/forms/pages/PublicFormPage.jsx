@@ -1,50 +1,59 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ApiError } from '@/api/client';
-import { getPublishedForm, getForm } from '@/api/services/formsService';
+import { getPublishedForm } from '@/api/services/formsService';
 import { isApiConfigured } from '@/config/env';
 import { readPublishedForm } from '@/features/forms/utils/publishedFormStorage';
 import { readUserForms } from '@/features/forms/utils/userFormsStorage';
-import FormRespondentView from '@/features/forms/components/FormRespondentView';
 import { isFormPaused } from '@/features/forms/utils/formPause';
-import { readStoredPauseSettings } from '@/features/forms/utils/pauseSettingsStorage';
+import FormRespondentView from '@/features/forms/components/FormRespondentView';
 import { RiErrorWarningLine } from 'react-icons/ri';
 
-function PausedModal({ ownerEmail }) {
+function PausedModal({ title, ownerEmail }) {
   return (
-    <div className="min-h-screen bg-[#f4f3ef] flex items-center justify-center p-8">
+    <div className="min-h-screen bg-[#f4f3ef] flex items-center justify-center p-6 select-none">
       <div
-        className="w-full max-w-[500px] bg-white rounded-[18px] shadow-[0_4px_24px_rgba(0,0,0,0.08)] flex flex-col items-center"
-        style={{ padding: '36px 40px 32px' }}
+        className="w-full max-w-[480px] bg-white rounded-[20px] shadow-[0_8px_30px_rgba(0,0,0,0.06)] border border-[#e5e5e0] flex flex-col items-center text-center"
+        style={{ padding: '40px 36px' }}
       >
-        <div className="w-12 h-12 rounded-full bg-[#fff4e5] flex items-center justify-center">
-          <RiErrorWarningLine size={20} className="text-[#f59e0b]" />
+        <div className="w-14 h-14 rounded-full bg-[#fef3c7] text-[#d97706] flex items-center justify-center text-[24px] mb-5">
+          ⏸
         </div>
-        <h1
-          className="mt-6 text-center font-bold text-[#1f2937]"
-          style={{ fontSize: '22px', lineHeight: '1.3' }}
-        >
-          This form is not accepting responses
-        </h1>
-        <p
-          className="mt-4 text-center text-[#6b7280]"
-          style={{ fontSize: '16px', lineHeight: '1.5' }}
-        >
-          Contact the owner of the form for assistance.
-        </p>
-        {ownerEmail ? (
-          <p
-            className="mt-3 text-center text-[#6b7280]"
-            style={{ fontSize: '14px', lineHeight: '1.5' }}
-          >
-            Reach out to <span className="font-semibold text-[#1f2937]">{ownerEmail}</span>
-          </p>
+
+        {title ? (
+          <h2 className="text-[14px] font-semibold text-[#6b7280] tracking-wide uppercase mb-1">
+            {title}
+          </h2>
         ) : null}
-        <p
-          className="mt-6 text-center text-[#6b7280]"
-          style={{ fontSize: '15px', lineHeight: '1.5' }}
-        >
-          Thank you.
+
+        <h1 className="text-[22px] font-bold text-[#111827] leading-tight mb-3">
+          Form Temporarily Paused
+        </h1>
+
+        <p className="text-[15px] text-[#4b5563] leading-relaxed mb-4">
+          This form has been temporarily paused by the author.
+        </p>
+
+        <p className="text-[13.5px] font-medium text-[#6b7280] bg-[#f9fafb] px-4 py-2 rounded-[8px] border border-[#f3f4f6] mb-6">
+          Responses are currently not being accepted.
+        </p>
+
+        {ownerEmail ? (
+          <div className="w-full pt-4 border-t border-[#f3f4f6] flex flex-col items-center gap-1">
+            <span className="text-[12.5px] font-medium text-[#9ca3af]">
+              For assistance, contact:
+            </span>
+            <a
+              href={`mailto:${ownerEmail}`}
+              className="text-[14px] font-semibold text-[#111827] hover:underline"
+            >
+              {ownerEmail}
+            </a>
+          </div>
+        ) : null}
+
+        <p className="text-[12px] text-[#9ca3af] mt-6">
+          Please try again later.
         </p>
       </div>
     </div>
@@ -61,7 +70,21 @@ function BlockedView({ title, detail }) {
 }
 
 /**
- * Public respondent route — loads published snapshot only (no builder draft fallback).
+ * Public respondent route.
+ *
+ * When the API is configured (production), the database is the ONLY source of
+ * truth. We do NOT fall back to localStorage for form status or pause state —
+ * that would allow stale data to bypass DB-enforced rules on a different device
+ * or in incognito.
+ *
+ * Flow (API mode):
+ *   1. Fetch published snapshot from GET /api/v1/forms/:id/published
+ *   2. If response indicates isPaused → render PausedModal
+ *   3. If 404 → form not found / draft / archived → render BlockedView
+ *   4. Otherwise render FormRespondentView with snapshot
+ *
+ * Flow (offline/demo mode — no API):
+ *   Reads from localStorage as before.
  */
 export default function PublicFormPage() {
   const { formId } = useParams();
@@ -80,37 +103,22 @@ export default function PublicFormPage() {
     let cancelled = false;
 
     const loadPublished = () => {
+      // ── API mode ────────────────────────────────────────────────────────
       if (isApiConfigured()) {
         return (async () => {
           try {
-            // 1. Load published form (public endpoint, no auth required)
             const data = await getPublishedForm(formId);
             if (cancelled) return;
 
-            // 2. Check for _paused flag embedded in the published snapshot
-            //    (stored there by pauseFormOnServer/resumeFormOnServer thunks).
-            //    This works cross-device because the snapshot lives on the backend.
-            const pausedMeta = data?._paused;
-            if (pausedMeta?.confirmed && isFormPaused({ pauseSettings: pausedMeta })) {
-              if (!cancelled) {
-                setBlocked('paused');
-                setOwnerEmail(pausedMeta.ownerEmail || '');
-              }
+            // DB is authoritative: check isPaused from the API response only
+            if (data?._paused === true || data?.isPaused === true) {
+              setBlocked('paused');
+              setOwnerEmail(data.ownerEmail || '');
+              if (data.title) setDraft({ title: data.title });
               return;
             }
 
-            // 3. Same-browser fallback — check localStorage bridge
-            const stored = readStoredPauseSettings(formId);
-            const ps = stored?.pauseSettings;
-            if (ps?.confirmed && isFormPaused({ pauseSettings: ps })) {
-              if (!cancelled) {
-                setBlocked('paused');
-                setOwnerEmail(stored.ownerEmail || '');
-              }
-              return;
-            }
-
-            // 4. Not paused — render published form
+            // Render published snapshot if it has screens
             if (data?.screens?.length) {
               setDraft(data);
               setBlocked(null);
@@ -119,13 +127,6 @@ export default function PublicFormPage() {
             }
           } catch (err) {
             if (cancelled) return;
-            // Published endpoint failed — check localStorage as fallback
-            const fallbackStored = readStoredPauseSettings(formId);
-            if (fallbackStored?.pauseSettings?.confirmed) {
-              setBlocked('paused');
-              setOwnerEmail(fallbackStored.ownerEmail || '');
-              return;
-            }
             if (err instanceof ApiError && err.status === 404) {
               setBlocked('not_found');
             } else if (err instanceof ApiError && err.status === 401) {
@@ -139,6 +140,7 @@ export default function PublicFormPage() {
         })();
       }
 
+      // ── Offline/demo mode ────────────────────────────────────────────────
       const numId = Number(formId);
       if (Number.isNaN(numId)) {
         setBlocked('invalid');
@@ -146,16 +148,16 @@ export default function PublicFormPage() {
         return Promise.resolve();
       }
       const forms = readUserForms();
-      const meta = forms.find((f) => Number(f.id) === numId);
+      const meta = forms.find((f) => Number(f.id) === numId || String(f.id) === String(formId));
       if (!meta) {
         setBlocked('not_found');
-      } else if (meta.status !== 'live') {
-        setBlocked('not_live');
-      } else if (meta.pauseSettings?.confirmed && isFormPaused(meta)) {
+      } else if (meta.isPaused || meta.status === 'paused' || (meta.pauseSettings?.confirmed && isFormPaused(meta))) {
         setBlocked('paused');
         setOwnerEmail(meta.ownerEmail || '');
+      } else if (meta.status !== 'live' && meta.status !== 'published') {
+        setBlocked('not_live');
       } else {
-        const published = readPublishedForm(numId);
+        const published = readPublishedForm(formId);
         if (!published?.screens?.length) {
           setBlocked('no_draft');
         } else {
@@ -172,29 +174,21 @@ export default function PublicFormPage() {
 
     if (!isApiConfigured()) return () => { cancelled = true; };
 
+    // Re-check on tab focus / visibility change (handles pause while tab was in background)
     const refreshIfVisible = () => {
       if (document.visibilityState !== 'visible') return;
 
       getPublishedForm(formId).then((data) => {
         if (cancelled) return;
 
-        // Check _paused flag from published snapshot (cross-device)
-        const pausedMeta = data?._paused;
-        if (pausedMeta?.confirmed && isFormPaused({ pauseSettings: pausedMeta })) {
+        // If the form became paused while the user had the tab open, show the paused UI
+        if (data?._paused === true || data?.isPaused === true) {
           setBlocked('paused');
-          setOwnerEmail(pausedMeta.ownerEmail || '');
+          setOwnerEmail(data.ownerEmail || '');
           return;
         }
 
-        // Same-browser localStorage fallback
-        const stored = readStoredPauseSettings(formId);
-        if (stored?.pauseSettings?.confirmed) {
-          setBlocked('paused');
-          setOwnerEmail(stored.ownerEmail || '');
-          return;
-        }
-
-        // Not paused — refresh published content
+        // Refresh published content if it changed
         if (!data?.screens?.length) return;
         setDraft((prev) => {
           if (!prev) return data;
@@ -238,7 +232,7 @@ export default function PublicFormPage() {
   }
 
   if (blocked === 'paused') {
-    return <PausedModal ownerEmail={ownerEmail} />;
+    return <PausedModal title={draft?.title} ownerEmail={ownerEmail} />;
   }
 
   if (blocked === 'invalid' || blocked === 'not_found') {

@@ -69,3 +69,33 @@ export async function deleteFormRequest({ formId, signal, forceFail } = {}) {
   }
   await delay(DEFAULT_MS + Math.random() * 600, signal);
 }
+
+import { restoreForm as restoreFormApi, permanentDeleteForm as permanentDeleteFormApi } from '@/api/services/formsService';
+
+export async function restoreFormRequest({ formId, signal, forceFail } = {}) {
+  if (forceFail ?? shouldFailFormAction()) throw new Error('Failed to restore form');
+  if (isApiConfigured()) {
+    if (!formId) throw new Error('Form id is required');
+    try {
+      return await restoreFormApi(formId);
+    } catch (err) {
+      throw new Error(err?.body?.message ?? err?.message ?? 'Failed to restore form on the server.');
+    }
+  }
+  await delay(DEFAULT_MS + Math.random() * 600, signal);
+}
+
+export async function permanentDeleteFormRequest({ formId, signal, forceFail } = {}) {
+  if (forceFail ?? shouldFailFormAction()) throw new Error('Failed to permanently delete form');
+  if (isApiConfigured()) {
+    if (!formId) throw new Error('Form id is required');
+    try {
+      await permanentDeleteFormApi(formId);
+    } catch (err) {
+      throw new Error(err?.body?.message ?? err?.message ?? 'Failed to permanently delete form on the server.');
+    }
+    clearFormLocalCaches(formId);
+    return;
+  }
+  await delay(DEFAULT_MS + Math.random() * 600, signal);
+}

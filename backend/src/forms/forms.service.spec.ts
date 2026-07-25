@@ -40,6 +40,9 @@ describe('FormsService', () => {
   it('evicts render and analytics caches on publish and unpublish', async () => {
     const prismaMock = {
       form: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ id: 'form-1', ownerId: 'user-1' }),
         findFirst: jest
           .fn()
           .mockResolvedValueOnce(makeForm(FormStatus.DRAFT))

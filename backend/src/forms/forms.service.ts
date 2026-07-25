@@ -200,23 +200,55 @@ export class FormsService {
     }
   }
 
-  async renderFormPublic(id: string): Promise<PublicFormRenderResult> {
-    const cached = await this.readRenderCache(id);
-    if (cached) {
+  async renderFormPublic(id: string): Promise<PublicFormRenderResult & { isPaused?: boolean; ownerEmail?: string; title?: string }> {
+    const form = await this.prisma.form.findUnique({
+      where: { id },
+      select: {
+        title: true,
+        status: true,
+        isPaused: true,
+        publishedSnapshot: true,
+        publishedAt: true,
+        owner: { select: { email: true } },
+      },
+    });
+
+    if (!form || form.status === FormStatus.TRASH) {
+      throw new NotFoundException('Form not found');
+    }
+
+    if (form.status === FormStatus.DRAFT) {
+      throw new NotFoundException('Form not published');
+    }
+
+    if (form.status === FormStatus.ARCHIVED) {
+      throw new NotFoundException('Form unavailable');
+    }
+
+    const ownerEmail = form.owner?.email || '';
+
+    if (form.isPaused) {
+      const pausedSnapshot = { _paused: true, isPaused: true, title: form.title, ownerEmail };
       return {
-        snapshot: cached.snapshot,
-        publishedAt: cached.publishedAt,
-        etag: this.buildRenderEtag(id, cached.publishedAt),
+        snapshot: pausedSnapshot,
+        publishedAt: form.publishedAt?.toISOString() ?? null,
+        etag: this.buildRenderEtag(id, 'paused'),
+        isPaused: true,
+        ownerEmail,
+        title: form.title,
       };
     }
 
-    const form = await this.prisma.form.findUnique({
-      where: { id },
-      select: { status: true, publishedSnapshot: true, publishedAt: true },
-    });
-
-    if (!form || form.status !== FormStatus.LIVE) {
-      throw new NotFoundException('Form not found or not live');
+    const cached = await this.readRenderCache(id);
+    if (cached) {
+      return {
+        snapshot: { ...(cached.snapshot as object), _paused: false, ownerEmail },
+        publishedAt: cached.publishedAt,
+        etag: this.buildRenderEtag(id, cached.publishedAt),
+        isPaused: false,
+        ownerEmail,
+        title: form.title,
+      };
     }
 
     const snapshot = form.publishedSnapshot;
@@ -227,9 +259,12 @@ export class FormsService {
     const publishedAt = form.publishedAt?.toISOString() ?? null;
     await this.writeRenderCache(id, snapshot, form.publishedAt);
     return {
-      snapshot,
+      snapshot: { ...snapshot, _paused: false, ownerEmail },
       publishedAt,
       etag: this.buildRenderEtag(id, publishedAt),
+      isPaused: false,
+      ownerEmail,
+      title: form.title,
     };
   }
 
@@ -363,7 +398,7 @@ export class FormsService {
 
   async update(id: string, updateFormDto: UpdateFormDto, userId: string) {
     await this.findOneRaw(id, userId);
-    const { workspaceId, ...rest } = updateFormDto;
+    const { workspaceId, isPaused, ...rest } = updateFormDto;
     const data: Prisma.FormUpdateInput = { ...rest };
     if (workspaceId !== undefined) {
       if (!workspaceId) {
@@ -374,6 +409,11 @@ export class FormsService {
           data.workspace = { connect: { id: resolved } };
         }
       }
+    }
+    // Handle isPaused via PATCH (same semantics as the dedicated /pause endpoint)
+    if (isPaused !== undefined) {
+      data.isPaused = isPaused;
+      data.pausedAt = isPaused ? new Date() : null;
     }
     const updated = await this.prisma.form.update({
       where: { id },
@@ -442,28 +482,119 @@ export class FormsService {
     return updated;
   }
 
+  async pause(id: string, isPaused: boolean, userId: string) {
+    await this.findOneRaw(id, userId);
+    const updated = await this.prisma.form.update({
+      where: { id },
+      data: {
+        isPaused,
+        pausedAt: isPaused ? new Date() : null,
+      },
+      include: {
+        settings: true,
+        _count: {
+          select: {
+            responses: { where: { status: { not: ResponseStatus.ABANDONED } } },
+          },
+        },
+        owner: { select: { email: true } },
+      },
+    });
+    await this.evictRenderCache(id);
+    return serializeForm(updated);
+  }
+
+  async getTrashForms(userId: string) {
+    const now = new Date();
+    const forms = await this.prisma.form.findMany({
+      where: {
+        ownerId: userId,
+        status: FormStatus.TRASH,
+        deletedAt: { not: null },
+        permanentDeleteAt: { gt: now },
+      },
+      orderBy: { deletedAt: 'desc' },
+      include: {
+        settings: true,
+        _count: {
+          select: {
+            responses: { where: { status: { not: ResponseStatus.ABANDONED } } },
+          },
+        },
+        owner: { select: { email: true } },
+      },
+    });
+
+    return forms.map((f) => {
+      const daysRemaining = f.permanentDeleteAt
+        ? Math.max(0, Math.ceil((f.permanentDeleteAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
+        : 30;
+      return {
+        ...serializeForm(f),
+        daysRemaining,
+      };
+    });
+  }
+
+  async restoreFromTrash(id: string, userId: string) {
+    await this.findOneRaw(id, userId);
+    const updated = await this.prisma.form.update({
+      where: { id },
+      data: {
+        status: FormStatus.DRAFT,
+        deletedAt: null,
+        permanentDeleteAt: null,
+      },
+      include: {
+        settings: true,
+        _count: {
+          select: {
+            responses: { where: { status: { not: ResponseStatus.ABANDONED } } },
+          },
+        },
+        owner: { select: { email: true } },
+      },
+    });
+    return serializeForm(updated);
+  }
+
+  async permanentDelete(id: string, userId: string) {
+    const form = await this.findOneRaw(id, userId);
+    await this.safeEvictRenderCache(id);
+
+    return await this.prisma.$transaction(async (tx) => {
+      await tx.formResponse.deleteMany({ where: { formId: id } });
+      await tx.notification.deleteMany({ where: { formId: id } });
+      if (form.workspaceId) {
+        await this.integrationsService.cleanupFormFromIntegrations(
+          id,
+          form.workspaceId,
+          tx,
+        );
+      }
+      return tx.form.delete({ where: { id } });
+    });
+  }
+
   async remove(id: string, userId: string) {
     const form = await this.findOneRaw(id, userId);
     await this.safeEvictRenderCache(id);
 
     try {
       if (form.status === FormStatus.TRASH) {
-        return await this.prisma.$transaction(async (tx) => {
-          await tx.notification.deleteMany({ where: { formId: id } });
-          // Task 10.2 — clean up per-form integration metadata before hard delete
-          if (form.workspaceId) {
-            await this.integrationsService.cleanupFormFromIntegrations(
-              id,
-              form.workspaceId,
-              tx,
-            );
-          }
-          return tx.form.delete({ where: { id } });
-        });
+        return await this.permanentDelete(id, userId);
       }
+
+      const now = new Date();
+      const permanentDeleteAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
       return await this.prisma.form.update({
         where: { id },
-        data: { status: FormStatus.TRASH },
+        data: {
+          status: FormStatus.TRASH,
+          deletedAt: now,
+          permanentDeleteAt,
+        },
       });
     } catch (err) {
       const code =

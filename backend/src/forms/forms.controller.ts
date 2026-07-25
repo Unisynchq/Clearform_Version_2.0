@@ -41,11 +41,12 @@ export class FormsController {
   @Get()
   findAll(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('status') status?: FormStatus,
+    @Query('status') status?: string,
     @Query('workspaceId') workspaceId?: string,
     @Query('search') search?: string,
   ) {
-    return this.formsService.findAll(user.id, status, workspaceId, search);
+    const enumStatus = status ? (status.toUpperCase() as FormStatus) : undefined;
+    return this.formsService.findAll(user.id, enumStatus, workspaceId, search);
   }
 
   @Public()
@@ -68,6 +69,11 @@ export class FormsController {
     const render = await this.formsService.renderFormPublic(id);
     applyPublicFormCacheHeaders(res, render);
     return render.snapshot;
+  }
+
+  @Get('trash')
+  getTrashForms(@CurrentUser() user: AuthenticatedUser) {
+    return this.formsService.getTrashForms(user.id);
   }
 
   @Get(':id/builder-snapshot')
@@ -122,6 +128,30 @@ export class FormsController {
   @Post(':id/duplicate')
   duplicate(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.formsService.duplicate(id, user.id);
+  }
+
+
+
+  @Patch(':id/pause')
+  pause(
+    @Param('id') id: string,
+    @Body() body: { isPaused: boolean },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.formsService.pause(id, body.isPaused !== false, user.id);
+  }
+
+  @Patch(':id/restore')
+  restore(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.formsService.restoreFromTrash(id, user.id);
+  }
+
+  @Delete(':id/permanent')
+  permanentDelete(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.formsService.permanentDelete(id, user.id);
   }
 
   @Patch(':id/archive')

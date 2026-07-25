@@ -1,8 +1,7 @@
 import { createSlice, createSelector } from '@reduxjs/toolkit';
 import { readPersistedForms, clearUserForms } from '@/features/forms/utils/userFormsStorage';
-import { listForms, patchForm, getPublishedForm, publishForm } from '@/api/services/formsService';
+import { listForms, patchForm, getForm, getTrashForms } from '@/api/services/formsService';
 import { isApiConfigured } from '@/config/env';
-import { readStoredPauseSettings, writeStoredPauseSettings } from '@/features/forms/utils/pauseSettingsStorage';
 
 import { listWorkspaces } from '@/api/services/workspacesService';
 import {
@@ -102,16 +101,20 @@ const formsSlice = createSlice({
       if (form) Object.assign(form, normalizeApiForm({ ...form, ...changes }));
       applyWorkspaceCounts(state);
     },
+    /** @deprecated kept for offline (non-API) mode only */
     setFormPause(state, action) {
       const { formId, endLabel, endTimestamp, pauseType, viewYear, viewMonth, selDay, hour, minute, ampm } = action.payload;
       const form = state.forms.find((f) => f.id === formId);
       if (form) {
+        form.isPaused = true;
         form.pauseSettings = { confirmed: true, endLabel, endTimestamp: endTimestamp ?? null, pauseType, viewYear, viewMonth, selDay, hour, minute, ampm };
       }
     },
+    /** @deprecated kept for offline (non-API) mode only */
     clearFormPause(state, action) {
       const form = state.forms.find((f) => f.id === action.payload);
       if (form) {
+        form.isPaused = false;
         form.pauseSettings = null;
       }
     },
@@ -164,7 +167,7 @@ const formsSlice = createSlice({
     },
     unarchiveForm(state, action) {
       const form = state.forms.find((f) => f.id === action.payload);
-      if (form) form.status = 'live';
+      if (form) form.status = 'draft';
     },
     setAdvancedFilters(state, action) {
       state.advancedFilters = action.payload;
@@ -250,68 +253,170 @@ export const {
 
 /** Assign a form to a workspace (or remove from all workspaces). */
 export const assignFormToWorkspace = ({ formId, workspaceId }) => async (dispatch) => {
-  const normalized =
-    workspaceId ? String(workspaceId) : '';
+  const normalized = workspaceId ? String(workspaceId) : '';
   if (isApiConfigured()) {
-    await patchForm(formId, { workspaceId: normalized || null });
+    try {
+      const updated = await patchForm(formId, { workspaceId: normalized || null });
+      if (updated?.id) {
+        dispatch(updateForm({ id: formId, changes: normalizeApiForm(updated) }));
+        return;
+      }
+    } catch (err) {
+      console.error('[forms] backend workspace assign failed', err);
+    }
   }
-  dispatch(
-    updateForm({
-      id: formId,
-      changes: { workspace: normalized },
-    }),
-  );
+  dispatch(updateForm({ id: formId, changes: { workspace: normalized, workspaceId: normalized } }));
 };
 
-/** Pause a form on the server, then apply to Redux optimistically. */
+/**
+ * Pause a form — updates DB via API and re-fetches the form to sync Redux.
+ * The `pausePayload` is stored for UI display (pause type, end time, etc.)
+ * but `isPaused` truth lives in the database.
+ */
 export const pauseFormOnServer = (formId, pausePayload) => async (dispatch) => {
-  // Persist pause state in the published snapshot so it blocks respondents
-  // across devices (the snapshot is publicly readable without auth).
-  try {
-    const published = await getPublishedForm(formId);
-    if (published) {
-      await publishForm(formId, {
-        ...published,
-        _paused: { ...pausePayload, confirmed: true },
-      });
+  if (isApiConfigured()) {
+    try {
+      // Use the dedicated /pause endpoint (sets isPaused + pausedAt in DB)
+      const updated = await patchForm(formId, { isPaused: true });
+      if (updated?.id) {
+        // Merge pause UI payload into the fresh DB data
+        dispatch(updateForm({
+          id: formId,
+          changes: {
+            ...normalizeApiForm(updated),
+            isPaused: true,
+            pauseSettings: { confirmed: true, ...pausePayload },
+          },
+        }));
+        return;
+      }
+    } catch (err) {
+      console.error('[forms] backend pause failed', err);
     }
-  } catch (err) {
-    // Published snapshot pause failed — non-fatal, Redux still applies
+    // If PATCH returned nothing usable, optimistically update then re-fetch
+    dispatch(setFormPause({ formId, ...pausePayload }));
+    try {
+      const fresh = await getForm(formId);
+      if (fresh?.id) dispatch(updateForm({ id: formId, changes: normalizeApiForm(fresh) }));
+    } catch (_) {}
+    return;
   }
-  dispatch(setFormPause(pausePayload));
+  // Offline mode: apply locally only
+  dispatch(setFormPause({ formId, ...pausePayload }));
 };
 
-/** Resume a form on the server, then apply to Redux optimistically. */
-export const resumeFormOnServer = (formId) => async (dispatch) => {
-  // Remove paused flag from the published snapshot.
-  try {
-    const published = await getPublishedForm(formId);
-    if (published && published._paused) {
-      const { _paused, ...clean } = published;
-      await publishForm(formId, clean);
+/**
+ * Archive a form — updates DB and re-fetches to confirm status.
+ */
+export const archiveFormOnServer = (formId) => async (dispatch) => {
+  if (isApiConfigured()) {
+    try {
+      const updated = await patchForm(formId, { status: 'ARCHIVED' });
+      if (updated?.id) {
+        dispatch(updateForm({ id: formId, changes: normalizeApiForm(updated) }));
+        return;
+      }
+    } catch (err) {
+      console.error('[forms] backend archive failed', err);
     }
-  } catch (err) {
-    // Published snapshot resume failed — non-fatal
   }
+  dispatch(archiveForm(formId));
+};
+
+/**
+ * Unarchive a form — updates DB and re-fetches to confirm status.
+ */
+export const unarchiveFormOnServer = (formId) => async (dispatch) => {
+  if (isApiConfigured()) {
+    try {
+      const updated = await patchForm(formId, { status: 'DRAFT' });
+      if (updated?.id) {
+        dispatch(updateForm({ id: formId, changes: normalizeApiForm(updated) }));
+        return;
+      }
+    } catch (err) {
+      console.error('[forms] backend unarchive failed', err);
+    }
+  }
+  dispatch(unarchiveForm(formId));
+};
+
+/**
+ * Restore a form from the trash — updates DB and re-fetches to confirm status.
+ */
+export const restoreFormOnServer = (formId) => async (dispatch) => {
+  if (isApiConfigured()) {
+    try {
+      const { restoreFormRequest } = await import('@/components/analytics/analyticsFormActions');
+      const updated = await restoreFormRequest({ formId });
+      if (updated?.id) {
+        dispatch(updateForm({ id: formId, changes: normalizeApiForm(updated) }));
+        dispatch(loadFormsFromApi()); // Refresh to ensure tabs are updated
+        return;
+      }
+    } catch (err) {
+      console.error('[forms] backend restore failed', err);
+    }
+  }
+  // Offline fallback (just unarchive logic to move back to drafts)
+  dispatch(unarchiveForm(formId));
+};
+
+/**
+ * Resume a form — updates DB via API and re-fetches the form to sync Redux.
+ */
+export const resumeFormOnServer = (formId) => async (dispatch) => {
+  if (isApiConfigured()) {
+    try {
+      const updated = await patchForm(formId, { isPaused: false });
+      if (updated?.id) {
+        dispatch(updateForm({
+          id: formId,
+          changes: {
+            ...normalizeApiForm(updated),
+            isPaused: false,
+            pauseSettings: null,
+          },
+        }));
+        return;
+      }
+    } catch (err) {
+      console.error('[forms] backend resume failed', err);
+    }
+    // Optimistic fallback
+    dispatch(clearFormPause(formId));
+    try {
+      const fresh = await getForm(formId);
+      if (fresh?.id) dispatch(updateForm({ id: formId, changes: normalizeApiForm(fresh) }));
+    } catch (_) {}
+    return;
+  }
+  // Offline mode
   dispatch(clearFormPause(formId));
 };
 
-/** Load forms from the API (falls back to localStorage when API not configured). */
+/**
+ * Load all forms from the API (active + archived + trash), deduplicating by ID.
+ * Falls back to localStorage when API not configured.
+ * Database is the single source of truth — no localStorage merge for business data.
+ */
 export const loadFormsFromApi = () => async (dispatch) => {
   dispatch(setLoading(true));
   dispatch(setError(null));
   try {
-    const forms = await listForms();
-    if (Array.isArray(forms)) {
-      const merged = forms.map((f) => {
-        const stored = readStoredPauseSettings(f.id);
-        if (stored?.pauseSettings?.confirmed) {
-          return { ...f, pauseSettings: stored.pauseSettings };
-        }
-        return f;
-      });
-      dispatch(setForms(merged));
-    }
+    const [forms, archivedForms, trashForms] = await Promise.all([
+      listForms(),
+      listForms('archived').catch(() => []),
+      getTrashForms().catch(() => []),
+    ]);
+    // Deduplicate by form id — DB data is authoritative, no localStorage merge
+    const map = new Map();
+    [...(Array.isArray(forms) ? forms : []),
+     ...(Array.isArray(archivedForms) ? archivedForms : []),
+     ...(Array.isArray(trashForms) ? trashForms : [])].forEach((f) => {
+       if (f?.id) map.set(String(f.id), f);
+     });
+    dispatch(setForms(Array.from(map.values())));
   } catch (err) {
     const msg = err?.message || 'Failed to load forms from server';
     dispatch(setError(msg));
@@ -346,11 +451,11 @@ const selectResponsesByFormId = (state) => state.forms.responsesByFormId;
 
 /** Workspaces with form counts derived from the live forms list (sidebar, chips). */
 export const selectNavWorkspaces = createSelector(
-  [selectWorkspacesRaw, selectFormsRaw],
-  (workspaces, forms) => syncWorkspaceCounts(workspaces, forms),
+  [selectWorkspacesRaw, selectFormsRaw, selectActiveFilter],
+  (workspaces, forms, activeFilter) => syncWorkspaceCounts(workspaces, forms, activeFilter),
 );
 
-/** Total non-archived forms — matches what users see under “All forms”. */
+/** Total non-archived forms — matches what users see under "All forms". */
 export const selectTotalFormCount = createSelector([selectFormsRaw], (forms) =>
   countNavForms(forms),
 );
@@ -378,10 +483,14 @@ export const selectFilteredForms = createSelector(
     let filtered = forms.filter((form) => {
       const matchesFilter = activeFilter === 'archived'
         ? form.status === 'archived'
-        : (activeFilter === 'all' || form.status === activeFilter) && form.status !== 'archived';
+        : activeFilter === 'trash'
+          ? form.status === 'trash'
+          : (activeFilter === 'all' || form.status === activeFilter) && form.status !== 'archived' && form.status !== 'trash';
       const formWorkspace = form.workspace == null || form.workspace === '' ? '' : String(form.workspace);
       const matchesWorkspace =
-        activeWorkspace === 'all' || formWorkspace === String(activeWorkspace);
+        activeWorkspace === 'all' ||
+        formWorkspace === String(activeWorkspace) ||
+        String(form.workspaceId ?? '') === String(activeWorkspace);
       const matchesSearch =
         !searchQuery ||
         form.title.toLowerCase().includes(searchQuery.toLowerCase());
