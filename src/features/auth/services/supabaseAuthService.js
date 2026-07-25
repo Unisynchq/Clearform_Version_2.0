@@ -166,7 +166,9 @@ export async function signOutUser() {
 
 export async function requestPasswordResetEmail(email) {
   if (!supabase) throw new Error('Password reset requires Supabase configuration.');
-  const { error } = await supabase.auth.resetPasswordForEmail(email);
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: typeof window !== 'undefined' ? window.location.origin + '/signin' : undefined,
+  });
   if (error) throw new Error(error.message);
 }
 

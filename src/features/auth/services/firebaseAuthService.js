@@ -407,7 +407,18 @@ export async function signInWithEmail(email, password) {
     });
     return payload;
   } catch (error) {
-    throw new Error(mapFirebaseError(error));
+    try {
+      const user = await localSignInWithEmail(email, password);
+      const payload = { ...user, user: null };
+      captureAuthAnalytics(payload, null, {
+        isNewUser: false,
+        method: 'email',
+        trackAuth: true,
+      });
+      return payload;
+    } catch {
+      throw new Error(mapFirebaseError(error));
+    }
   }
 }
 
@@ -436,7 +447,18 @@ export async function signUpWithEmail(email, password, firstName, lastName) {
     });
     return payload;
   } catch (error) {
-    throw new Error(mapFirebaseError(error));
+    try {
+      const user = await localSignUpWithEmail(email, password, firstName, lastName);
+      const payload = { ...user, user: null };
+      captureAuthAnalytics(payload, null, {
+        isNewUser: true,
+        method: 'email',
+        trackAuth: true,
+      });
+      return payload;
+    } catch {
+      throw new Error(mapFirebaseError(error));
+    }
   }
 }
 
@@ -488,7 +510,10 @@ export async function requestPasswordResetEmail(email) {
   const trimmed = (email ?? '').trim();
   if (!trimmed) throw new Error('Enter your email address first.');
   try {
-    await sendPasswordResetEmail(auth, trimmed);
+    const actionCodeSettings = typeof window !== 'undefined'
+      ? { url: window.location.origin + '/signin' }
+      : undefined;
+    await sendPasswordResetEmail(auth, trimmed, actionCodeSettings);
   } catch (error) {
     throw new Error(mapFirebaseError(error));
   }
