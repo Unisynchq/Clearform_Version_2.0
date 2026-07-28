@@ -8290,15 +8290,7 @@ const FormBuilderPage = () => {
                   >
                     <RiEyeLine size={14} />
                   </button>
-                  {!isPreview && (
-                    <button
-                      onClick={() => setShowConfigPanel((p) => !p)}
-                      title={showConfigPanel ? "Close Configure sidebar" : "Open Configure sidebar"}
-                      className={`flex items-center justify-center w-[30px] h-[26px] rounded-[5px] transition-colors cursor-pointer ${showConfigPanel ? 'bg-[#1a1a1a] text-white' : 'text-[#9a9a92] hover:text-[#555] hover:bg-[#f4f3ef]'}`}
-                    >
-                      <RiSettings3Line size={14} />
-                    </button>
-                  )}
+
                 </div>
               </div>
             </div>

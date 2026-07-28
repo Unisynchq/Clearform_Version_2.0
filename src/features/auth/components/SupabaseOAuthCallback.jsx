@@ -25,17 +25,33 @@ const SupabaseOAuthCallback = () => {
         if (cancelled) return;
 
         if (data?.session?.user?.email) {
-          if (window.opener && !closedRef.current) {
+          // Use localStorage to communicate with the parent window (immune to COOP)
+          localStorage.setItem('clearform:oauth_success', JSON.stringify(data.session));
+
+          if (!closedRef.current) {
             closedRef.current = true;
-            window.opener.postMessage(
-              { type: 'clearform:supabase-oauth-complete' },
-              window.location.origin,
-            );
-            setTimeout(() => window.close(), 100);
-            return;
+            try {
+              window.close();
+            } catch (e) {
+              // Ignore close error
+            }
           }
 
-          navigate(returnPath, { replace: true });
+          // Don't redirect the popup. If it fails to close, show a message.
+          setTimeout(() => {
+            if (!closedRef.current || !window.closed) {
+              const body = document.querySelector('body');
+              if (body) {
+                body.innerHTML = `
+                  <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; background: #fafafa;">
+                    <h2 style="color: #0f0f0e;">Sign in successful!</h2>
+                    <p style="color: #6b6860;">You can close this window now.</p>
+                  </div>
+                `;
+              }
+            }
+          }, 500);
+          
           return;
         }
 
@@ -55,15 +71,7 @@ const SupabaseOAuthCallback = () => {
     };
   }, [navigate, searchParams]);
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-white px-6">
-      <div className="max-w-sm rounded-[14px] border border-[#e8e8e6] bg-white px-5 py-4 shadow-sm">
-        <p className="text-[14px] font-medium text-[#1a1a18]">Signing you in...</p>
-        <p className="mt-1 text-[12.5px] text-[#6b6b68]">This window will close automatically.</p>
-        {error ? <p className="mt-2 text-[13px] text-[#c53030]">{error}</p> : null}
-      </div>
-    </div>
-  );
+  return null;
 };
 
 export default SupabaseOAuthCallback;

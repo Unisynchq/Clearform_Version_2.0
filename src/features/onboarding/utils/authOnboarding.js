@@ -39,7 +39,7 @@ export async function claimPendingPurchaseIfNeeded({ showToast } = {}) {
 }
 
 /**
- * After Firebase + GET /auth/me — server onboardingCompleted is source of truth.
+ * After auth sync + GET /auth/me — server onboardingCompleted is source of truth.
  * Microsoft OAuth often reports isNewUser=false; do not use it for routing.
  * returnTo is only honoured for existing users — new users always go to /onboarding.
  */

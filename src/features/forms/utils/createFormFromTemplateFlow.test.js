@@ -6,7 +6,6 @@ const { navigateToFormBuilder } = vi.hoisted(() => ({
 
 vi.mock('@/config/env', () => ({
   isApiConfigured: () => false,
-  isFirebaseConfigured: () => false,
 }));
 
 vi.mock('@/store/slices/formsSlice', () => ({

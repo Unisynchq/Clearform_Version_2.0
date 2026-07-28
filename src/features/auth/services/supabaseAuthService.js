@@ -253,25 +253,81 @@ export async function signInWithGoogle(returnTo) {
     throw new Error('Google sign-in requires Supabase configuration.');
   }
 
+  const redirectPath = isValidReturnTo(returnTo) ? returnTo : '/dashboard';
   if (isValidReturnTo(returnTo)) {
     sessionStorage.setItem(AUTH_RETURN_TO_KEY, returnTo);
   }
   sessionStorage.setItem(AUTH_REDIRECT_PENDING_KEY, 'google');
 
-  const popup =
-    typeof window !== 'undefined'
-      ? window.open(
-          `${window.location.origin}/auth/popup?provider=google&next=${encodeURIComponent(
-            '/signin',
-          )}`,
-          'clearform-oauth',
-          'width=520,height=720',
-        )
-      : null;
-  if (!popup && typeof window !== 'undefined') {
-    window.location.assign(
-      `${window.location.origin}/auth/popup?provider=google&next=${encodeURIComponent('/signin')}`,
-    );
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectPath)}`,
+      skipBrowserRedirect: true,
+    },
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (data?.url) {
+    if (typeof window !== 'undefined') {
+      // Mark this attempt so the callback knows it was opened by the app
+      sessionStorage.setItem('clearform:oauth-intent', 'true');
+      
+      const popup = window.open(
+        data.url,
+        'clearform-oauth',
+        'width=520,height=720',
+      );
+
+      if (popup) {
+        return new Promise((resolve) => {
+          let fallbackTimer = null;
+
+          const cleanup = () => {
+            window.removeEventListener('storage', handleStorage);
+            if (fallbackTimer) clearTimeout(fallbackTimer);
+          };
+
+          const handleStorage = async (event) => {
+            if (event.key === 'clearform:oauth_success' && event.newValue) {
+              cleanup();
+              
+              try {
+                const session = JSON.parse(event.newValue);
+                localStorage.removeItem('clearform:oauth_success'); // Clean up
+                if (session) {
+                  await supabase.auth.setSession(session);
+                }
+              } catch (err) {
+                console.error('Failed to parse oauth session', err);
+              }
+              
+              try {
+                if (!popup.closed) popup.close();
+              } catch (e) {
+                // COOP might block popup.closed check, ignore
+              }
+              
+              window.location.href = redirectPath;
+              resolve();
+            }
+          };
+
+          window.addEventListener('storage', handleStorage);
+
+          // Fallback if popup is closed or user aborts (5 mins max)
+          fallbackTimer = setTimeout(() => {
+            cleanup();
+            resolve(null);
+          }, 300000);
+        });
+      } else {
+        window.location.assign(data.url);
+      }
+    }
   }
 
   return null;
@@ -282,27 +338,81 @@ async function signInWithMicrosoftOAuth(returnTo) {
     throw new Error('Microsoft sign-in requires Supabase configuration.');
   }
 
+  const redirectPath = isValidReturnTo(returnTo) ? returnTo : '/dashboard';
   if (isValidReturnTo(returnTo)) {
     sessionStorage.setItem(AUTH_RETURN_TO_KEY, returnTo);
   }
   sessionStorage.setItem(AUTH_REDIRECT_PENDING_KEY, 'microsoft');
 
-  const popup =
-    typeof window !== 'undefined'
-      ? window.open(
-          `${window.location.origin}/auth/popup?provider=${encodeURIComponent(
-            SUPABASE_MFA_PROVIDER,
-          )}&next=${encodeURIComponent('/signin')}`,
-          'clearform-oauth',
-          'width=520,height=720',
-        )
-      : null;
-  if (!popup && typeof window !== 'undefined') {
-    window.location.assign(
-      `${window.location.origin}/auth/popup?provider=${encodeURIComponent(
-        SUPABASE_MFA_PROVIDER,
-      )}&next=${encodeURIComponent('/signin')}`,
-    );
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: SUPABASE_MFA_PROVIDER,
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectPath)}`,
+      skipBrowserRedirect: true,
+    },
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (data?.url) {
+    if (typeof window !== 'undefined') {
+      // Mark this attempt so the callback knows it was opened by the app
+      sessionStorage.setItem('clearform:oauth-intent', 'true');
+      
+      const popup = window.open(
+        data.url,
+        'clearform-oauth',
+        'width=520,height=720',
+      );
+
+      if (popup) {
+        return new Promise((resolve) => {
+          let fallbackTimer = null;
+
+          const cleanup = () => {
+            window.removeEventListener('storage', handleStorage);
+            if (fallbackTimer) clearTimeout(fallbackTimer);
+          };
+
+          const handleStorage = async (event) => {
+            if (event.key === 'clearform:oauth_success' && event.newValue) {
+              cleanup();
+              
+              try {
+                const session = JSON.parse(event.newValue);
+                localStorage.removeItem('clearform:oauth_success'); // Clean up
+                if (session) {
+                  await supabase.auth.setSession(session);
+                }
+              } catch (err) {
+                console.error('Failed to parse oauth session', err);
+              }
+              
+              try {
+                if (!popup.closed) popup.close();
+              } catch (e) {
+                // COOP might block popup.closed check, ignore
+              }
+              
+              window.location.href = redirectPath;
+              resolve();
+            }
+          };
+
+          window.addEventListener('storage', handleStorage);
+
+          // Fallback if popup is closed or user aborts (5 mins max)
+          fallbackTimer = setTimeout(() => {
+            cleanup();
+            resolve(null);
+          }, 300000);
+        });
+      } else {
+        window.location.assign(data.url);
+      }
+    }
   }
 
   return null;
@@ -364,13 +474,7 @@ export async function consumeRedirectSignInResult() {
   return payload;
 }
 
-export async function restoreFirebaseSessionFromCurrentUser() {
-  return restoreSession();
-}
 
-export async function updateUserPasswordInFirebase(currentPassword, newPassword) {
-  return updateUserPasswordInSupabase(currentPassword, newPassword);
-}
 
 export function getMicrosoftRedirectNullErrorMessage() {
   return 'Microsoft sign-in could not be completed. Please try again.';
