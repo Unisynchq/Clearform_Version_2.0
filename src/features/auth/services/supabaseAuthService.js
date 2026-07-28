@@ -22,7 +22,7 @@ import {
 } from '@/analytics/track';
 import { clearAllAppStorage } from '@/utils/clearAppStorage';
 
-const TOKEN_KEY = 'clearform:auth-token';
+// Unused constants removed
 export const AUTH_RETURN_TO_KEY = 'clearform:auth-return-to';
 export const AUTH_REDIRECT_PENDING_KEY = 'clearform:auth-redirect-pending';
 const SUPABASE_MFA_PROVIDER = import.meta.env.VITE_SUPABASE_MICROSOFT_PROVIDER || 'azure';
@@ -37,10 +37,7 @@ function isValidReturnTo(returnTo) {
   return typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//');
 }
 
-function getCurrentToken() {
-  if (typeof window === 'undefined') return null;
-  return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY) || null;
-}
+// Removed getCurrentToken function
 
 async function fetchMeWithRetry() {
   try {
@@ -191,7 +188,8 @@ async function syncPayloadFromResponse(
 
 export async function signOutUser() {
   beginAuthLogout();
-  const token = getCurrentToken();
+  const { data } = await supabase.auth.getSession();
+  const token = data?.session?.access_token;
 
   try {
     if (token) {
