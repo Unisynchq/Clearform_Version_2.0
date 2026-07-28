@@ -311,7 +311,8 @@ export async function signInWithGoogle(returnTo) {
                 // COOP might block popup.closed check, ignore
               }
               
-              window.location.href = redirectPath;
+              // Setting the session fires onAuthStateChange in SupabaseSessionBridge,
+              // which handles Redux dispatch and navigation — no hard reload needed.
               resolve();
             }
           };
@@ -396,7 +397,8 @@ async function signInWithMicrosoftOAuth(returnTo) {
                 // COOP might block popup.closed check, ignore
               }
               
-              window.location.href = redirectPath;
+              // Setting the session fires onAuthStateChange in SupabaseSessionBridge,
+              // which handles Redux dispatch and navigation — no hard reload needed.
               resolve();
             }
           };
