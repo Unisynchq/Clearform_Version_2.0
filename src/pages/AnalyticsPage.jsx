@@ -180,7 +180,7 @@ const AnalyticsPage = () => {
   });
 
   useEffect(() => {
-    if (!selectedFormId || activeTab !== 'compare') return;
+    if (!selectedFormId) return;
     let cancelled = false;
     setCompareApiData(null);
     setCompareError(null);
@@ -201,7 +201,7 @@ const AnalyticsPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [selectedFormId, activeTab, rangeLabel, rangeLabelToParam]);
+  }, [selectedFormId, rangeLabel, rangeLabelToParam]);
 
   const fetchAiInsightsOnce = useCallback(async () => {
     if (!selectedFormId) return null;
@@ -212,7 +212,7 @@ const AnalyticsPage = () => {
   }, [selectedFormId, rangeLabel, rangeLabelToParam]);
 
   useEffect(() => {
-    if (!selectedFormId || activeTab !== 'ai') return undefined;
+    if (!selectedFormId) return undefined;
     let cancelled = false;
     aiPollAttemptsRef.current = 0;
     setAiApiInsights(null);
@@ -245,10 +245,10 @@ const AnalyticsPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [selectedFormId, activeTab, rangeLabel, aiInsightsVisit, aiPollTick, rangeLabelToParam, fetchAiInsightsOnce]);
+  }, [selectedFormId, rangeLabel, aiInsightsVisit, aiPollTick, rangeLabelToParam, fetchAiInsightsOnce]);
 
   useEffect(() => {
-    if (!selectedFormId || activeTab !== 'ai') return undefined;
+    if (!selectedFormId) return undefined;
     if (aiApiInsights?.status !== 'processing') return undefined;
 
     const maxAttempts = 12;
@@ -287,7 +287,6 @@ const AnalyticsPage = () => {
     };
   }, [
     selectedFormId,
-    activeTab,
     aiApiInsights?.status,
     rangeLabel,
     fetchAiInsightsOnce,
@@ -375,10 +374,10 @@ const AnalyticsPage = () => {
 
   const mainContentKey =
     effectiveLoading || performanceFetching
-      ? `loading-${activeTab}-${selectedFormId ?? 'none'}`
-      : `ready-${activeTab}-${selectedFormId ?? 'none'}-${
-          activeTab === 'responses' ? responsesView : activeTab === 'ai' ? aiInsightsVisit : '0'
-        }-${activeTab === 'performance' && !effectiveHasResponseData ? 'empty' : 'full'}`;
+      ? `loading-${selectedFormId ?? 'none'}`
+      : `ready-${selectedFormId ?? 'none'}-${
+          activeTab === 'performance' && !effectiveHasResponseData ? 'empty' : 'full'
+        }`;
 
   const renderLoadingSkeleton = () => {
     if (activeTab === 'performance') return <AnalyticsPerformanceSkeleton />;
@@ -402,45 +401,40 @@ const AnalyticsPage = () => {
       );
     }
 
-    switch (activeTab) {
-      case 'performance':
-        if (perfLoading) {
-          return <AnalyticsPerformanceSkeleton />;
-        }
-        if (perfApiError) {
-          return (
+    return (
+      <>
+        <div className={activeTab === 'performance' ? 'block' : 'hidden'}>
+          {perfLoading ? (
+            <AnalyticsPerformanceSkeleton />
+          ) : perfApiError ? (
             <div className="mx-auto flex max-w-[480px] flex-col items-center gap-3 rounded-xl border border-[#e8e8e5] bg-white px-6 py-10 text-center shadow-sm">
               <p className="text-[14px] font-medium text-[#17160e]">Performance data unavailable</p>
               <p className="text-[13px] text-[#6b6b68]">{perfApiError}</p>
             </div>
-          );
-        }
-        if (!effectiveHasResponseData) {
-          return (
+          ) : !effectiveHasResponseData ? (
             <AnalyticsPerformanceEmpty
               onPreview={goBuilder}
               onShare={handleShareSurvey}
             />
-          );
-        }
-        return (
-          <div className="flex flex-col gap-5 max-w-[1400px] mx-auto">
-            <AnalyticsStatsRow form={performanceForm ?? selectedForm} apiStats={perfApiStats} />
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
-              <AnalyticsFunnelCard form={performanceForm ?? selectedForm} apiStats={perfApiStats} />
-              <AnalyticsDailyResponsesCard apiStats={perfApiStats} />
+          ) : (
+            <div className="flex flex-col gap-5 max-w-[1400px] mx-auto">
+              <AnalyticsStatsRow form={performanceForm ?? selectedForm} apiStats={perfApiStats} />
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
+                <AnalyticsFunnelCard form={performanceForm ?? selectedForm} apiStats={perfApiStats} />
+                <AnalyticsDailyResponsesCard apiStats={perfApiStats} />
+              </div>
+              {(perfApiStats?.responses ?? selectedForm?.responses ?? 0) >= 3 ? (
+                <AnalyticsDropoffRiverCard form={performanceForm ?? selectedForm} />
+              ) : (
+                <p className="text-[13px] text-[#888580] px-1">
+                  Per-question drop-off appears after you have at least 3 responses.
+                </p>
+              )}
             </div>
-            {(perfApiStats?.responses ?? selectedForm?.responses ?? 0) >= 3 ? (
-              <AnalyticsDropoffRiverCard form={performanceForm ?? selectedForm} />
-            ) : (
-              <p className="text-[13px] text-[#888580] px-1">
-                Per-question drop-off appears after you have at least 3 responses.
-              </p>
-            )}
-          </div>
-        );
-      case 'responses':
-        return (
+          )}
+        </div>
+
+        <div className={activeTab === 'responses' ? 'block' : 'hidden'}>
           <div className="max-w-[1400px] mx-auto flex flex-col gap-4">
             <AnalyticsResponsesSubNav
               value={responsesView}
@@ -459,13 +453,12 @@ const AnalyticsPage = () => {
               />
             )}
           </div>
-        );
-      case 'compare':
-        if (compareLoading) {
-          return <AnalyticsPanelSkeleton blocks={3} />;
-        }
-        if (compareError || (isApiConfigured() && !compareLoading && !compareApiData)) {
-          return (
+        </div>
+
+        <div className={activeTab === 'compare' ? 'block' : 'hidden'}>
+          {compareLoading ? (
+            <AnalyticsPanelSkeleton blocks={3} />
+          ) : compareError || (isApiConfigured() && !compareLoading && !compareApiData) ? (
             <div className="mx-auto flex max-w-[480px] flex-col items-center gap-3 rounded-xl border border-[#e8e8e5] bg-white px-6 py-10 text-center shadow-sm">
               <p className="text-[14px] font-medium text-[#17160e]">Compare data unavailable</p>
               <p className="text-[13px] text-[#6b6b68]">{compareError ?? 'No compare metrics returned from the API.'}</p>
@@ -486,40 +479,40 @@ const AnalyticsPage = () => {
                 Retry
               </button>
             </div>
-          );
-        }
-        return (
-          <AnalyticsComparePanel
-            currentForm={selectedForm}
-            rangeLabel={rangeLabel}
-            compareApiData={compareApiData}
-            responseCount={perfApiStats?.responses ?? selectedForm?.responses ?? 0}
-          />
-        );
-      case 'settings':
-        return <AnalyticsSettingsPanel form={selectedForm} />;
-      case 'ai':
-        return (
-          <>
-            <AiTierTeaser />
-            <AnalyticsAiInsightsPanel
-              key={`ai-insights-${aiInsightsVisit}-${aiPollTick}`}
-              loadKey={aiInsightsVisit}
-              form={selectedForm}
+          ) : (
+            <AnalyticsComparePanel
+              currentForm={selectedForm}
               rangeLabel={rangeLabel}
+              compareApiData={compareApiData}
               responseCount={perfApiStats?.responses ?? selectedForm?.responses ?? 0}
-              apiInsights={aiApiInsights}
-              insightsError={aiInsightsError}
-              insightsNoDataInRange={aiApiInsights?.status === 'insufficient_data'}
-              onClearDateFilter={() => setRangeLabel('All time')}
-              onShareForm={handleShareSurvey}
-              onRetryInsights={retryAiInsights}
             />
-          </>
-        );
-      default:
-        return null;
-    }
+          )}
+        </div>
+
+        <div className={activeTab === 'ai' ? 'block' : 'hidden'}>
+          <AiTierTeaser />
+          <AnalyticsAiInsightsPanel
+            key={`ai-insights-${aiInsightsVisit}-${aiPollTick}`}
+            loadKey={aiInsightsVisit}
+            form={selectedForm}
+            rangeLabel={rangeLabel}
+            responseCount={perfApiStats?.responses ?? selectedForm?.responses ?? 0}
+            apiInsights={aiApiInsights}
+            insightsError={aiInsightsError}
+            insightsNoDataInRange={aiApiInsights?.status === 'insufficient_data'}
+            onClearDateFilter={() => setRangeLabel('All time')}
+            onShareForm={handleShareSurvey}
+            onRetryInsights={retryAiInsights}
+          />
+        </div>
+
+        {activeTab === 'settings' && (
+          <div className="block">
+            <AnalyticsSettingsPanel form={selectedForm} />
+          </div>
+        )}
+      </>
+    );
   };
 
   const headerActions = () => {

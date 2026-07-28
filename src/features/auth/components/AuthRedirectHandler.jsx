@@ -71,7 +71,12 @@ const AuthRedirectHandler = () => {
       await runSingleFlightAuthRestore(async () => {
         const hasOAuthCallback =
           typeof window !== 'undefined' &&
-          new URLSearchParams(window.location.search).has('code');
+          (new URLSearchParams(window.location.search).has('code') || window.location.hash.includes('access_token='));
+
+        if (!pending && !hasOAuthCallback) {
+          dispatch(setAuthInitialized(true));
+          return;
+        }
 
         if (pending && !hasOAuthCallback) {
           dispatch(setAuthInitialized(true));
