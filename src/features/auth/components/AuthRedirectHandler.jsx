@@ -49,11 +49,6 @@ const AuthRedirectHandler = () => {
         lastName: user.lastName,
       }),
     );
-    showToast({
-      type: 'success',
-      message: 'Signed in successfully',
-      duration: 3000,
-    });
     navigate(path, { replace: true });
   };
 
@@ -136,7 +131,8 @@ const AuthRedirectHandler = () => {
     if (startedRef.current) return;
     startedRef.current = true;
     runRedirectFlow();
-  }, [dispatch, navigate, showToast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!syncError) return null;
 
