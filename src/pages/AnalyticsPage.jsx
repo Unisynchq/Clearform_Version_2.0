@@ -506,11 +506,9 @@ const AnalyticsPage = () => {
           />
         </div>
 
-        {activeTab === 'settings' && (
-          <div className="block">
-            <AnalyticsSettingsPanel form={selectedForm} />
-          </div>
-        )}
+        <div className={activeTab === 'settings' ? 'block' : 'hidden'}>
+          <AnalyticsSettingsPanel form={selectedForm} />
+        </div>
       </>
     );
   };
