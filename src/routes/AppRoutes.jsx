@@ -6,6 +6,9 @@ import RouteTransitionShell from '@/components/layout/RouteTransitionShell';
 import MainLayout from '@/layouts/MainLayout';
 import SignupPage from '@/features/auth/pages/SignupPage';
 import SignInPage from '@/features/auth/pages/SignInPage';
+import ResetPasswordPage from '@/features/auth/pages/ResetPasswordPage';
+import SupabaseOAuthCallback from '@/features/auth/components/SupabaseOAuthCallback';
+import SupabaseOAuthPopup from '@/features/auth/components/SupabaseOAuthPopup';
 import AllFormsPage from '@/features/forms/pages/AllFormsPage';
 import TemplatesPage from '@/features/templates/pages/TemplatesPage';
 import FormBuilderPageShell from '@/features/forms/pages/FormBuilderPageShell';
@@ -63,6 +66,25 @@ const AppRoutes = () => {
               </GuestOnly>
             </RouteTransitionShell>
           }
+        />
+
+        <Route
+          path="/reset-password"
+          element={
+            <RouteTransitionShell variant="auth">
+              <ResetPasswordPage />
+            </RouteTransitionShell>
+          }
+        />
+
+        <Route
+          path="/auth/callback"
+          element={<SupabaseOAuthCallback />}
+        />
+
+        <Route
+          path="/auth/popup"
+          element={<SupabaseOAuthPopup />}
         />
 
         <Route

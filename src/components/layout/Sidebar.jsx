@@ -19,7 +19,7 @@ import {
   resetFormsState,
 } from '@/store/slices/formsSlice';
 import { logout } from '@/store/slices/authSlice';
-import { signOutUser } from '@/features/auth/services/firebaseAuthService';
+import { signOutUser } from '@/features/auth/services/supabaseAuthService';
 import ConfirmActionModal from '@/components/ui/ConfirmActionModal';
 import { readProfileSettings } from '@/features/profile/utils/profileSettingsStorage';
 import {
@@ -45,22 +45,24 @@ const navItemSurface = (active) => ({
   whileHover: { backgroundColor: active ? SIDEBAR_ITEM_HOVER_BG : SIDEBAR_ITEM_IDLE_HOVER_BG },
 });
 
-const getProfileDisplay = ({ firstName, lastName, email, displayName: savedName }) => {
+const getProfileDisplay = ({ firstName, lastName, email, displayName: savedName, avatarUrl }) => {
+  const result = { avatarUrl };
   const saved = savedName?.trim();
-  if (saved) return { displayName: saved, initials: saved.slice(0, 2).toUpperCase() };
+  if (saved) return { ...result, displayName: saved, initials: saved.slice(0, 2).toUpperCase() };
   const name = [firstName, lastName].filter(Boolean).join(' ').trim();
-  if (name) return { displayName: name, initials: name.slice(0, 2).toUpperCase() };
+  if (name) return { ...result, displayName: name, initials: name.slice(0, 2).toUpperCase() };
   const local = email?.split('@')[0]?.trim();
   if (local) {
     return {
+      ...result,
       displayName: local,
       initials: local.slice(0, 2).toUpperCase(),
     };
   }
-  return { displayName: 'Profile', initials: '?' };
+  return { ...result, displayName: 'Profile', initials: '?' };
 };
 
-const ProfileFooter = ({ expanded, active, displayName, initials, email, onClick }) => {
+const ProfileFooter = ({ expanded, active, displayName, initials, email, avatarUrl, onClick }) => {
   if (!expanded) {
     return (
       <motion.button
@@ -71,9 +73,13 @@ const ProfileFooter = ({ expanded, active, displayName, initials, email, onClick
         animate={{ backgroundColor: active ? SIDEBAR_ITEM_ACTIVE_BG : 'transparent' }}
         className="flex w-full items-center justify-center rounded-[6px] px-2 py-[7px] transition-colors"
       >
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#e5e3dc]">
-          <span className="text-[10px] font-semibold text-[#1a1a1c]">{initials}</span>
-        </div>
+        {avatarUrl ? (
+          <img src={avatarUrl} alt="" className="h-7 w-7 rounded-full object-cover" />
+        ) : (
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#e5e3dc]">
+            <span className="text-[10px] font-semibold text-[#1a1a1c]">{initials}</span>
+          </div>
+        )}
       </motion.button>
     );
   }
@@ -87,11 +93,15 @@ const ProfileFooter = ({ expanded, active, displayName, initials, email, onClick
       className="mb-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors"
       title={email}
     >
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#e5e3dc]">
-        <span className="text-[11px] font-semibold tracking-[0.2px] text-[#1a1a1c]">
-          {initials}
-        </span>
-      </div>
+      {avatarUrl ? (
+        <img src={avatarUrl} alt="" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full object-cover" />
+      ) : (
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#e5e3dc]">
+          <span className="text-[11px] font-semibold tracking-[0.2px] text-[#1a1a1c]">
+            {initials}
+          </span>
+        </div>
+      )}
       <div className="min-w-0 flex flex-col">
         <span className="truncate text-[13px] font-medium leading-[18px] text-[#1a1a1c]">
           {displayName}
@@ -179,6 +189,7 @@ const Sidebar = ({ hideLogo = false, exit }) => {
     lastName,
     email,
     displayName: savedProfile?.displayName,
+    avatarUrl: savedProfile?.photoUrl,
   });
   const { activeWorkspace, isLoading: formsLoading } = useSelector((state) => state.forms);
   const renamingWorkspaceId = useSelector((state) => state.ui.sidebarWorkspaceRenameId);
@@ -203,11 +214,11 @@ const Sidebar = ({ hideLogo = false, exit }) => {
     dispatch(resetFormsState());
     dispatch(resetUiState());
     dispatch(clearAllNotifications());
-    dispatch(logout());
     setIsLogoutModalOpen(false);
     try {
       await signOutUser();
     } catch {}
+    dispatch(logout());
     showToast({ type: 'info', message: "You've been logged out.", duration: 3000 });
     navigate('/signin', { replace: true, state: null });
   };

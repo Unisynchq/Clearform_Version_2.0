@@ -18,7 +18,7 @@ import PhotoUploadErrorZone, {
 import { logout, loginSuccess } from '@/store/slices/authSlice';
 import { deleteAccount as deleteAccountOnServer, updateMe, uploadAvatar, fetchMe } from '@/api/services/authMeService';
 import { isApiConfigured } from '@/config/env';
-import { signOutUser } from '@/features/auth/services/firebaseAuthService';
+import { signOutUser } from '@/features/auth/services/supabaseAuthService';
 import { upsertUserAccount } from '@/features/auth/utils/userAccountsStorage';
 import {
   readProfileSettings,
@@ -86,6 +86,7 @@ const TIMEZONES = [
   { value: 'America/New_York', label: 'UTC-05:00 — Eastern Time' },
   { value: 'America/Los_Angeles', label: 'UTC-08:00 — Pacific Time' },
   { value: 'Europe/London', label: 'UTC+00:00 — London' },
+  { value: 'Asia/Kolkata', label: 'UTC+05:30 — India Standard Time' },
   { value: 'Asia/Tokyo', label: 'UTC+09:00 — Tokyo' },
 ];
 
@@ -251,16 +252,43 @@ const ProfilePage = () => {
         if (cancelled) return;
 
         const avatarUrl = data?.user?.avatarUrl;
-        if (avatarUrl) {
-          setPhotoUrl(avatarUrl);
-          setProfileBaseline((prev) =>
-            prev ? { ...prev, photoUrl: avatarUrl } : prev,
-          );
-        }
+        const serverFirstName = data?.user?.firstName || '';
+        const serverLastName = data?.user?.lastName || '';
+        const serverName = [serverFirstName, serverLastName].filter(Boolean).join(' ').trim();
+        const serverUsername = data?.user?.username;
+        const serverTimezone = data?.user?.timezone;
+        const autoTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
         if (email) {
           const patch = { ...readProfileSettings(email) };
-          if (avatarUrl) patch.photoUrl = avatarUrl;
+          let changed = false;
+
+          if (avatarUrl && patch.photoUrl !== avatarUrl) {
+            patch.photoUrl = avatarUrl;
+            setPhotoUrl(avatarUrl);
+            changed = true;
+          }
+          if (serverName && !patch.displayName) {
+            patch.displayName = serverName;
+            setDisplayName(serverName);
+            changed = true;
+          }
+          if (serverUsername && !patch.username) {
+            patch.username = serverUsername;
+            setUsername(serverUsername);
+            changed = true;
+          }
+          if (!patch.timezone) {
+            patch.timezone = serverTimezone || autoTz;
+            const valid = TIMEZONES.some(t => t.value === patch.timezone);
+            if (!valid) patch.timezone = 'UTC';
+            setTimezone(patch.timezone);
+            changed = true;
+          }
+
+          if (changed) {
+            setProfileBaseline((prev) => prev ? { ...prev, ...patch } : prev);
+          }
 
           // Sync passwordLastChangedAt from server into security settings
           // so formatPasswordLastChanged shows accurate relative time ("X hours ago").
@@ -472,7 +500,7 @@ const ProfilePage = () => {
   const handleSignOut = async () => {
     await signOutUser();
     dispatch(logout());
-    navigate('/signin');
+    navigate('/signin', { replace: true });
   };
 
   const handleDeleteAccount = async () => {
@@ -487,13 +515,10 @@ const ProfilePage = () => {
     }
     try {
       await deleteAccountOnServer();
+      await signOutUser();
       dispatch(logout());
-      signOutUser();
-      if (typeof window !== 'undefined') {
-        sessionStorage.removeItem('clearform:auth-token');
-      }
       showToast({ type: 'success', message: 'Your account has been deleted.', duration: 2800 });
-      navigate('/signin');
+      navigate('/signin', { replace: true });
     } catch (err) {
       showToast({
         type: 'error',
@@ -735,18 +760,13 @@ const ProfilePage = () => {
                       <input
                         type="email"
                         value={profileEmail}
-                        onChange={(e) => {
-                          setProfileEmail(e.target.value);
-                          if (fieldErrors.profileEmail) {
-                            setFieldErrors((prev) => ({ ...prev, profileEmail: null }));
-                          }
-                        }}
+                        disabled={true}
                         placeholder="you@example.com"
                         className={`${
                           submitAttempted && fieldErrors.profileEmail
                             ? inputErrorClass
                             : inputClass
-                        } ${emailVerified && !fieldErrors.profileEmail ? 'pr-24' : ''}`}
+                        } bg-[#f7f7f6] text-[#9e9e9a] cursor-not-allowed ${emailVerified && !fieldErrors.profileEmail ? 'pr-24' : ''}`}
                         aria-invalid={fieldErrors.profileEmail ? 'true' : undefined}
                       />
                       {emailVerified && !fieldErrors.profileEmail ? (
@@ -832,7 +852,7 @@ const ProfilePage = () => {
               />
               <DangerRow
                 title="Sign out"
-                description="You are currently signed in on this device via Google · Last active just now"
+                description="You are currently signed in on this device · Last active just now"
                 actionLabel="Sign Out"
                 onAction={handleSignOut}
               />

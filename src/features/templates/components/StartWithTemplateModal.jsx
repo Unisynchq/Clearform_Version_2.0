@@ -307,7 +307,6 @@ export default function StartWithTemplateModal({
               </button>
             </div>
             </>
-            )}
           </motion.div>
           </div>
         </>

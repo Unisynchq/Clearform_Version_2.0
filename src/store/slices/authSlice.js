@@ -16,6 +16,7 @@ const initialState = {
   isSubmitting: false,
   error: null,
   isAuthenticated: savedSession?.isAuthenticated === true,
+  isInitialized: false,
 };
 
 const authSlice = createSlice({
@@ -36,18 +37,23 @@ const authSlice = createSlice({
       state.isAuthenticated = action.payload;
       if (!action.payload) clearAuthSession();
     },
+    setAuthInitialized(state, action) {
+      state.isInitialized = action.payload;
+    },
     loginSuccess(state, action) {
       const { email, firstName = '', lastName = '' } = action.payload;
       state.email = email;
       state.firstName = firstName;
       state.lastName = lastName;
       state.isAuthenticated = true;
+      state.isInitialized = true;
       state.error = null;
       state.isSubmitting = false;
       writeAuthSession({ email, firstName, lastName });
     },
     logout(state) {
       state.isAuthenticated = false;
+      state.isInitialized = true;
       state.password = '';
       state.error = null;
       state.isSubmitting = false;
@@ -69,6 +75,7 @@ export const {
   setSubmitting,
   setError,
   setAuthenticated,
+  setAuthInitialized,
   loginSuccess,
   logout,
   resetForm,

@@ -1,28 +1,30 @@
 import { useEffect, useRef, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { setSubmitting, setError, loginSuccess } from '@/store/slices/authSlice';
+import { setSubmitting, setError, loginSuccess, setAuthInitialized } from '@/store/slices/authSlice';
 import {
   applyBackendOnboardingState,
   completeAuthNavigationAfterSync,
 } from '@/features/onboarding/utils/authOnboarding';
-import { auth } from '@/config/firebase';
 import {
   consumeRedirectSignInResult,
   readAuthReturnTo,
   AUTH_REDIRECT_PENDING_KEY,
   getMicrosoftRedirectNullErrorMessage,
   resetRedirectSignInConsumption,
-  restoreFirebaseSessionFromCurrentUser,
-} from '@/features/auth/services/firebaseAuthService';
+  restoreSession,
+} from '@/features/auth/services/supabaseAuthService';
 import { useToast } from '@/hooks/useToast';
 import {
   beginRedirectHandlerNavigation,
   endRedirectHandlerNavigation,
+  canAttemptAuthRestore,
+  isAuthLogoutInProgress,
+  runSingleFlightAuthRestore,
 } from '@/features/auth/utils/authBootstrapCoordinator';
 
 /**
- * Completes Microsoft (and other) signInWithRedirect flows after the browser returns.
+ * Completes Supabase provider redirects after the browser returns to /signin.
  */
 const AuthRedirectHandler = () => {
   const dispatch = useDispatch();
@@ -32,77 +34,87 @@ const AuthRedirectHandler = () => {
   const [syncError, setSyncError] = useState(null);
 
   const completeSignIn = async (user) => {
-    beginRedirectHandlerNavigation();
-    try {
-      const returnTo = readAuthReturnTo();
-      applyBackendOnboardingState(dispatch, user.onboardingCompleted);
-      const path = await completeAuthNavigationAfterSync(dispatch, {
-        onboardingCompleted: user.onboardingCompleted,
-        isNewUser: user.isNewUser,
-        returnTo,
-        showToast,
-      });
-      dispatch(
-        loginSuccess({
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-        }),
-      );
-      showToast({
-        type: 'success',
-        message: 'Signed in successfully',
-        duration: 3000,
-      });
-      navigate(path, { replace: true });
-    } finally {
-      endRedirectHandlerNavigation();
-    }
+    const returnTo = readAuthReturnTo();
+    applyBackendOnboardingState(dispatch, user.onboardingCompleted);
+    const path = await completeAuthNavigationAfterSync(dispatch, {
+      onboardingCompleted: user.onboardingCompleted,
+      isNewUser: user.isNewUser,
+      returnTo,
+      showToast,
+    });
+    dispatch(
+      loginSuccess({
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      }),
+    );
+    showToast({
+      type: 'success',
+      message: 'Signed in successfully',
+      duration: 3000,
+    });
+    navigate(path, { replace: true });
   };
 
   const runRedirectFlow = async () => {
-    const pending = sessionStorage.getItem(AUTH_REDIRECT_PENDING_KEY);
+    if (isAuthLogoutInProgress() || !canAttemptAuthRestore()) {
+      dispatch(setAuthInitialized(true));
+      return;
+    }
+    const pending = typeof window !== 'undefined' ? sessionStorage.getItem(AUTH_REDIRECT_PENDING_KEY) : null;
     if (pending) dispatch(setSubmitting(true));
     setSyncError(null);
 
+    beginRedirectHandlerNavigation();
     try {
-      let user = await consumeRedirectSignInResult();
+      await runSingleFlightAuthRestore(async () => {
+        const hasOAuthCallback =
+          typeof window !== 'undefined' &&
+          new URLSearchParams(window.location.search).has('code');
 
-      if (
-        !user &&
-        (pending === 'microsoft' || pending === 'google') &&
-        auth?.currentUser?.email
-      ) {
-        user = await restoreFirebaseSessionFromCurrentUser();
-        if (user) sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
-      }
-
-      if (!user) {
-        if (pending === 'microsoft' || pending === 'google') {
-          if (!auth?.currentUser) {
-            logPendingMicrosoftNoUser();
-            return;
-          }
-          sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
-          dispatch(
-            setError(
-              pending === 'google'
-                ? 'Google sign-in did not finish. Try again or use email sign-in.'
-                : getMicrosoftRedirectNullErrorMessage(),
-            ),
-          );
-        } else if (pending) {
-          sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
-          dispatch(
-            setError(
-              'Sign-in could not be completed. Close this tab and try again from the sign-in page.',
-            ),
-          );
+        if (pending && !hasOAuthCallback) {
+          dispatch(setAuthInitialized(true));
+          return;
         }
-        return;
-      }
 
-      await completeSignIn(user);
+        let user = await consumeRedirectSignInResult();
+
+        if (!user && (pending === 'microsoft' || pending === 'google')) {
+          user = await restoreSession();
+          if (user) {
+            resetRedirectSignInConsumption();
+          }
+        }
+
+        if (!user) {
+          if (pending === 'microsoft' || pending === 'google') {
+            if (typeof window !== 'undefined') {
+              sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
+            }
+            dispatch(
+              setError(
+                pending === 'google'
+                  ? 'Google sign-in did not finish. Try again or use email sign-in.'
+                  : getMicrosoftRedirectNullErrorMessage(),
+              ),
+            );
+          } else if (pending) {
+            if (typeof window !== 'undefined') {
+              sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
+            }
+            dispatch(
+              setError(
+                'Sign-in could not be completed. Close this tab and try again from the sign-in page.',
+              ),
+            );
+          }
+          dispatch(setAuthInitialized(true));
+          return;
+        }
+
+        await completeSignIn(user);
+      });
     } catch (err) {
       const message =
         err?.message || 'Could not sync your account with Clearform. Please try again.';
@@ -110,6 +122,8 @@ const AuthRedirectHandler = () => {
       setSyncError(message);
     } finally {
       dispatch(setSubmitting(false));
+      dispatch(setAuthInitialized(true));
+      endRedirectHandlerNavigation();
     }
   };
 
@@ -142,13 +156,5 @@ const AuthRedirectHandler = () => {
     </div>
   );
 };
-
-function logPendingMicrosoftNoUser() {
-  if (typeof console !== 'undefined' && console.info) {
-    console.info('[clearform:auth]', 'microsoft-redirect-pending-no-user', {
-      hint: 'Waiting for FirebaseSessionBridge or user to complete Microsoft OAuth',
-    });
-  }
-}
 
 export default AuthRedirectHandler;
