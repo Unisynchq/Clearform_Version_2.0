@@ -11,9 +11,10 @@ import {
   RiThumbDownFill,
 } from 'react-icons/ri';
 import { submitAiFeedback } from '@/api/services/aiFeedbackService';
+import { FIXED_COLUMN_COUNT } from '@/features/forms/utils/formResponseBuilder';
 import ResponseUploadCell from './ResponseUploadCell';
 
-const Q_START = 3;
+const Q_START = FIXED_COLUMN_COUNT;
 const FEEDBACK_KEY = 'cf_ai_fb';
 
 function getStoredFeedback(responseId) {
