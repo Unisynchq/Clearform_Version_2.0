@@ -1,13 +1,24 @@
 import { getScreenPreviewText } from '@/features/forms/utils/screenConfigSync';
 import {
   buildUploadAnswerPayload,
-  cellDisplayText,
+  cellDisplayText as baseCellDisplayText,
   isUploadQuestionLabel,
   uploadAnswerExportText,
   uploadAnswerTableCell,
 } from '@/features/forms/utils/responseUploadFiles';
 
-export { cellDisplayText, uploadAnswerExportText };
+export { uploadAnswerExportText };
+
+/** Search/export text for a table cell, including the response-quality dot. */
+export function cellDisplayText(cell) {
+  if (cell && typeof cell === 'object' && cell.type === 'quality') {
+    return cell.level ? QUALITY_LEVEL_LABELS[cell.level] : '—';
+  }
+  return baseCellDisplayText(cell);
+}
+
+/** Name/email/phone, Response time, Response type, Response quality. */
+export const FIXED_COLUMN_COUNT = 4;
 
 const QUESTION_ICON_BGS = [
   '#ECFDF3',
@@ -28,6 +39,30 @@ export function formatDurationMs(ms) {
   const m = Math.floor(totalSec / 60);
   const s = totalSec % 60;
   return s > 0 ? `${m}m ${s}s` : `${m}m`;
+}
+
+/**
+ * Bucket a response's averaged qualityScore (0-100, see backend
+ * `qualityLevelToScore`: green≈88, amber≈58, red≈28) into a display level.
+ * `null`/`undefined` means quality scoring hasn't run yet or isn't enabled.
+ */
+export function scoreToQualityLevel(score) {
+  if (score == null || !Number.isFinite(score)) return null;
+  if (score >= 70) return 'green';
+  if (score >= 40) return 'amber';
+  return 'red';
+}
+
+export const QUALITY_LEVEL_LABELS = {
+  green: 'Green',
+  amber: 'Amber',
+  red: 'Red',
+};
+
+/** Table cell descriptor for the response-quality dot column. */
+export function qualityTableCell(score) {
+  const level = scoreToQualityLevel(score);
+  return { type: 'quality', level, score: score ?? null };
 }
 
 /** Format ISO date for the responses table (e.g. "20 Dec 2025 20:14"). */
@@ -209,6 +244,7 @@ export function buildResponseTableHeaders(draft, ListIcon) {
     { label: 'Name, email, or phone', Icon: null, iconBg: null },
     { label: 'Response time', Icon: null, iconBg: '#E8F4FC' },
     { label: 'Response type', Icon: null, iconBg: '#FFF0E6' },
+    { label: 'Response quality', Icon: null, iconBg: '#F5F3FF' },
   ];
 
   const contentScreens = (draft?.screens ?? []).filter((s) => s.type === 'content');
@@ -273,6 +309,7 @@ export function responseToTableRow(response) {
     response.contact || '—',
     durationLabel,
     response.status === 'completed' ? 'Completed' : 'Partial',
+    qualityTableCell(response.qualityScore),
     ...(response.answers ?? []).map((a) => {
       if (a?.kind === 'upload') {
         return uploadAnswerTableCell({
@@ -293,8 +330,8 @@ export function buildResponsesExportRows(responses, headers) {
     const tableRow = responseToTableRow(response);
     rows.push(
       tableRow.map((cell, ci) => {
-        if (ci < 3) return cellDisplayText(cell);
-        const answer = response.answers?.[ci - 3];
+        if (ci < FIXED_COLUMN_COUNT) return cellDisplayText(cell);
+        const answer = response.answers?.[ci - FIXED_COLUMN_COUNT];
         if (answer?.kind === 'upload') return uploadAnswerExportText(answer);
         return cellDisplayText(cell);
       }),
@@ -353,6 +390,16 @@ export function filterResponsesByRange(responses, rangeLabel, customRange = {}) 
     return Number.isFinite(t) && t >= start && t <= end;
   });
   return sortResponsesByNewest(filtered);
+}
+
+/**
+ * Filter responses to those whose quality level is in `selectedLevels`
+ * ('green' | 'amber' | 'red'). An empty/absent selection means no filtering.
+ */
+export function filterResponsesByQuality(responses, selectedLevels) {
+  if (!responses?.length || !selectedLevels?.length) return responses ?? [];
+  const wanted = new Set(selectedLevels);
+  return responses.filter((r) => wanted.has(scoreToQualityLevel(r.qualityScore)));
 }
 
 /** Newest submissions first (stable for equal timestamps). */
