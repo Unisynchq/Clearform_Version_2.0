@@ -33,7 +33,7 @@ import {
   verifyCurrentPassword,
 } from '@/features/profile/utils/profileValidation';
 import { persistAccountPassword } from '@/features/auth/utils/userAccountsStorage';
-import { requestPasswordResetEmail } from '@/features/auth/services/firebaseAuthService';
+import { requestPasswordResetEmail } from '@/features/auth/services/supabaseAuthService';
 import { useToast } from '@/hooks/useToast';
 import { useSelector } from 'react-redux';
 

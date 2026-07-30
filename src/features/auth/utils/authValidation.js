@@ -38,6 +38,16 @@ export function validateSignupForm({ firstName, lastName, email, password }) {
   };
 }
 
+export function validateResetPasswordForm({ password, confirmPassword }) {
+  return {
+    password: validatePassword(password),
+    confirmPassword:
+      password && confirmPassword && password === confirmPassword
+        ? null
+        : 'Passwords do not match',
+  };
+}
+
 export function hasValidationErrors(errors) {
   return Object.values(errors).some(Boolean);
 }

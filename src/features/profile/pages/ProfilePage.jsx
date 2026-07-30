@@ -18,7 +18,7 @@ import PhotoUploadErrorZone, {
 import { logout, loginSuccess } from '@/store/slices/authSlice';
 import { deleteAccount as deleteAccountOnServer, updateMe, uploadAvatar, fetchMe } from '@/api/services/authMeService';
 import { isApiConfigured } from '@/config/env';
-import { signOutUser } from '@/features/auth/services/firebaseAuthService';
+import { signOutUser } from '@/features/auth/services/supabaseAuthService';
 import { upsertUserAccount } from '@/features/auth/utils/userAccountsStorage';
 import {
   readProfileSettings,

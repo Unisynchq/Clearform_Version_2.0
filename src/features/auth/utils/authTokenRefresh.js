@@ -1,18 +1,14 @@
-import { auth } from '@/config/firebase';
+import { supabase, isSupabaseConfigured } from '@/config/supabase';
+import { isAuthLogoutInProgress } from '@/features/auth/utils/authBootstrapCoordinator';
 
 /**
- * Returns a fresh Firebase ID token for API calls (forces refresh when user exists).
+ * Returns the current app access token from Supabase Auth.
  */
-export async function getFreshAuthToken() {
-  const user = auth?.currentUser;
-  if (!user) {
-    return typeof window !== 'undefined'
-      ? sessionStorage.getItem('clearform:auth-token')
-      : null;
-  }
-  const token = await user.getIdToken(true);
-  if (typeof window !== 'undefined') {
-    sessionStorage.setItem('clearform:auth-token', token);
-  }
-  return token;
+export async function getFreshAuthToken(forceRefresh = false) {
+  if (!isSupabaseConfigured() || !supabase || typeof window === 'undefined' || isAuthLogoutInProgress()) return null;
+
+  const { data, error } = await supabase.auth.getSession();
+  if (error || !data?.session?.access_token) return null;
+
+  return data.session.access_token;
 }

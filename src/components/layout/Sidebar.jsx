@@ -18,7 +18,7 @@ import {
   clearAllFormFilters,
 } from '@/store/slices/formsSlice';
 import { logout } from '@/store/slices/authSlice';
-import { signOutUser } from '@/features/auth/services/firebaseAuthService';
+import { signOutUser } from '@/features/auth/services/supabaseAuthService';
 import { readProfileSettings } from '@/features/profile/utils/profileSettingsStorage';
 import {
   openCreateWorkspaceModal,

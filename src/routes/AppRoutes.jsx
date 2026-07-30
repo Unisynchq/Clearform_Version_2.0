@@ -1,11 +1,13 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { AnimatePresence } from 'motion/react';
 import { getRouteTransitionKey } from '@/constants/routeTransitions';
 import RouteTransitionShell from '@/components/layout/RouteTransitionShell';
 import MainLayout from '@/layouts/MainLayout';
 import SignupPage from '@/features/auth/pages/SignupPage';
 import SignInPage from '@/features/auth/pages/SignInPage';
+import ResetPasswordPage from '@/features/auth/pages/ResetPasswordPage';
+import SupabaseOAuthCallback from '@/features/auth/components/SupabaseOAuthCallback';
 import AllFormsPage from '@/features/forms/pages/AllFormsPage';
 import TemplatesPage from '@/features/templates/pages/TemplatesPage';
 import FormBuilderPageShell from '@/features/forms/pages/FormBuilderPageShell';
@@ -40,6 +42,11 @@ const AppRoutes = () => {
       <Routes location={location} key={transitionKey}>
         <Route
           path="/"
+          element={<Navigate to="/signup" replace />}
+        />
+
+        <Route
+          path="/signup"
           element={
             <RouteTransitionShell variant="auth">
               <GuestOnly>
@@ -58,6 +65,20 @@ const AppRoutes = () => {
               </GuestOnly>
             </RouteTransitionShell>
           }
+        />
+
+        <Route
+          path="/reset-password"
+          element={
+            <RouteTransitionShell variant="auth">
+              <ResetPasswordPage />
+            </RouteTransitionShell>
+          }
+        />
+
+        <Route
+          path="/auth/callback"
+          element={<SupabaseOAuthCallback />}
         />
 
         <Route
