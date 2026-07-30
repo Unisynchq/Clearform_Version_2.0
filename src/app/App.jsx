@@ -21,23 +21,33 @@ const App = () => {
   const dispatch = useDispatch();
   const { showToast } = useToast();
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
+  // isAuthenticated alone reflects our own locally-cached session marker,
+  // which is true instantly on a fresh page load — before Supabase's client
+  // has finished restoring its own session from storage. Firing
+  // authenticated API calls at that point sends them with no/stale token,
+  // which 401s and auto-logs-out via the clearform:auth-expired handler
+  // (the "redirects to dashboard then bounces back to /signin" bug). Wait
+  // for isInitialized too — set only once SupabaseSessionBridge's session
+  // restore has actually completed.
+  const isInitialized = useSelector((state) => state.auth.isInitialized);
+  const isReady = isAuthenticated && isInitialized;
 
   useEffect(() => {
     capturePendingPaymentFromUrl();
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isReady) {
       dispatch(loadFormsFromApi());
       dispatch(loadWorkspacesFromApi());
       dispatch(loadNotificationsFromApi());
     }
-  }, [isAuthenticated, dispatch]);
+  }, [isReady, dispatch]);
 
   useEffect(() => {
-    if (!isAuthenticated || !isApiConfigured()) return;
+    if (!isReady || !isApiConfigured()) return;
     void captureAndClaimPendingPurchase({ showToast });
-  }, [isAuthenticated, showToast]);
+  }, [isReady, showToast]);
 
   return (
     <BrowserRouter>
