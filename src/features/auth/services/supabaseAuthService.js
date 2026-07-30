@@ -287,11 +287,13 @@ function runOAuthPopupFlow(popup, url) {
       if (event.key === 'clearform:oauth_success' && event.newValue) {
         cleanup();
 
+        let sessionApplied = false;
         try {
           const session = JSON.parse(event.newValue);
           localStorage.removeItem('clearform:oauth_success'); // Clean up
           if (session) {
             await supabase.auth.setSession(session);
+            sessionApplied = true;
           }
         } catch (err) {
           console.error('Failed to parse oauth session', err);
@@ -304,7 +306,19 @@ function runOAuthPopupFlow(popup, url) {
         }
 
         // Setting the session fires onAuthStateChange in SupabaseSessionBridge,
-        // which handles Redux dispatch and navigation — no hard reload needed.
+        // which normally handles Redux dispatch + client-side navigation on
+        // its own. In practice that reactive chain (storage event -> Supabase
+        // internal cross-tab sync -> onAuthStateChange -> hydrate -> navigate)
+        // was inconsistent — sometimes the "Signed in successfully" toast
+        // fired but the page stayed on /signin until a manual reload. A hard
+        // reload of THIS page is exactly what that manual workaround does,
+        // and by the time we get here the session is already persisted
+        // (setSession's promise resolved), so the fresh load reliably lands
+        // on the right page (GuestOnly re-evaluates onboarding vs dashboard
+        // from scratch — same as any other page load).
+        if (sessionApplied && typeof window !== 'undefined') {
+          window.location.reload();
+        }
         resolve();
       }
     };
