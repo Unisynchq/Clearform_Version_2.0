@@ -20,11 +20,10 @@ import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.p
 import { useToast } from '@/hooks/useToast';
 import { getFormBuilderPath } from '@/features/forms/utils/formBuilderNavigation';
 import { getFreshAuthToken } from '@/features/auth/utils/authTokenRefresh';
-import { auth } from '@/config/firebase';
 import {
   AUTH_RETURN_TO_KEY,
-  restoreFirebaseSessionFromCurrentUser,
-} from '@/features/auth/services/firebaseAuthService';
+  restoreSession,
+} from '@/features/auth/services/supabaseAuthService';
 import { loginSuccess } from '@/store/slices/authSlice';
 import { isAuthSessionValid, readAuthSession } from '@/features/auth/utils/authStorage';
 
@@ -1009,23 +1008,20 @@ const FormPublishView = ({
 
     let authed = isAuthenticated;
 
-    if (auth?.currentUser?.email) {
-      try {
-        await getFreshAuthToken();
-        const user = await restoreFirebaseSessionFromCurrentUser();
-        if (user?.email) {
-          dispatch(
-            loginSuccess({
-              email: user.email,
-              firstName: user.firstName,
-              lastName: user.lastName,
-            }),
-          );
-          authed = true;
-        }
-      } catch {
-        authed = Boolean(auth.currentUser);
+    try {
+      const user = await restoreSession();
+      if (user?.email) {
+        dispatch(
+          loginSuccess({
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+          }),
+        );
+        authed = true;
       }
+    } catch {
+      // fall through to cached auth session
     }
 
     if (!authed && isAuthSessionValid()) {

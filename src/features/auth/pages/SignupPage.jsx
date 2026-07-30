@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { FcGoogle } from 'react-icons/fc';
 import { RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
-import { setField, setSubmitting, setError, loginSuccess } from '@/store/slices/authSlice';
+import { setSubmitting, setError, loginSuccess } from '@/store/slices/authSlice';
 import {
   applyBackendOnboardingState,
   completeAuthNavigationAfterSync,
@@ -13,9 +13,10 @@ import {
   signUpWithEmail,
   signInWithGoogle,
   startMicrosoftSignInRedirect,
-} from '@/features/auth/services/firebaseAuthService';
+} from '@/features/auth/services/supabaseAuthService';
 import AuthFieldError from '@/features/auth/components/AuthFieldError';
 import AuthBrowserTipBanner from '@/features/auth/components/AuthBrowserTipBanner';
+import AuthActionButton from '@/features/auth/components/AuthActionButton';
 import {
   hasValidationErrors,
   validateSignupForm,
@@ -25,7 +26,14 @@ import { resolvePilotReturnTo } from '@/features/billing/utils/pilotBillingRoute
 import clearformLogoWhite from '@/assets/clearform-logo-white.svg';
 import bgImage from '@/assets/onboarding-bg.jpg';
 
-/* ─── Static sub-components (memo prevents re-renders on form typing) ─── */
+const inputBaseClass =
+  'w-full h-[40px] bg-[#fafafa] border rounded-[10px] px-[13px] text-[13px] text-[#0f0f0e] placeholder:text-[#757575] outline-none focus:bg-white transition-colors duration-150';
+const inputValidClass = 'border-[rgba(81,76,84,0.15)] focus:border-[rgba(81,76,84,0.4)]';
+const inputInvalidClass = 'border-[#c74e43] focus:border-[#c74e43]';
+const nameInputBaseClass =
+  'w-full h-[40px] bg-[#fafafa] border rounded-[8px] px-3 text-[13px] text-[#0f0f0e] placeholder:text-[#757575] outline-none focus:bg-white transition-colors duration-150';
+const nameInputValidClass = 'border-[#e1e0e2] focus:border-[rgba(81,76,84,0.4)]';
+const nameInputInvalidClass = 'border-[#c74e43] focus:border-[#c74e43]';
 
 const MicrosoftIcon = memo(() => (
   <svg width="20" height="20" viewBox="0 0 21 21" fill="none" aria-hidden="true">
@@ -36,28 +44,20 @@ const MicrosoftIcon = memo(() => (
   </svg>
 ));
 
-const SocialButton = memo(({ children, label, onClick }) => (
+const SocialButton = memo(({ children, label, onClick, disabled = false }) => (
   <motion.button
     type="button"
     aria-label={label}
     onClick={onClick}
-    whileHover={{ scale: 1.03 }}
-    whileTap={{ scale: 0.96 }}
+    disabled={disabled}
+    whileHover={disabled ? undefined : { scale: 1.01 }}
+    whileTap={disabled ? undefined : { scale: 0.98 }}
     transition={{ duration: 0.15, ease: [0.25, 0.1, 0.25, 1] }}
-    className="flex items-center justify-center w-[58px] h-[40px] bg-white border border-[rgba(81,76,84,0.15)] rounded-[10px] hover:bg-[#f4f4f4] cursor-pointer"
+    className="flex h-[42px] w-[54px] items-center justify-center rounded-[10px] border border-[rgba(81,76,84,0.18)] bg-white hover:bg-[#f4f4f4] cursor-pointer shadow-[0_0_0_1px_rgba(255,255,255,0.6)_inset] disabled:cursor-not-allowed disabled:opacity-60"
   >
     {children}
   </motion.button>
 ));
-
-const inputBaseClass =
-  'w-full h-[40px] bg-[#fafafa] border rounded-[10px] px-[13px] text-[13px] text-[#0f0f0e] placeholder:text-[#757575] outline-none focus:bg-white transition-colors duration-150';
-const inputValidClass = 'border-[rgba(81,76,84,0.15)] focus:border-[rgba(81,76,84,0.4)]';
-const inputInvalidClass = 'border-[#c74e43] focus:border-[#c74e43]';
-const nameInputBaseClass =
-  'w-full h-[40px] bg-[#fafafa] border rounded-[8px] px-3 text-[13px] text-[#0f0f0e] placeholder:text-[#757575] outline-none focus:bg-white transition-colors duration-150';
-const nameInputValidClass = 'border-[#e1e0e2] focus:border-[rgba(81,76,84,0.4)]';
-const nameInputInvalidClass = 'border-[#c74e43] focus:border-[#c74e43]';
 
 const InputField = memo(({ label, required, type = 'text', placeholder, value, onChange, name, error }) => {
   const [showPassword, setShowPassword] = useState(false);
@@ -75,7 +75,7 @@ const InputField = memo(({ label, required, type = 'text', placeholder, value, o
           id={name}
           type={isPassword && showPassword ? 'text' : type}
           name={name}
-          value={value}
+          value={value ?? ''}
           onChange={onChange}
           placeholder={placeholder}
           autoComplete={isPassword ? 'new-password' : name === 'email' ? 'email' : 'given-name'}
@@ -83,16 +83,18 @@ const InputField = memo(({ label, required, type = 'text', placeholder, value, o
           aria-describedby={error ? errorId : undefined}
           className={`${inputBaseClass} ${error ? inputInvalidClass : inputValidClass}`}
         />
-        {isPassword && (
+        {isPassword ? (
           <button
             type="button"
+            tabIndex={-1}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => setShowPassword((v) => !v)}
             aria-label={showPassword ? 'Hide password' : 'Show password'}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#a8a6a0] hover:text-[#6b6966] transition-colors cursor-pointer"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#a8a6a0] hover:text-[#6b6966] transition-colors cursor-pointer p-1"
           >
             {showPassword ? <RiEyeOffLine size={16} /> : <RiEyeLine size={16} />}
           </button>
-        )}
+        ) : null}
       </div>
       <AuthFieldError id={errorId} message={error} />
     </div>
@@ -111,7 +113,7 @@ const NameField = memo(({ id, label, name, value, onChange, placeholder, autoCom
         id={id}
         type="text"
         name={name}
-        value={value}
+        value={value ?? ''}
         onChange={onChange}
         placeholder={placeholder}
         autoComplete={autoComplete}
@@ -124,17 +126,12 @@ const NameField = memo(({ id, label, name, value, onChange, placeholder, autoCom
   );
 });
 
-/* ─── Left panel — isolated so image state doesn't re-render the form ─── */
-
 const LeftPanel = memo(() => {
   const [imgLoaded, setImgLoaded] = useState(false);
 
   return (
     <div className="w-[540px] shrink-0 relative bg-white overflow-hidden">
-      {/* Placeholder gradient shown instantly */}
       <div className="absolute left-4 top-4 bottom-4 right-0 rounded-[20px] bg-[linear-gradient(160deg,#1a0a0a_0%,#6b0f0f_45%,#1a0505_100%)]" />
-
-      {/* Real image — fades in once loaded */}
       <div className="absolute left-4 top-4 bottom-4 right-0 rounded-[20px] overflow-hidden">
         <img
           src={bgImage}
@@ -149,8 +146,6 @@ const LeftPanel = memo(() => {
         />
         <div className="absolute inset-0 bg-black/30" />
       </div>
-
-      {/* Logo */}
       <img
         src={clearformLogoWhite}
         alt="Clearform"
@@ -158,8 +153,6 @@ const LeftPanel = memo(() => {
         height="35"
         className="absolute left-8 top-8 w-[125px] h-[35px] object-contain z-10"
       />
-
-      {/* Tagline — words slide in from the left one by one */}
       <p className="absolute left-10 bottom-14 text-[52px] font-bold text-white leading-[60px] tracking-[-2px] w-[380px] z-10 select-none flex flex-wrap gap-x-[14px] gap-y-0">
         {['Forms', 'built', 'for', 'Clarity,', 'Not', 'just', 'Collection.'].map((word, i) => (
           <motion.span
@@ -176,57 +169,38 @@ const LeftPanel = memo(() => {
   );
 });
 
-/* ─── Main page ─────────────────────────────────────────────────────────── */
-
 const SignupPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const pilotReturnTo = resolvePilotReturnTo(searchParams);
   const { showToast } = useToast();
-  const { firstName, lastName, email, password, isSubmitting } = useSelector(
-    (state) => state.auth
-  );
+  const { isSubmitting } = useSelector((state) => state.auth);
+  const [formState, setFormState] = useState({ firstName: '', lastName: '', email: '', password: '' });
+  const { firstName, lastName, email, password } = formState;
   const [errors, setErrors] = useState({});
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
-    dispatch(setField({ field: name, value }));
+    setFormState((prev) => ({ ...prev, [name]: value }));
     setErrors((prev) => (prev[name] ? { ...prev, [name]: null } : prev));
-  }, [dispatch]);
+  }, []);
 
-  const handleFederatedSignUp = useCallback(
-    async (signInFn, providerLabel) => {
-      dispatch(setSubmitting(true));
-      try {
-        const user = await signInFn(pilotReturnTo);
-        if (!user) return;
-        applyBackendOnboardingState(dispatch, user.onboardingCompleted);
-        const path = await completeAuthNavigationAfterSync(dispatch, {
-          onboardingCompleted: user.onboardingCompleted,
-          returnTo: pilotReturnTo,
-          showToast,
-        });
-        dispatch(loginSuccess({
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-        }));
-        showToast({ type: 'success', message: `Signed in with ${providerLabel}`, duration: 3000 });
-        navigate(path, { replace: true });
-      } catch (err) {
-        dispatch(setError(err.message));
-      } finally {
-        dispatch(setSubmitting(false));
-      }
-    },
-    [dispatch, navigate, showToast, pilotReturnTo],
-  );
-
-  const handleGoogleSignIn = useCallback(
-    () => handleFederatedSignUp(signInWithGoogle, 'Google'),
-    [handleFederatedSignUp],
-  );
+  const handleGoogleSignIn = useCallback(async () => {
+    dispatch(setSubmitting(true));
+    dispatch(setError(null));
+    try {
+      await signInWithGoogle(pilotReturnTo);
+    } catch (err) {
+      dispatch(setError(err?.message ?? 'Could not start Google sign-in.'));
+      showToast({
+        type: 'error',
+        message: err?.message ?? 'Could not start Google sign-in.',
+        duration: 4000,
+      });
+      dispatch(setSubmitting(false));
+    }
+  }, [dispatch, pilotReturnTo, showToast]);
 
   const handleMicrosoftSignIn = useCallback(async () => {
     dispatch(setSubmitting(true));
@@ -234,47 +208,63 @@ const SignupPage = () => {
     try {
       await startMicrosoftSignInRedirect(pilotReturnTo);
     } catch (err) {
-      dispatch(setError(err.message));
-      dispatch(setSubmitting(false));
-    }
-  }, [dispatch, pilotReturnTo]);
-
-  const handleSubmit = useCallback(async (e) => {
-    e.preventDefault();
-    const nextErrors = validateSignupForm({ firstName, lastName, email, password });
-    setErrors(nextErrors);
-    if (hasValidationErrors(nextErrors)) return;
-
-    dispatch(setSubmitting(true));
-    try {
-      const user = await signUpWithEmail(email.trim(), password, firstName.trim(), lastName.trim());
-      applyBackendOnboardingState(dispatch, user.onboardingCompleted);
-      const path = await completeAuthNavigationAfterSync(dispatch, {
-        onboardingCompleted: user.onboardingCompleted,
-        returnTo: pilotReturnTo,
-        showToast,
-      });
-      dispatch(loginSuccess({ email: user.email, firstName: user.firstName, lastName: user.lastName }));
+      dispatch(setError(err?.message ?? 'Could not start Microsoft sign-in.'));
       showToast({
-        type: 'success',
-        message: user.firstName ? `Welcome, ${user.firstName}! Your account is ready.` : 'Account created successfully',
-        duration: 3000,
+        type: 'error',
+        message: err?.message ?? 'Could not start Microsoft sign-in.',
+        duration: 4000,
       });
-      navigate(path, { replace: true });
-    } catch (err) {
-      dispatch(setError(err.message));
-      setErrors({ email: err.message });
-    } finally {
       dispatch(setSubmitting(false));
     }
-  }, [dispatch, navigate, email, firstName, lastName, password, showToast, pilotReturnTo]);
+  }, [dispatch, pilotReturnTo, showToast]);
+
+  const handleSubmit = useCallback(
+    async (e) => {
+      e.preventDefault();
+      const nextErrors = validateSignupForm({ firstName, lastName, email, password });
+      setErrors(nextErrors);
+      if (hasValidationErrors(nextErrors)) return;
+
+      dispatch(setSubmitting(true));
+      try {
+        const user = await signUpWithEmail(email.trim(), password, firstName.trim(), lastName.trim());
+        applyBackendOnboardingState(dispatch, user.onboardingCompleted);
+        const path = await completeAuthNavigationAfterSync(dispatch, {
+          onboardingCompleted: user.onboardingCompleted,
+          isNewUser: user.isNewUser,
+          returnTo: pilotReturnTo,
+          showToast,
+        });
+        dispatch(loginSuccess({ email: user.email, firstName: user.firstName, lastName: user.lastName }));
+        showToast({
+          type: 'success',
+          message: user.firstName ? `Welcome, ${user.firstName}! Your account is ready.` : 'Account created successfully',
+          duration: 3000,
+        });
+        navigate(path, { replace: true });
+      } catch (err) {
+        if (String(err?.message ?? '').includes('already exists') || String(err?.message ?? '').includes('email-already-in-use')) {
+          showToast({
+            type: 'info',
+            message: 'An account with this email already exists. Signing in instead.',
+            duration: 4000,
+          });
+          navigate('/signin', { state: { email: email.trim() } });
+        } else {
+          dispatch(setError(err?.message ?? 'Could not create account.'));
+          setErrors({ email: err?.message ?? 'Could not create account.' });
+        }
+      } finally {
+        dispatch(setSubmitting(false));
+      }
+    },
+    [dispatch, navigate, email, firstName, lastName, password, showToast, pilotReturnTo],
+  );
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white">
-
       <LeftPanel />
 
-      {/* ── Right panel ── */}
       <div className="flex-1 flex items-center justify-center bg-white px-6">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -282,11 +272,8 @@ const SignupPage = () => {
           transition={{ duration: 0.28, ease: [0.25, 0.1, 0.25, 1] }}
           className="w-full max-w-[406px] flex flex-col gap-4"
         >
-          {/* Heading */}
           <div className="flex flex-col gap-1.5">
-            <h1 className="text-[22px] font-bold text-[#0f0f0e] leading-[28px]">
-              Create your account
-            </h1>
+            <h1 className="text-[22px] font-bold text-[#0f0f0e] leading-[28px]">Create your account</h1>
             <p className="text-[14px] font-normal text-[#6b6860] leading-[20px]">
               Continue building forms, gathering responses, and automating your workflows.
             </p>
@@ -294,9 +281,7 @@ const SignupPage = () => {
 
           <AuthBrowserTipBanner />
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="flex flex-col gap-[14px]" noValidate>
-            {/* Name row */}
             <div className="flex items-start gap-4">
               <NameField
                 id="firstName"
@@ -321,38 +306,52 @@ const SignupPage = () => {
             </div>
 
             <InputField
-              label="Email" required type="email" name="email"
-              placeholder="johndoe@gmail.com" value={email} onChange={handleChange}
+              label="Email"
+              required
+              type="email"
+              name="email"
+              placeholder="johndoe@gmail.com"
+              value={email}
+              onChange={handleChange}
               error={errors.email}
             />
 
             <InputField
-              label="Password" required type="password" name="password"
-              placeholder="Min. 8 characters" value={password} onChange={handleChange}
+              label="Password"
+              required
+              type="password"
+              name="password"
+              placeholder="Min. 8 characters"
+              value={password}
+              onChange={handleChange}
               error={errors.password}
             />
 
-            {/* Social login */}
-            <div className="flex items-center justify-center gap-3 py-0.5">
-              <SocialButton label="Continue with Google" onClick={handleGoogleSignIn}><FcGoogle size={22} /></SocialButton>
-              <SocialButton label="Continue with Microsoft" onClick={handleMicrosoftSignIn}><MicrosoftIcon /></SocialButton>
+            <AuthActionButton
+              type="submit"
+              isLoading={isSubmitting}
+              loadingLabel="Creating…"
+              className="w-full h-[46px] bg-black text-white text-[15px] font-semibold rounded-[12px] flex items-center justify-center cursor-pointer hover:bg-[#2c2c2e] active:scale-[0.99] transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              Create Account
+            </AuthActionButton>
+
+            <div className="flex items-center gap-4 py-2">
+              <div className="h-px bg-[rgba(81,76,84,0.15)] flex-1" />
+              <span className="text-[13px] font-medium text-[#655d67]">OR</span>
+              <div className="h-px bg-[rgba(81,76,84,0.15)] flex-1" />
             </div>
 
-            {/* CTA */}
-            <div className="flex flex-col gap-3">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full h-[46px] bg-black text-white text-[15px] font-semibold rounded-[12px] flex items-center justify-center cursor-pointer hover:bg-[#2c2c2e] active:scale-[0.99] transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? (
-                  <svg className="animate-spin w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" aria-label="Loading">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="white" strokeWidth="4" />
-                    <path className="opacity-75" fill="white" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                ) : 'Create Account'}
-              </button>
+            <div className="flex items-center justify-center gap-4 py-0.5">
+              <SocialButton label="Continue with Google" onClick={handleGoogleSignIn} disabled={isSubmitting}>
+                <FcGoogle size={22} />
+              </SocialButton>
+              <SocialButton label="Continue with Microsoft" onClick={handleMicrosoftSignIn} disabled={isSubmitting}>
+                <MicrosoftIcon />
+              </SocialButton>
+            </div>
 
+            <div className="flex flex-col gap-3 mt-1">
               <button
                 type="button"
                 onClick={() => navigate('/signin')}

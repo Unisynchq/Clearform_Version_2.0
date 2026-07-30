@@ -3,11 +3,9 @@ import { createRoot } from 'react-dom/client';
 import { Provider } from 'react-redux';
 import { PostHogProvider } from '@posthog/react';
 import { store } from '@/store/store';
-import { onIdTokenChanged } from 'firebase/auth';
-import { auth } from '@/config/firebase';
 import { initSentry, Sentry } from '@/config/sentry';
 import { initPosthog, posthog } from '@/config/posthog';
-import { signOutUser } from '@/features/auth/services/firebaseAuthService';
+import { signOutUser } from '@/features/auth/services/supabaseAuthService';
 import { logout } from '@/store/slices/authSlice';
 import SentryErrorFallback from '@/components/feedback/SentryErrorFallback';
 import '@/styles/index.css';
@@ -15,18 +13,6 @@ import App from './App.jsx';
 
 const sentryEnabled = initSentry();
 const posthogEnabled = initPosthog();
-
-// Keep sessionStorage token in sync with Firebase's silent refresh cycle (~1 h)
-if (auth) {
-  onIdTokenChanged(auth, async (user) => {
-    if (user) {
-      const token = await user.getIdToken();
-      sessionStorage.setItem('clearform:auth-token', token);
-    } else {
-      sessionStorage.removeItem('clearform:auth-token');
-    }
-  });
-}
 
 // Sign out and clear Redux state when any API call returns 401
 window.addEventListener('clearform:auth-expired', async () => {

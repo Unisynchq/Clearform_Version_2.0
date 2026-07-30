@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import AppRoutes from '@/routes/AppRoutes';
 import ToastContainer from '@/components/feedback/ToastContainer';
@@ -8,7 +8,7 @@ import CreateNewFormModal from '@/features/forms/components/CreateNewFormModal';
 import NotificationCenter from '@/features/forms/components/NotificationCenter';
 import BuilderRouteTransitionOverlay from '@/components/layout/BuilderRouteTransitionOverlay';
 import AuthRedirectHandler from '@/features/auth/components/AuthRedirectHandler';
-import FirebaseSessionBridge from '@/features/auth/components/FirebaseSessionBridge';
+import SupabaseSessionBridge from '@/features/auth/components/SupabaseSessionBridge';
 import { capturePendingPaymentFromUrl } from '@/features/billing/utils/pendingPaymentStorage';
 import { captureAndClaimPendingPurchase } from '@/features/billing/utils/billingReturnFlow';
 import { loadFormsFromApi, loadWorkspacesFromApi } from '@/store/slices/formsSlice';
@@ -40,15 +40,34 @@ const App = () => {
 
   return (
     <BrowserRouter>
-      <AuthRedirectHandler />
-      <FirebaseSessionBridge />
+      <AppShell />
+    </BrowserRouter>
+  );
+};
+
+// Auth-popup routes (the Supabase OAuth callback window) must not mount the
+// main app's session bridge/redirect handler — that window's only job is to
+// hand its session back to the opener via localStorage and close itself.
+const AppShell = () => {
+  const location = useLocation();
+  const pathname = location.pathname ?? '';
+  const isAuthPopupRoute = pathname.startsWith('/auth/');
+
+  return (
+    <>
+      {!isAuthPopupRoute ? (
+        <>
+          <AuthRedirectHandler />
+          <SupabaseSessionBridge />
+        </>
+      ) : null}
       <AppRoutes />
       <ToastContainer />
       <DashboardOverlays />
       <CreateNewFormModal />
       <NotificationCenter />
       <BuilderRouteTransitionOverlay />
-    </BrowserRouter>
+    </>
   );
 };
 

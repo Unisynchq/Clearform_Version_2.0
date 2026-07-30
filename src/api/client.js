@@ -1,6 +1,9 @@
 import { env } from '@/config/env';
-import { auth } from '@/config/firebase';
 import { getFreshAuthToken } from '@/features/auth/utils/authTokenRefresh';
+import {
+  isAuthLogoutInProgress,
+  isAuthRestoreInProgress,
+} from '@/features/auth/utils/authBootstrapCoordinator';
 
 export class ApiError extends Error {
   constructor(message, { status, body, path } = {}) {
@@ -72,6 +75,7 @@ export async function apiClient(path, {
       Accept: 'application/json',
       ...headers,
     },
+    credentials: 'include',
     signal: effectiveSignal,
   };
 
@@ -85,13 +89,12 @@ export async function apiClient(path, {
   }
 
   const publicRoute = isPublicApiPath(path) || skipAuth;
-  let token =
-    typeof window !== 'undefined' ? sessionStorage.getItem('clearform:auth-token') : null;
-  if (typeof window !== 'undefined' && auth?.currentUser) {
+  let token = null;
+  if (typeof window !== 'undefined' && !publicRoute) {
     try {
       token = await getFreshAuthToken();
     } catch {
-      // use cached token
+      // ignore
     }
   }
   if (token) init.headers.Authorization = `Bearer ${token}`;
@@ -109,7 +112,7 @@ export async function apiClient(path, {
 
   if (!res.ok && res.status === 401 && typeof window !== 'undefined') {
     try {
-      const retryToken = await getFreshAuthToken();
+      const retryToken = await getFreshAuthToken(true);
       if (retryToken) {
         init.headers.Authorization = `Bearer ${retryToken}`;
         res = await fetch(buildUrl(path, query), init);
@@ -129,7 +132,7 @@ export async function apiClient(path, {
   }
 
   if (!res.ok) {
-    if (res.status === 401) {
+    if (res.status === 401 && !isAuthLogoutInProgress() && !isAuthRestoreInProgress()) {
       window.dispatchEvent(new Event('clearform:auth-expired'));
     }
     throw new ApiError(data?.message ?? res.statusText ?? 'Request failed', {
