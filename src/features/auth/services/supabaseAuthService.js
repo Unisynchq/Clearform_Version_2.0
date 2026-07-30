@@ -337,6 +337,12 @@ export async function signInWithGoogle(returnTo) {
     options: {
       redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectPath)}`,
       skipBrowserRedirect: true,
+      // Without this, Google silently reuses whichever account is already
+      // signed in on this device instead of showing the picker — this was
+      // the reported "no account list, popup just closes" bug, and the
+      // silent auto-pick also explains the inconsistent "sometimes opens,
+      // sometimes doesn't" behavior between attempts.
+      queryParams: { prompt: 'select_account' },
     },
   });
 
@@ -371,6 +377,9 @@ async function signInWithMicrosoftOAuth(returnTo) {
     options: {
       redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectPath)}`,
       skipBrowserRedirect: true,
+      // Same reasoning as Google — force the account picker instead of
+      // silently reusing whatever Microsoft account is already signed in.
+      queryParams: { prompt: 'select_account' },
     },
   });
 
