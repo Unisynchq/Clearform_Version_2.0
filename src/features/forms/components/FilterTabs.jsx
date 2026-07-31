@@ -33,6 +33,7 @@ const STATUS_OPTIONS = [
   { id: 'live',     label: 'Live',     dotColor: '#22c55e' },
   { id: 'draft',    label: 'Draft',    dotColor: '#a0a09c' },
   { id: 'archived', label: 'Archived', dotColor: '#d4d4d0' },
+  { id: 'trash',    label: 'Trash',    dotColor: '#ef4444' },
 ];
 
 const RESPONSE_OPTIONS = [
@@ -87,6 +88,7 @@ const FilterTabs = () => {
     live:          workspaceForms.filter((f) => f.status === 'live').length,
     draft:         workspaceForms.filter((f) => f.status === 'draft').length,
     archived:      workspaceForms.filter((f) => f.status === 'archived').length,
+    trash:         workspaceForms.filter((f) => f.status === 'trash').length,
     has_responses: workspaceForms.filter((f) => f.responses > 0).length,
     no_responses:  workspaceForms.filter((f) => f.responses === 0).length,
   };

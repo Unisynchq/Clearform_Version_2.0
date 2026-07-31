@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
@@ -15,7 +15,8 @@ import {
   selectOnboardingTemplate,
   setOnboardingStep,
 } from '@/store/slices/onboardingSlice';
-import { addForm } from '@/store/slices/formsSlice';
+import { addForm, addWorkspace, selectNavWorkspaces } from '@/store/slices/formsSlice';
+import { createWorkspace } from '@/api/services/workspacesService';
 import { createForm, saveBuilderSnapshot } from '@/api/services/formsService';
 import { isApiConfigured } from '@/config/env';
 import { useToast } from '@/hooks/useToast';
@@ -33,6 +34,8 @@ const OnboardingChooseTemplatePage = () => {
   const { templates, status } = useTemplates();
   const step = useSelector(selectOnboardingStep);
   const selectedTemplateId = useSelector((s) => s.onboarding.selectedTemplateId);
+  const workspaces = useSelector(selectNavWorkspaces);
+  const userEmail = useSelector((s) => s.auth.email);
 
   useEffect(() => {
     if (step < 1) {
@@ -89,15 +92,34 @@ const OnboardingChooseTemplatePage = () => {
         }
       : null;
 
+    let effectiveWorkspaceId = undefined;
+    if (workspaces.length === 0) {
+      if (isApiConfigured()) {
+        try {
+          const ws = await createWorkspace({ label: 'My Workspace', color: '#3b82f6' });
+          effectiveWorkspaceId = ws.id;
+          dispatch(addWorkspace({ id: ws.id, label: ws.label, color: ws.color }));
+        } catch {
+          // ignore
+        }
+      } else {
+        effectiveWorkspaceId = `ws-${Date.now()}`;
+        dispatch(addWorkspace({ id: effectiveWorkspaceId, label: 'My Workspace', color: '#3b82f6' }));
+      }
+    } else {
+      effectiveWorkspaceId = workspaces[0].id;
+    }
+
     if (isApiConfigured()) {
       try {
         const created = await createForm({
           title: newForm.title,
-          workspaceId: undefined,
+          workspaceId: effectiveWorkspaceId,
           gradientFrom: newForm.gradientFrom,
           gradientTo: newForm.gradientTo,
           overlayColor: newForm.overlayColor,
           iconGradient: newForm.iconGradient,
+          ownerEmail: userEmail || '',
         });
         formId = created.id;
         setPendingFormId(formId);
@@ -114,8 +136,10 @@ const OnboardingChooseTemplatePage = () => {
     dispatch(
       addForm({
         ...newForm,
+        workspace: effectiveWorkspaceId,
         id: formId,
         ...(builderSnapshot ? { builderSnapshot: { ...builderSnapshot, formId } } : {}),
+        ownerEmail: userEmail || '',
       }),
     );
     dispatch(setOnboardingStep(3));
@@ -128,6 +152,7 @@ const OnboardingChooseTemplatePage = () => {
         templateTitle: template.title,
         formTitle: built?.formTitle ?? template.title,
         formId,
+        workspaceId: effectiveWorkspaceId,
         fromOnboarding: true,
       },
       { replace: true },
@@ -142,16 +167,34 @@ const OnboardingChooseTemplatePage = () => {
   const handleCustomForm = async () => {
     const blankForm = buildBlankOnboardingForm();
     let formId = blankForm.id;
+    let effectiveWorkspaceId = undefined;
+    if (workspaces.length === 0) {
+      if (isApiConfigured()) {
+        try {
+          const ws = await createWorkspace({ label: 'My Workspace', color: '#3b82f6' });
+          effectiveWorkspaceId = ws.id;
+          dispatch(addWorkspace({ id: ws.id, label: ws.label, color: ws.color }));
+        } catch {
+          // ignore
+        }
+      } else {
+        effectiveWorkspaceId = `ws-${Date.now()}`;
+        dispatch(addWorkspace({ id: effectiveWorkspaceId, label: 'My Workspace', color: '#3b82f6' }));
+      }
+    } else {
+      effectiveWorkspaceId = workspaces[0].id;
+    }
 
     if (isApiConfigured()) {
       try {
         const created = await createForm({
           title: blankForm.title,
-          workspaceId: undefined,
+          workspaceId: effectiveWorkspaceId,
           gradientFrom: blankForm.gradientFrom,
           gradientTo: blankForm.gradientTo,
           overlayColor: blankForm.overlayColor,
           iconGradient: blankForm.iconGradient,
+          ownerEmail: userEmail || '',
         });
         formId = created.id;
         setPendingFormId(formId);
@@ -161,7 +204,7 @@ const OnboardingChooseTemplatePage = () => {
       }
     }
 
-    const newForm = { ...blankForm, id: formId };
+    const newForm = { ...blankForm, id: formId, workspace: effectiveWorkspaceId, ownerEmail: userEmail || '' };
     dispatch(addForm(newForm));
     dispatch(setOnboardingStep(3));
     navigateToFormBuilder(

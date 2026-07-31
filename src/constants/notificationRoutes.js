@@ -8,6 +8,7 @@ export const NOTIFICATION_ROUTE_KEYS = {
   billing: 'billing',
   analytics: 'analytics',
   dashboard: 'dashboard',
+  sessions: 'sessions',
 };
 
 const PROFILE_BASE = '/dashboard/profile';
@@ -16,6 +17,7 @@ export const NOTIFICATION_ROUTES = {
   [NOTIFICATION_ROUTE_KEYS.profile]: `${PROFILE_BASE}?tab=profile`,
   [NOTIFICATION_ROUTE_KEYS.security]: `${PROFILE_BASE}?tab=security`,
   [NOTIFICATION_ROUTE_KEYS.billing]: `${PROFILE_BASE}?tab=billing`,
+  [NOTIFICATION_ROUTE_KEYS.sessions]: `${PROFILE_BASE}?tab=security`,
   [NOTIFICATION_ROUTE_KEYS.dashboard]: '/dashboard',
 };
 

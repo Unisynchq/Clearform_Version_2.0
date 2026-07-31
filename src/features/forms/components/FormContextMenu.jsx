@@ -14,6 +14,7 @@ import {
   RiArchiveLine,
   RiDeleteBinLine,
   RiFolderTransferLine,
+  RiArrowGoBackLine,
 } from 'react-icons/ri';
 import {
   closeContextMenu,
@@ -25,7 +26,7 @@ import {
   openCompareMode,
   openAssignFormWorkspaceModal,
 } from '@/store/slices/uiSlice';
-import { clearFormPause } from '@/store/slices/formsSlice';
+import { resumeFormOnServer, unarchiveFormOnServer, restoreFormOnServer } from '@/store/slices/formsSlice';
 import { isFormPaused } from '../utils/formPause';
 import { getFormBuilderState } from '../utils/formBuilderNavigation';
 import { navigateToFormBuilder } from '../utils/navigateToFormBuilder';
@@ -41,6 +42,11 @@ const MENU_ITEMS = [
   { id: 'pause', icon: RiPauseLine, label: 'Pause form' },
   { id: 'archive', icon: RiArchiveLine, label: 'Archive' },
   { id: 'delete', icon: RiDeleteBinLine, label: 'Delete', danger: true },
+];
+
+const TRASH_MENU_ITEMS = [
+  { id: 'restore', icon: RiArrowGoBackLine, label: 'Restore' },
+  { id: 'delete', icon: RiDeleteBinLine, label: 'Delete permanently', danger: true },
 ];
 
 const FormContextMenu = () => {
@@ -73,7 +79,12 @@ const FormContextMenu = () => {
     } else if (itemId === 'duplicate') {
       dispatch(openDuplicateModal({ formId, formTitle: form?.title ?? '' }));
     } else if (itemId === 'archive') {
-      dispatch(openArchiveModal({ formId, formTitle: form?.title ?? '', responses: form?.responses ?? 0 }));
+      if (form?.status === 'archived') {
+        dispatch(unarchiveFormOnServer(formId));
+        dispatch(closeContextMenu());
+      } else {
+        dispatch(openArchiveModal({ formId, formTitle: form?.title ?? '', responses: form?.responses ?? 0 }));
+      }
     } else if (itemId === 'share') {
       dispatch(openShareModal({ formId, formTitle: form?.title ?? '' }));
     } else if (itemId === 'compare') {
@@ -93,10 +104,13 @@ const FormContextMenu = () => {
       dispatch(closeContextMenu());
     } else if (itemId === 'pause') {
       if (isFormPaused(form)) {
-        dispatch(clearFormPause(formId));
+        dispatch(resumeFormOnServer(formId));
       } else {
         dispatch(openPauseModal({ formId, formTitle: form?.title ?? '' }));
       }
+      dispatch(closeContextMenu());
+    } else if (itemId === 'restore') {
+      dispatch(restoreFormOnServer(formId));
       dispatch(closeContextMenu());
     } else {
       dispatch(closeContextMenu());
@@ -106,6 +120,8 @@ const FormContextMenu = () => {
   /* Clamp to viewport */
   const safeX = Math.min(x, window.innerWidth - 220);
   const safeY = Math.min(y, window.innerHeight - 360);
+
+  const activeMenuItems = form?.status === 'trash' ? TRASH_MENU_ITEMS : MENU_ITEMS;
 
   return (
     <AnimatePresence>
@@ -119,12 +135,13 @@ const FormContextMenu = () => {
           style={{ top: safeY, left: safeX }}
           className="fixed z-[200] bg-white border border-[#e5e3dc] rounded-[12px] shadow-[0_8px_32px_rgba(0,0,0,0.12)] py-1.5 w-[196px]"
         >
-          {MENU_ITEMS.map((item, i) => {
+          {activeMenuItems.map((item, i) => {
             const formPaused = item.id === 'pause' && isFormPaused(form);
-            const Icon = formPaused ? RiPlayLine : item.icon;
-            const label = formPaused ? 'Resume form' : item.label;
+            const isArchived = form?.status === 'archived';
+            const Icon = formPaused ? RiPlayLine : (item.id === 'archive' && isArchived ? RiArchiveLine : item.icon);
+            const label = formPaused ? 'Resume form' : (item.id === 'archive' && isArchived ? 'Unarchive' : item.label);
             const isDelete = item.danger;
-            const showDivider = i === MENU_ITEMS.length - 2;
+            const showDivider = i === activeMenuItems.length - 2;
             return (
               <div key={item.id}>
                 {showDivider && <div className="h-px bg-[#e5e3dc] mx-2 my-1" />}

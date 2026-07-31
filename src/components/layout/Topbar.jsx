@@ -34,7 +34,7 @@ const Topbar = ({ title = 'All forms', titleSize = 'default', useFormsLoading = 
   const formsSearchQuery = useSelector((s) => s.forms.searchQuery);
   const formsLoading = useSelector((s) => s.forms.isLoading);
   const isLoading = useFormsLoading ? formsLoading : false;
-  const unreadCount = useSelector((s) => s.notifications.notifications.filter((item) => item.unread).length);
+  const unreadCount = useSelector((s) => s.notifications.unreadCount ?? s.notifications.notifications.filter((item) => item.unread).length);
   const [isOpen, setIsOpen] = useState(false);
   const [paletteQuery, setPaletteQuery] = useState('');
   const containerRef = useRef(null);
@@ -96,7 +96,7 @@ const Topbar = ({ title = 'All forms', titleSize = 'default', useFormsLoading = 
           className="h-[52px] shrink-0 bg-white border-b border-[#e5e3dc] flex items-center justify-between px-6 relative z-10"
         >
           <Sk className="h-[20px] w-[88px] rounded-[6px]" />
-          <Sk className="h-[38px] w-[400px] rounded-[8px]" />
+          <Sk className="h-[38px] w-[200px] sm:w-[300px] md:w-[400px] rounded-[8px]" />
           <Sk className="h-8 w-8 rounded-[6px]" />
         </motion.header>
       ) : (
@@ -106,7 +106,7 @@ const Topbar = ({ title = 'All forms', titleSize = 'default', useFormsLoading = 
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2, ease: topbarEase }}
-          className="h-[52px] shrink-0 bg-white border-b border-[#e5e3dc] flex items-center justify-between px-6"
+          className="h-[52px] shrink-0 bg-white border-b border-[#e5e3dc] flex items-center justify-between gap-2 px-3 sm:px-6"
         >
           {/* Page title */}
           <h1
@@ -118,7 +118,7 @@ const Topbar = ({ title = 'All forms', titleSize = 'default', useFormsLoading = 
           {/* Search bar — elevated above backdrop when dropdown is open */}
           <div
             ref={containerRef}
-            className={`relative w-[400px] ${isOpen ? 'z-[402]' : ''}`}
+            className={`relative w-[200px] sm:w-[300px] md:w-[400px] ${isOpen ? 'z-[402]' : ''}`}
             onClick={() => inputRef.current?.focus()}
           >
             <div

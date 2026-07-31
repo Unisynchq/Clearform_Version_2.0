@@ -13,8 +13,8 @@ import {
 import Select from '../ui/Select';
 import { useToast } from '../../hooks/useToast';
 import { DeleteFormModal, PauseFormModal } from './AnalyticsFormActionModals';
-import { deleteFormRequest, pauseFormRequest } from './analyticsFormActions';
-import { updateForm, deleteForm, setFormPause, loadFormsFromApi } from '@/store/slices/formsSlice';
+import { deleteFormRequest } from './analyticsFormActions';
+import { updateForm, deleteForm, pauseFormOnServer, resumeFormOnServer, loadFormsFromApi } from '@/store/slices/formsSlice';
 import { setConfirmModalOpen } from '@/store/slices/uiSlice';
 import {
   buildIndefinitePausePayload,
@@ -151,9 +151,6 @@ function AnalyticsSettingsPanel({ form }) {
   const [lifecycle, setLifecycle] = useState(form?.lifecycleMode ?? DEFAULT_LIFECYCLE_MODE);
   const [partial, setPartial] = useState(form?.capturePartialSubmissions ?? true);
 
-  const [completionPct, setCompletionPct] = useState(
-    String(alertSettings.completion.thresholdPct ?? 10),
-  );
   const [milestoneVal, setMilestoneVal] = useState(String(alertSettings.milestone.value ?? 500));
   const [sentimentPct, setSentimentPct] = useState(
     String(alertSettings.sentiment.thresholdPct ?? 1),
@@ -165,7 +162,6 @@ function AnalyticsSettingsPanel({ form }) {
     setLifecycle(form?.lifecycleMode ?? DEFAULT_LIFECYCLE_MODE);
     setPartial(form?.capturePartialSubmissions ?? true);
     const merged = mergeAlertSettings(form?.alertSettings);
-    setCompletionPct(String(merged.completion.thresholdPct ?? 10));
     setMilestoneVal(String(merged.milestone.value ?? 500));
     setSentimentPct(String(merged.sentiment.thresholdPct ?? 1));
   }, [form?.id, form?.title, form?.responseLimit, form?.lifecycleMode, form?.capturePartialSubmissions, form?.alertSettings]);
@@ -259,14 +255,11 @@ function AnalyticsSettingsPanel({ form }) {
 
   const runPauseForm = useCallback(async () => {
     if (!form?.id) return;
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
     setActionLoading(true);
 
     try {
-      await pauseFormRequest({ signal: controller.signal });
-      dispatch(setFormPause(buildIndefinitePausePayload(form.id)));
+      const payload = buildIndefinitePausePayload(form.id);
+      await dispatch(pauseFormOnServer(form.id, payload));
       setPauseModalOpen(false);
       showToast({
         type: 'warning',
@@ -280,6 +273,30 @@ function AnalyticsSettingsPanel({ form }) {
         message: 'Failed to pause form. Try again.',
         duration: 4500,
         action: { label: 'Retry', onClick: () => runPauseForm() },
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  }, [dispatch, form?.id, showToast]);
+
+  const runResumeForm = useCallback(async () => {
+    if (!form?.id) return;
+    setActionLoading(true);
+
+    try {
+      await dispatch(resumeFormOnServer(form.id));
+      showToast({
+        type: 'success',
+        message: 'Form resumed successfully',
+        duration: 6000,
+      });
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
+      showToast({
+        type: 'error',
+        message: 'Failed to resume form. Try again.',
+        duration: 4500,
+        action: { label: 'Retry', onClick: () => runResumeForm() },
       });
     } finally {
       setActionLoading(false);
@@ -403,37 +420,6 @@ function AnalyticsSettingsPanel({ form }) {
           </p>
           <div>
             <SettingRow
-              label="Completion rate drops below"
-              description="Get notified when completion rate falls under this threshold"
-              control={
-                <div className="flex items-center gap-2">
-                  <input
-                    value={completionPct}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setCompletionPct(v);
-                      patchAlert({
-                        completion: {
-                          ...alertSettings.completion,
-                          thresholdPct: Number(v) || 10,
-                        },
-                      });
-                    }}
-                    className={`${inputBase} h-8 w-20 text-center`}
-                  />
-                  <span className="text-[13px] text-[#6a6860]">%</span>
-                  <div className="pl-2">
-                    <Toggle
-                      checked={alertSettings.completion.enabled}
-                      onChange={(enabled) =>
-                        patchAlert({ completion: { ...alertSettings.completion, enabled } })
-                      }
-                    />
-                  </div>
-                </div>
-              }
-            />
-            <SettingRow
               label="Responses hit milestone"
               description="Celebrate when you hit 100, 250, 500, or custom milestones"
               control={
@@ -510,14 +496,25 @@ function AnalyticsSettingsPanel({ form }) {
                     Temporarily stop accepting new responses. You can resume anytime.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  disabled={formPaused || actionLoading}
-                  onClick={() => setPauseModalOpen(true)}
-                  className="shrink-0 rounded-[8px] border border-[#ea580c] px-3 py-2 text-[12px] font-medium text-[#c2410c] transition-colors hover:bg-[#fff7ed] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {formPaused ? 'Form paused' : 'Pause form'}
-                </button>
+                {formPaused ? (
+                  <button
+                    type="button"
+                    disabled={actionLoading}
+                    onClick={runResumeForm}
+                    className="shrink-0 rounded-[8px] border border-[#16a34a] bg-[#16a34a] px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-[#15803d] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Resume form
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={actionLoading}
+                    onClick={() => setPauseModalOpen(true)}
+                    className="shrink-0 rounded-[8px] border border-[#ea580c] px-3 py-2 text-[12px] font-medium text-[#c2410c] transition-colors hover:bg-[#fff7ed] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Pause form
+                  </button>
+                )}
               </div>
               <div className="border-t border-[#fce4e4] pt-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">

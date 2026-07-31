@@ -33,11 +33,21 @@ const UI_ACTIONS = new Set([
 ]);
 
 const persistFormsSlice = (formsState) => {
-  if (!isApiConfigured()) {
+  const apiMode = isApiConfigured();
+
+  if (!apiMode) {
+    // Offline mode: write all business data to localStorage as single source of truth
     writeUserForms(formsState.forms);
     writeAllFormResponses(formsState.responsesByFormId ?? {});
     writeWorkspaces(syncWorkspaceCounts(formsState.workspaces, formsState.forms));
   }
+  // NOTE: When API is configured, the database is the source of truth for all
+  // business data (forms, responses, workspaces, pause state). We do NOT write
+  // business data to localStorage in API mode to avoid stale data overriding
+  // fresh DB data on next load.
+
+  // Always persist UI preferences (filter, sort, view mode, search, workspace
+  // selection) — these are not business data and do not affect correctness.
   writeFormsUi({
     activeFilter: formsState.activeFilter,
     activeWorkspace: formsState.activeWorkspace,
@@ -49,7 +59,9 @@ const persistFormsSlice = (formsState) => {
   });
 };
 
-/** Persist forms, workspaces, and dashboard UI preferences to localStorage. */
+/** Persist dashboard UI preferences to localStorage.
+ *  In API mode, business data (forms, responses, workspaces, pause state)
+ *  is NOT written — the database is the single source of truth. */
 export const persistAppMiddleware = (store) => (next) => (action) => {
   const result = next(action);
   if (FORMS_ACTIONS.has(action.type) || UI_ACTIONS.has(action.type)) {

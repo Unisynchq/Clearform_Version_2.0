@@ -14,12 +14,11 @@ import {
   readSecuritySettings,
   writeSecuritySettings,
 } from '@/features/profile/utils/profileSettingsStorage';
-import {
-  mergeSessionsWithCurrentDevice,
-} from '@/features/profile/utils/currentDeviceSession';
+import { mergeSessionsWithCurrentDevice } from '@/features/profile/utils/currentDeviceSession';
 import {
   getDefaultSessions,
   getPasswordStrength,
+  formatPasswordLastChanged,
   strengthBarColor,
   strengthTextColor,
 } from '@/features/profile/utils/profileSecurityUtils';
@@ -29,13 +28,10 @@ import {
   notificationAction,
 } from '@/constants/notificationRoutes';
 import {
-  hasStoredPassword,
-  verifyCurrentPassword,
-} from '@/features/profile/utils/profileValidation';
-import { persistAccountPassword } from '@/features/auth/utils/userAccountsStorage';
-import { requestPasswordResetEmail } from '@/features/auth/services/supabaseAuthService';
+  requestPasswordResetEmail,
+  updateUserPasswordInSupabase,
+} from '@/features/auth/services/supabaseAuthService';
 import { useToast } from '@/hooks/useToast';
-import { useSelector } from 'react-redux';
 
 const inputClass =
   'w-full rounded-[6px] border border-[#e8e8e6] bg-white px-[13px] py-[10px] text-[13.5px] text-[#1a1a18] outline-none transition-colors placeholder:text-[#9e9e9a] focus:border-[#1a1a18]';
@@ -123,11 +119,7 @@ const SessionRow = ({ session, onRevoke }) => {
         <SessionIcon isUnknown={isUnknown} />
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <p
-              className={`text-[13.5px] font-medium ${
-                isUnknown ? 'text-[#c53030]' : 'text-[#1a1a18]'
-              }`}
-            >
+            <p className={`text-[13.5px] font-medium ${isUnknown ? 'text-[#c53030]' : 'text-[#1a1a18]'}`}>
               {device}
             </p>
             {isCurrent ? (
@@ -141,9 +133,7 @@ const SessionRow = ({ session, onRevoke }) => {
       </div>
 
       <div className="flex shrink-0 items-center gap-3">
-        <span
-          className={`text-[12px] ${isUnknown ? 'text-[#c53030]' : 'text-[#9e9e9a]'}`}
-        >
+        <span className={`text-[12px] ${isUnknown ? 'text-[#c53030]' : 'text-[#9e9e9a]'}`}>
           {lastActive}
         </span>
         {!isCurrent ? (
@@ -164,12 +154,8 @@ const SessionRow = ({ session, onRevoke }) => {
   );
 };
 
-const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
+const ProfileSecurityPanel = ({ email }) => {
   const dispatch = useDispatch();
-  const lookupEmails = useMemo(
-    () => [profileEmail].filter((e) => e?.trim() && e.trim().toLowerCase() !== email?.trim().toLowerCase()),
-    [email, profileEmail]
-  );
   const { showToast } = useToast();
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -182,6 +168,15 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const [currentPasswordError, setCurrentPasswordError] = useState(null);
   const [submitAttempted, setSubmitAttempted] = useState(false);
+
+  const accountHasPassword = true;
+  const securitySettings = readSecuritySettings(email);
+  const passwordLastChanged = securitySettings?.passwordLastChanged;
+
+  const lastChangedText = useMemo(
+    () => formatPasswordLastChanged(passwordLastChanged, accountHasPassword, undefined),
+    [passwordLastChanged, accountHasPassword],
+  );
 
   const hydrateSessions = useCallback(() => {
     const saved = readSecuritySettings(email);
@@ -206,20 +201,11 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
     newPassword.length > 0 && confirmPassword.length > 0 && newPassword === confirmPassword;
   const confirmMismatch =
     submitAttempted && confirmPassword.length > 0 && newPassword !== confirmPassword;
-
-  const incorrectCurrent = Boolean(currentPasswordError);
-  const lockNewFields = incorrectCurrent;
-
-  const currentPasswordMismatch =
-    currentPassword.trim().length > 0 &&
-    hasStoredPassword(email, lookupEmails) &&
-    !verifyCurrentPassword(email, currentPassword, lookupEmails);
-
+  const newPasswordTooShort = submitAttempted && newPassword.length > 0 && newPassword.length < 8;
   const canUpdatePassword =
     currentPassword.trim().length > 0 &&
-    newPassword.length >= 12 &&
-    passwordsMatch &&
-    !incorrectCurrent;
+    newPassword.length >= 8 &&
+    passwordsMatch;
 
   const handleCancelPassword = () => {
     setCurrentPassword('');
@@ -232,59 +218,72 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
   const handleUpdatePassword = async () => {
     setSubmitAttempted(true);
 
-    if (!verifyCurrentPassword(email, currentPassword, lookupEmails)) {
-      setCurrentPasswordError(
-        'Incorrect password. Try Again or Reset the Password'
-      );
+    if (newPassword.trim() === currentPassword.trim()) {
+      showToast({
+        type: 'error',
+        message: 'New password cannot be the same as your current password.',
+        duration: 3000,
+      });
       return;
     }
 
     setCurrentPasswordError(null);
 
-    if (newPassword.length < 12) {
-      return;
-    }
-
-    if (!passwordsMatch) {
+    if (newPassword.length < 8 || !passwordsMatch) {
       return;
     }
 
     setIsUpdating(true);
-    await new Promise((r) => setTimeout(r, 450));
-    writeSecuritySettings(email, {
-      sessions: mergeSessionsWithCurrentDevice(
-        sessions.filter((s) => s.isCurrent)
-      ),
-      passwordLastChanged: Date.now(),
-    });
-    persistAccountPassword(email, newPassword, { altEmails: lookupEmails });
-    handleCancelPassword();
-    setIsUpdating(false);
-    setShowSuccessBanner(true);
-    showToast({ type: 'success', message: 'Password updated.', duration: 2200 });
+    try {
+      await updateUserPasswordInSupabase(currentPassword, newPassword);
+      const now = Date.now();
+      writeSecuritySettings(email, {
+        sessions: mergeSessionsWithCurrentDevice(sessions.filter((s) => s.isCurrent)),
+        passwordLastChanged: now,
+      });
+      dispatch(
+        addNotification({
+          type: 'password_changed',
+          title: 'Password changed',
+          body: 'Your password has been changed successfully.',
+          action: notificationAction({
+            label: 'Security settings',
+            style: 'primary',
+            routeKey: NOTIFICATION_ROUTE_KEYS.security,
+          }),
+        }),
+      );
+      handleCancelPassword();
+      setShowSuccessBanner(true);
+      showToast({ type: 'success', message: 'Password updated.', duration: 3000 });
+    } catch (err) {
+      setCurrentPasswordError(err?.message ?? 'Could not update your password.');
+      showToast({
+        type: 'error',
+        message: err?.message ?? 'Could not update your password.',
+        duration: 3500,
+      });
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
-  const handleTryAgain = () => {
-    setCurrentPasswordError(null);
-    setSubmitAttempted(false);
-    setCurrentPassword('');
-  };
-
-  const handleForgotPassword = async () => {
-    const targetEmail = (profileEmail || email || '').trim();
+  const handleSendResetLink = async () => {
+    const targetEmail = email?.trim();
     if (!targetEmail) {
       showToast({
         type: 'error',
-        message: 'Add an email address to your profile before resetting your password.',
+        message: 'No account email is available for this profile.',
         duration: 4000,
       });
       return;
     }
+
     try {
       await requestPasswordResetEmail(targetEmail);
       showToast({
         type: 'success',
-        message: `Password reset email sent to ${targetEmail}.`,
+        message: `Password reset link sent to ${targetEmail}.`,
         duration: 4000,
       });
     } catch (err) {
@@ -341,16 +340,12 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
   };
 
   const otherSessionCount = sessions.filter((s) => !s.isCurrent).length;
-  const primaryActionLabel = incorrectCurrent ? 'Try Again' : 'Update password';
-  const primaryDisabled = incorrectCurrent ? false : !canUpdatePassword || isUpdating;
+  const primaryDisabled = !canUpdatePassword || isUpdating;
 
   return (
     <>
-      {showSuccessBanner ? (
-        <PasswordUpdatedBanner onDismiss={() => setShowSuccessBanner(false)} />
-      ) : null}
+      {showSuccessBanner ? <PasswordUpdatedBanner onDismiss={() => setShowSuccessBanner(false)} /> : null}
 
-      {/* Password */}
       <section className="overflow-hidden rounded-[14px] border border-[#e8e8e6] bg-white">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#f0f0ee] px-7 pb-[19px] pt-[22px]">
           <div>
@@ -358,12 +353,10 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
               Password
             </h2>
             <p className="mt-0.5 text-[12.5px] text-[#9e9e9a]">
-              Last changed 3 months ago · Choose a strong, unique password
+              {lastChangedText} - Choose a strong, unique password
             </p>
           </div>
-          {!incorrectCurrent ? (
-            <StrengthBadge label={newPassword ? strength.badgeLabel : 'Strong'} />
-          ) : null}
+          {newPassword && strength.badgeLabel ? <StrengthBadge label={strength.badgeLabel} /> : null}
         </div>
 
         <div className="flex flex-col gap-6 p-7">
@@ -377,37 +370,30 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
                   setCurrentPassword(e.target.value);
                   if (currentPasswordError) setCurrentPasswordError(null);
                 }}
-                placeholder="••••••••••••"
-                error={
-                  currentPasswordError ||
-                  (currentPasswordMismatch
-                    ? 'Current password does not match your sign-in password'
-                    : null)
-                }
+                placeholder="Enter current password"
+                error={currentPasswordError}
               />
-              {incorrectCurrent ? (
-                <button
-                  type="button"
-                  onClick={handleForgotPassword}
-                  className="mt-2 text-left text-[12px] text-[#07038d] hover:underline"
-                >
-                  Forgot Password? Reset via email
-                </button>
-              ) : null}
+              <button
+                type="button"
+                onClick={handleSendResetLink}
+                className="mt-2 text-left text-[12px] text-[#07038d] hover:underline"
+              >
+                Forgot current password? Send a reset link
+              </button>
             </div>
 
-            <div className={lockNewFields ? 'opacity-[0.67]' : ''}>
+            <div>
               <PasswordField
                 id="new-password"
                 label="New password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Min. 12 characters"
+                placeholder="Min. 8 characters"
                 showToggle
-                disabled={lockNewFields}
-                inputClassName={inputClass}
+                inputClassName={newPasswordTooShort ? inputErrorClass : inputClass}
+                error={newPasswordTooShort ? 'Password must be at least 8 characters' : null}
               />
-              {newPassword && !lockNewFields ? (
+              {newPassword ? (
                 <div className="mt-2">
                   <div className="flex gap-1">
                     {[0, 1, 2, 3].map((i) => (
@@ -419,10 +405,7 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
                     ))}
                   </div>
                   {strength.label ? (
-                    <p
-                      className="mt-1.5 text-[11.5px] font-medium"
-                      style={{ color: strengthTextColor(strength.level) }}
-                    >
+                    <p className="mt-1.5 text-[11.5px] font-medium" style={{ color: strengthTextColor(strength.level) }}>
                       {strength.label}
                     </p>
                   ) : null}
@@ -430,7 +413,7 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
               ) : null}
             </div>
 
-            <div className={lockNewFields ? 'opacity-[0.67]' : ''}>
+            <div>
               <PasswordField
                 id="confirm-password"
                 label="Confirm new password"
@@ -438,7 +421,6 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Re-enter new password"
                 showToggle
-                disabled={lockNewFields}
                 inputClassName={confirmMismatch ? inputErrorClass : inputClass}
                 error={confirmMismatch ? "Passwords don't match" : null}
               />
@@ -455,22 +437,19 @@ const ProfileSecurityPanel = ({ email, profileEmail = '' }) => {
             </button>
             <button
               type="button"
-              onClick={incorrectCurrent ? handleTryAgain : handleUpdatePassword}
+              onClick={handleUpdatePassword}
               disabled={primaryDisabled}
               className={`inline-flex items-center gap-1.5 rounded-[6px] px-[18px] py-[9px] text-[13.5px] font-medium text-white transition-colors ${
-                incorrectCurrent || canUpdatePassword
-                  ? 'bg-[#1a1a18] hover:bg-[#2d2d2b]'
-                  : 'bg-[#6b6b68] cursor-not-allowed'
+                canUpdatePassword ? 'bg-[#1a1a18] hover:bg-[#2d2d2b]' : 'bg-[#6b6b68] cursor-not-allowed'
               }`}
             >
-              {!incorrectCurrent ? <RiCheckLine size={14} aria-hidden /> : null}
-              {isUpdating ? 'Updating…' : primaryActionLabel}
+              <RiCheckLine size={14} aria-hidden />
+              {isUpdating ? 'Updating...' : 'Update password'}
             </button>
           </div>
         </div>
       </section>
 
-      {/* Active sessions */}
       <section className="overflow-hidden rounded-[14px] border border-[#e8e8e6] bg-white">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#f0f0ee] px-7 pb-[19px] pt-[22px]">
           <div>

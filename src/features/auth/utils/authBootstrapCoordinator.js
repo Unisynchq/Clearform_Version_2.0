@@ -64,6 +64,10 @@ export function endAuthLogout() {
   }
 }
 
+export function clearLogoutMarker() {
+  endAuthLogout();
+}
+
 export function isAuthLogoutInProgress() {
   return logoutInProgress || readLogoutMarker();
 }

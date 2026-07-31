@@ -2,27 +2,51 @@ import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'motion/react';
 import { FiCopy } from 'react-icons/fi';
+import { RiLoader4Line } from 'react-icons/ri';
 import { closeDuplicateModal } from '@/store/slices/uiSlice';
-import { addForm } from '@/store/slices/formsSlice';
+import { addForm, loadFormsFromApi } from '@/store/slices/formsSlice';
+import { apiClient } from '@/api/client';
+import { API_ENDPOINTS } from '@/api/endpoints';
+import { isApiConfigured } from '@/config/env';
+import { useToast } from '@/hooks/useToast';
+import { normalizeApiForm } from '@/utils/normalizeApiForm';
 
 /* Remount when `formId` changes so the text field initializes without a sync effect. */
-const DuplicateFormModalInner = ({ formTitle, form }) => {
+const DuplicateFormModalInner = ({ formTitle, formId, form }) => {
   const dispatch = useDispatch();
+  const { showToast } = useToast();
   const [copyName, setCopyName] = useState(() => `Copy of ${formTitle}`);
+  const [duplicating, setDuplicating] = useState(false);
 
-  const handleDuplicate = () => {
-    if (!form || !copyName.trim()) return;
-    dispatch(
-      addForm({
-        ...form,
-        id: Date.now(),
-        title: copyName.trim(),
-        status: 'draft',
-        responses: 0,
-        timeAgo: 'just now',
-      })
-    );
-    dispatch(closeDuplicateModal());
+  const handleDuplicate = async () => {
+    if (!form || !copyName.trim() || duplicating) return;
+    setDuplicating(true);
+    try {
+      if (isApiConfigured() && formId && typeof formId !== 'number') {
+        // Duplicate via API — server creates a real DB record
+        await apiClient(API_ENDPOINTS.forms.duplicate(formId), { method: 'POST' });
+        // Reload the full form list from DB to show the new copy
+        await dispatch(loadFormsFromApi());
+        showToast({ type: 'success', message: `"${copyName.trim()}" created as a Draft` });
+      } else {
+        // Offline fallback
+        dispatch(
+          addForm({
+            ...form,
+            id: Date.now(),
+            title: copyName.trim(),
+            status: 'draft',
+            responses: 0,
+            timeAgo: 'just now',
+          })
+        );
+      }
+      dispatch(closeDuplicateModal());
+    } catch (err) {
+      showToast({ type: 'error', message: err?.message ?? 'Failed to duplicate form. Try again.' });
+    } finally {
+      setDuplicating(false);
+    }
   };
 
   return (
@@ -62,6 +86,7 @@ const DuplicateFormModalInner = ({ formTitle, form }) => {
             value={copyName}
             onChange={(e) => setCopyName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleDuplicate()}
+            disabled={duplicating}
             className="w-full text-[13.5px] font-medium text-[#1a1a1c] bg-transparent outline-none"
           />
         </div>
@@ -72,16 +97,20 @@ const DuplicateFormModalInner = ({ formTitle, form }) => {
         <button
           type="button"
           onClick={handleDuplicate}
-          disabled={!copyName.trim()}
+          disabled={!copyName.trim() || duplicating}
           className="flex-1 flex items-center justify-center gap-2 bg-[#1a1a1c] text-white text-[13.5px] font-semibold py-[11px] rounded-[10px] hover:bg-[#2c2c2e] disabled:opacity-40 transition-colors cursor-pointer"
         >
-          <FiCopy size={14} strokeWidth={2.2} />
-          Duplicate
+          {duplicating ? (
+            <><RiLoader4Line size={14} className="animate-spin" /> Duplicating…</>
+          ) : (
+            <><FiCopy size={14} strokeWidth={2.2} /> Duplicate</>
+          )}
         </button>
         <button
           type="button"
           onClick={() => dispatch(closeDuplicateModal())}
-          className="px-5 py-[11px] text-[13.5px] font-medium text-[#374151] bg-white border border-[#d1d5db] rounded-[10px] hover:bg-[#f9fafb] transition-colors cursor-pointer"
+          disabled={duplicating}
+          className="px-5 py-[11px] text-[13.5px] font-medium text-[#374151] bg-white border border-[#d1d5db] rounded-[10px] hover:bg-[#f9fafb] transition-colors cursor-pointer disabled:opacity-50"
         >
           Cancel
         </button>
@@ -108,7 +137,7 @@ const DuplicateFormModal = () => {
             className="fixed inset-0 z-[300] bg-black/20"
           />
 
-          <DuplicateFormModalInner key={formId ?? 'new'} formTitle={formTitle} form={form} />
+          <DuplicateFormModalInner key={formId ?? 'new'} formTitle={formTitle} formId={formId} form={form} />
         </>
       )}
     </AnimatePresence>

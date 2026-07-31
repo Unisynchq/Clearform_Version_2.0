@@ -12,23 +12,32 @@ import { readPersistedForms } from '@/features/forms/utils/userFormsStorage';
 import { trackFormCreated } from '@/analytics/track';
 
 /**
- * Forms API facade — today reads/writes localStorage when API is not configured.
- * Swap implementations per method when backend is live (keep return shapes stable).
+ * Forms API facade — reads/writes localStorage only when API is not configured.
+ * When API is configured, the database is the single source of truth.
  */
 
-export async function listForms() {
+export async function listForms(status) {
   if (isApiConfigured()) {
-    return apiClient(API_ENDPOINTS.forms.list);
+    const url = status ? `${API_ENDPOINTS.forms.list}?status=${status}` : API_ENDPOINTS.forms.list;
+    return apiClient(url);
   }
   return readPersistedForms();
 }
 
-export async function createForm({ title, workspaceId, gradientFrom, gradientTo, overlayColor, iconGradient }) {
+export async function getForm(formId) {
+  if (isApiConfigured() && typeof formId !== 'number') {
+    return apiClient(API_ENDPOINTS.forms.byId(formId));
+  }
+  const forms = readPersistedForms();
+  return forms.find((f) => Number(f.id) === Number(formId)) ?? null;
+}
+
+export async function createForm({ title, workspaceId, gradientFrom, gradientTo, overlayColor, iconGradient, ownerEmail }) {
   let created;
   if (isApiConfigured()) {
     created = await apiClient(API_ENDPOINTS.forms.list, {
       method: 'POST',
-      body: { title, workspaceId, gradientFrom, gradientTo, overlayColor, iconGradient },
+      body: { title, workspaceId, gradientFrom, gradientTo, overlayColor, iconGradient, ownerEmail },
     });
   } else {
     created = {
@@ -49,7 +58,7 @@ export async function createForm({ title, workspaceId, gradientFrom, gradientTo,
 }
 
 export async function patchForm(formId, body) {
-  if (isApiConfigured()) {
+  if (isApiConfigured() && typeof formId !== 'number') {
     return apiClient(`${API_ENDPOINTS.forms.list}/${formId}`, {
       method: 'PATCH',
       body,
@@ -60,21 +69,56 @@ export async function patchForm(formId, body) {
 
 /** Soft-delete (trash) or hard-delete when already in trash — see backend forms.service.remove */
 export async function deleteForm(formId) {
-  if (isApiConfigured()) {
+  if (isApiConfigured() && typeof formId !== 'number') {
     return apiClient(API_ENDPOINTS.forms.byId(formId), { method: 'DELETE' });
   }
   return null;
 }
 
-export async function getBuilderSnapshot(formId) {
+export async function pauseForm(formId, isPaused) {
+  if (isApiConfigured() && typeof formId !== 'number') {
+    return apiClient(`${API_ENDPOINTS.forms.list}/${formId}/pause`, {
+      method: 'PATCH',
+      body: { isPaused },
+    });
+  }
+  return null;
+}
+
+export async function getTrashForms() {
   if (isApiConfigured()) {
+    return apiClient(API_ENDPOINTS.forms.trash);
+  }
+  return [];
+}
+
+export async function restoreForm(formId) {
+  if (isApiConfigured() && typeof formId !== 'number') {
+    return apiClient(`${API_ENDPOINTS.forms.list}/${formId}/restore`, {
+      method: 'PATCH',
+    });
+  }
+  return null;
+}
+
+export async function permanentDeleteForm(formId) {
+  if (isApiConfigured() && typeof formId !== 'number') {
+    return apiClient(`${API_ENDPOINTS.forms.list}/${formId}/permanent`, {
+      method: 'DELETE',
+    });
+  }
+  return null;
+}
+
+export async function getBuilderSnapshot(formId) {
+  if (isApiConfigured() && typeof formId !== 'number') {
     return apiClient(API_ENDPOINTS.forms.builderSnapshot(formId));
   }
   return readBuilderDraft(formId);
 }
 
 export async function saveBuilderSnapshot(formId, snapshot) {
-  if (isApiConfigured()) {
+  if (isApiConfigured() && typeof formId !== 'number') {
     return apiClient(API_ENDPOINTS.forms.builderSnapshot(formId), {
       method: 'PUT',
       body: snapshot,
@@ -86,11 +130,21 @@ export async function saveBuilderSnapshot(formId, snapshot) {
 
 export async function publishForm(formId, snapshot) {
   clearPublishedFormSessionCache(formId);
-  if (isApiConfigured()) {
+  if (isApiConfigured() && typeof formId !== 'number') {
     const result = await apiClient(API_ENDPOINTS.forms.publish(formId), {
       method: 'POST',
       body: snapshot,
     });
+    if (result && result.publicUrl && typeof window !== 'undefined') {
+      try {
+        const url = new URL(result.publicUrl);
+        url.protocol = window.location.protocol;
+        url.host = window.location.host;
+        result.publicUrl = url.toString();
+      } catch (e) {
+        // fallback
+      }
+    }
     writePublishedFormSessionCache(formId, snapshot);
     return result;
   }
@@ -100,19 +154,25 @@ export async function publishForm(formId, snapshot) {
 }
 
 export async function getPublishedForm(formId) {
-  if (isApiConfigured()) {
-    const cached = readPublishedFormSessionCache(formId);
+  if (isApiConfigured() && typeof formId !== 'number') {
     try {
       const fresh = await apiClient(API_ENDPOINTS.forms.published(formId));
+      // If form is paused, clear any cached snapshot so we never serve stale data
+      if (fresh?._paused === true || fresh?.isPaused === true) {
+        clearPublishedFormSessionCache(formId);
+        return fresh?.snapshot ?? fresh;
+      }
+      // Cache live snapshot for performance (cleared on publish/unpublish/pause)
       if (fresh?.screens?.length) {
         writePublishedFormSessionCache(formId, fresh);
-        return fresh;
       }
+      return fresh;
     } catch (err) {
-      if (cached?.snapshot) return cached.snapshot;
+      // On network error, try session cache (not paused, not stale)
+      const cached = readPublishedFormSessionCache(formId);
+      if (cached?.snapshot && !cached.snapshot._paused) return cached.snapshot;
       throw err;
     }
-    return cached?.snapshot ?? null;
   }
   return readPublishedForm(formId);
 }

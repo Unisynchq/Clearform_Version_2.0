@@ -1,6 +1,6 @@
 /** Score 0–4 for the four-segment strength meter. */
 export function getPasswordStrength(password) {
-  if (!password) return { level: 0, label: '', badgeLabel: 'Strong' };
+  if (!password) return { level: 0, label: '', badgeLabel: '' };
 
   let score = 0;
   if (password.length >= 8) score += 1;
@@ -46,3 +46,37 @@ export function strengthTextColor(level) {
 }
 
 export { getDefaultSessions } from '@/features/profile/utils/currentDeviceSession';
+
+export function formatPasswordLastChanged(timestamp, hasPassword = true, accountCreatedAt) {
+  if (!hasPassword) {
+    return 'No password set';
+  }
+  if (!timestamp) {
+    if (accountCreatedAt) {
+      timestamp = accountCreatedAt;
+    } else {
+      return 'Set recently';
+    }
+  }
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) {
+    return 'Set recently';
+  }
+
+  const diffMs = Date.now() - date.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHours = Math.floor(diffMin / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffSec < 60) return 'Last changed just now';
+  if (diffMin < 60) return `Last changed ${diffMin} ${diffMin === 1 ? 'minute' : 'minutes'} ago`;
+  if (diffHours < 24) return `Last changed ${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
+  if (diffDays === 1) return 'Last changed yesterday';
+  if (diffDays < 30) return `Last changed ${diffDays} days ago`;
+  const diffMonths = Math.floor(diffDays / 30);
+  if (diffMonths === 1) return 'Last changed 1 month ago';
+  if (diffMonths < 12) return `Last changed ${diffMonths} months ago`;
+  const diffYears = Math.floor(diffDays / 365);
+  return `Last changed ${diffYears} ${diffYears === 1 ? 'year' : 'years'} ago`;
+}

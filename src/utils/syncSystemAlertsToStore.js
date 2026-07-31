@@ -6,21 +6,8 @@ import { syncSystemAlertNotifications } from '@/store/slices/notificationsSlice'
 
 /** Evaluate usage + profile + billing alerts and sync into notifications slice. */
 export function dispatchSyncSystemAlerts(dispatch, state, { apiBilling } = {}) {
-  const forms = state.forms?.forms ?? [];
-  const email = state.auth?.email ?? null;
-  const responsesByFormId = state.forms?.responsesByFormId ?? {};
-
-  const metrics = getWorkspaceUsageMetrics({
-    forms,
-    email,
-    responsesByFormId,
-    apiBilling,
-  });
-  const items = [
-    ...evaluateUsageLimitAlerts(metrics),
-    ...evaluateBillingStatusAlerts(apiBilling),
-    ...evaluateProfileSystemAlerts({ email }),
-  ];
-
+  // Real notifications will be fetched from server API.
+  // Disabled auto-generated local synthetic alerts.
+  const items = [];
   dispatch(syncSystemAlertNotifications({ items }));
 }

@@ -5,6 +5,7 @@ export const APP_NAME = 'Clearform';
 const ROUTE_TITLES = [
   { pattern: '/', title: 'Sign Up' },
   { pattern: '/signin', title: 'Sign In' },
+  { pattern: '/reset-password', title: 'Reset Password' },
   { pattern: '/onboarding/templates', title: 'Choose a Template' },
   { pattern: '/onboarding', title: 'Welcome' },
   { pattern: '/dashboard/templates', title: 'Templates' },

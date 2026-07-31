@@ -27,6 +27,10 @@ vi.mock('../utils/navigateToFormBuilder', () => ({
   navigateToFormBuilder: vi.fn(),
 }));
 
+vi.mock('@/api/services/formsService', () => ({
+  createForm: vi.fn().mockResolvedValue({ id: 1234 }),
+}));
+
 /** Deferred exit callback — mirrors AnimatePresence waiting for exit (Check B). */
 let pendingModalExitComplete = null;
 
@@ -72,6 +76,14 @@ function makeStore() {
       onboarding: onboardingReducer,
       toast: toastReducer,
       notifications: notificationsReducer,
+    },
+    preloadedState: {
+      forms: {
+        forms: [],
+        workspaces: [{ id: 'ws-1', label: 'Corp' }],
+        activeWorkspace: 'all',
+        activeFilter: 'all',
+      },
     },
   });
 }

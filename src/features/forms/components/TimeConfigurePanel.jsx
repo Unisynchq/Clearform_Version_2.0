@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RiArrowDownSLine, RiCloseLine } from 'react-icons/ri';
 
@@ -102,8 +102,30 @@ export default function TimeConfigurePanel({
   timeMaxTime,
   setTimeMaxTime,
 }) {
+  const panelRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === 'Escape') onCloseRef.current?.();
+    };
+    const clickOutside = (e) => {
+      if (panelRef.current && !panelRef.current.contains(e.target)) {
+        onCloseRef.current?.();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    document.addEventListener('mousedown', clickOutside);
+    return () => {
+      document.removeEventListener('keydown', handler);
+      document.removeEventListener('mousedown', clickOutside);
+    };
+  }, []);
+
   return (
     <div
+      ref={panelRef}
       className="w-[280px] h-full bg-[#f7f6f4] border border-[rgba(0,0,0,0.09)] flex flex-col overflow-hidden rounded-l-[16px]"
       style={{ boxShadow: '0px 1px 3px 0px rgba(0,0,0,0.05), 0px 8px 32px 0px rgba(0,0,0,0.07)' }}
     >

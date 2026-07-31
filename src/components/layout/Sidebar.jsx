@@ -1,7 +1,7 @@
 import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   RiLayoutGridLine,
   RiAddLine,
@@ -16,15 +16,20 @@ import {
   selectNavWorkspaces,
   selectTotalFormCount,
   clearAllFormFilters,
+  resetFormsState,
 } from '@/store/slices/formsSlice';
 import { logout } from '@/store/slices/authSlice';
 import { signOutUser } from '@/features/auth/services/supabaseAuthService';
+import ConfirmActionModal from '@/components/ui/ConfirmActionModal';
 import { readProfileSettings } from '@/features/profile/utils/profileSettingsStorage';
 import {
   openCreateWorkspaceModal,
   openWorkspaceContextMenu,
   startSidebarWorkspaceRename,
 } from '@/store/slices/uiSlice';
+import { resetUiState } from '@/store/slices/uiSlice';
+import { clearAllNotifications } from '@/store/slices/notificationsSlice';
+import { useToast } from '@/hooks/useToast';
 import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.png';
 import clearformLogoIcon from '@/assets/clearform-high-resolution-logo-transparent (1).png';
 import SidebarSkeleton from './SidebarSkeleton';
@@ -40,22 +45,24 @@ const navItemSurface = (active) => ({
   whileHover: { backgroundColor: active ? SIDEBAR_ITEM_HOVER_BG : SIDEBAR_ITEM_IDLE_HOVER_BG },
 });
 
-const getProfileDisplay = ({ firstName, lastName, email, displayName: savedName }) => {
+const getProfileDisplay = ({ firstName, lastName, email, displayName: savedName, avatarUrl }) => {
+  const result = { avatarUrl };
   const saved = savedName?.trim();
-  if (saved) return { displayName: saved, initials: saved.slice(0, 2).toUpperCase() };
+  if (saved) return { ...result, displayName: saved, initials: saved.slice(0, 2).toUpperCase() };
   const name = [firstName, lastName].filter(Boolean).join(' ').trim();
-  if (name) return { displayName: name, initials: name.slice(0, 2).toUpperCase() };
+  if (name) return { ...result, displayName: name, initials: name.slice(0, 2).toUpperCase() };
   const local = email?.split('@')[0]?.trim();
   if (local) {
     return {
+      ...result,
       displayName: local,
       initials: local.slice(0, 2).toUpperCase(),
     };
   }
-  return { displayName: 'Profile', initials: '?' };
+  return { ...result, displayName: 'Profile', initials: '?' };
 };
 
-const ProfileFooter = ({ expanded, active, displayName, initials, email, onClick }) => {
+const ProfileFooter = ({ expanded, active, displayName, initials, email, avatarUrl, onClick }) => {
   if (!expanded) {
     return (
       <motion.button
@@ -66,9 +73,13 @@ const ProfileFooter = ({ expanded, active, displayName, initials, email, onClick
         animate={{ backgroundColor: active ? SIDEBAR_ITEM_ACTIVE_BG : 'transparent' }}
         className="flex w-full items-center justify-center rounded-[6px] px-2 py-[7px] transition-colors"
       >
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#e5e3dc]">
-          <span className="text-[10px] font-semibold text-[#1a1a1c]">{initials}</span>
-        </div>
+        {avatarUrl ? (
+          <img src={avatarUrl} alt="" className="h-7 w-7 rounded-full object-cover" />
+        ) : (
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#e5e3dc]">
+            <span className="text-[10px] font-semibold text-[#1a1a1c]">{initials}</span>
+          </div>
+        )}
       </motion.button>
     );
   }
@@ -82,11 +93,15 @@ const ProfileFooter = ({ expanded, active, displayName, initials, email, onClick
       className="mb-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors"
       title={email}
     >
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#e5e3dc]">
-        <span className="text-[11px] font-semibold tracking-[0.2px] text-[#1a1a1c]">
-          {initials}
-        </span>
-      </div>
+      {avatarUrl ? (
+        <img src={avatarUrl} alt="" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full object-cover" />
+      ) : (
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#e5e3dc]">
+          <span className="text-[11px] font-semibold tracking-[0.2px] text-[#1a1a1c]">
+            {initials}
+          </span>
+        </div>
+      )}
       <div className="min-w-0 flex flex-col">
         <span className="truncate text-[13px] font-medium leading-[18px] text-[#1a1a1c]">
           {displayName}
@@ -174,6 +189,7 @@ const Sidebar = ({ hideLogo = false, exit }) => {
     lastName,
     email,
     displayName: savedProfile?.displayName,
+    avatarUrl: savedProfile?.photoUrl,
   });
   const { activeWorkspace, isLoading: formsLoading } = useSelector((state) => state.forms);
   const renamingWorkspaceId = useSelector((state) => state.ui.sidebarWorkspaceRenameId);
@@ -186,11 +202,27 @@ const Sidebar = ({ hideLogo = false, exit }) => {
     dispatch(openWorkspaceContextMenu({ workspaceId: wsId, x: e.clientX, y: e.clientY }));
   };
 
-  const handleLogout = () => {
-    dispatch(logout());
-    signOutUser();
-    navigate('/signin');
+  const { showToast } = useToast();
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+
+  const handleLogoutClick = () => {
+    setIsLogoutModalOpen(true);
   };
+
+  const confirmLogout = async () => {
+    dispatch(clearAllFormFilters());
+    dispatch(resetFormsState());
+    dispatch(resetUiState());
+    dispatch(clearAllNotifications());
+    setIsLogoutModalOpen(false);
+    try {
+      await signOutUser();
+    } catch {}
+    dispatch(logout());
+    showToast({ type: 'info', message: "You've been logged out.", duration: 3000 });
+    navigate('/signin', { replace: true, state: null });
+  };
+
   const totalFormCount = useSelector(selectTotalFormCount);
   const showFormCounts = !formsLoading;
 
@@ -204,7 +236,14 @@ const Sidebar = ({ hideLogo = false, exit }) => {
     !isHelpSupportActive &&
     !isProfileActive;
 
-  const showSidebarSkeleton = isDashboardActive && formsLoading;
+  const [initialLoad, setInitialLoad] = useState(true);
+  useEffect(() => {
+    if (!formsLoading) {
+      setInitialLoad(false);
+    }
+  }, [formsLoading]);
+
+  const showSidebarSkeleton = isDashboardActive && formsLoading && initialLoad;
 
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -229,12 +268,13 @@ const Sidebar = ({ hideLogo = false, exit }) => {
           className={`shrink-0 transition-transform duration-200 ${isCollapsed ? 'rotate-180' : ''}`}
         />
       </button>
-      <AnimatePresence mode="sync" initial={false}>
-        {showSidebarSkeleton ? (
-          <motion.div
-            key="skeleton"
-            className="flex flex-col h-full overflow-hidden"
-            initial={{ opacity: 0 }}
+      <div className="relative w-full h-full overflow-hidden">
+        <AnimatePresence mode="sync" initial={false}>
+          {showSidebarSkeleton ? (
+            <motion.div
+              key="skeleton"
+              className="absolute inset-0 flex flex-col h-full overflow-hidden bg-[#f7f7f8]"
+              initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
@@ -245,7 +285,7 @@ const Sidebar = ({ hideLogo = false, exit }) => {
           /* ── Collapsed sidebar ── */
           <motion.div
             key="collapsed"
-            className="flex flex-col h-full overflow-hidden"
+            className="absolute inset-0 flex flex-col h-full overflow-hidden bg-white"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -304,7 +344,7 @@ const Sidebar = ({ hideLogo = false, exit }) => {
               <div className="border-t border-[rgba(0,0,0,0.08)] px-[10px] pb-[14px] pt-[11px] flex flex-col gap-[2px] shrink-0">
                 <LogoutNavButton
                   expanded={false}
-                  onClick={handleLogout}
+                  onClick={handleLogoutClick}
                 />
                 <ProfileFooter
                   expanded={false}
@@ -320,7 +360,7 @@ const Sidebar = ({ hideLogo = false, exit }) => {
           /* ── Expanded sidebar ── */
           <motion.div
             key="expanded"
-            className="flex flex-col h-full overflow-hidden"
+            className="absolute inset-0 flex flex-col h-full w-[196px] overflow-hidden bg-white"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -419,7 +459,7 @@ const Sidebar = ({ hideLogo = false, exit }) => {
             <div className="border-t border-[#e5e3dc] px-2 py-[14px] flex flex-col gap-px shrink-0">
               <LogoutNavButton
                 expanded
-                onClick={handleLogout}
+                onClick={handleLogoutClick}
               />
               <ProfileFooter
                 expanded
@@ -432,6 +472,17 @@ const Sidebar = ({ hideLogo = false, exit }) => {
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
+
+      <ConfirmActionModal
+        open={isLogoutModalOpen}
+        onCancel={() => setIsLogoutModalOpen(false)}
+        onConfirm={confirmLogout}
+        title="Log out"
+        warning="You will be required to sign in again to access your forms."
+        confirmLabel="Log out"
+        confirmIcon={RiLogoutBoxRLine}
+      />
     </motion.aside>
   );
 };
