@@ -13,9 +13,7 @@ export const broadcastMiddleware = () => (next) => (action) => {
       const channel = new BroadcastChannel(CHANNEL_NAME);
       channel.postMessage({ type: action.type });
       channel.close();
-    } catch {
-      // BroadcastChannel unavailable — graceful no-op
-    }
+    } catch {}
   }
   return result;
 };

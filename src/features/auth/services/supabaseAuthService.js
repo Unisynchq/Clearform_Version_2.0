@@ -5,6 +5,7 @@ import { supabase, isSupabaseConfigured } from '@/config/supabase';
 import {
   beginAuthLogout,
   endAuthLogout,
+  clearLogoutMarker,
   isAuthLogoutInProgress,
   runSingleFlightSync,
   resetAuthRestoreCoordinator,
@@ -131,6 +132,7 @@ async function syncFromSession(session, { method = 'session', isNewUser = false,
 // Removed custom storeToken and clearToken
 
 export async function signUpWithEmail(email, password, firstName, lastName) {
+  clearLogoutMarker();
   if (!supabase) throw new Error('Supabase client not initialized');
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -153,6 +155,7 @@ export async function signUpWithEmail(email, password, firstName, lastName) {
 }
 
 export async function signInWithEmail(email, password) {
+  clearLogoutMarker();
   if (!supabase) throw new Error('Supabase client not initialized');
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
@@ -248,85 +251,11 @@ export async function resetPasswordWithToken(newPassword) {
   if (error) throw new Error(error.message);
 }
 
-/**
- * Pre-open a blank popup synchronously, before any `await`. Opening it only
- * after signInWithOAuth resolves means the browser no longer considers it a
- * direct result of the click — Brave/Safari (and Chrome, in some settings)
- * silently block it, which looked like "clicking Google does nothing."
- */
-function preOpenOAuthPopup() {
-  if (typeof window === 'undefined') return null;
-  try {
-    return window.open('about:blank', 'clearform-oauth', 'width=520,height=720');
-  } catch {
-    return null;
-  }
-}
-
-/** Navigate the pre-opened popup to the OAuth URL and wait for it to hand back a session. */
-function runOAuthPopupFlow(popup, url) {
-  if (typeof window === 'undefined') return Promise.resolve(null);
-
-  if (!popup || popup.closed) {
-    window.location.assign(url);
-    return Promise.resolve(null);
-  }
-
-  sessionStorage.setItem('clearform:oauth-intent', 'true');
-  popup.location.href = url;
-
-  return new Promise((resolve) => {
-    let fallbackTimer = null;
-
-    const cleanup = () => {
-      window.removeEventListener('storage', handleStorage);
-      if (fallbackTimer) clearTimeout(fallbackTimer);
-    };
-
-    const handleStorage = async (event) => {
-      if (event.key === 'clearform:oauth_success' && event.newValue) {
-        cleanup();
-
-        try {
-          const session = JSON.parse(event.newValue);
-          localStorage.removeItem('clearform:oauth_success'); // Clean up
-          if (session) {
-            await supabase.auth.setSession(session);
-          }
-        } catch (err) {
-          console.error('Failed to parse oauth session', err);
-        }
-
-        try {
-          if (!popup.closed) popup.close();
-        } catch {
-          // COOP might block popup.closed check, ignore
-        }
-
-        // Setting the session fires onAuthStateChange in SupabaseSessionBridge,
-        // which does the actual Redux dispatch + hard redirect to the right
-        // page (see hydrate() there for why it's a hard redirect, not a
-        // client-side navigate()).
-        resolve();
-      }
-    };
-
-    window.addEventListener('storage', handleStorage);
-
-    // Fallback if popup is closed or user aborts (5 mins max)
-    fallbackTimer = setTimeout(() => {
-      cleanup();
-      resolve(null);
-    }, 300000);
-  });
-}
-
 export async function signInWithGoogle(returnTo) {
+  clearLogoutMarker();
   if (!isSupabaseConfigured() || !supabase) {
     throw new Error('Google sign-in requires Supabase configuration.');
   }
-
-  const popup = preOpenOAuthPopup();
 
   const redirectPath = isValidReturnTo(returnTo) ? returnTo : '/dashboard';
   if (isValidReturnTo(returnTo)) {
@@ -339,34 +268,81 @@ export async function signInWithGoogle(returnTo) {
     options: {
       redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectPath)}`,
       skipBrowserRedirect: true,
-      // Without this, Google silently reuses whichever account is already
-      // signed in on this device instead of showing the picker — this was
-      // the reported "no account list, popup just closes" bug, and the
-      // silent auto-pick also explains the inconsistent "sometimes opens,
-      // sometimes doesn't" behavior between attempts.
-      queryParams: { prompt: 'select_account' },
     },
   });
 
   if (error) {
-    popup?.close();
     throw new Error(error.message);
   }
 
   if (data?.url) {
-    return runOAuthPopupFlow(popup, data.url);
+    if (typeof window !== 'undefined') {
+      // Mark this attempt so the callback knows it was opened by the app
+      sessionStorage.setItem('clearform:oauth-intent', 'true');
+      
+      const popup = window.open(
+        data.url,
+        'clearform-oauth',
+        'width=520,height=720',
+      );
+
+      if (popup) {
+        return new Promise((resolve) => {
+          let fallbackTimer = null;
+
+          const cleanup = () => {
+            window.removeEventListener('storage', handleStorage);
+            if (fallbackTimer) clearTimeout(fallbackTimer);
+          };
+
+          const handleStorage = async (event) => {
+            if (event.key === 'clearform:oauth_success' && event.newValue) {
+              cleanup();
+              
+              try {
+                const session = JSON.parse(event.newValue);
+                localStorage.removeItem('clearform:oauth_success'); // Clean up
+                if (session) {
+                  await supabase.auth.setSession(session);
+                }
+              } catch (err) {
+                console.error('Failed to parse oauth session', err);
+              }
+              
+              try {
+                if (!popup.closed) popup.close();
+              } catch (e) {
+                // COOP might block popup.closed check, ignore
+              }
+              
+              // Setting the session fires onAuthStateChange in SupabaseSessionBridge,
+              // which handles Redux dispatch and navigation — no hard reload needed.
+              resolve();
+            }
+          };
+
+          window.addEventListener('storage', handleStorage);
+
+          // Fallback if popup is closed or user aborts (5 mins max)
+          fallbackTimer = setTimeout(() => {
+            cleanup();
+            resolve(null);
+          }, 300000);
+        });
+      } else {
+        window.location.assign(data.url);
+      }
+    }
   }
-  popup?.close();
 
   return null;
 }
 
 async function signInWithMicrosoftOAuth(returnTo) {
+  clearLogoutMarker();
   if (!isSupabaseConfigured() || !supabase) {
     throw new Error('Microsoft sign-in requires Supabase configuration.');
   }
-
-  const popup = preOpenOAuthPopup();
 
   const redirectPath = isValidReturnTo(returnTo) ? returnTo : '/dashboard';
   if (isValidReturnTo(returnTo)) {
@@ -379,21 +355,72 @@ async function signInWithMicrosoftOAuth(returnTo) {
     options: {
       redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectPath)}`,
       skipBrowserRedirect: true,
-      // Same reasoning as Google — force the account picker instead of
-      // silently reusing whatever Microsoft account is already signed in.
-      queryParams: { prompt: 'select_account' },
     },
   });
 
   if (error) {
-    popup?.close();
     throw new Error(error.message);
   }
 
   if (data?.url) {
-    return runOAuthPopupFlow(popup, data.url);
+    if (typeof window !== 'undefined') {
+      // Mark this attempt so the callback knows it was opened by the app
+      sessionStorage.setItem('clearform:oauth-intent', 'true');
+      
+      const popup = window.open(
+        data.url,
+        'clearform-oauth',
+        'width=520,height=720',
+      );
+
+      if (popup) {
+        return new Promise((resolve) => {
+          let fallbackTimer = null;
+
+          const cleanup = () => {
+            window.removeEventListener('storage', handleStorage);
+            if (fallbackTimer) clearTimeout(fallbackTimer);
+          };
+
+          const handleStorage = async (event) => {
+            if (event.key === 'clearform:oauth_success' && event.newValue) {
+              cleanup();
+              
+              try {
+                const session = JSON.parse(event.newValue);
+                localStorage.removeItem('clearform:oauth_success'); // Clean up
+                if (session) {
+                  await supabase.auth.setSession(session);
+                }
+              } catch (err) {
+                console.error('Failed to parse oauth session', err);
+              }
+              
+              try {
+                if (!popup.closed) popup.close();
+              } catch (e) {
+                // COOP might block popup.closed check, ignore
+              }
+              
+              // Setting the session fires onAuthStateChange in SupabaseSessionBridge,
+              // which handles Redux dispatch and navigation — no hard reload needed.
+              resolve();
+            }
+          };
+
+          window.addEventListener('storage', handleStorage);
+
+          // Fallback if popup is closed or user aborts (5 mins max)
+          fallbackTimer = setTimeout(() => {
+            cleanup();
+            resolve(null);
+          }, 300000);
+        });
+      } else {
+        window.location.assign(data.url);
+      }
+    }
   }
-  popup?.close();
 
   return null;
 }

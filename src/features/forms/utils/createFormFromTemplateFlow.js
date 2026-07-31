@@ -19,6 +19,7 @@ export function resolveApiWorkspaceId(activeWorkspace) {
  */
 export async function createFormFromTemplateAndOpenBuilder({
   template,
+  userEmail,
   activeWorkspace,
   workspaceId: workspaceIdOverride,
   formTitle: formTitleOverride,
@@ -49,6 +50,7 @@ export async function createFormFromTemplateAndOpenBuilder({
       gradientTo: meta.gradientTo,
       overlayColor: meta.overlayColor,
       iconGradient: meta.iconGradient,
+      ownerEmail: userEmail || '',
     });
     formId = created.id;
     setPendingFormId(formId);
@@ -79,6 +81,7 @@ export async function createFormFromTemplateAndOpenBuilder({
       templateId: template.id,
       workspace: workspaceId ?? '',
       builderSnapshot,
+      ownerEmail: userEmail || '',
     }),
   );
 

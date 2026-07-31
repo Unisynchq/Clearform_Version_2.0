@@ -71,7 +71,6 @@ const SupabaseSessionBridge = () => {
     if (isInitializedRef.current && !fromMessage) return;
 
     if (!fromMessage && !canAttemptAuthRestore()) {
-       if (!isInitializedRef.current) dispatch(setAuthInitialized(true));
        return;
     }
 
@@ -131,18 +130,7 @@ const SupabaseSessionBridge = () => {
               duration: 3000,
             });
           }
-          if (oauthPending && typeof window !== 'undefined') {
-            // A client-side navigate() here was landing in a state where
-            // Redux was correctly "authenticated" (hence the toast, from
-            // this same call) but the visible route stayed on /signin —
-            // only a manual page reload reliably showed the dashboard. A
-            // hard redirect is a real browser navigation, not dependent on
-            // React Router picking up this specific state change, so it
-            // can't get stuck the same way.
-            window.location.assign(path);
-          } else {
-            navigateRef.current(path, { replace: true });
-          }
+          navigateRef.current(path, { replace: true });
         }
       });
     } catch {

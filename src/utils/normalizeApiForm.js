@@ -28,8 +28,20 @@ export function normalizeApiForm(form) {
     daysActive = Math.max(1, Math.ceil(ms / 86_400_000));
   }
 
+  const isPaused = form.isPaused === true || form.status === 'paused';
+  const pauseSettings = isPaused
+    ? form.pauseSettings ?? { confirmed: true, pauseType: 'indefinite' }
+    : form.pauseSettings ?? null;
+
+  const status = form.status ? form.status.toLowerCase() : 'draft';
+  const workspace = form.workspace ?? form.workspaceId ?? null;
+
   return {
     ...form,
+    status,
+    workspace,
+    isPaused,
+    pauseSettings,
     responseLimit,
     publishedAt,
     daysActive: daysActive ?? form.daysActive,

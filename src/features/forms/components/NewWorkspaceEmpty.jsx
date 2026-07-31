@@ -31,6 +31,7 @@ const NewWorkspaceEmpty = ({ workspaceName = 'Inc Corp' }) => {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const activeWorkspace = useSelector((s) => s.forms.activeWorkspace);
+  const userEmail = useSelector((s) => s.auth.email);
 
   const openTemplate = async (templateId, label) => {
     const def = getTemplateFormDefinition(templateId);
@@ -41,6 +42,7 @@ const NewWorkspaceEmpty = ({ workspaceName = 'Inc Corp' }) => {
     try {
       await createFormFromTemplateAndOpenBuilder({
         template: { id: templateId, title: def.formTitle ?? label },
+        userEmail,
         activeWorkspace,
         dispatch,
         navigate,

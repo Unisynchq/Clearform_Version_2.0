@@ -304,16 +304,6 @@ const ContentCardFooter = ({ onDelete, onConfigure, onSave, variant = 'default',
         Edit content
       </button>
     )}
-    {onConfigure ? (
-      <button
-        type="button"
-        onClick={onConfigure}
-        className="flex items-center gap-[5px] px-[14px] py-[8px] rounded-[8px] bg-white/70 border border-[rgba(0,0,0,0.16)] text-[#444] text-[12px] cursor-pointer hover:bg-[rgba(245,245,245,0.9)] transition-colors whitespace-nowrap"
-      >
-        <RiSettings3Line size={12} className="shrink-0" />
-        Configure
-      </button>
-    ) : null}
     <button
       type="button"
       onClick={onDelete}

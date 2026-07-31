@@ -28,9 +28,24 @@ export function shouldFailFormAction() {
 }
 
 export async function pauseFormRequest({ signal, forceFail } = {}) {
-  await delay(DEFAULT_MS + Math.random() * 500, signal);
+  try {
+    await delay(DEFAULT_MS + Math.random() * 500, signal);
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err;
+  }
   if (forceFail ?? shouldFailFormAction()) {
     throw new Error('Failed to pause form');
+  }
+}
+
+export async function resumeFormRequest({ signal, forceFail } = {}) {
+  try {
+    await delay(DEFAULT_MS + Math.random() * 500, signal);
+  } catch (err) {
+    if (err?.name === 'AbortError') throw err;
+  }
+  if (forceFail ?? shouldFailFormAction()) {
+    throw new Error('Failed to resume form');
   }
 }
 
@@ -48,6 +63,36 @@ export async function deleteFormRequest({ formId, signal, forceFail } = {}) {
         err?.message ??
         'Failed to delete form on the server.';
       throw new Error(msg);
+    }
+    clearFormLocalCaches(formId);
+    return;
+  }
+  await delay(DEFAULT_MS + Math.random() * 600, signal);
+}
+
+import { restoreForm as restoreFormApi, permanentDeleteForm as permanentDeleteFormApi } from '@/api/services/formsService';
+
+export async function restoreFormRequest({ formId, signal, forceFail } = {}) {
+  if (forceFail ?? shouldFailFormAction()) throw new Error('Failed to restore form');
+  if (isApiConfigured()) {
+    if (!formId) throw new Error('Form id is required');
+    try {
+      return await restoreFormApi(formId);
+    } catch (err) {
+      throw new Error(err?.body?.message ?? err?.message ?? 'Failed to restore form on the server.');
+    }
+  }
+  await delay(DEFAULT_MS + Math.random() * 600, signal);
+}
+
+export async function permanentDeleteFormRequest({ formId, signal, forceFail } = {}) {
+  if (forceFail ?? shouldFailFormAction()) throw new Error('Failed to permanently delete form');
+  if (isApiConfigured()) {
+    if (!formId) throw new Error('Form id is required');
+    try {
+      await permanentDeleteFormApi(formId);
+    } catch (err) {
+      throw new Error(err?.body?.message ?? err?.message ?? 'Failed to permanently delete form on the server.');
     }
     clearFormLocalCaches(formId);
     return;

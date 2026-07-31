@@ -7,10 +7,10 @@ import {
   RiCalendarLine, RiErrorWarningLine, RiCheckLine,
   RiArrowLeftSLine, RiArrowRightSLine, RiEarthLine,
   RiPauseLine, RiPlayLine, RiRocketLine, RiEmotionSadLine, RiFileCopyLine,
-  RiPencilLine, RiEyeLine, RiArchiveLine,
+  RiPencilLine, RiEyeLine, RiArchiveLine, RiDeleteBinLine, RiArrowGoBackLine,
 } from 'react-icons/ri';
 import { closeFormOverlay } from '@/store/slices/uiSlice';
-import { setFormPause, clearFormPause, unarchiveForm, updateForm } from '@/store/slices/formsSlice';
+import { setFormPause, clearFormPause, unarchiveForm, unarchiveFormOnServer, updateForm, pauseFormOnServer, resumeFormOnServer, restoreFormOnServer } from '@/store/slices/formsSlice';
 import { updateFormResponseLimit } from '@/api/services/formSettingsService';
 import { isFormPaused } from '../utils/formPause';
 import { formatResponseCount } from '@/constants';
@@ -331,7 +331,7 @@ const FormOverlayModal = () => {
     } else if (selectedPause === 'permanent') {
       endLabel = 'permanently';
     }
-    dispatch(setFormPause({ formId, endLabel, endTimestamp, pauseType: selectedPause, viewYear, viewMonth, selDay, hour, minute, ampm }));
+    dispatch(pauseFormOnServer(formId, { formId, endLabel, endTimestamp, pauseType: selectedPause, viewYear, viewMonth, selDay, hour, minute, ampm }));
     setSelectedPause(null);
   };
 
@@ -446,6 +446,74 @@ const FormOverlayModal = () => {
                 </div>
 
               </div>
+            ) : form.status === 'trash' ? (
+              <div className="flex flex-col" style={{ minHeight: '380px' }}>
+                {/* Trash header */}
+                <div className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-[#f0ede8]">
+                  <div className="w-10 h-10 rounded-[10px] shrink-0 flex items-center justify-center bg-[#fee2e2]">
+                    <RiDeleteBinLine size={18} className="text-[#dc2626]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[15px] font-semibold text-[#1a1a1c] leading-[22px]" title={form.title}>
+                      {form.title.length > 15 ? form.title.slice(0, 15).trimEnd() + '…' : form.title}
+                    </p>
+                    <div className="flex items-center gap-2 mt-[3px]">
+                      <span className="text-[10.7px] text-[#dc2626]">Trash</span>
+                      <span className="text-[11px] text-[#d4d2cc] leading-none">·</span>
+                      <span className="text-[11.1px] text-[#888] capitalize">{form.workspace}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => dispatch(closeFormOverlay())}
+                    className="w-8 h-8 flex items-center justify-center rounded-[6px] hover:bg-[#f4f3ef] text-[#6b6966] transition-colors cursor-pointer shrink-0"
+                  >
+                    <RiCloseLine size={16} />
+                  </button>
+                </div>
+
+                {/* Trash body */}
+                <div className="flex-1 flex flex-col items-center justify-center gap-[4px] py-[48px] px-[24px]">
+                  <div className="w-[48px] h-[40px] bg-[#fee2e2] rounded-[10px] flex items-center justify-center mb-[12px]">
+                    <RiDeleteBinLine size={22} className="text-[#dc2626]" />
+                  </div>
+                  <p className="text-[13.2px] font-semibold text-[#555] leading-normal text-center">
+                    This form is in the Trash
+                  </p>
+                  <p className="text-[12px] text-[#888] leading-[19.5px] text-center max-w-[370px] mt-[2px]">
+                    Restore this form to edit it or view its analytics. You can preview its contents in the meantime.
+                  </p>
+                </div>
+
+                {/* Trash footer */}
+                <div className="border-t border-[#f0ede8] flex items-center justify-center gap-[8px] px-[20px] pb-[16px] pt-[17px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      dispatch(restoreFormOnServer(formId));
+                      dispatch(closeFormOverlay());
+                    }}
+                    className="flex items-center gap-[4px] bg-[#1a1a1c] text-white text-[12px] font-medium h-[36px] px-[13px] rounded-[8px] hover:bg-[#2c2c2e] transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    <RiArrowGoBackLine size={14} />
+                    Restore Form
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      dispatch(closeFormOverlay());
+                      const builderState = getFormBuilderState(form, { preview: true });
+                      if (builderState) {
+                        navigateToFormBuilder(navigate, dispatch, builderState);
+                      }
+                    }}
+                    className="flex items-center gap-[4px] bg-white text-[#333] text-[12.4px] font-medium h-[36px] px-[13px] rounded-[8px] border border-[#e0ddd8] hover:bg-[#f4f3ef] transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    <RiEyeLine size={14} />
+                    Preview Form
+                  </button>
+                </div>
+
+              </div>
             ) : (
             <>
             {/* ── Header ── */}
@@ -536,7 +604,7 @@ const FormOverlayModal = () => {
                 </button>
                 {confirmedPause ? (
                   <button
-                    onClick={() => dispatch(clearFormPause(formId))}
+                    onClick={() => dispatch(resumeFormOnServer(formId))}
                     className="flex items-center gap-1.5 px-3 py-[6px] text-[12px] font-medium text-white bg-[#1a1a1c] rounded-[8px] hover:bg-[#2c2c2e] transition-colors cursor-pointer whitespace-nowrap"
                   >
                     <RiPlayLine size={12} />
@@ -544,7 +612,7 @@ const FormOverlayModal = () => {
                   </button>
                 ) : form.status === 'archived' ? (
                   <button
-                    onClick={() => dispatch(unarchiveForm(formId))}
+                    onClick={() => dispatch(unarchiveFormOnServer(formId))}
                     className="flex items-center px-3 py-[6px] text-[12px] font-medium text-white bg-[#1a1a1c] rounded-[8px] hover:bg-[#2c2c2e] transition-colors cursor-pointer whitespace-nowrap"
                   >
                     Unarchive
@@ -1045,14 +1113,14 @@ const FormOverlayModal = () => {
                       {/* Buttons */}
                       <div className="flex items-center gap-[6px] shrink-0">
                         <button
-                          onClick={() => { dispatch(clearFormPause(formId)); setSelectedPause('custom'); }}
+                          onClick={() => { dispatch(resumeFormOnServer(formId)); setSelectedPause('custom'); }}
                           className="flex items-center gap-[4px] px-[10px] py-[5px] text-[11.5px] font-medium text-[#1a1a1c] border border-[#e5e3dc] rounded-[7px] bg-white hover:bg-[#f4f3ef] transition-colors cursor-pointer"
                         >
                           <RiEditLine size={11} />
                           Edit
                         </button>
                         <button
-                          onClick={() => dispatch(clearFormPause(formId))}
+                          onClick={() => dispatch(resumeFormOnServer(formId))}
                           className="px-[10px] py-[5px] text-[11.5px] font-semibold text-white bg-[#16a34a] rounded-[7px] hover:bg-[#15803d] transition-colors cursor-pointer"
                         >
                           Resume now
@@ -1297,7 +1365,7 @@ const FormOverlayModal = () => {
                               ? parseInt(hour) + 12
                               : ampm === 'AM' && parseInt(hour) === 12 ? 0 : parseInt(hour);
                             const endDate = new Date(viewYear, viewMonth, selDay, h24, parseInt(minute));
-                            dispatch(setFormPause({
+                            dispatch(pauseFormOnServer(formId, {
                               formId,
                               endLabel: label,
                               endTimestamp: endDate.getTime(),

@@ -6,6 +6,22 @@ import { formatResponseCount, MAX_COMPARE_FORMS } from '@/constants';
 import { isFormPaused } from '../utils/formPause';
 
 const StatusBadge = ({ status, isTargetReached, isPaused }) => {
+  if (status === 'trash') {
+    return (
+      <span className="absolute top-2 right-2 px-[7px] py-[2px] rounded-[10px] text-[10px] font-medium tracking-[0.2px] leading-[15px] bg-[#fee2e2] text-[#dc2626] border border-[#fca5a5]">
+        Trash
+      </span>
+    );
+  }
+
+  if (status === 'archived') {
+    return (
+      <span className="absolute top-2 right-2 px-[7px] py-[2px] rounded-[10px] text-[10px] font-medium tracking-[0.2px] leading-[15px] bg-[#f3f4f6] text-[#4b5563] border border-[#e5e7eb]">
+        Archived
+      </span>
+    );
+  }
+
   if (isPaused) {
     return (
       <span className="absolute top-2 right-2 px-[7px] py-[2px] rounded-[10px] text-[10px] font-medium tracking-[0.2px] leading-[15px] bg-[#fffbeb] text-[#92400e] border border-[#fde68a]">

@@ -20,7 +20,10 @@ export const clearAllAppStorage = () => {
   const keysToRemove = [];
   for (let i = 0; i < localStorage.length; i += 1) {
     const key = localStorage.key(i);
-    if (key?.startsWith('clearform_')) keysToRemove.push(key);
+    // Do not delete local dev user accounts on logout!
+    if (key?.startsWith('clearform_') && key !== 'clearform_user_accounts') {
+      keysToRemove.push(key);
+    }
   }
   keysToRemove.forEach((key) => removeKey(key));
 };

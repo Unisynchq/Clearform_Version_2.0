@@ -34,39 +34,6 @@ export function evaluateFormAlerts(form) {
   const negativePct = sentimentNegativePct();
   const results = [];
 
-  if (settings.completion.enabled) {
-    const threshold = Number(settings.completion.thresholdPct) || 50;
-    results.push({
-      dedupeKey: `alert:${formId}:completion`,
-      active: stats.conversionPct < threshold,
-      notification: {
-        type: 'completion_drop',
-        category: 'alerts',
-        dateGroup: 'Today',
-        iconType: 'warning',
-        iconBg: '#fef3e2',
-        title: 'Completion rate dropped',
-        titleColor: '#b45309',
-        bodySegments: [
-          { text: title, bold: true },
-          {
-            text: ` completion is ${stats.conversionPct}% (below your ${threshold}% threshold).`,
-            bold: false,
-          },
-        ],
-        timestamp: 'Just now',
-        formId,
-        action: formAnalyticsAction(formId),
-      },
-    });
-  } else {
-    results.push({
-      dedupeKey: `alert:${formId}:completion`,
-      active: false,
-      notification: null,
-    });
-  }
-
   if (settings.milestone.enabled) {
     const target = Number(settings.milestone.value) || 500;
     results.push({

@@ -28,6 +28,14 @@ const SupabaseOAuthCallback = () => {
           // Use localStorage to communicate with the parent window (immune to COOP)
           localStorage.setItem('clearform:oauth_success', JSON.stringify(data.session));
 
+          try {
+            if (window.opener && !window.opener.closed) {
+              window.opener.postMessage({ type: 'clearform:supabase-oauth-complete', session: data.session }, window.location.origin);
+            }
+          } catch (e) {
+            // COOP or cross-origin ignore
+          }
+
           if (!closedRef.current) {
             closedRef.current = true;
             try {

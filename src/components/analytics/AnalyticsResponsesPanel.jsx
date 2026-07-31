@@ -22,11 +22,9 @@ import {
   buildResponseTableHeaders,
   responseToTableRow,
   filterResponsesByRange,
-  filterResponsesByQuality,
   mapApiResponseForDisplay,
   cellDisplayText,
   responsesExportToCsv,
-  QUALITY_LEVEL_LABELS,
 } from '@/features/forms/utils/formResponseBuilder';
 import ResponseUploadCell from './ResponseUploadCell';
 import CustomRangeDatePicker, { formatCustomRangeLabel } from './CustomRangeDatePicker';
@@ -37,7 +35,6 @@ const FIXED_HEADERS = [
   { label: 'Name, email, or phone', Icon: null, iconBg: null },
   { label: 'Response time', Icon: RiTimeLine, iconBg: '#E8F4FC' },
   { label: 'Response type', Icon: RiChat3Line, iconBg: '#FFF0E6' },
-  { label: 'Response quality', Icon: null, iconBg: '#F5F3FF' },
 ];
 
 const RANGE_OPTIONS = [
@@ -63,12 +60,6 @@ function splitDateTimeDisplay(value) {
   return { line1: s, line2: null };
 }
 
-const QUALITY_DOT_COLORS = {
-  green: '#2fa360',
-  amber: '#e0a300',
-  red: '#e0523f',
-};
-
 function renderCellContent(cell, ci) {
   if (cell && typeof cell === 'object' && cell.type === 'upload') {
     return (
@@ -77,20 +68,6 @@ function renderCellContent(cell, ci) {
         value={cell.value}
         compact
       />
-    );
-  }
-  if (cell && typeof cell === 'object' && cell.type === 'quality') {
-    if (!cell.level) {
-      return <span className="text-[13px] leading-snug text-[#b3b1a8]">—</span>;
-    }
-    return (
-      <span className="inline-flex items-center gap-2 text-[13px] leading-snug text-[#5c5c58]">
-        <span
-          className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-          style={{ backgroundColor: QUALITY_DOT_COLORS[cell.level] }}
-        />
-        {QUALITY_LEVEL_LABELS[cell.level]}
-      </span>
     );
   }
   if (ci === 2) {
@@ -198,14 +175,6 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
   });
 
   const [search, setSearch] = useState('');
-  const [qualityFilter, setQualityFilter] = useState([]);
-  const [qualityFilterOpen, setQualityFilterOpen] = useState(false);
-  const qualityFilterRef = useRef(null);
-  const toggleQualityLevel = useCallback((level) => {
-    setQualityFilter((cur) =>
-      cur.includes(level) ? cur.filter((l) => l !== level) : [...cur, level],
-    );
-  }, []);
   const [localRangeOpen, setLocalRangeOpen] = useState(false);
   const [customPickerOpen, setCustomPickerOpen] = useState(false);
   const [localRange, setLocalRange] = useState(rangeLabel ?? 'All time');
@@ -242,10 +211,10 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
         ];
   }, [draft]);
 
-  const responsesInRange = useMemo(() => {
-    const byRange = filterResponsesByRange(responses, localRange, lastCustomRange);
-    return filterResponsesByQuality(byRange, qualityFilter);
-  }, [responses, localRange, lastCustomRange, qualityFilter]);
+  const responsesInRange = useMemo(
+    () => filterResponsesByRange(responses, localRange, lastCustomRange),
+    [responses, localRange, lastCustomRange],
+  );
 
   const FORM_ROWS = useMemo(
     () => responsesInRange.map((response) => responseToTableRow(response)),
@@ -294,24 +263,6 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
       document.removeEventListener('keydown', onKeyDown);
     };
   }, [localRangeOpen, customPickerOpen]);
-
-  useEffect(() => {
-    if (!qualityFilterOpen) return undefined;
-    const onDocMouseDown = (e) => {
-      if (qualityFilterRef.current && !qualityFilterRef.current.contains(e.target)) {
-        setQualityFilterOpen(false);
-      }
-    };
-    const onKeyDown = (e) => {
-      if (e.key === 'Escape') setQualityFilterOpen(false);
-    };
-    document.addEventListener('mousedown', onDocMouseDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', onDocMouseDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [qualityFilterOpen]);
 
   const updateColMenuBox = useCallback(() => {
     if (!firstColMenuOpen || !leadHeaderRef.current) return;
@@ -565,72 +516,6 @@ function AnalyticsResponsesPanel({ form, rangeLabel, onRangeChange }) {
                     onRangeChange?.(label);
                   }}
                 />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <div className="relative" ref={qualityFilterRef}>
-          <button
-            type="button"
-            onClick={() => setQualityFilterOpen((o) => !o)}
-            className="flex items-center gap-[6px] h-[30px] pl-[10px] pr-[9px] rounded-[8px] border border-[rgba(0,0,0,0.08)] bg-white text-[12.5px] text-[#5c5c58] hover:bg-[#fafaf8] cursor-pointer"
-          >
-            <span
-              className="inline-block h-2 w-2 shrink-0 rounded-full"
-              style={{ backgroundColor: qualityFilter.length ? '#2fa360' : '#c9c7bf' }}
-            />
-            <span className="truncate">
-              {qualityFilter.length
-                ? qualityFilter.map((l) => QUALITY_LEVEL_LABELS[l]).join(', ')
-                : 'Response quality'}
-            </span>
-            <RiArrowDownSLine
-              size={12}
-              className={`shrink-0 text-[#9a978f] transition-transform duration-200 ${
-                qualityFilterOpen ? 'rotate-180' : ''
-              }`}
-              aria-hidden
-            />
-          </button>
-
-          <AnimatePresence>
-            {qualityFilterOpen && (
-              <motion.div
-                key="quality-filter-menu"
-                role="menu"
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.18, ease: 'easeOut' }}
-                className="absolute left-0 top-[calc(100%+6px)] z-20 w-[160px] rounded-[12px] border border-[#e8e6e0] bg-white shadow-[0_8px_24px_rgba(0,0,0,0.12)] overflow-hidden"
-              >
-                {['green', 'amber', 'red'].map((level, i) => {
-                  const checked = qualityFilter.includes(level);
-                  return (
-                    <button
-                      key={level}
-                      type="button"
-                      role="menuitemcheckbox"
-                      aria-checked={checked}
-                      onClick={() => toggleQualityLevel(level)}
-                      className={`flex w-full items-center gap-2 px-4 py-[10px] text-left text-[12px] leading-[18px] cursor-pointer hover:bg-[#fafaf8] transition-colors duration-150 ${
-                        i < 2 ? 'border-b border-[#e8e6e0]' : ''
-                      }`}
-                    >
-                      <span
-                        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: QUALITY_DOT_COLORS[level] }}
-                      />
-                      <span
-                        className={`flex-1 ${checked ? 'font-semibold text-[#1a1916]' : 'font-normal text-[#6b6860]'}`}
-                      >
-                        {QUALITY_LEVEL_LABELS[level]}
-                      </span>
-                      {checked ? <span className="text-[#2fa360]">✓</span> : null}
-                    </button>
-                  );
-                })}
               </motion.div>
             )}
           </AnimatePresence>

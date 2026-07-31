@@ -21,7 +21,7 @@
     "@radix-ui/react-select": "^2.2.6",
     "@reduxjs/toolkit": "^2.11.2",
     "@sentry/react": "^10.56.0",
-    "@supabase/supabase-js": "^2.111.0",
+    "@supabase/supabase-js": "^2.110.8",
     "@tailwindcss/vite": "^4.2.4",
     "chart.js": "^4.5.1",
     "leaflet": "^1.9.4",

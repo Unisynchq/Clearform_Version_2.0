@@ -46,6 +46,7 @@ export async function createFormFromUserTemplateAndOpenBuilder({
       gradientTo: meta.gradientTo,
       overlayColor: meta.overlayColor,
       iconGradient: meta.iconGradient,
+      ownerEmail: userEmail || '',
     });
     formId = created.id;
     setPendingFormId(formId);
@@ -74,6 +75,7 @@ export async function createFormFromUserTemplateAndOpenBuilder({
       workspace: workspaceId ?? '',
       builderSnapshot,
       isUserTemplate: true,
+      ownerEmail: userEmail || '',
     })
   );
 

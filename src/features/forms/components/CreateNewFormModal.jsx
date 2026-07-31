@@ -6,11 +6,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import { RiArrowDownSLine, RiArrowRightSLine, RiCloseLine, RiLoader4Line } from 'react-icons/ri';
 import {
   closeCreateNewFormModal,
+  openCreateWorkspaceModal,
   startBuilderRouteTransition,
 } from '@/store/slices/uiSlice';
 import { addForm, selectNavWorkspaces } from '@/store/slices/formsSlice';
 import { completeOnboarding, selectIsOnboardingActive } from '@/store/slices/onboardingSlice';
-import { NO_WORKSPACE_ID } from '../constants/workspaces';
+
 import { FORM_COLOR_OPTIONS, getFormColorTheme } from '../constants/formColorThemes';
 import { navigateToFormBuilder } from '../utils/navigateToFormBuilder';
 import WorkspaceFolderIcon from '@/components/ui/WorkspaceFolderIcon';
@@ -45,8 +46,8 @@ function WorkspaceDropdown({ workspaceId, onChange, workspaces }) {
   const rootRef = useRef(null);
 
   const options = [
-    { id: NO_WORKSPACE_ID, label: 'No workspace', color: null },
-    ...workspaces.map((ws) => ({ id: ws.id, label: ws.label, color: ws.color })),
+    { id: null, label: 'No Workspace', color: null },
+    ...workspaces.map((ws) => ({ id: ws.id, label: ws.label, color: ws.color }))
   ];
 
   const selected = options.find((opt) => opt.id === workspaceId) ?? options[0];
@@ -80,8 +81,8 @@ function WorkspaceDropdown({ workspaceId, onChange, workspaces }) {
         className="flex w-full items-center justify-between gap-2 rounded-[8px] border border-[#e4e0da] bg-[#fafaf8] px-[13px] py-[11px] text-left text-[13px] text-[#1a1814] outline-none transition-colors focus:border-[#1a1814]"
       >
         <span className="flex min-w-0 items-center gap-2">
-          <WorkspaceDot color={selected.color} open={open} />
-          <span className="truncate">{selected.label}</span>
+          {selected && <WorkspaceDot color={selected.color} open={open} />}
+          <span className="truncate">{selected ? selected.label : 'Select a workspace'}</span>
         </span>
         <RiArrowDownSLine
           size={16}
@@ -104,7 +105,7 @@ function WorkspaceDropdown({ workspaceId, onChange, workspaces }) {
             className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-[160px] overflow-y-auto rounded-[8px] border border-[#e4e0da] bg-white py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)] origin-top"
           >
             {options.map((opt) => (
-              <li key={opt.id || 'no-workspace'} role="presentation">
+              <li key={opt.id} role="presentation">
                 <button
                   type="button"
                   role="option"
@@ -132,10 +133,13 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
   const workspaces = useSelector(selectNavWorkspaces);
   const activeWorkspace = useSelector((s) => s.forms.activeWorkspace);
   const isOnboardingActive = useSelector(selectIsOnboardingActive);
+  const userEmail = useSelector((s) => s.auth.email);
   const { showToast } = useToast();
 
   const defaultWorkspaceId =
-    activeWorkspace && activeWorkspace !== 'all' ? activeWorkspace : NO_WORKSPACE_ID;
+    activeWorkspace && activeWorkspace !== 'all' && workspaces.find(w => w.id === activeWorkspace)
+      ? activeWorkspace
+      : (workspaces[0]?.id ?? null);
 
   const [name, setName] = useState('');
   const [colorId, setColorId] = useState(FORM_COLOR_OPTIONS[0].id);
@@ -163,7 +167,7 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
     creatingRef.current = true;
     const title = name.trim() || 'Untitled';
     const theme = getFormColorTheme(colorId);
-    const effectiveWorkspaceId = workspaceId !== NO_WORKSPACE_ID ? workspaceId : undefined;
+    const effectiveWorkspaceId = workspaceId;
 
     let formId;
     setCreating(true);
@@ -177,6 +181,7 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
           gradientTo: theme.gradientTo,
           overlayColor: theme.overlayColor,
           iconGradient: theme.iconGradient,
+          ownerEmail: userEmail || '',
         });
         formId = created.id;
         setPendingFormId(formId);
@@ -201,11 +206,13 @@ const CreateNewFormFields = ({ onClose, onCreateAfterExit }) => {
       status: 'draft',
       responses: 0,
       timeAgo: 'just now',
-      workspace: workspaceId,
+      workspace: effectiveWorkspaceId,
+      workspaceId: effectiveWorkspaceId,
       gradientFrom: theme.gradientFrom,
       gradientTo: theme.gradientTo,
       overlayColor: theme.overlayColor,
       iconGradient: theme.iconGradient,
+      ownerEmail: userEmail || '',
     }));
     if (isOnboardingActive) dispatch(completeOnboarding());
 
