@@ -762,7 +762,6 @@ function ShareViaCard({
   const cardClass = isError
     ? 'bg-[#fef2f2] border-[#fca5a5]'
     : 'bg-white border-[#e5e4e0]';
-  const starterOnly = new Set(['email', 'embed', 'social']);
 
   return (
     <motion.div layout className={`border rounded-[16px] flex flex-col gap-[18px] p-[29px] ${cardClass}`}>
@@ -776,46 +775,34 @@ function ShareViaCard({
         <p className="text-[12px] text-[#6b6965]">
           Link and QR are included. Embed, email, and social unlock on Starter.
         </p>
-      ) : null}
-
+      ) : (
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {SHARE_CHANNELS.map(({ id, label, icon: Icon }) => {
-          const locked = !canEmbed && starterOnly.has(id);
-          const isActive = !isError && !locked && activePanel === id;
+          const isActive = !isError && activePanel === id;
           return (
             <button
               key={id}
               type="button"
               onClick={() => {
                 if (isError) return;
-                if (locked) {
-                  onUpgradeForShare?.();
-                  return;
-                }
                 onSelectChannel(id);
               }}
               disabled={isError}
               className={`min-h-[52px] h-[52px] rounded-[8px] border text-[13px] font-medium inline-flex items-center justify-center gap-2 transition-colors ${
                 isError
                   ? 'bg-[#f2f1ee] border-[#e5e4e0] text-[#0a0a0a] opacity-45 cursor-not-allowed'
-                  : locked
-                    ? 'bg-[#fafaf8] border-dashed border-[#d4d2cc] text-[#6b6965] cursor-pointer'
-                    : isActive
-                      ? 'bg-[#0a0a0a] border-[#0a0a0a] text-white cursor-pointer'
-                      : 'bg-white border-[#e5e4e0] text-[#0a0a0a] hover:bg-[#fafaf8] cursor-pointer'
+                  : isActive
+                    ? 'bg-[#0a0a0a] border-[#0a0a0a] text-white cursor-pointer'
+                    : 'bg-white border-[#e5e4e0] text-[#0a0a0a] hover:bg-[#fafaf8] cursor-pointer'
               }`}
             >
               {!isError && <Icon size={15} />}
               {label}
-              {locked ? (
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-[#9e9b96]">
-                  Starter
-                </span>
-              ) : null}
             </button>
           );
         })}
       </div>
+      )}
 
       <AnimatePresence initial={false} mode="wait">
         {!isError && canEmbed && activePanel === 'embed' && (

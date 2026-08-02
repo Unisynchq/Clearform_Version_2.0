@@ -30,6 +30,7 @@ import {
   updateFormWebhook,
 } from '@/api/services/webhooksService';
 import { useToast } from '@/hooks/useToast';
+import { useBillingStatus } from '@/features/billing/utils/useBillingStatus';
 import { getFreshAuthToken } from '@/features/auth/utils/authTokenRefresh';
 import { readLastWorkspaceId } from '@/features/auth/utils/authClientContext';
 import { loadWorkspacesFromApi } from '@/store/slices/formsSlice';
@@ -212,6 +213,16 @@ const ShareFormModal = () => {
   const dispatch = useDispatch();
   const [searchParams] = useSearchParams();
   const { showToast } = useToast();
+  const { status: billingStatus } = useBillingStatus();
+  const canEmbed = Boolean(billingStatus?.entitlements?.canEmbed);
+  const canUseIntegrations = Boolean(billingStatus?.entitlements?.canUseIntegrations);
+  const visibleShareChannels = SHARE_CHANNELS.filter((ch) => {
+    if (ch.id === 'embed' || ch.id === 'email') return canEmbed;
+    if (ch.id === 'slack' || ch.id === 'sheets') return canUseIntegrations;
+    // "Other" is a free-form message share — Starter+ only (pass = link/QR only)
+    if (ch.id === 'other') return canEmbed;
+    return true;
+  });
   const { open, formTitle, formId, initialChannel, openWebhook } = useSelector(
     (s) => s.ui.shareModal,
   );
@@ -845,11 +856,12 @@ const ShareFormModal = () => {
                 </button>
               </div>
 
-              {/* Share via */}
+              {/* Share via — Starter+ only (Publish Pass = Copy link above) */}
+              {visibleShareChannels.length > 0 ? (
               <div className="flex flex-col gap-4">
                 <p className="text-[10px] font-semibold text-[#c4c0b8] tracking-[0.9px] uppercase leading-[normal]">Share via</p>
                 <div className="flex items-start justify-between">
-                  {SHARE_CHANNELS.map((ch) => (
+                  {visibleShareChannels.map((ch) => (
                     <ShareChannel
                       key={ch.id}
                       {...ch}
@@ -1033,6 +1045,11 @@ const ShareFormModal = () => {
                   </div>
                 </ExpandPanel>
               </div>
+              ) : isLive ? (
+                <p className="text-[12px] text-[#888780]">
+                  Publish Pass includes Copy link. Embed, email, Sheets, and Slack unlock on Starter.
+                </p>
+              ) : null}
 
               {/* Divider */}
               <div className="h-px bg-[#f0ede8]" />

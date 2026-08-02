@@ -28,8 +28,9 @@ export default function ResponsesLimitBanner() {
               Responses paused — plan limit reached
             </p>
             <p className="text-[12.5px] text-[#a05048]">
-              Your forms have collected {used.toLocaleString('en-IN')} of {limit.toLocaleString('en-IN')} responses.
-              New submissions are being rejected until you upgrade.
+              Your forms have collected {used.toLocaleString('en-IN')} of{' '}
+              {limit.toLocaleString('en-IN')} responses. New submissions are rejected until you
+              renew Starter or buy another Publish Pass.
             </p>
           </div>
         </div>
@@ -38,7 +39,7 @@ export default function ResponsesLimitBanner() {
           onClick={() => setUpgradeOpen(true)}
           className="inline-flex shrink-0 items-center gap-1 rounded-[8px] bg-[#1a1a18] px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#2d2d2b]"
         >
-          Upgrade to Pilot
+          Get Starter — ₹499/mo
           <RiArrowRightLine size={14} aria-hidden />
         </button>
       </div>
@@ -46,7 +47,7 @@ export default function ResponsesLimitBanner() {
         open={upgradeOpen}
         onClose={() => setUpgradeOpen(false)}
         title="Response limit reached"
-        reason="Free workspaces include 50 responses. Pilot adds 300 responses plus the full AI bundle."
+        reason="Publish Pass forms stop at 100 responses. Starter includes 200 responses / month plus embed, Sheets, and AI Insights."
       />
     </>
   );
