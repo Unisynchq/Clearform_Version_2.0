@@ -19,7 +19,7 @@ import {
   RiEyeOffLine,
 } from 'react-icons/ri';
 import { closeShareModal } from '@/store/slices/uiSlice';
-import { buildFallbackPublicUrl, fetchShareLinks } from '@/api/services/shareService';
+import { fetchShareLinks } from '@/api/services/shareService';
 import { buildEmbedCode } from '@/features/forms/utils/embedCode';
 import { isApiConfigured } from '@/config/env';
 import {
@@ -265,14 +265,11 @@ const ShareFormModal = () => {
   const [webhookId, setWebhookId] = useState(null);
   const [webhookTesting, setWebhookTesting] = useState(false);
 
-  const fullUrl =
-    shareLinks?.publicUrl ??
-    (formId ? buildFallbackPublicUrl(formId) : '');
-  const formUrl =
-    shareLinks?.shortDisplay ??
-    (formId && typeof window !== 'undefined'
-      ? `${window.location.host}/f/${formId}`
-      : '');
+  const isLive = shareLinks?.status === 'live';
+  const fullUrl = isLive ? (shareLinks?.publicUrl ?? '') : '';
+  const formUrl = isLive
+    ? (shareLinks?.shortDisplay ?? '')
+    : 'Publish to get a share link';
 
   useEffect(() => {
     if (!open || !formId) {
@@ -285,15 +282,16 @@ const ShareFormModal = () => {
         if (!cancelled) setShareLinks(data);
       })
       .catch(() => {
-        if (!cancelled) {
-          setShareLinks({
-            publicUrl: buildFallbackPublicUrl(formId),
-            shortDisplay: `${window.location.host}/f/${formId}`,
-            slug: 'form',
-            status: 'draft',
-          });
-        }
-      });
+          if (!cancelled) {
+            setShareLinks({
+              publicUrl: null,
+              shortDisplay: null,
+              slug: 'form',
+              status: 'draft',
+              warning: 'Publish your form before sharing the link.',
+            });
+          }
+        });
     return () => {
       cancelled = true;
     };
@@ -655,6 +653,7 @@ const ShareFormModal = () => {
 
   /* ── Handlers: copy ── */
   const handleCopyLink = () => {
+    if (!isLive || !fullUrl) return;
     navigator.clipboard?.writeText(fullUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -816,7 +815,10 @@ const ShareFormModal = () => {
                   Share &ldquo;{formTitle}&rdquo;
                 </p>
                 <p className="text-[14px] font-normal text-[#888780] leading-[21px] mt-0.5">
-                  Anyone with the link can fill out the form.
+                  {isLive
+                    ? 'Anyone with the link can fill out the form.'
+                    : shareLinks?.warning ??
+                      'Publish this form first — the public link stays locked until then.'}
                 </p>
               </div>
               <button
@@ -835,7 +837,8 @@ const ShareFormModal = () => {
                 <span className="flex-1 text-[12px] font-mono text-[#888780] truncate">{formUrl}</span>
                 <button
                   onClick={handleCopyLink}
-                  className="flex items-center gap-1.5 bg-[#1a1917] text-white text-[12px] font-medium px-3 py-[7px] rounded-[10px] hover:bg-[#2c2a27] transition-colors cursor-pointer shrink-0"
+                  disabled={!isLive || !fullUrl}
+                  className="flex items-center gap-1.5 bg-[#1a1917] text-white text-[12px] font-medium px-3 py-[7px] rounded-[10px] hover:bg-[#2c2a27] transition-colors cursor-pointer shrink-0 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <RiFileCopyLine size={14} />
                   {copied ? 'Copied!' : 'Copy link'}
