@@ -10,6 +10,7 @@ import {
 } from '@/features/forms/utils/publishedFormSessionCache';
 import { readPersistedForms } from '@/features/forms/utils/userFormsStorage';
 import { trackFormCreated } from '@/analytics/track';
+import { normalizeEmbedSrc } from '@/features/forms/utils/embedCode';
 
 /**
  * Forms API facade — reads/writes localStorage only when API is not configured.
@@ -136,14 +137,7 @@ export async function publishForm(formId, snapshot) {
       body: snapshot,
     });
     if (result && result.publicUrl && typeof window !== 'undefined') {
-      try {
-        const url = new URL(result.publicUrl);
-        url.protocol = window.location.protocol;
-        url.host = window.location.host;
-        result.publicUrl = url.toString();
-      } catch (e) {
-        // fallback
-      }
+      result.publicUrl = normalizeEmbedSrc(result.publicUrl);
     }
     writePublishedFormSessionCache(formId, snapshot);
     return result;

@@ -5,11 +5,11 @@
 
 /** Page shell — card layout (margins around the card) */
 export const RESPONDENT_PAGE_SHELL =
-  'min-h-[100dvh] flex flex-col items-center justify-center px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-6 sm:py-8 md:p-10';
+  'min-h-[100dvh] flex flex-col items-center px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-6 sm:py-8 md:p-10';
 
 /** Page shell — full canvas (tighter; content on background) */
 export const RESPONDENT_PAGE_SHELL_FULL =
-  'min-h-[100dvh] flex flex-col items-center justify-center px-3 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] sm:px-5 sm:py-6 md:p-10';
+  'min-h-[100dvh] flex flex-col items-center px-3 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] sm:px-5 sm:py-6 md:p-10';
 
 /** Inner frame around each screen body */
 export const RESPONDENT_SCREEN_FRAME = 'p-0 sm:p-3 md:p-5';

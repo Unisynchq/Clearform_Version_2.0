@@ -56,7 +56,7 @@ async function startPreviewServer() {
   const server = await createServer({
     configFile: path.resolve(__dirname, '../vite.config.js'),
     root: path.resolve(__dirname, '..'),
-    server: { port: 4173, strictPort: true },
+    server: { host: '127.0.0.1', port: 4173, strictPort: true },
     preview: false,
   });
   await server.listen();
