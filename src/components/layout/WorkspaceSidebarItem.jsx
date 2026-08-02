@@ -31,8 +31,11 @@ export default function WorkspaceSidebarItem({
 
   useEffect(() => {
     if (isRenaming) {
-      setDraftName(workspace.label);
-      window.requestAnimationFrame(() => inputRef.current?.select());
+      const raf = window.requestAnimationFrame(() => {
+        setDraftName(workspace.label);
+        inputRef.current?.select();
+      });
+      return () => window.cancelAnimationFrame(raf);
     }
   }, [isRenaming, workspace.label]);
 
@@ -85,13 +88,20 @@ export default function WorkspaceSidebarItem({
     'Over your plan’s workspace limit — existing forms keep working, upgrade to add new ones here.';
 
   return (
-    <motion.button
-      type="button"
+    <motion.div
+      role="button"
+      tabIndex={isRenaming ? -1 : 0}
       whileHover={isRenaming ? undefined : { backgroundColor: active ? `${color}2E` : `${color}14` }}
       animate={{ backgroundColor: active ? `${color}1F` : 'transparent' }}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       onContextMenu={onContextMenu}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleClick();
+        }
+      }}
       title={frozen ? frozenHint : undefined}
       className="group flex w-full min-w-0 items-center gap-2 overflow-hidden rounded-lg px-4 py-2 text-left transition-colors cursor-pointer"
     >
@@ -151,6 +161,6 @@ export default function WorkspaceSidebarItem({
           <RiMoreFill size={16} className={active ? 'text-[#1a1a1c]' : 'text-[#6b6966]'} />
         </button>
       ) : null}
-    </motion.button>
+    </motion.div>
   );
 }
