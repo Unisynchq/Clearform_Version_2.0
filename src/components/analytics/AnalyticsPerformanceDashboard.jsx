@@ -366,7 +366,7 @@ export function AnalyticsFunnelCard({ form, apiStats }) {
               className="absolute left-[353.44px] top-[203.21px] flex h-[29.76px] w-[100.56px] items-center justify-center rounded-[10px] border border-[#ff8181] bg-[#f5e8e8] px-2 py-1"
             >
               <span className="whitespace-nowrap text-[12px] font-medium leading-[19.5px] text-[#c05050] tabular-nums">
-                {stats.drops[1].pct}% Drop off
+                {stats.drops[2].pct}% Drop off
               </span>
             </motion.div>
 

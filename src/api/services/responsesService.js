@@ -173,6 +173,22 @@ export function sendAbandonBeacon(formId, snapsByScreenId, abandonedAtScreenId, 
   navigator.sendBeacon(url, new Blob([JSON.stringify(payload)], { type: 'application/json' }));
 }
 
+/**
+ * Fire-and-forget funnel step (opened / started). Never blocks or breaks the
+ * respondent flow — failures are swallowed. The backend dedupes per
+ * (formId, sessionId, kind), so re-fires within a session count once.
+ */
+export function trackFormFunnelEvent(formId, kind, sessionId) {
+  if (!isApiConfigured()) return Promise.resolve(null);
+  return apiClient(API_ENDPOINTS.responses.trackEvent(formId), {
+    method: 'POST',
+    body: { kind, sessionId },
+  }).catch((err) => {
+    console.warn('[responses] funnel event failed', err);
+    return null;
+  });
+}
+
 export async function submitFormResponse(formId, response, snapsByScreenId) {
   if (isApiConfigured()) {
     const { snaps: persistedSnaps, uploadErrors } = await persistBlobUploadFiles(

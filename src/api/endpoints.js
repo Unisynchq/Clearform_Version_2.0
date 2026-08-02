@@ -32,6 +32,7 @@ export const API_ENDPOINTS = {
   responses: {
     list: (formId) => `/forms/${formId}/responses`,
     create: (formId) => `/forms/${formId}/responses`,
+    trackEvent: (formId) => `/forms/${formId}/responses/events`,
     uploadFile: (formId) => `/forms/${formId}/responses/files`,
     byId: (formId, responseId) => `/forms/${formId}/responses/${responseId}`,
     export: (formId) => `/forms/${formId}/responses/export`,
