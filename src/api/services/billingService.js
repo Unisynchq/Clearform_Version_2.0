@@ -52,6 +52,30 @@ export async function createPilotCheckoutSession() {
   });
 }
 
+/** One-time Publish Pass (₹99) — amount from Razorpay Item; optional formId for Order notes. */
+export async function createPublishPassCheckoutSession({ formId } = {}) {
+  if (!isApiConfigured()) {
+    throw new Error('API is not configured');
+  }
+  const body = {};
+  if (formId?.trim()) body.formId = formId.trim();
+  return apiClient(API_ENDPOINTS.billing.publishPassCheckoutSession(), {
+    method: 'POST',
+    body,
+  });
+}
+
+/** Starter monthly subscription — currency INR | USD. */
+export async function createStarterSubscription({ currency = 'INR' } = {}) {
+  if (!isApiConfigured()) {
+    throw new Error('API is not configured');
+  }
+  return apiClient(API_ENDPOINTS.billing.createSubscription(), {
+    method: 'POST',
+    body: { currency },
+  });
+}
+
 /** Legacy Payment Link checkout — prefer pilot Orders API from Profile → Billing. */
 export async function createCheckout(body = {}) {
   if (!isApiConfigured()) return null;

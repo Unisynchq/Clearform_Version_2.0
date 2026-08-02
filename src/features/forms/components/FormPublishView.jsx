@@ -17,6 +17,8 @@ import {
   RiShareLine,
 } from 'react-icons/ri';
 import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent.png';
+import { useBillingStatus } from '@/features/billing/utils/useBillingStatus';
+import { openStarterRazorpayCheckout } from '@/features/billing/utils/openStarterRazorpayCheckout';
 import { useToast } from '@/hooks/useToast';
 import { getFormBuilderPath } from '@/features/forms/utils/formBuilderNavigation';
 import { getFreshAuthToken } from '@/features/auth/utils/authTokenRefresh';
@@ -754,10 +756,13 @@ function ShareViaCard({
   copyShareState,
   onCopyFullMessage,
   onCopyLinkOnly,
+  canEmbed = true,
+  onUpgradeForShare,
 }) {
   const cardClass = isError
     ? 'bg-[#fef2f2] border-[#fca5a5]'
     : 'bg-white border-[#e5e4e0]';
+  const starterOnly = new Set(['email', 'embed', 'social']);
 
   return (
     <motion.div layout className={`border rounded-[16px] flex flex-col gap-[18px] p-[29px] ${cardClass}`}>
@@ -767,32 +772,53 @@ function ShareViaCard({
         <AlertBanner>Sharing is disabled until the form is published successfully.</AlertBanner>
       )}
 
+      {!canEmbed ? (
+        <p className="text-[12px] text-[#6b6965]">
+          Link and QR are included. Embed, email, and social unlock on Starter.
+        </p>
+      ) : null}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {SHARE_CHANNELS.map(({ id, label, icon: Icon }) => {
-          const isActive = !isError && activePanel === id;
+          const locked = !canEmbed && starterOnly.has(id);
+          const isActive = !isError && !locked && activePanel === id;
           return (
             <button
               key={id}
               type="button"
-              onClick={() => !isError && onSelectChannel(id)}
+              onClick={() => {
+                if (isError) return;
+                if (locked) {
+                  onUpgradeForShare?.();
+                  return;
+                }
+                onSelectChannel(id);
+              }}
               disabled={isError}
               className={`min-h-[52px] h-[52px] rounded-[8px] border text-[13px] font-medium inline-flex items-center justify-center gap-2 transition-colors ${
                 isError
                   ? 'bg-[#f2f1ee] border-[#e5e4e0] text-[#0a0a0a] opacity-45 cursor-not-allowed'
-                  : isActive
-                    ? 'bg-[#0a0a0a] border-[#0a0a0a] text-white cursor-pointer'
-                    : 'bg-white border-[#e5e4e0] text-[#0a0a0a] hover:bg-[#fafaf8] cursor-pointer'
+                  : locked
+                    ? 'bg-[#fafaf8] border-dashed border-[#d4d2cc] text-[#6b6965] cursor-pointer'
+                    : isActive
+                      ? 'bg-[#0a0a0a] border-[#0a0a0a] text-white cursor-pointer'
+                      : 'bg-white border-[#e5e4e0] text-[#0a0a0a] hover:bg-[#fafaf8] cursor-pointer'
               }`}
             >
               {!isError && <Icon size={15} />}
               {label}
+              {locked ? (
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-[#9e9b96]">
+                  Starter
+                </span>
+              ) : null}
             </button>
           );
         })}
       </div>
 
       <AnimatePresence initial={false} mode="wait">
-        {!isError && activePanel === 'embed' && (
+        {!isError && canEmbed && activePanel === 'embed' && (
           <motion.div
             key="embed"
             className="relative overflow-hidden"
@@ -810,7 +836,7 @@ function ShareViaCard({
           </motion.div>
         )}
 
-        {!isError && activePanel === 'social' && (
+        {!isError && canEmbed && activePanel === 'social' && (
           <motion.div
             key="social"
             className="relative overflow-hidden"
@@ -858,7 +884,7 @@ function ShareViaCard({
           </motion.div>
         )}
 
-        {!isError && activePanel === 'email' && (
+        {!isError && canEmbed && activePanel === 'email' && (
           <motion.div
             key="email"
             className="overflow-hidden"
@@ -896,6 +922,17 @@ const FormPublishView = ({
   const dispatch = useDispatch();
   const isAuthenticated = useSelector((s) => s.auth.isAuthenticated);
   const { showToast } = useToast();
+  const { entitlements } = useBillingStatus();
+  const canEmbed = Boolean(entitlements?.canEmbed);
+  const handleUpgradeForShare = useCallback(() => {
+    openStarterRazorpayCheckout({ currency: 'INR' }).catch((err) => {
+      showToast({
+        type: 'error',
+        message: err?.message ?? 'Could not start Starter checkout.',
+        duration: 6000,
+      });
+    });
+  }, [showToast]);
   const form = useSelector((s) =>
     formId != null ? s.forms.forms.find((f) => f.id === formId) : null,
   );
@@ -1159,6 +1196,8 @@ const FormPublishView = ({
                     copyShareState={copyShareState}
                     onCopyFullMessage={handleCopyFullMessage}
                     onCopyLinkOnly={handleCopyLinkOnly}
+                    canEmbed={canEmbed}
+                    onUpgradeForShare={handleUpgradeForShare}
                   />
                 </motion.div>
               </motion.div>

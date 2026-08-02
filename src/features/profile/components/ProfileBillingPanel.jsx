@@ -12,7 +12,9 @@ import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent (
 import { isApiConfigured } from '@/config/env';
 import { useBillingStatus } from '@/features/billing/utils/useBillingStatus';
 import { captureAndClaimPendingPurchase } from '@/features/billing/utils/billingReturnFlow';
-import { openPilotRazorpayCheckout } from '@/features/billing/utils/openPilotRazorpayCheckout';
+import { openPublishPassRazorpayCheckout } from '@/features/billing/utils/openPublishPassRazorpayCheckout';
+import { openStarterRazorpayCheckout } from '@/features/billing/utils/openStarterRazorpayCheckout';
+import PublishPassesWidget from '@/features/billing/components/PublishPassesWidget';
 import PromoCodeRedeemBox from '@/features/billing/components/PromoCodeRedeemBox';
 import BillingInvoiceExpanded from '@/features/profile/components/billing/BillingInvoiceExpanded';
 import TaxInvoiceModal from '@/features/profile/components/billing/TaxInvoiceModal';
@@ -154,18 +156,35 @@ const ProfileBillingPanel = () => {
     [email, billingVersion, useApiBilling],
   );
 
-  const isPaid = useApiBilling
-    ? apiStatus?.planId === PILOT_35_PLAN_ID && apiStatus?.status !== 'EXPIRED'
-    : Boolean(localSubscription?.planId);
+  const entitlements = apiStatus?.entitlements ?? null;
+  const publishPassesAvailable = entitlements?.publishPassesAvailable ?? 0;
+  const canPublishUnlimited = Boolean(
+    entitlements?.canPublish &&
+      (apiStatus?.planId === 'starter' ||
+        apiStatus?.planId === 'pro' ||
+        apiStatus?.planId === 'pilot_35') &&
+      apiStatus?.status !== 'EXPIRED' &&
+      apiStatus?.status !== 'UNPAID',
+  );
+  const isStarterOrPro = Boolean(
+    useApiBilling &&
+      (apiStatus?.planId === 'starter' ||
+        apiStatus?.planId === 'pro' ||
+        apiStatus?.planId === 'pilot_35') &&
+      apiStatus?.status !== 'EXPIRED' &&
+      apiStatus?.status !== 'UNPAID',
+  );
+
+  const isPaid = useApiBilling ? isStarterOrPro : Boolean(localSubscription?.planId);
 
   const isPilotExpired = useApiBilling && apiStatus?.status === 'EXPIRED';
   const isPromoTrial = useApiBilling && isPaid && apiStatus?.source === 'PROMO';
 
-  const handleStartPilotCheckout = useCallback(async () => {
-    if (!useApiBilling || isPaid) return;
+  const handleBuyPublishPass = useCallback(async () => {
+    if (!useApiBilling) return;
     setCheckoutLoading(true);
     try {
-      await openPilotRazorpayCheckout();
+      await openPublishPassRazorpayCheckout();
     } catch (err) {
       showToast({
         type: 'error',
@@ -175,31 +194,61 @@ const ProfileBillingPanel = () => {
     } finally {
       setCheckoutLoading(false);
     }
-  }, [useApiBilling, isPaid, showToast]);
+  }, [useApiBilling, showToast]);
+
+  const handleBuyStarter = useCallback(async () => {
+    if (!useApiBilling) return;
+    setCheckoutLoading(true);
+    try {
+      await openStarterRazorpayCheckout({ currency: 'INR' });
+    } catch (err) {
+      showToast({
+        type: 'error',
+        message: err?.message ?? 'Could not start checkout.',
+        duration: 6000,
+      });
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }, [useApiBilling, showToast]);
 
   useEffect(() => {
-    if (searchParams.get('upgrade') !== 'pilot' || !useApiBilling || statusLoading) return;
-    if (isPaid) return;
+    const upgrade = searchParams.get('upgrade');
+    if (!upgrade || !useApiBilling || statusLoading) return;
     if (upgradeStartedRef.current) return;
     upgradeStartedRef.current = true;
 
     setCheckoutLoading(true);
-    openPilotRazorpayCheckout()
-      .catch((err) => {
-        showToast({
-          type: 'error',
-          message: err?.message ?? 'Could not start checkout.',
-          duration: 6000,
-        });
-      })
-      .finally(() => setCheckoutLoading(false));
+    const start =
+      upgrade === 'starter' || upgrade === 'starter_usd'
+        ? openStarterRazorpayCheckout({
+            currency: upgrade === 'starter_usd' ? 'USD' : 'INR',
+          })
+        : upgrade === 'publish_pass' || upgrade === 'pass'
+          ? openPublishPassRazorpayCheckout()
+          : upgrade === 'pilot'
+            ? openPublishPassRazorpayCheckout()
+            : null;
+
+    if (start) {
+      start
+        .catch((err) => {
+          showToast({
+            type: 'error',
+            message: err?.message ?? 'Could not start checkout.',
+            duration: 6000,
+          });
+        })
+        .finally(() => setCheckoutLoading(false));
+    } else {
+      setCheckoutLoading(false);
+    }
 
     const next = new URLSearchParams(searchParams);
     next.delete('upgrade');
     setSearchParams(next, { replace: true });
   }, [
     searchParams,
-    isPaid,
     useApiBilling,
     statusLoading,
     setSearchParams,
@@ -293,6 +342,15 @@ const ProfileBillingPanel = () => {
           </p>
         ) : null}
 
+        {useApiBilling ? (
+          <PublishPassesWidget
+            available={publishPassesAvailable}
+            canPublishUnlimited={canPublishUnlimited}
+            preferredCurrency="INR"
+            onCheckoutStarted={setCheckoutLoading}
+          />
+        ) : null}
+
         <section className="overflow-hidden rounded-[12px] border border-[#e5e3df] bg-white">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#f0f0ee] px-5 py-4">
             <div>
@@ -303,7 +361,11 @@ const ProfileBillingPanel = () => {
             </div>
             <button
               type="button"
-              onClick={isPaid ? () => setInvoiceExpanded(true) : handleStartPilotCheckout}
+              onClick={
+                isPaid
+                  ? () => setInvoiceExpanded(true)
+                  : handleBuyStarter
+              }
               disabled={checkoutLoading}
               className="rounded-[8px] bg-[#111110] px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-[#2d2d2b] disabled:opacity-60"
             >
@@ -312,8 +374,8 @@ const ProfileBillingPanel = () => {
                 : isPaid
                   ? 'View receipt'
                   : isPilotExpired
-                    ? 'Renew Pilot — $34.99'
-                    : 'Start Pilot — $34.99'}
+                    ? 'Renew Starter — ₹499/mo'
+                    : 'Get Starter — ₹499/mo'}
             </button>
           </div>
 

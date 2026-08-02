@@ -104,6 +104,8 @@ export const API_ENDPOINTS = {
     claimPurchase: () => '/billing/claim-purchase',
     createCheckout: () => '/billing/create-checkout',
     pilotCheckoutSession: () => '/billing/checkout-sessions/pilot',
+    publishPassCheckoutSession: () => '/billing/checkout-sessions/publish-pass',
+    createSubscription: () => '/billing/create-subscription',
     redeemPromo: () => '/billing/redeem-promo',
   },
 };

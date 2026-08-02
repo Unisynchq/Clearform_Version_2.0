@@ -2932,6 +2932,7 @@ const FormBuilderPage = () => {
   );
 
   const [aiLogicUpgradeGate, setAiLogicUpgradeGate] = useState(null);
+  const [publishUpgradeGate, setPublishUpgradeGate] = useState(null);
   const handleAiLogicLimitReached = useCallback((err) => {
     const body = err?.body ?? {};
     setAiLogicUpgradeGate(
@@ -5469,6 +5470,23 @@ const FormBuilderPage = () => {
       setIsPublishView(true);
       showToast({ type: 'success', message: 'Form published', duration: 3000 });
     } catch (err) {
+      const status = err?.status ?? err?.statusCode;
+      const body = err?.body ?? err?.data ?? {};
+      const code = body?.code ?? body?.error;
+      if (
+        status === 402 ||
+        code === 'PUBLISH_PASS_REQUIRED' ||
+        (status === 403 && code === 'UPGRADE_REQUIRED' && /publish/i.test(body?.feature ?? body?.message ?? ''))
+      ) {
+        setPublishUpgradeGate({
+          reason:
+            body?.message ??
+            'A Publish Pass (₹99) or Starter subscription is required to publish.',
+          variant: 'publish_pass',
+        });
+        setPublishModalOpen(false);
+        return;
+      }
       const message = err?.message ?? 'Publish failed. Check your connection and try again.';
       showToast({ type: 'error', message, duration: 4000 });
       setPublishModalOpen(false);
@@ -8590,9 +8608,19 @@ const FormBuilderPage = () => {
         title="AI logic limit reached"
         reason={
           aiLogicUpgradeGate?.reason ??
-          "Your current plan's AI logic generation limit is used up for now. Pilot raises the limit and unlocks premium AI models."
+          "Your current plan's AI logic generation limit is used up for now. Starter unlocks more AI capacity."
         }
         quota={aiLogicUpgradeGate?.quota}
+        variant="starter"
+      />
+
+      <UpgradeGateModal
+        open={Boolean(publishUpgradeGate)}
+        onClose={() => setPublishUpgradeGate(null)}
+        title="Publish Pass required"
+        reason={publishUpgradeGate?.reason}
+        variant={publishUpgradeGate?.variant ?? 'publish_pass'}
+        formId={activeFormId}
       />
     </motion.div>
   );
