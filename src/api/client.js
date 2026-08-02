@@ -19,6 +19,7 @@ const PUBLIC_API_PATH_PATTERNS = [
   /^\/forms\/[^/]+\/published$/,
   /^\/forms\/[^/]+\/responses$/,
   /^\/forms\/[^/]+\/responses\/files$/,
+  /^\/forms\/[^/]+\/responses\/events$/,
   /^\/forms\/[^/]+\/response-quality\/evaluate$/,
 ];
 

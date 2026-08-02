@@ -29,7 +29,7 @@ import {
   RESPONDENT_PAGE_SHELL_FULL,
   RESPONDENT_SCREEN_FRAME,
 } from '@/features/forms/utils/respondentLayout';
-import { submitFormResponse, sendAbandonBeacon } from '@/api/services/responsesService';
+import { submitFormResponse, sendAbandonBeacon, trackFormFunnelEvent } from '@/api/services/responsesService';
 import { buildResponseFromPreview } from '@/features/forms/utils/formResponseBuilder';
 import { buildQualityConversationHistory } from '@/features/forms/utils/buildQualityConversationHistory';
 
@@ -93,6 +93,36 @@ export default function FormRespondentView({ draft, formId }) {
   const isCompletedRef = useRef(false);
   const activeScreenIdRef = useRef(activeScreenId);
   const snapsByScreenIdRef = useRef({});
+  const sessionIdRef = useRef(null);
+  const openedEventSentRef = useRef(false);
+  const startedEventSentRef = useRef(false);
+
+  const sendFunnelEvent = useCallback(
+    (kind) => {
+      if (!formId) return;
+      if (!sessionIdRef.current) {
+        sessionIdRef.current =
+          typeof crypto !== 'undefined' &&
+          typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      }
+      trackFormFunnelEvent(formId, kind, sessionIdRef.current);
+    },
+    [formId],
+  );
+
+  // Funnel:
+  //   "opened"  = respondent opens the form URL (component mounts).
+  //   "started" = respondent interacts with at least one field (first snap change).
+  //   Both fire at most once per session via their respective *SentRef guards.
+  useEffect(() => {
+    if (!formId) return;
+    if (!openedEventSentRef.current) {
+      openedEventSentRef.current = true;
+      sendFunnelEvent('opened');
+    }
+  }, [formId, sendFunnelEvent]);
 
   useEffect(() => {
     const runner = createFormLogicRunner({
@@ -175,7 +205,12 @@ export default function FormRespondentView({ draft, formId }) {
     if (screen && snap && runnerRef.current) {
       runnerRef.current.recordScreenAnswers(screenId, snap);
     }
-  }, [screens]);
+    // "started" = first field interaction on any screen (typing, selecting, rating, uploading).
+    if (!startedEventSentRef.current) {
+      startedEventSentRef.current = true;
+      sendFunnelEvent('started');
+    }
+  }, [screens, sendFunnelEvent]);
 
   const recordAndAdvance = useCallback(() => {
     if (activeScreenId == null) return;
@@ -214,7 +249,7 @@ export default function FormRespondentView({ draft, formId }) {
     const leavingIntro = screens.find((s) => s.id === activeScreenId)?.type === 'intro';
     setVisitStack((s) => (leavingIntro ? s : [...s, activeScreenId]));
     setActiveScreenId(advanceId);
-  }, [activeScreenId, screens, formId]);
+  }, [activeScreenId, screens, formId, sendFunnelEvent]);
 
   const goBack = useCallback(() => {
     if (!visitStack.length) return;
