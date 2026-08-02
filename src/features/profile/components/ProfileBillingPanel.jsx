@@ -6,7 +6,7 @@ import {
   RiArrowRightLine,
   RiArrowUpSLine,
   RiCheckLine,
-  RiLayoutGridLine,
+  RiLockLine,
 } from 'react-icons/ri';
 import clearformLogo from '@/assets/clearform-high-resolution-logo-transparent (1).png';
 import { isApiConfigured } from '@/config/env';
@@ -21,10 +21,12 @@ import TaxInvoiceModal from '@/features/profile/components/billing/TaxInvoiceMod
 import { getUsageHint, getUsageStatus } from '@/features/profile/utils/profileBillingDefaults';
 import { getWorkspaceUsageMetrics } from '@/features/profile/utils/workspaceUsageMetrics';
 import {
-  API_FREE_PLAN,
+  API_UNPAID_PLAN,
   FREE_PLAN,
   getActivePlanDisplay,
   PILOT_35_PLAN_ID,
+  PRO_PLAN_ID,
+  STARTER_PLAN_ID,
 } from '@/features/profile/utils/profileBillingPlans';
 import {
   buildInvoiceFromBillingReceipt,
@@ -45,10 +47,29 @@ const UsageMeter = ({
   metric,
   warnOnNearLimit = false,
   unlimited = false,
+  locked = false,
   valueClassName = 'text-[#1a1a18]',
   barClassName = 'bg-[#1a1a18]',
   numberLocale = 'en-IN',
 }) => {
+  if (locked) {
+    return (
+      <div className="flex flex-col gap-[5px] rounded-[10px] bg-[#f0f0ee] p-[14px]">
+        <p className="text-[11px] font-medium text-[#888580]">{label}</p>
+        <div className="flex items-baseline justify-between">
+          <span className={`text-[18px] font-semibold leading-none ${valueClassName}`}>
+            {used.toLocaleString(numberLocale)}
+          </span>
+          <span className="inline-flex items-center gap-1 text-[12px] text-[#888580]">
+            <RiLockLine size={12} aria-hidden />
+            Locked
+          </span>
+        </div>
+        <p className="text-[11px] text-[#888580]">Unlock with ₹99 Pass or Starter</p>
+      </div>
+    );
+  }
+
   const status = unlimited ? 'ok' : getUsageStatus(used, limit);
   const isAlert =
     warnOnNearLimit && (status === 'near-limit' || status === 'at-limit');
@@ -160,24 +181,32 @@ const ProfileBillingPanel = () => {
   const publishPassesAvailable = entitlements?.publishPassesAvailable ?? 0;
   const canPublishUnlimited = Boolean(
     entitlements?.canPublish &&
-      (apiStatus?.planId === 'starter' ||
-        apiStatus?.planId === 'pro' ||
-        apiStatus?.planId === 'pilot_35') &&
+      (apiStatus?.planId === STARTER_PLAN_ID ||
+        apiStatus?.planId === PRO_PLAN_ID ||
+        apiStatus?.planId === PILOT_35_PLAN_ID) &&
       apiStatus?.status !== 'EXPIRED' &&
       apiStatus?.status !== 'UNPAID',
   );
   const isStarterOrPro = Boolean(
     useApiBilling &&
-      (apiStatus?.planId === 'starter' ||
-        apiStatus?.planId === 'pro' ||
-        apiStatus?.planId === 'pilot_35') &&
+      (apiStatus?.planId === STARTER_PLAN_ID ||
+        apiStatus?.planId === PRO_PLAN_ID ||
+        apiStatus?.planId === PILOT_35_PLAN_ID) &&
       apiStatus?.status !== 'EXPIRED' &&
       apiStatus?.status !== 'UNPAID',
   );
 
   const isPaid = useApiBilling ? isStarterOrPro : Boolean(localSubscription?.planId);
 
-  const isPilotExpired = useApiBilling && apiStatus?.status === 'EXPIRED';
+  const isPlanExpired = useApiBilling && apiStatus?.status === 'EXPIRED';
+  const isUnpaid =
+    useApiBilling &&
+    (!apiStatus ||
+      apiStatus.status === 'UNPAID' ||
+      apiStatus.status === 'EXPIRED' ||
+      apiStatus.planId === 'unpaid' ||
+      apiStatus.planId === 'free' ||
+      !isPaid);
   const isPromoTrial = useApiBilling && isPaid && apiStatus?.source === 'PROMO';
 
   const handleBuyPublishPass = useCallback(async () => {
@@ -257,15 +286,26 @@ const ProfileBillingPanel = () => {
 
   const plan = useMemo(() => {
     if (useApiBilling && apiStatus) {
-      if (apiStatus.planId === PILOT_35_PLAN_ID && apiStatus.status !== 'EXPIRED') {
-        return (
-          getActivePlanDisplay(apiStatus.planId, 'pilot', {
-            expiresAt: apiStatus.expiresAt ?? apiStatus.periodEnd,
-            isTrial: apiStatus.source === 'PROMO',
-          }) ?? API_FREE_PLAN
-        );
+      const display =
+        getActivePlanDisplay(apiStatus.planId, 'monthly', {
+          expiresAt: apiStatus.expiresAt ?? apiStatus.periodEnd,
+          isTrial: apiStatus.source === 'PROMO',
+          status: apiStatus.status,
+        }) ?? API_UNPAID_PLAN;
+      // Active paid only — expired / unpaid stay on locked card even if planId was remapped.
+      if (
+        (apiStatus.planId === STARTER_PLAN_ID ||
+          apiStatus.planId === PRO_PLAN_ID ||
+          apiStatus.planId === PILOT_35_PLAN_ID) &&
+        apiStatus.status !== 'EXPIRED' &&
+        apiStatus.status !== 'UNPAID'
+      ) {
+        return display;
       }
-      return API_FREE_PLAN;
+      return (
+        getActivePlanDisplay('unpaid', 'monthly', { status: apiStatus.status }) ??
+        API_UNPAID_PLAN
+      );
     }
     if (localSubscription) {
       return (
@@ -307,25 +347,26 @@ const ProfileBillingPanel = () => {
     return null;
   }, [useApiBilling, apiStatus, localSubscription, firstName, lastName, email]);
 
+  /** Always surface unlock CTAs when unpaid / expired — no free tier soft-landing. */
   const showUpgradeCta = useMemo(() => {
     if (!useApiBilling || isPaid) return false;
-    const responsesStatus = getUsageStatus(responsesUsed, plan.responsesLimit);
-    const creditsStatus =
-      Number(aiCreditsLimit) > 0
-        ? getUsageStatus(aiCreditsUsed ?? 0, aiCreditsLimit)
-        : 'normal';
-    return (
-      isPilotExpired ||
-      responsesStatus === 'near-limit' ||
-      responsesStatus === 'at-limit' ||
-      creditsStatus === 'near-limit' ||
-      creditsStatus === 'at-limit'
-    );
-  }, [useApiBilling, isPaid, isPilotExpired, responsesUsed, plan.responsesLimit, aiCreditsUsed, aiCreditsLimit]);
+    return true;
+  }, [useApiBilling, isPaid]);
 
+  const formsUnlimited = plan.formsLimit == null && isPaid;
+  const isProPlan = plan.id === PRO_PLAN_ID || plan.id === PILOT_35_PLAN_ID;
 
-  const formsUnlimited = plan.formsLimit == null;
-  const isPilotPlan = plan.id === PILOT_35_PLAN_ID;
+  /** Unpaid always shows the unlock list (matches pricing philosophy; works before BE redeploy). */
+  const UNLOCK_FEATURES = [
+    { id: 'publish_pass', label: 'Publish Pass (₹99) — one form live, link + QR', included: false },
+    { id: 'starter', label: 'Starter (₹499/mo) — unlimited publish, embed, Sheets', included: false },
+    { id: 'responses', label: '200 responses / month on Starter · 100 per form on Pass', included: false },
+    { id: 'insights', label: 'AI Insights + quality scoring on Starter / Pro', included: false },
+    { id: 'export', label: 'Export & advanced analytics on Starter / Pro', included: false },
+  ];
+  const displayFeatures = isUnpaid
+    ? UNLOCK_FEATURES
+    : (Array.isArray(apiStatus?.features) ? apiStatus.features.filter((f) => f.included) : []);
 
   return (
     <>
@@ -355,9 +396,7 @@ const ProfileBillingPanel = () => {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#f0f0ee] px-5 py-4">
             <div>
               <h2 className="text-[13px] font-semibold text-[#111110]">Current plan</h2>
-              <p className="mt-px text-[12px] text-[#888580]">
-                {isPaid ? plan.headerSubtext : plan.headerSubtext}
-              </p>
+              <p className="mt-px text-[12px] text-[#888580]">{plan.headerSubtext}</p>
             </div>
             <button
               type="button"
@@ -373,7 +412,7 @@ const ProfileBillingPanel = () => {
                 ? 'Opening checkout…'
                 : isPaid
                   ? 'View receipt'
-                  : isPilotExpired
+                  : isPlanExpired
                     ? 'Renew Starter — ₹499/mo'
                     : 'Get Starter — ₹499/mo'}
             </button>
@@ -397,7 +436,7 @@ const ProfileBillingPanel = () => {
                           aria-hidden
                         />
                       ) : (
-                        <RiLayoutGridLine size={20} className="text-[#6b6b68]" aria-hidden />
+                        <RiLockLine size={20} className="text-[#6b6b68]" aria-hidden />
                       )}
                     </div>
                     <div className="min-w-0">
@@ -412,7 +451,13 @@ const ProfileBillingPanel = () => {
                                 : 'bg-[#f0f0ee] text-[#555350]'
                           }`}
                         >
-                          {isPromoTrial ? 'Trial' : isPaid ? 'Active' : isPilotExpired ? 'Expired' : 'Free'}
+                          {isPromoTrial
+                            ? 'Trial'
+                            : isPaid
+                              ? 'Active'
+                              : isPlanExpired
+                                ? 'Expired'
+                                : 'Locked'}
                         </span>
                       </div>
                       <p className="mt-0.5 text-[12px] text-[#888580]">{plan.limitsLabel}</p>
@@ -435,31 +480,29 @@ const ProfileBillingPanel = () => {
 
                 <div>
                   <p className="text-[12px] font-semibold text-[#111110]">
-                    {isPilotPlan ? 'Pilot usage' : 'Usage'}
+                    {isProPlan ? 'Pro usage' : 'Usage'}
                     {apiStatus?.periodLabel ? (
                       <span className="font-normal text-[#888580]"> · {apiStatus.periodLabel}</span>
                     ) : isPaid && plan.renewLabel ? (
                       <span className="font-normal text-[#888580]"> · {plan.renewLabel}</span>
                     ) : null}
                   </p>
-                  <div
-                    className={`mt-3 grid grid-cols-1 gap-3 ${
-                      isPilotPlan ? 'sm:grid-cols-3' : 'sm:grid-cols-3'
-                    }`}
-                  >
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <UsageMeter
                       label="Forms used"
                       used={formsUsed}
                       limit={plan.formsLimit ?? 0}
                       metric="forms"
                       unlimited={formsUnlimited}
+                      locked={!isPaid}
                     />
                     <UsageMeter
-                      label={isPilotPlan ? 'Responses' : 'Responses (total)'}
+                      label={isProPlan ? 'Responses' : 'Responses'}
                       used={responsesUsed}
-                      limit={plan.responsesLimit}
+                      limit={isPaid ? (plan.responsesLimit ?? 0) : 0}
                       metric="responses"
-                      warnOnNearLimit={!isPaid}
+                      warnOnNearLimit={isPaid}
+                      locked={!isPaid}
                     />
                     <UsageMeter
                       label="Workspaces"
@@ -467,7 +510,7 @@ const ProfileBillingPanel = () => {
                       limit={workspacesLimit ?? plan.workspacesLimit ?? plan.teamLimit ?? 1}
                       metric="team"
                     />
-                    {useApiBilling && Number(aiCreditsLimit) > 0 ? (
+                    {useApiBilling && isPaid && Number(aiCreditsLimit) > 0 ? (
                       <UsageMeter
                         label={`AI credits${aiCreditsPeriodLabel ? ` · ${aiCreditsPeriodLabel}` : ''}`}
                         used={aiCreditsUsed ?? 0}
@@ -480,27 +523,35 @@ const ProfileBillingPanel = () => {
                   </div>
                 </div>
 
-                {useApiBilling && Array.isArray(apiStatus?.features) && apiStatus.features.length > 0 ? (
+                {useApiBilling && displayFeatures.length > 0 ? (
                   <div>
                     <p className="text-[12px] font-semibold text-[#111110]">
-                      Included in your plan
+                      {isUnpaid ? 'Unlock with a paid plan' : 'Included in your plan'}
                     </p>
                     <ul className="mt-3 flex flex-col gap-2">
-                      {apiStatus.features
-                        .filter((f) => f.included)
-                        .map((feature) => (
-                          <li
-                            key={feature.id}
-                            className="flex items-start gap-2 text-[13px] text-[#444340]"
-                          >
+                      {displayFeatures.map((feature) => (
+                        <li
+                          key={feature.id}
+                          className={`flex items-start gap-2 text-[13px] ${
+                            feature.included ? 'text-[#444340]' : 'text-[#888580]'
+                          }`}
+                        >
+                          {feature.included ? (
                             <RiCheckLine
                               size={16}
                               className="mt-0.5 shrink-0 text-[#2d7d32]"
                               aria-hidden
                             />
-                            <span>{feature.label}</span>
-                          </li>
-                        ))}
+                          ) : (
+                            <RiLockLine
+                              size={16}
+                              className="mt-0.5 shrink-0 text-[#b0aea8]"
+                              aria-hidden
+                            />
+                          )}
+                          <span>{feature.label}</span>
+                        </li>
+                      ))}
                     </ul>
                   </div>
                 ) : null}
@@ -517,15 +568,13 @@ const ProfileBillingPanel = () => {
           <section className="overflow-hidden rounded-[12px] border border-[#1a1a18] bg-[#1a1a18]">
             <div className="flex flex-col gap-1 p-5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.88px] text-white/40">
-                Clearform Starter
+                Clearform pricing
               </p>
               <h3 className="pt-0.5 text-[18px] font-bold text-white">
-                {isPilotExpired
-                  ? 'Your plan has ended'
-                  : "You're almost out of responses"}
+                {isPlanExpired ? 'Your plan has ended' : 'Unlock publishing'}
               </h3>
               <p className="pb-2 text-[13px] leading-[20.8px] text-white/50">
-                ₹499/mo · unlimited publish · 200 responses · embed, Sheets, AI Insights.
+                ₹99 Publish Pass · or Starter ₹499/mo for unlimited publish, embed, Sheets & AI Insights.
               </p>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -585,7 +634,7 @@ const ProfileBillingPanel = () => {
               </div>
               <div className="flex flex-col items-center gap-4 px-5 py-8">
                 <p className="max-w-md text-center text-[13px] text-[#888580]">
-                  Your Razorpay payment receipt will appear here after you claim a pilot purchase.
+                  Your Razorpay payment receipt will appear here after you complete a purchase.
                 </p>
               </div>
             </>

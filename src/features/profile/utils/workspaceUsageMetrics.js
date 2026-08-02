@@ -43,23 +43,34 @@ export function getWorkspaceUsageMetrics({
     // Server values are the single source of truth — no local limit fallbacks.
     const planName =
       apiBilling.planName ??
-      (apiBilling.planId === 'pilot_35'
-        ? 'Clearform Pilot'
-        : apiBilling.status === 'EXPIRED'
-          ? 'Free (pilot expired)'
-          : 'Free');
+      (apiBilling.planId === 'pilot_35' || apiBilling.planId === 'pro'
+        ? 'Clearform Pro'
+        : apiBilling.planId === 'starter'
+          ? 'Clearform Starter'
+          : apiBilling.status === 'EXPIRED'
+            ? 'Plan ended'
+            : 'No plan');
+    const unpaid =
+      !apiBilling.planId ||
+      apiBilling.planId === 'free' ||
+      apiBilling.planId === 'unpaid' ||
+      apiBilling.status === 'EXPIRED' ||
+      apiBilling.status === 'UNPAID';
     return {
       formsUsed: apiBilling.formsUsed ?? 0,
       responsesUsed: apiBilling.responsesUsed ?? 0,
       teamUsed: apiBilling.workspacesUsed ?? 1,
       formsLimit: apiBilling.formsLimit ?? null,
-      responsesLimit: apiBilling.responsesLimit ?? null,
+      responsesLimit: unpaid ? 0 : (apiBilling.responsesLimit ?? null),
       teamLimit: apiBilling.workspacesLimit ?? null,
       aiCreditsUsed: (apiBilling.aiCredits ?? apiBilling.aiTokens)?.used ?? 0,
-      aiCreditsLimit: (apiBilling.aiCredits ?? apiBilling.aiTokens)?.limit ?? 0,
+      /** Unpaid: hide free AI quota — credits unlock with Publish Pass / Starter / Pro. */
+      aiCreditsLimit: unpaid
+        ? 0
+        : ((apiBilling.aiCredits ?? apiBilling.aiTokens)?.limit ?? 0),
       aiCreditsPeriodLabel:
         (apiBilling.aiCredits ?? apiBilling.aiTokens)?.periodLabel ?? 'This month',
-      planId: apiBilling.planId ?? 'free',
+      planId: apiBilling.planId ?? 'unpaid',
       planName,
       aiTier: apiBilling.aiTier === 'pro' ? 'pro' : 'free',
       responsesSource: 'api',
@@ -92,7 +103,7 @@ export function getWorkspaceUsageMetrics({
     aiCreditsUsed: 0,
     aiCreditsLimit: 0,
     aiCreditsPeriodLabel: 'This month',
-    planId: plan.id ?? 'pilot',
+    planId: plan.id ?? 'unpaid',
     planName: plan.name,
     responsesSource:
       subscription?.usage?.responsesThisMonth != null
