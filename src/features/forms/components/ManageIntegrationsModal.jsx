@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
 import { RiCheckLine, RiShieldCheckLine } from 'react-icons/ri';
@@ -127,8 +127,17 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
   const [loading, setLoading] = useState(false);
 
   const useApi = isApiConfigured();
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   const applyIntegrationState = useCallback((mapped) => {
+    if (!isMounted.current) return;
     setIntegrations(mapped);
     setSpreadsheetId(mapped.googleSheets?.metadata?.spreadsheetId ?? '');
     setSlackChannel(
@@ -141,17 +150,22 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
     setLoading(true);
     try {
       const mapped = await loadIntegrationUiState({ workspaceId, formId });
-      applyIntegrationState(mapped);
+      if (isMounted.current) {
+        applyIntegrationState(mapped);
+      }
     } catch {
       /* keep prior state */
     } finally {
-      setLoading(false);
+      if (isMounted.current) {
+        setLoading(false);
+      }
     }
   }, [applyIntegrationState, formId, useApi, workspaceId]);
 
   useEffect(() => {
     if (!open) return;
     if (useApi) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       refreshFromApi();
       return;
     }
@@ -162,6 +176,7 @@ export default function ManageIntegrationsModal({ open, onClose, formId, workspa
     if (!open || !useApi) return;
     const connected = searchParams.get('connected');
     if (!connected) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshFromApi();
     showToast({
       type: 'success',

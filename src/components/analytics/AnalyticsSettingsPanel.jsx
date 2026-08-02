@@ -25,6 +25,7 @@ import { dispatchSyncFormAlerts } from '@/utils/syncFormAlertsToStore';
 import { clearNotificationsForForm } from '@/store/slices/notificationsSlice';
 import { buildFallbackPublicUrl, fetchShareLinks } from '@/api/services/shareService';
 import { updateFormResponseLimit } from '@/api/services/formSettingsService';
+import { buildEmbedCode } from '@/features/forms/utils/embedCode';
 import { isApiConfigured } from '@/config/env';
 
 const LIFECYCLE_OPTIONS = [
@@ -240,7 +241,7 @@ function AnalyticsSettingsPanel({ form }) {
 
   const handleShareAction = (action) => {
     if (action.id === 'embed') {
-      const snippet = `<iframe src="${fullUrl}" width="100%" height="520" frameborder="0"></iframe>`;
+      const snippet = buildEmbedCode(fullUrl);
       navigator.clipboard?.writeText(snippet);
     }
     if (action.id === 'email') {

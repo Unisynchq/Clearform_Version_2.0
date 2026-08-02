@@ -26,6 +26,7 @@ import {
 } from '@/features/auth/services/supabaseAuthService';
 import { loginSuccess } from '@/store/slices/authSlice';
 import { isAuthSessionValid, readAuthSession } from '@/features/auth/utils/authStorage';
+import { buildEmbedCode } from '@/features/forms/utils/embedCode';
 
 const FONT = { fontFamily: "'DM Sans', sans-serif" };
 
@@ -207,10 +208,6 @@ function slugify(text) {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '') || 'untitled-form'
   );
-}
-
-function buildEmbedCode(url) {
-  return `<iframe\n  src="${url}"\n  width="100%"\n  height="600"\n  frameborder="0"\n  allow="fullscreen"\n></iframe>`;
 }
 
 function buildFullShareMessage(formTitle, formUrl) {

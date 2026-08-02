@@ -190,7 +190,7 @@ const AppRoutes = () => {
         <Route
           path="/f/:formId"
           element={
-            <RouteTransitionShell variant="auth">
+            <RouteTransitionShell variant="public-form">
               <RouteErrorBoundary fallback={PublicFormErrorFallback}>
                 <Suspense
                   fallback={

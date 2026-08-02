@@ -20,6 +20,7 @@ import {
 } from 'react-icons/ri';
 import { closeShareModal } from '@/store/slices/uiSlice';
 import { buildFallbackPublicUrl, fetchShareLinks } from '@/api/services/shareService';
+import { buildEmbedCode } from '@/features/forms/utils/embedCode';
 import { isApiConfigured } from '@/config/env';
 import {
   buildWebhookTriggers,
@@ -106,10 +107,6 @@ const Toggle = ({ checked, onChange }) => (
     />
   </button>
 );
-
-function buildEmbedCode(url) {
-  return `<iframe\n  src="${url}"\n  width="100%"\n  height="600"\n  frameborder="0"\n  allow="fullscreen"\n></iframe>`;
-}
 
 function buildShareMessage(formTitle, url) {
   return `Fill out "${formTitle}" on Clearform:\n${url}`;

@@ -1,6 +1,7 @@
 import { apiClient } from '@/api/client';
 import { API_ENDPOINTS } from '@/api/endpoints';
 import { isApiConfigured } from '@/config/env';
+import { normalizeEmbedSrc } from '@/features/forms/utils/embedCode';
 
 export function buildFallbackPublicUrl(formId) {
   if (typeof window !== 'undefined' && formId != null) {
@@ -21,14 +22,13 @@ export async function fetchShareLinks(formId) {
   }
   const data = await apiClient(API_ENDPOINTS.forms.shareLinks(formId));
   if (data && data.publicUrl && typeof window !== 'undefined') {
+    const normalized = normalizeEmbedSrc(data.publicUrl);
+    data.publicUrl = normalized;
     try {
-      const url = new URL(data.publicUrl);
-      url.protocol = window.location.protocol;
-      url.host = window.location.host;
-      data.publicUrl = url.toString();
+      const url = new URL(normalized);
       data.shortDisplay = `${window.location.host}${url.pathname}`;
-    } catch (e) {
-      // fallback
+    } catch {
+      // keep shortDisplay as returned by the API
     }
   }
   return data;
