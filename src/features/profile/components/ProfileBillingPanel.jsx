@@ -517,25 +517,35 @@ const ProfileBillingPanel = () => {
           <section className="overflow-hidden rounded-[12px] border border-[#1a1a18] bg-[#1a1a18]">
             <div className="flex flex-col gap-1 p-5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.88px] text-white/40">
-                Clearform Pilot
+                Clearform Starter
               </p>
               <h3 className="pt-0.5 text-[18px] font-bold text-white">
                 {isPilotExpired
-                  ? 'Your pilot access has ended'
+                  ? 'Your plan has ended'
                   : "You're almost out of responses"}
               </h3>
               <p className="pb-2 text-[13px] leading-[20.8px] text-white/50">
-                $34.99 one-time · 90 days · 300 responses · AI quality scoring included.
+                ₹499/mo · unlimited publish · 200 responses · embed, Sheets, AI Insights.
               </p>
-              <button
-                type="button"
-                onClick={handleStartPilotCheckout}
-                disabled={checkoutLoading}
-                className="inline-flex w-fit items-center gap-1 rounded-[10px] bg-white px-6 py-3 text-[14px] font-medium text-[#1a1a18] transition-colors hover:bg-[#f7f7f6] disabled:opacity-60"
-              >
-                {checkoutLoading ? 'Opening checkout…' : 'Start Pilot — $34.99'}
-                <RiArrowRightLine size={16} aria-hidden />
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleBuyPublishPass}
+                  disabled={checkoutLoading}
+                  className="inline-flex w-fit items-center gap-1 rounded-[10px] border border-white/30 bg-transparent px-5 py-3 text-[14px] font-medium text-white transition-colors hover:bg-white/10 disabled:opacity-60"
+                >
+                  {checkoutLoading ? 'Opening…' : 'Buy ₹99'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBuyStarter}
+                  disabled={checkoutLoading}
+                  className="inline-flex w-fit items-center gap-1 rounded-[10px] bg-white px-6 py-3 text-[14px] font-medium text-[#1a1a18] transition-colors hover:bg-[#f7f7f6] disabled:opacity-60"
+                >
+                  {checkoutLoading ? 'Opening checkout…' : 'Starter — ₹499/mo'}
+                  <RiArrowRightLine size={16} aria-hidden />
+                </button>
+              </div>
             </div>
           </section>
         ) : null}
