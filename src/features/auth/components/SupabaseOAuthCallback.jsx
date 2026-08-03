@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '@/config/supabase';
+import { writeJson } from '@/utils/localStorageSafe';
 
 const SupabaseOAuthCallback = () => {
   const navigate = useNavigate();
@@ -25,8 +25,8 @@ const SupabaseOAuthCallback = () => {
         if (cancelled) return;
 
         if (data?.session?.user?.email) {
-          // Use localStorage to communicate with the parent window (immune to COOP)
-          localStorage.setItem('clearform:oauth_success', JSON.stringify(data.session));
+          // Use localStorageSafe to communicate with the parent window (immune to COOP)
+          writeJson('clearform:oauth_success', data.session);
 
           try {
             if (window.opener && !window.opener.closed) {

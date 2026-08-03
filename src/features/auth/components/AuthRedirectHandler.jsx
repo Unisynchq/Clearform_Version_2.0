@@ -22,6 +22,7 @@ import {
   isAuthLogoutInProgress,
   runSingleFlightAuthRestore,
 } from '@/features/auth/utils/authBootstrapCoordinator';
+import * as sessionStorageSafe from '@/utils/sessionStorageSafe';
 
 /**
  * Completes Supabase provider redirects after the browser returns to /signin.
@@ -57,7 +58,7 @@ const AuthRedirectHandler = () => {
       dispatch(setAuthInitialized(true));
       return;
     }
-    const pending = typeof window !== 'undefined' ? sessionStorage.getItem(AUTH_REDIRECT_PENDING_KEY) : null;
+    const pending = sessionStorageSafe.getItem(AUTH_REDIRECT_PENDING_KEY);
     if (pending) dispatch(setSubmitting(true));
     setSyncError(null);
 
@@ -89,9 +90,7 @@ const AuthRedirectHandler = () => {
 
         if (!user) {
           if (pending === 'microsoft' || pending === 'google') {
-            if (typeof window !== 'undefined') {
-              sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
-            }
+            sessionStorageSafe.removeItem(AUTH_REDIRECT_PENDING_KEY);
             dispatch(
               setError(
                 pending === 'google'
@@ -100,9 +99,7 @@ const AuthRedirectHandler = () => {
               ),
             );
           } else if (pending) {
-            if (typeof window !== 'undefined') {
-              sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
-            }
+            sessionStorageSafe.removeItem(AUTH_REDIRECT_PENDING_KEY);
             dispatch(
               setError(
                 'Sign-in could not be completed. Close this tab and try again from the sign-in page.',

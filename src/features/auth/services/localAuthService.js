@@ -1,28 +1,24 @@
 import { upsertUserAccount, getUserAccountByEmail } from '@/features/auth/utils/userAccountsStorage';
 import { readOnboardingComplete } from '@/features/onboarding/utils/onboardingStorage';
+import { getItem, setItem, removeKey } from '@/utils/localStorageSafe';
+import * as sessionStorageSafe from '@/utils/sessionStorageSafe';
 
 const TOKEN_KEY = 'clearform:auth-token';
 const LOCAL_DEV_TOKEN = 'local-dev-session';
 
 function storeLocalDevToken(email) {
-  if (typeof window !== 'undefined') {
-    const val = `${LOCAL_DEV_TOKEN}:${email}`;
-    localStorage.setItem(TOKEN_KEY, val);
-    sessionStorage.setItem(TOKEN_KEY, val);
-  }
+  const val = `${LOCAL_DEV_TOKEN}:${email}`;
+  setItem(TOKEN_KEY, val);
+  sessionStorageSafe.setItem(TOKEN_KEY, val);
 }
 
 export function clearLocalDevToken() {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem(TOKEN_KEY);
-  }
+  removeKey(TOKEN_KEY);
+  sessionStorageSafe.removeItem(TOKEN_KEY);
 }
 
 export function restoreLocalDevToken() {
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem(TOKEN_KEY);
-  }
-  return null;
+  return getItem(TOKEN_KEY);
 }
 
 const oauthUnavailableMessage =
