@@ -6,11 +6,13 @@
   box-sizing: border-box;
 }
 
-body {
+html, body, #root {
   font-family: 'DM Sans', sans-serif;
   background-color: #f4f3ef;
   margin: 0;
   padding: 0;
+  width: 100%;
+  height: 100%;
 }
 
 /* Avoid native button fill (often dark) on custom toggle switches */

@@ -7,14 +7,13 @@ import { readPublishedForm } from '@/features/forms/utils/publishedFormStorage';
 import { readUserForms } from '@/features/forms/utils/userFormsStorage';
 import { isFormPaused } from '@/features/forms/utils/formPause';
 import FormRespondentView from '@/features/forms/components/FormRespondentView';
-import { RiErrorWarningLine } from 'react-icons/ri';
 
 function PausedModal({ title, ownerEmail }) {
   return (
-    <div className="min-h-screen bg-[#f4f3ef] flex items-center justify-center p-6 select-none">
+    <div className="min-h-full w-full bg-[#f4f3ef] flex items-center justify-center p-4 sm:p-6 select-none box-border">
       <div
         className="w-full max-w-[480px] bg-white rounded-[20px] shadow-[0_8px_30px_rgba(0,0,0,0.06)] border border-[#e5e5e0] flex flex-col items-center text-center"
-        style={{ padding: '40px 36px' }}
+        style={{ padding: '32px 24px' }}
       >
         <div className="w-14 h-14 rounded-full bg-[#fef3c7] text-[#d97706] flex items-center justify-center text-[24px] mb-5">
           ⏸
@@ -62,7 +61,7 @@ function PausedModal({ title, ownerEmail }) {
 
 function BlockedView({ title, detail }) {
   return (
-    <div className="min-h-screen bg-[#f4f3ef] flex flex-col items-center justify-center gap-3 p-8">
+    <div className="min-h-full w-full bg-[#f4f3ef] flex flex-col items-center justify-center gap-3 p-4 sm:p-8 box-border">
       <p className="text-[16px] font-medium text-[#18181b]">{title}</p>
       {detail ? <p className="text-[13px] text-[#71717a] text-center max-w-md">{detail}</p> : null}
     </div>
@@ -213,9 +212,37 @@ export default function PublicFormPage() {
     };
   }, [formId]);
 
+  // PostMessage auto-height reporter for host iframe auto-resizing
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.parent === window) return;
+
+    const reportHeight = () => {
+      try {
+        const height = Math.max(
+          document.body.scrollHeight || 0,
+          document.documentElement.scrollHeight || 0,
+          document.body.offsetHeight || 0,
+        );
+        if (height > 0) {
+          window.parent.postMessage({ type: 'clearform:resize', height, formId }, '*');
+        }
+      } catch {
+        // Ignore cross-origin postMessage errors
+      }
+    };
+
+    reportHeight();
+    const observer = new ResizeObserver(reportHeight);
+    if (document.body) {
+      observer.observe(document.body);
+    }
+
+    return () => observer.disconnect();
+  }, [formId, draft, blocked, loading]);
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f4f3ef] flex flex-col items-center justify-center gap-4 p-8">
+      <div className="min-h-full w-full bg-[#f4f3ef] flex flex-col items-center justify-center gap-4 p-4 sm:p-8 box-border">
         <div className="w-full max-w-[560px] rounded-[16px] bg-white border border-[#ebebeb] p-8 shadow-sm animate-pulse">
           <div className="h-3 w-24 bg-[#f0f0f0] rounded mb-6" />
           <div className="h-6 w-3/4 bg-[#ececec] rounded mb-3" />
