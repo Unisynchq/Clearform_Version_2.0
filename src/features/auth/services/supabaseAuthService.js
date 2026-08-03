@@ -22,6 +22,8 @@ import {
   trackSignup,
 } from '@/analytics/track';
 import { clearAllAppStorage } from '@/utils/clearAppStorage';
+import { removeKey } from '@/utils/localStorageSafe';
+import * as sessionStorageSafe from '@/utils/sessionStorageSafe';
 
 // Unused constants removed
 export const AUTH_RETURN_TO_KEY = 'clearform:auth-return-to';
@@ -222,7 +224,7 @@ export async function signOutUser() {
 
       if (typeof window !== 'undefined') {
         clearAllAppStorage();
-        sessionStorage.clear();
+        sessionStorageSafe.clear();
       }
     } finally {
       endAuthLogout();
@@ -259,9 +261,9 @@ export async function signInWithGoogle(returnTo) {
 
   const redirectPath = isValidReturnTo(returnTo) ? returnTo : '/dashboard';
   if (isValidReturnTo(returnTo)) {
-    sessionStorage.setItem(AUTH_RETURN_TO_KEY, returnTo);
+    sessionStorageSafe.setItem(AUTH_RETURN_TO_KEY, returnTo);
   }
-  sessionStorage.setItem(AUTH_REDIRECT_PENDING_KEY, 'google');
+  sessionStorageSafe.setItem(AUTH_REDIRECT_PENDING_KEY, 'google');
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
@@ -278,7 +280,7 @@ export async function signInWithGoogle(returnTo) {
   if (data?.url) {
     if (typeof window !== 'undefined') {
       // Mark this attempt so the callback knows it was opened by the app
-      sessionStorage.setItem('clearform:oauth-intent', 'true');
+      sessionStorageSafe.setItem('clearform:oauth-intent', 'true');
       
       const popup = window.open(
         data.url,
@@ -301,7 +303,7 @@ export async function signInWithGoogle(returnTo) {
               
               try {
                 const session = JSON.parse(event.newValue);
-                localStorage.removeItem('clearform:oauth_success'); // Clean up
+                removeKey('clearform:oauth_success'); // Clean up
                 if (session) {
                   await supabase.auth.setSession(session);
                 }
@@ -346,9 +348,9 @@ async function signInWithMicrosoftOAuth(returnTo) {
 
   const redirectPath = isValidReturnTo(returnTo) ? returnTo : '/dashboard';
   if (isValidReturnTo(returnTo)) {
-    sessionStorage.setItem(AUTH_RETURN_TO_KEY, returnTo);
+    sessionStorageSafe.setItem(AUTH_RETURN_TO_KEY, returnTo);
   }
-  sessionStorage.setItem(AUTH_REDIRECT_PENDING_KEY, 'microsoft');
+  sessionStorageSafe.setItem(AUTH_REDIRECT_PENDING_KEY, 'microsoft');
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: SUPABASE_MFA_PROVIDER,
@@ -365,7 +367,7 @@ async function signInWithMicrosoftOAuth(returnTo) {
   if (data?.url) {
     if (typeof window !== 'undefined') {
       // Mark this attempt so the callback knows it was opened by the app
-      sessionStorage.setItem('clearform:oauth-intent', 'true');
+      sessionStorageSafe.setItem('clearform:oauth-intent', 'true');
       
       const popup = window.open(
         data.url,
@@ -388,7 +390,7 @@ async function signInWithMicrosoftOAuth(returnTo) {
               
               try {
                 const session = JSON.parse(event.newValue);
-                localStorage.removeItem('clearform:oauth_success'); // Clean up
+                removeKey('clearform:oauth_success'); // Clean up
                 if (session) {
                   await supabase.auth.setSession(session);
                 }
@@ -488,12 +490,12 @@ export function getMicrosoftRedirectNullErrorMessage() {
 }
 
 export function resetRedirectSignInConsumption() {
-  sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
+  sessionStorageSafe.removeItem(AUTH_REDIRECT_PENDING_KEY);
 }
 
 export function readAuthReturnTo() {
-  const returnTo = sessionStorage.getItem(AUTH_RETURN_TO_KEY);
-  sessionStorage.removeItem(AUTH_RETURN_TO_KEY);
+  const returnTo = sessionStorageSafe.getItem(AUTH_RETURN_TO_KEY);
+  sessionStorageSafe.removeItem(AUTH_RETURN_TO_KEY);
   if (isValidReturnTo(returnTo)) {
     return returnTo;
   }

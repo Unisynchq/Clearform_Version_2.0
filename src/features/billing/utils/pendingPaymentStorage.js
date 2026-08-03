@@ -1,3 +1,5 @@
+import { getItem, setItem, removeItem } from '@/utils/sessionStorageSafe';
+
 const PENDING_PAYMENT_ID_KEY = 'clearform:pending-payment-id';
 const PENDING_ORDER_ID_KEY = 'clearform:pending-order-id';
 const PENDING_PAYMENT_LINK_ID_KEY = 'clearform:pending-payment-link-id';
@@ -28,15 +30,15 @@ export function capturePendingPaymentFromUrl() {
   if (!paymentId && !orderId) return false;
 
   if (paymentId) {
-    sessionStorage.setItem(PENDING_PAYMENT_ID_KEY, paymentId);
+    setItem(PENDING_PAYMENT_ID_KEY, paymentId);
   }
   if (orderId) {
-    sessionStorage.setItem(PENDING_ORDER_ID_KEY, orderId);
+    setItem(PENDING_ORDER_ID_KEY, orderId);
   }
 
   const paymentLinkId = params.get('payment_link_id');
   if (paymentLinkId?.trim()) {
-    sessionStorage.setItem(PENDING_PAYMENT_LINK_ID_KEY, paymentLinkId.trim());
+    setItem(PENDING_PAYMENT_LINK_ID_KEY, paymentLinkId.trim());
   }
 
   [
@@ -55,18 +57,15 @@ export function capturePendingPaymentFromUrl() {
 }
 
 export function getPendingPaymentId() {
-  if (typeof window === 'undefined') return null;
-  return sessionStorage.getItem(PENDING_PAYMENT_ID_KEY);
+  return getItem(PENDING_PAYMENT_ID_KEY);
 }
 
 export function getPendingOrderId() {
-  if (typeof window === 'undefined') return null;
-  return sessionStorage.getItem(PENDING_ORDER_ID_KEY);
+  return getItem(PENDING_ORDER_ID_KEY);
 }
 
 export function clearPendingPaymentId() {
-  if (typeof window === 'undefined') return;
-  sessionStorage.removeItem(PENDING_PAYMENT_ID_KEY);
-  sessionStorage.removeItem(PENDING_ORDER_ID_KEY);
-  sessionStorage.removeItem(PENDING_PAYMENT_LINK_ID_KEY);
+  removeItem(PENDING_PAYMENT_ID_KEY);
+  removeItem(PENDING_ORDER_ID_KEY);
+  removeItem(PENDING_PAYMENT_LINK_ID_KEY);
 }

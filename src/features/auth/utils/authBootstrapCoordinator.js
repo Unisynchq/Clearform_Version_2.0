@@ -1,3 +1,5 @@
+import { getItem, setItem, removeKey } from '@/utils/localStorageSafe';
+
 /** Prevents duplicate sync/navigate during Microsoft redirect + session bridge. */
 
 let syncInFlight = null;
@@ -10,13 +12,12 @@ const AUTH_RESTORE_COOLDOWN_MS = 4000;
 let lastAuthRestoreAttemptAt = 0;
 
 function readLogoutMarker() {
-  if (typeof window === 'undefined') return false;
-  const raw = window.localStorage.getItem(AUTH_LOGOUT_KEY);
+  const raw = getItem(AUTH_LOGOUT_KEY);
   if (!raw) return false;
 
   const startedAt = Number(raw);
   if (!Number.isFinite(startedAt) || Date.now() - startedAt > AUTH_LOGOUT_GRACE_MS) {
-    window.localStorage.removeItem(AUTH_LOGOUT_KEY);
+    removeKey(AUTH_LOGOUT_KEY);
     return false;
   }
 
@@ -52,16 +53,12 @@ export function resetAuthBootstrapCoordinator() {
 
 export function beginAuthLogout() {
   logoutInProgress = true;
-  if (typeof window !== 'undefined') {
-    window.localStorage.setItem(AUTH_LOGOUT_KEY, String(Date.now()));
-  }
+  setItem(AUTH_LOGOUT_KEY, String(Date.now()));
 }
 
 export function endAuthLogout() {
   logoutInProgress = false;
-  if (typeof window !== 'undefined') {
-    window.localStorage.removeItem(AUTH_LOGOUT_KEY);
-  }
+  removeKey(AUTH_LOGOUT_KEY);
 }
 
 export function clearLogoutMarker() {

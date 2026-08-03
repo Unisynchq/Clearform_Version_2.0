@@ -17,13 +17,17 @@ export const clearAllAppStorage = () => {
   writeOnboardingSession({ active: false, step: 1, selectedTemplateId: null });
 
   if (typeof window === 'undefined') return;
-  const keysToRemove = [];
-  for (let i = 0; i < localStorage.length; i += 1) {
-    const key = localStorage.key(i);
-    // Do not delete local dev user accounts on logout!
-    if (key?.startsWith('clearform_') && key !== 'clearform_user_accounts') {
-      keysToRemove.push(key);
+  try {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      // Do not delete local dev user accounts on logout!
+      if (key?.startsWith('clearform_') && key !== 'clearform_user_accounts') {
+        keysToRemove.push(key);
+      }
     }
+    keysToRemove.forEach((key) => removeKey(key));
+  } catch {
+    // Storage access disabled or restricted
   }
-  keysToRemove.forEach((key) => removeKey(key));
 };

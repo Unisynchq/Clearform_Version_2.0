@@ -10,6 +10,7 @@ import {
   readAuthReturnTo,
   AUTH_REDIRECT_PENDING_KEY,
 } from '@/features/auth/services/supabaseAuthService';
+import * as sessionStorageSafe from '@/utils/sessionStorageSafe';
 import { supabase } from '@/config/supabase';
 import {
   canAttemptAuthRestore,
@@ -74,7 +75,7 @@ const SupabaseSessionBridge = () => {
        return;
     }
 
-    const pending = typeof window !== 'undefined' ? sessionStorage.getItem(AUTH_REDIRECT_PENDING_KEY) : null;
+    const pending = sessionStorageSafe.getItem(AUTH_REDIRECT_PENDING_KEY);
     if (
       !fromMessage &&
       !shouldSessionBridgeNavigate({
@@ -100,8 +101,8 @@ const SupabaseSessionBridge = () => {
 
         const oauthPending = pending === 'microsoft' || pending === 'google';
         const returnTo = oauthPending ? readAuthReturnTo() : undefined;
-        if (oauthPending && typeof window !== 'undefined') {
-          sessionStorage.removeItem(AUTH_REDIRECT_PENDING_KEY);
+        if (oauthPending) {
+          sessionStorageSafe.removeItem(AUTH_REDIRECT_PENDING_KEY);
         }
 
         applyBackendOnboardingState(dispatch, user.onboardingCompleted);
