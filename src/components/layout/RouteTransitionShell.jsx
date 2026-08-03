@@ -10,7 +10,7 @@ import { DASHBOARD_ROUTE_ENTER, DASHBOARD_ROUTE_INITIAL } from '@/motion/dashboa
 const SHELL_CLASS = {
   dashboard: 'h-screen w-full overflow-visible',
   default: 'h-screen w-full overflow-hidden',
-  'public-form': 'min-h-screen w-full overflow-y-auto',
+  'public-form': 'min-h-full h-full w-full overflow-y-auto overflow-x-hidden',
 };
 
 const VARIANTS = {

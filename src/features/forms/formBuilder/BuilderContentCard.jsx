@@ -3616,7 +3616,7 @@ const ContentCardInner = ({
                   </p>
                 </div>
               ) : (
-                <div className={`flex items-center ${useScale || rStyle === '1-10' ? 'gap-[6px]' : 'gap-2'}`}>
+                <div className={`flex items-center flex-wrap sm:flex-nowrap max-w-full min-w-0 ${useScale || rStyle === '1-10' ? 'gap-[6px]' : 'gap-2'}`}>
                   {Array.from({ length: rMax }, (_, i) => i + 1).map(renderIconBtn)}
                 </div>
               )}

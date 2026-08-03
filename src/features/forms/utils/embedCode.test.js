@@ -36,9 +36,12 @@ describe('normalizeEmbedSrc', () => {
 });
 
 describe('buildEmbedCode', () => {
-  it('emits an iframe whose src is the normalized URL', () => {
+  it('emits an iframe whose src is the normalized URL with fluid responsive styles', () => {
     const code = buildEmbedCode('http://app.clearform.in/f/abc');
     expect(code).toContain('src="https://app.clearform.in/f/abc"');
+    expect(code).toContain('width="100%"');
+    expect(code).toContain('height="100%"');
+    expect(code).toContain('style="width: 100%; height: 100%; min-height: 500px; border: 0;"');
     expect(code).toContain('frameborder="0"');
     expect(code).toContain('allow="fullscreen"');
   });

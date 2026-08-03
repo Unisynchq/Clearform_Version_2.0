@@ -463,7 +463,7 @@ export default function FormRespondentView({ draft, formId }) {
       style={{ backgroundColor: theme.pageBg, fontFamily: theme.typography }}
     >
       <div
-        className="flex flex-col w-full max-w-[820px] shrink-0 my-auto"
+        className="flex flex-col w-full max-w-[820px] m-auto min-w-0"
         style={{ fontFamily: theme.typography }}
       >
         {screens.length > 0 && (

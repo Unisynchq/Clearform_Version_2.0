@@ -35,5 +35,5 @@ export function normalizeEmbedSrc(url) {
 
 export function buildEmbedCode(url) {
   const src = normalizeEmbedSrc(url);
-  return `<iframe\n  src="${src}"\n  width="100%"\n  height="600"\n  frameborder="0"\n  allow="fullscreen"\n></iframe>`;
+  return `<iframe\n  src="${src}"\n  width="100%"\n  height="100%"\n  style="width: 100%; height: 100%; min-height: 500px; border: 0;"\n  frameborder="0"\n  allow="fullscreen"\n></iframe>`;
 }
