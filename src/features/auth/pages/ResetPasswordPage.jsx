@@ -9,8 +9,8 @@ import {
   resetPasswordWithToken,
   syncPasswordWithBackend,
 } from '@/features/auth/services/supabaseAuthService';
+import { supabase } from '@/config/supabase';
 import AuthFieldError from '@/features/auth/components/AuthFieldError';
-import AuthBrowserTipBanner from '@/features/auth/components/AuthBrowserTipBanner';
 import { hasValidationErrors, validateResetPasswordForm } from '@/features/auth/utils/authValidation';
 import { useToast } from '@/hooks/useToast';
 import clearformLogoWhite from '@/assets/clearform-logo-white.svg';
@@ -110,15 +110,30 @@ const ResetPasswordPage = () => {
         if (cancelled) return;
         if (!ok) {
           setSessionError(
-            'This reset link is invalid or has expired. Request a new password reset email.',
+            'This reset link is invalid or has expired. Request a new reset email and open it in the same browser, or sign in and set a password from Profile → Security.',
           );
           setSessionReady(false);
           return;
         }
+        setSessionError(null);
         setSessionReady(true);
       } catch (err) {
         if (cancelled) return;
-        setSessionError(err?.message ?? 'Could not open the password reset link.');
+        // Last chance: user may already be signed in (Google/Microsoft) even if PKCE failed.
+        try {
+          const { data } = await supabase?.auth.getSession();
+          if (!cancelled && data?.session?.user) {
+            setSessionError(null);
+            setSessionReady(true);
+            return;
+          }
+        } catch {
+          // ignore
+        }
+        setSessionError(
+          err?.message ??
+            'Could not open the password reset link. Sign in and set a password from Profile → Security, or request a new reset email.',
+        );
         setSessionReady(false);
       }
     })();
@@ -196,8 +211,6 @@ const ResetPasswordPage = () => {
               {subtitle}
             </p>
           </div>
-
-          <AuthBrowserTipBanner />
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-[14px]" noValidate>
             {sessionError || errors.form ? (

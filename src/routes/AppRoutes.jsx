@@ -7,6 +7,7 @@ import MainLayout from '@/layouts/MainLayout';
 import SignupPage from '@/features/auth/pages/SignupPage';
 import SignInPage from '@/features/auth/pages/SignInPage';
 import ResetPasswordPage from '@/features/auth/pages/ResetPasswordPage';
+import AuthConfirmPage from '@/features/auth/pages/AuthConfirmPage';
 import SupabaseOAuthCallback from '@/features/auth/components/SupabaseOAuthCallback';
 import AllFormsPage from '@/features/forms/pages/AllFormsPage';
 import TemplatesPage from '@/features/templates/pages/TemplatesPage';
@@ -79,6 +80,11 @@ const AppRoutes = () => {
         <Route
           path="/auth/callback"
           element={<SupabaseOAuthCallback />}
+        />
+
+        <Route
+          path="/auth/confirm"
+          element={<AuthConfirmPage />}
         />
 
         <Route

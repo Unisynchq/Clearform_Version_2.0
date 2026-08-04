@@ -239,27 +239,108 @@ export async function requestPasswordResetEmail(email) {
   if (error) throw new Error(error.message);
 }
 
-/** Establish recovery session from Supabase reset-email redirect (?code= or hash tokens). */
+function cleanAuthRedirectUrl() {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  if (!url.search && !url.hash) return;
+  window.history.replaceState({}, document.title, url.pathname);
+}
+
+function recoveryLinkErrorMessage(raw) {
+  const msg = typeof raw === 'string' ? raw : raw?.message ?? '';
+  if (/code verifier|pkce/i.test(msg)) {
+    return 'This reset link could not be verified in this browser (the one-time code was missing). Open a new reset email in the same browser where you requested it, or sign in and set a password from Profile → Security.';
+  }
+  return msg || 'Could not open the password reset link.';
+}
+
+async function waitForAuthSession({ timeoutMs = 2000 } = {}) {
+  if (!supabase) return null;
+
+  const existing = await supabase.auth.getSession();
+  if (existing.data?.session?.user) return existing.data.session;
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (session) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      subscription?.unsubscribe?.();
+      resolve(session ?? null);
+    };
+
+    const timer = setTimeout(() => finish(null), timeoutMs);
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!session?.user) return;
+      if (
+        event === 'PASSWORD_RECOVERY' ||
+        event === 'SIGNED_IN' ||
+        event === 'INITIAL_SESSION' ||
+        event === 'TOKEN_REFRESHED'
+      ) {
+        finish(session);
+      }
+    });
+  });
+}
+
+/**
+ * Establish a session that can call updateUser({ password }).
+ * Handles token_hash (no PKCE), PKCE ?code=, hash tokens, and falls back to an
+ * already-signed-in session (e.g. Google/Microsoft) when the email PKCE verifier is missing.
+ */
 export async function establishPasswordRecoverySession() {
   if (!supabase) throw new Error('Supabase client not initialized');
 
-  const code = new URLSearchParams(window.location.search).get('code');
-  if (code) {
-    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-    if (error) throw new Error(error.message);
+  const params = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+
+  const tokenHash = params.get('token_hash') || hashParams.get('token_hash');
+  const otpType = params.get('type') || hashParams.get('type');
+  if (tokenHash && (otpType === 'recovery' || otpType === 'email' || otpType === 'magiclink')) {
+    const type = otpType === 'recovery' ? 'recovery' : otpType;
+    const { data, error } = await supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type,
+    });
+    if (error) throw new Error(recoveryLinkErrorMessage(error));
     if (data?.session?.user) {
-      window.history.replaceState({}, document.title, window.location.pathname);
+      cleanAuthRedirectUrl();
       return true;
     }
   }
 
-  const { data, error } = await supabase.auth.getSession();
-  if (error) throw new Error(error.message);
-  if (data?.session?.user) {
-    if (window.location.hash.includes('access_token=')) {
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
+  // Allow detectSessionInUrl / PASSWORD_RECOVERY to settle before manual exchange.
+  const waited = await waitForAuthSession({ timeoutMs: 2000 });
+  if (waited?.user) {
+    cleanAuthRedirectUrl();
     return true;
+  }
+
+  const code = params.get('code');
+  if (code) {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error && data?.session?.user) {
+      cleanAuthRedirectUrl();
+      return true;
+    }
+    // PKCE often fails when the link is opened without the original code_verifier
+    // (other browser, Brave storage, cleared site data). Fall through to any live session.
+  }
+
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw new Error(recoveryLinkErrorMessage(error));
+  if (data?.session?.user) {
+    cleanAuthRedirectUrl();
+    return true;
+  }
+
+  if (code) {
+    throw new Error(recoveryLinkErrorMessage('PKCE code verifier not found in storage'));
   }
 
   return false;
