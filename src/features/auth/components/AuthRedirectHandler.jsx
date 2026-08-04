@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { setSubmitting, setError, loginSuccess, setAuthInitialized } from '@/store/slices/authSlice';
 import {
   applyBackendOnboardingState,
@@ -18,7 +18,6 @@ import { useToast } from '@/hooks/useToast';
 import {
   beginRedirectHandlerNavigation,
   endRedirectHandlerNavigation,
-  canAttemptAuthRestore,
   isAuthLogoutInProgress,
   runSingleFlightAuthRestore,
 } from '@/features/auth/utils/authBootstrapCoordinator';
@@ -26,10 +25,12 @@ import * as sessionStorageSafe from '@/utils/sessionStorageSafe';
 
 /**
  * Completes Supabase provider redirects after the browser returns to /signin.
+ * Idle on other routes — must not call setAuthInitialized (SessionBridge owns cold boot).
  */
 const AuthRedirectHandler = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useToast();
   const startedRef = useRef(false);
   const [syncError, setSyncError] = useState(null);
@@ -50,35 +51,37 @@ const AuthRedirectHandler = () => {
         lastName: user.lastName,
       }),
     );
+    showToast({
+      type: 'success',
+      message: 'Signed in successfully',
+      duration: 3000,
+    });
     navigate(path, { replace: true });
   };
 
   const runRedirectFlow = async () => {
-    if (isAuthLogoutInProgress() || !canAttemptAuthRestore()) {
-      dispatch(setAuthInitialized(true));
-      return;
-    }
+    if (isAuthLogoutInProgress()) return;
+
+    const pathname = location.pathname ?? '';
+    if (pathname !== '/signin') return;
+
     const pending = sessionStorageSafe.getItem(AUTH_REDIRECT_PENDING_KEY);
+    const hasOAuthCallback =
+      typeof window !== 'undefined' &&
+      (new URLSearchParams(window.location.search).has('code') ||
+        window.location.hash.includes('access_token='));
+
+    // Idle: leave boot to SupabaseSessionBridge — do not setAuthInitialized.
+    if (!pending && !hasOAuthCallback) return;
+    // Pending flag without callback tokens yet — wait; do not mark initialized.
+    if (pending && !hasOAuthCallback) return;
+
     if (pending) dispatch(setSubmitting(true));
     setSyncError(null);
 
     beginRedirectHandlerNavigation();
     try {
       await runSingleFlightAuthRestore(async () => {
-        const hasOAuthCallback =
-          typeof window !== 'undefined' &&
-          (new URLSearchParams(window.location.search).has('code') || window.location.hash.includes('access_token='));
-
-        if (!pending && !hasOAuthCallback) {
-          dispatch(setAuthInitialized(true));
-          return;
-        }
-
-        if (pending && !hasOAuthCallback) {
-          dispatch(setAuthInitialized(true));
-          return;
-        }
-
         let user = await consumeRedirectSignInResult();
 
         if (!user && (pending === 'microsoft' || pending === 'google')) {
@@ -117,9 +120,9 @@ const AuthRedirectHandler = () => {
         err?.message || 'Could not sync your account with Clearform. Please try again.';
       dispatch(setError(message));
       setSyncError(message);
+      dispatch(setAuthInitialized(true));
     } finally {
       dispatch(setSubmitting(false));
-      dispatch(setAuthInitialized(true));
       endRedirectHandlerNavigation();
     }
   };
@@ -127,7 +130,7 @@ const AuthRedirectHandler = () => {
   useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
-    runRedirectFlow();
+    void runRedirectFlow();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -145,7 +148,9 @@ const AuthRedirectHandler = () => {
           setSyncError(null);
           dispatch(setError(null));
           resetRedirectSignInConsumption();
-          runRedirectFlow();
+          startedRef.current = false;
+          void runRedirectFlow();
+          startedRef.current = true;
         }}
         className="mt-2 text-[12px] font-medium text-[#18181b] underline cursor-pointer"
       >

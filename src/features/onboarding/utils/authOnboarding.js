@@ -54,7 +54,9 @@ export const resolveAuthNavigationAfterSync = (
     return resolveSignInNavigation(dispatch, { returnTo });
   }
 
-  if (onboardingCompleted || !isNewUser) {
+  // Server onboardingCompleted is source of truth. OAuth often reports isNewUser=false —
+  // do not use isNewUser for API routing or new Google/Microsoft users skip /onboarding.
+  if (onboardingCompleted) {
     return resolveSignInNavigation(dispatch, { returnTo });
   }
   return resolveSignupNavigation(dispatch);
