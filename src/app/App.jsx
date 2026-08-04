@@ -21,6 +21,7 @@ const App = () => {
   const dispatch = useDispatch();
   const { showToast } = useToast();
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
+  const isInitialized = useSelector((state) => state.auth.isInitialized);
   useRealtimeNotifications();
 
   useEffect(() => {
@@ -28,17 +29,16 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      dispatch(loadFormsFromApi());
-      dispatch(loadWorkspacesFromApi());
-      dispatch(loadNotificationsFromApi());
-    }
-  }, [isAuthenticated, dispatch]);
+    if (!isInitialized || !isAuthenticated) return;
+    dispatch(loadFormsFromApi());
+    dispatch(loadWorkspacesFromApi());
+    dispatch(loadNotificationsFromApi());
+  }, [isInitialized, isAuthenticated, dispatch]);
 
   useEffect(() => {
-    if (!isAuthenticated || !isApiConfigured()) return;
+    if (!isInitialized || !isAuthenticated || !isApiConfigured()) return;
     void captureAndClaimPendingPurchase({ showToast });
-  }, [isAuthenticated, showToast]);
+  }, [isInitialized, isAuthenticated, showToast]);
 
   return (
     <BrowserRouter>
@@ -50,11 +50,13 @@ const App = () => {
 const AppShell = () => {
   const location = useLocation();
   const pathname = location.pathname ?? '';
-  const isAuthPopupRoute = pathname.startsWith('/auth/');
+  // OAuth popup/callback + password recovery must own their own session exchange.
+  const skipAuthBootHandlers =
+    pathname.startsWith('/auth/') || pathname === '/reset-password';
 
   return (
     <>
-      {!isAuthPopupRoute ? (
+      {!skipAuthBootHandlers ? (
         <>
           <AuthRedirectHandler />
           <SupabaseSessionBridge />

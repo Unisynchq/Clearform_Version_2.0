@@ -217,6 +217,7 @@ const ProfilePage = () => {
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [photoUploadError, setPhotoUploadError] = useState(null);
+  const [accountHasPassword, setAccountHasPassword] = useState(true);
 
   const fileInputRef = useRef(null);
   const visitedTabsRef = useRef(new Set());
@@ -250,6 +251,10 @@ const ProfilePage = () => {
       try {
         const data = await fetchMe();
         if (cancelled) return;
+
+        if (typeof data?.user?.hasPassword === 'boolean') {
+          setAccountHasPassword(data.user.hasPassword);
+        }
 
         const avatarUrl = data?.user?.avatarUrl;
         const serverFirstName = data?.user?.firstName || '';
@@ -600,7 +605,12 @@ const ProfilePage = () => {
             ) : null}
 
             {activeTab === 'security' ? (
-              <ProfileSecurityPanel email={email} profileEmail={profileEmail} />
+              <ProfileSecurityPanel
+                email={email}
+                profileEmail={profileEmail}
+                hasPassword={accountHasPassword}
+                onPasswordSet={() => setAccountHasPassword(true)}
+              />
             ) : null}
 
             {activeTab === 'notifications' ? (

@@ -154,7 +154,11 @@ const SessionRow = ({ session, onRevoke }) => {
   );
 };
 
-const ProfileSecurityPanel = ({ email }) => {
+const ProfileSecurityPanel = ({
+  email,
+  hasPassword = true,
+  onPasswordSet,
+}) => {
   const dispatch = useDispatch();
   const { showToast } = useToast();
 
@@ -168,8 +172,12 @@ const ProfileSecurityPanel = ({ email }) => {
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const [currentPasswordError, setCurrentPasswordError] = useState(null);
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [accountHasPassword, setAccountHasPassword] = useState(Boolean(hasPassword));
 
-  const accountHasPassword = true;
+  useEffect(() => {
+    setAccountHasPassword(Boolean(hasPassword));
+  }, [hasPassword]);
+
   const securitySettings = readSecuritySettings(email);
   const passwordLastChanged = securitySettings?.passwordLastChanged;
 
@@ -203,7 +211,7 @@ const ProfileSecurityPanel = ({ email }) => {
     submitAttempted && confirmPassword.length > 0 && newPassword !== confirmPassword;
   const newPasswordTooShort = submitAttempted && newPassword.length > 0 && newPassword.length < 8;
   const canUpdatePassword =
-    currentPassword.trim().length > 0 &&
+    (!accountHasPassword || currentPassword.trim().length > 0) &&
     newPassword.length >= 8 &&
     passwordsMatch;
 
@@ -218,7 +226,7 @@ const ProfileSecurityPanel = ({ email }) => {
   const handleUpdatePassword = async () => {
     setSubmitAttempted(true);
 
-    if (newPassword.trim() === currentPassword.trim()) {
+    if (accountHasPassword && newPassword.trim() === currentPassword.trim()) {
       showToast({
         type: 'error',
         message: 'New password cannot be the same as your current password.',
@@ -229,13 +237,26 @@ const ProfileSecurityPanel = ({ email }) => {
 
     setCurrentPasswordError(null);
 
-    if (newPassword.length < 8 || !passwordsMatch) {
+    if (
+      newPassword.length < 8 ||
+      !passwordsMatch ||
+      (accountHasPassword && !currentPassword.trim())
+    ) {
       return;
     }
 
     setIsUpdating(true);
     try {
-      await updateUserPasswordInSupabase(currentPassword, newPassword);
+      const wasSettingPassword = !accountHasPassword;
+      await updateUserPasswordInSupabase(
+        accountHasPassword ? currentPassword : null,
+        newPassword,
+        { email },
+      );
+      if (wasSettingPassword) {
+        setAccountHasPassword(true);
+        onPasswordSet?.();
+      }
       const now = Date.now();
       writeSecuritySettings(email, {
         sessions: mergeSessionsWithCurrentDevice(sessions.filter((s) => s.isCurrent)),
@@ -244,8 +265,10 @@ const ProfileSecurityPanel = ({ email }) => {
       dispatch(
         addNotification({
           type: 'password_changed',
-          title: 'Password changed',
-          body: 'Your password has been changed successfully.',
+          title: wasSettingPassword ? 'Password set' : 'Password changed',
+          body: wasSettingPassword
+            ? 'A password has been set on your account.'
+            : 'Your password has been changed successfully.',
           action: notificationAction({
             label: 'Security settings',
             style: 'primary',
@@ -255,7 +278,11 @@ const ProfileSecurityPanel = ({ email }) => {
       );
       handleCancelPassword();
       setShowSuccessBanner(true);
-      showToast({ type: 'success', message: 'Password updated.', duration: 3000 });
+      showToast({
+        type: 'success',
+        message: wasSettingPassword ? 'Password set.' : 'Password updated.',
+        duration: 3000,
+      });
     } catch (err) {
       setCurrentPasswordError(err?.message ?? 'Could not update your password.');
       showToast({
@@ -361,26 +388,46 @@ const ProfileSecurityPanel = ({ email }) => {
 
         <div className="flex flex-col gap-6 p-7">
           <div className="grid grid-cols-1 gap-x-7 gap-y-[18px] md:grid-cols-2">
-            <div className="md:col-span-2">
-              <PasswordField
-                id="current-password"
-                label="Current password"
-                value={currentPassword}
-                onChange={(e) => {
-                  setCurrentPassword(e.target.value);
-                  if (currentPasswordError) setCurrentPasswordError(null);
-                }}
-                placeholder="Enter current password"
-                error={currentPasswordError}
-              />
-              <button
-                type="button"
-                onClick={handleSendResetLink}
-                className="mt-2 text-left text-[12px] text-[#07038d] hover:underline"
-              >
-                Forgot current password? Send a reset link
-              </button>
-            </div>
+            {accountHasPassword ? (
+              <div className="md:col-span-2">
+                <PasswordField
+                  id="current-password"
+                  label="Current password"
+                  value={currentPassword}
+                  onChange={(e) => {
+                    setCurrentPassword(e.target.value);
+                    if (currentPasswordError) setCurrentPasswordError(null);
+                  }}
+                  placeholder="Enter current password"
+                  error={currentPasswordError}
+                />
+                <button
+                  type="button"
+                  onClick={handleSendResetLink}
+                  className="mt-2 text-left text-[12px] text-[#07038d] hover:underline"
+                >
+                  Forgot current password? Send a reset link
+                </button>
+              </div>
+            ) : (
+              <div className="md:col-span-2">
+                <p className="text-[12.5px] text-[#6b6b68]">
+                  You signed in with Google or Microsoft. Set a password to also sign in with email.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleSendResetLink}
+                  className="mt-2 text-left text-[12px] text-[#07038d] hover:underline"
+                >
+                  Or send a reset link to your email
+                </button>
+                {currentPasswordError ? (
+                  <div className="mt-2">
+                    <ProfileFieldError message={currentPasswordError} />
+                  </div>
+                ) : null}
+              </div>
+            )}
 
             <div>
               <PasswordField
@@ -444,7 +491,13 @@ const ProfileSecurityPanel = ({ email }) => {
               }`}
             >
               <RiCheckLine size={14} aria-hidden />
-              {isUpdating ? 'Updating...' : 'Update password'}
+              {isUpdating
+                ? accountHasPassword
+                  ? 'Updating...'
+                  : 'Setting...'
+                : accountHasPassword
+                  ? 'Update password'
+                  : 'Set password'}
             </button>
           </div>
         </div>

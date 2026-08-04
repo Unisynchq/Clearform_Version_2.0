@@ -1,10 +1,14 @@
-import { useCallback, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'motion/react';
 import { RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
 import { setSubmitting, setError } from '@/store/slices/authSlice';
-import { resetPasswordWithToken } from '@/features/auth/services/supabaseAuthService';
+import {
+  establishPasswordRecoverySession,
+  resetPasswordWithToken,
+  syncPasswordWithBackend,
+} from '@/features/auth/services/supabaseAuthService';
 import AuthFieldError from '@/features/auth/components/AuthFieldError';
 import AuthBrowserTipBanner from '@/features/auth/components/AuthBrowserTipBanner';
 import { hasValidationErrors, validateResetPasswordForm } from '@/features/auth/utils/authValidation';
@@ -95,6 +99,33 @@ const ResetPasswordPage = () => {
   const { password, confirmPassword } = formState;
   const [errors, setErrors] = useState({});
   const [isDone, setIsDone] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionError, setSessionError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const ok = await establishPasswordRecoverySession();
+        if (cancelled) return;
+        if (!ok) {
+          setSessionError(
+            'This reset link is invalid or has expired. Request a new password reset email.',
+          );
+          setSessionReady(false);
+          return;
+        }
+        setSessionReady(true);
+      } catch (err) {
+        if (cancelled) return;
+        setSessionError(err?.message ?? 'Could not open the password reset link.');
+        setSessionReady(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
@@ -105,12 +136,23 @@ const ResetPasswordPage = () => {
   const handleSubmit = useCallback(
     async (e) => {
       e.preventDefault();
+      if (!sessionReady) {
+        setErrors({
+          form: sessionError ?? 'Reset session is not ready. Request a new reset link.',
+        });
+        return;
+      }
       const nextErrors = validateResetPasswordForm({ password, confirmPassword });
       setErrors(nextErrors);
       if (hasValidationErrors(nextErrors)) return;
       dispatch(setSubmitting(true));
       try {
         await resetPasswordWithToken(password);
+        try {
+          await syncPasswordWithBackend({ newPassword: password });
+        } catch {
+          // Supabase password already updated; backend sync is best-effort for hasPassword.
+        }
         setIsDone(true);
         showToast({
           type: 'success',
@@ -125,13 +167,15 @@ const ResetPasswordPage = () => {
         dispatch(setSubmitting(false));
       }
     },
-    [dispatch, navigate, password, confirmPassword, showToast, token],
+    [dispatch, navigate, password, confirmPassword, showToast, sessionReady, sessionError],
   );
 
   const subtitle = useMemo(() => {
     if (isDone) return 'Your password has been updated.';
+    if (sessionError) return 'We could not verify your reset link.';
+    if (!sessionReady) return 'Verifying your reset link…';
     return 'Choose a new password for your account.';
-  }, [isDone]);
+  }, [isDone, sessionError, sessionReady]);
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white">
@@ -156,9 +200,9 @@ const ResetPasswordPage = () => {
           <AuthBrowserTipBanner />
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-[14px]" noValidate>
-            {errors.form ? (
+            {sessionError || errors.form ? (
               <div className="rounded-[10px] border border-[#fed7d7] bg-[#fff5f5] px-3 py-2 text-[13px] text-[#c53030]">
-                {errors.form}
+                {sessionError || errors.form}
               </div>
             ) : null}
 
@@ -186,7 +230,7 @@ const ResetPasswordPage = () => {
 
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !sessionReady}
               className="w-full h-[46px] bg-black text-white text-[15px] font-semibold rounded-[12px] flex items-center justify-center cursor-pointer hover:bg-[#2c2c2e] active:scale-[0.99] transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isSubmitting ? 'Updating...' : 'Set new password'}

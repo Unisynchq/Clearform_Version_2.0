@@ -13,6 +13,7 @@ export const API_ENDPOINTS = {
     checkUsername: '/auth/check-username',
     requestPasswordReset: '/auth/request-password-reset',
     resetPassword: '/auth/reset-password',
+    changePassword: '/auth/me/change-password',
   },
   forms: {
     list: '/forms',

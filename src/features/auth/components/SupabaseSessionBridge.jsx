@@ -13,7 +13,6 @@ import {
 import * as sessionStorageSafe from '@/utils/sessionStorageSafe';
 import { supabase } from '@/config/supabase';
 import {
-  canAttemptAuthRestore,
   isAuthLogoutInProgress,
   runSingleFlightAuthRestore,
   shouldSessionBridgeNavigate,
@@ -23,13 +22,8 @@ import { useToast } from '@/hooks/useToast';
 import { useCrossTabSync } from '@/hooks/useCrossTabSync';
 
 /**
- * Hydrates Redux when a Supabase session exists but the app state has not yet
- * been restored (for example after a refresh or a provider redirect race).
- *
- * IMPORTANT: The useEffect subscribes to onAuthStateChange exactly ONCE.
- * Mutable values (isAuthenticated, location, navigate, showToast) are accessed
- * through refs so that the subscription closure always reads the latest values
- * without triggering effect re-runs (which caused the infinite toast loop).
+ * Sole cold-boot owner: restores Supabase session into Redux after refresh.
+ * Does not toast or navigate on silent hydrate (dashboard reload).
  */
 const SupabaseSessionBridge = () => {
   const dispatch = useDispatch();
@@ -41,8 +35,6 @@ const SupabaseSessionBridge = () => {
   const isAuthenticated = useSelector((s) => s.auth.isAuthenticated);
   const syncingRef = useRef(false);
 
-  // Refs to break the dependency cycle — the onAuthStateChange callback
-  // must see the latest values without re-subscribing on every state change.
   const isAuthenticatedRef = useRef(isAuthenticated);
   const isInitializedRef = useRef(isInitialized);
   const locationRef = useRef(location);
@@ -50,80 +42,84 @@ const SupabaseSessionBridge = () => {
   const showToastRef = useRef(showToast);
   const hasShownLoginToastRef = useRef(false);
 
-  // Keep refs in sync with latest values
-  useEffect(() => { isAuthenticatedRef.current = isAuthenticated; }, [isAuthenticated]);
-  useEffect(() => { isInitializedRef.current = isInitialized; }, [isInitialized]);
-  useEffect(() => { locationRef.current = location; }, [location]);
-  useEffect(() => { navigateRef.current = navigate; }, [navigate]);
-  useEffect(() => { showToastRef.current = showToast; }, [showToast]);
+  useEffect(() => {
+    isAuthenticatedRef.current = isAuthenticated;
+  }, [isAuthenticated]);
+  useEffect(() => {
+    isInitializedRef.current = isInitialized;
+  }, [isInitialized]);
+  useEffect(() => {
+    locationRef.current = location;
+  }, [location]);
+  useEffect(() => {
+    navigateRef.current = navigate;
+  }, [navigate]);
+  useEffect(() => {
+    showToastRef.current = showToast;
+  }, [showToast]);
 
-  // Reset the toast guard when the user logs out so the next login shows it
   useEffect(() => {
     if (!isAuthenticated) {
       hasShownLoginToastRef.current = false;
     }
   }, [isAuthenticated]);
 
-  const hydrate = useCallback(async ({ fromMessage = false } = {}) => {
-    if (syncingRef.current || isAuthLogoutInProgress()) return;
+  const hydrate = useCallback(
+    async ({ fromMessage = false, celebrate = false } = {}) => {
+      if (syncingRef.current || isAuthLogoutInProgress()) return;
 
-    // If already authenticated and this is NOT a message-triggered call, skip
-    if (isAuthenticatedRef.current && !fromMessage) return;
-    if (isInitializedRef.current && !fromMessage) return;
+      if (isAuthenticatedRef.current && !fromMessage) return;
+      if (isInitializedRef.current && !fromMessage) return;
 
-    if (!fromMessage && !canAttemptAuthRestore()) {
-       return;
-    }
+      const pending = sessionStorageSafe.getItem(AUTH_REDIRECT_PENDING_KEY);
+      if (
+        !fromMessage &&
+        !shouldSessionBridgeNavigate({
+          pendingMicrosoft: pending === 'microsoft' || pending === 'google',
+          pathname: locationRef.current.pathname,
+        })
+      ) {
+        return;
+      }
 
-    const pending = sessionStorageSafe.getItem(AUTH_REDIRECT_PENDING_KEY);
-    if (
-      !fromMessage &&
-      !shouldSessionBridgeNavigate({
-        pendingMicrosoft: pending === 'microsoft' || pending === 'google',
-        pathname: locationRef.current.pathname,
-      })
-    ) {
-      return;
-    }
+      if (fromMessage && isAuthenticatedRef.current) return;
 
-    // If already authenticated and we get a fromMessage call, don't re-hydrate
-    // (the session is already established, no need to show duplicate toasts)
-    if (fromMessage && isAuthenticatedRef.current) return;
+      syncingRef.current = true;
+      try {
+        await runSingleFlightAuthRestore(async () => {
+          const user = await restoreSession();
+          if (!user?.email) {
+            if (!isInitializedRef.current) dispatch(setAuthInitialized(true));
+            return;
+          }
 
-    syncingRef.current = true;
-    try {
-      await runSingleFlightAuthRestore(async () => {
-        const user = await restoreSession();
-        if (!user?.email) {
-          if (!isInitializedRef.current) dispatch(setAuthInitialized(true));
-          return;
-        }
+          const oauthPending = pending === 'microsoft' || pending === 'google';
+          const returnTo = oauthPending ? readAuthReturnTo() : undefined;
+          if (oauthPending) {
+            sessionStorageSafe.removeItem(AUTH_REDIRECT_PENDING_KEY);
+          }
 
-        const oauthPending = pending === 'microsoft' || pending === 'google';
-        const returnTo = oauthPending ? readAuthReturnTo() : undefined;
-        if (oauthPending) {
-          sessionStorageSafe.removeItem(AUTH_REDIRECT_PENDING_KEY);
-        }
+          applyBackendOnboardingState(dispatch, user.onboardingCompleted);
+          const path = await completeAuthNavigationAfterSync(dispatch, {
+            onboardingCompleted: user.onboardingCompleted,
+            isNewUser: user.isNewUser,
+            returnTo,
+            showToast: showToastRef.current,
+          });
+          dispatch(
+            loginSuccess({
+              email: user.email,
+              firstName: user.firstName,
+              lastName: user.lastName,
+            }),
+          );
 
-        applyBackendOnboardingState(dispatch, user.onboardingCompleted);
-        const path = await completeAuthNavigationAfterSync(dispatch, {
-          onboardingCompleted: user.onboardingCompleted,
-          isNewUser: user.isNewUser,
-          returnTo,
-          showToast: showToastRef.current,
-        });
-        dispatch(
-          loginSuccess({
-            email: user.email,
-            firstName: user.firstName,
-            lastName: user.lastName,
-          }),
-        );
+          const guestPaths = ['/', '/signin', '/signup', '/auth/callback'];
+          const onGuestPath = guestPaths.includes(locationRef.current.pathname);
+          const shouldNavigate = oauthPending || onGuestPath || fromMessage;
+          const shouldToast = (oauthPending || celebrate) && !hasShownLoginToastRef.current;
 
-        const guestPaths = ['/', '/signin', '/signup', '/auth/callback'];
-        const onGuestPath = guestPaths.includes(locationRef.current.pathname);
-        if (oauthPending || onGuestPath || fromMessage) {
-          if ((oauthPending || fromMessage) && !hasShownLoginToastRef.current) {
+          if (shouldToast) {
             hasShownLoginToastRef.current = true;
             showToastRef.current({
               type: 'success',
@@ -131,17 +127,19 @@ const SupabaseSessionBridge = () => {
               duration: 3000,
             });
           }
-          // Soft navigate — Redux is already authenticated; GuestOnly / RequireAuth pick it up.
-          navigateRef.current(path, { replace: true });
-        }
-      });
-    } catch {
-      // AuthRedirectHandler surfaces redirect-flow errors when pending
-      if (!isInitializedRef.current) dispatch(setAuthInitialized(true));
-    } finally {
-      syncingRef.current = false;
-    }
-  }, [dispatch]);
+
+          if (shouldNavigate) {
+            navigateRef.current(path, { replace: true });
+          }
+        });
+      } catch {
+        if (!isInitializedRef.current) dispatch(setAuthInitialized(true));
+      } finally {
+        syncingRef.current = false;
+      }
+    },
+    [dispatch],
+  );
 
   useEffect(() => {
     if (!isInitializedRef.current) {
@@ -152,25 +150,29 @@ const SupabaseSessionBridge = () => {
       if (event?.origin !== window.location.origin) return;
       if (event?.data?.type !== 'clearform:supabase-oauth-complete') return;
       if (isAuthLogoutInProgress()) return;
-      void hydrate({ fromMessage: true });
+      void hydrate({ fromMessage: true, celebrate: true });
     };
 
     window.addEventListener('message', handleMessage);
 
     const {
       data: { subscription },
-    } = supabase?.auth?.onAuthStateChange?.((_event, session) => {
-      // Use the ref (not the stale closure value) to check current auth state
-      if (isAuthLogoutInProgress() || !session?.user?.email || isAuthenticatedRef.current) return;
-      void hydrate({ fromMessage: true });
-    }) ?? { data: { subscription: null } };
+    } =
+      supabase?.auth?.onAuthStateChange?.((event, session) => {
+        if (isAuthLogoutInProgress() || !session?.user?.email || isAuthenticatedRef.current) {
+          return;
+        }
+        // INITIAL_SESSION is covered by the cold hydrate() call — avoid toast/nav races.
+        if (event === 'INITIAL_SESSION') return;
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          void hydrate({ fromMessage: false, celebrate: false });
+        }
+      }) ?? { data: { subscription: null } };
 
     return () => {
       window.removeEventListener('message', handleMessage);
       subscription?.unsubscribe?.();
     };
-    // dispatch and hydrate are stable (useCallback with [dispatch] dep).
-    // This effect must run exactly ONCE to set up the onAuthStateChange listener.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch, hydrate]);
 

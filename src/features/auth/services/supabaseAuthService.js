@@ -239,11 +239,76 @@ export async function requestPasswordResetEmail(email) {
   if (error) throw new Error(error.message);
 }
 
-export async function updateUserPasswordInSupabase(currentPassword, newPassword) {
-  return apiClient('/auth/me/change-password', {
+/** Establish recovery session from Supabase reset-email redirect (?code= or hash tokens). */
+export async function establishPasswordRecoverySession() {
+  if (!supabase) throw new Error('Supabase client not initialized');
+
+  const code = new URLSearchParams(window.location.search).get('code');
+  if (code) {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) throw new Error(error.message);
+    if (data?.session?.user) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+      return true;
+    }
+  }
+
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw new Error(error.message);
+  if (data?.session?.user) {
+    if (window.location.hash.includes('access_token=')) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    return true;
+  }
+
+  return false;
+}
+
+export async function syncPasswordWithBackend({ currentPassword, newPassword } = {}) {
+  const body = { newPassword };
+  if (currentPassword) body.currentPassword = currentPassword;
+  return apiClient(API_ENDPOINTS.auth.changePassword, {
     method: 'POST',
-    body: { currentPassword, newPassword },
+    body,
   });
+}
+
+/**
+ * Set or change password in Supabase Auth, then sync Clearform DB hasPassword.
+ * OAuth users (no password yet): omit currentPassword.
+ */
+export async function updateUserPasswordInSupabase(currentPassword, newPassword, { email } = {}) {
+  if (!supabase) throw new Error('Supabase client not initialized');
+
+  if (currentPassword) {
+    const accountEmail = email?.trim();
+    if (!accountEmail) {
+      throw new Error('Account email is required to verify your current password.');
+    }
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email: accountEmail,
+      password: currentPassword,
+    });
+    if (verifyError) {
+      throw new Error('Current password is incorrect.');
+    }
+  }
+
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw new Error(error.message);
+
+  try {
+    await syncPasswordWithBackend({
+      currentPassword: currentPassword || undefined,
+      newPassword,
+    });
+  } catch (err) {
+    // Auth password already updated; surface soft sync failure
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn('[clearform:auth] backend password sync failed', err);
+    }
+  }
 }
 
 export async function resetPasswordWithToken(newPassword) {
