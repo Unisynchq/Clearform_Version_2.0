@@ -22,7 +22,6 @@ import {
   trackSignup,
 } from '@/analytics/track';
 import { clearAllAppStorage } from '@/utils/clearAppStorage';
-import { removeKey } from '@/utils/localStorageSafe';
 import * as sessionStorageSafe from '@/utils/sessionStorageSafe';
 
 // Unused constants removed
@@ -265,11 +264,12 @@ export async function signInWithGoogle(returnTo) {
   }
   sessionStorageSafe.setItem(AUTH_REDIRECT_PENDING_KEY, 'google');
 
+  // CLE-46: full-page redirect — popup + COOP left session set but parent stuck on /signin.
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
       redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectPath)}`,
-      skipBrowserRedirect: true,
+      skipBrowserRedirect: false,
     },
   });
 
@@ -277,67 +277,8 @@ export async function signInWithGoogle(returnTo) {
     throw new Error(error.message);
   }
 
-  if (data?.url) {
-    if (typeof window !== 'undefined') {
-      // Mark this attempt so the callback knows it was opened by the app
-      sessionStorageSafe.setItem('clearform:oauth-intent', 'true');
-      
-      const popup = window.open(
-        data.url,
-        'clearform-oauth',
-        'width=520,height=720',
-      );
-
-      if (popup) {
-        return new Promise((resolve) => {
-          let fallbackTimer = null;
-
-          const cleanup = () => {
-            window.removeEventListener('storage', handleStorage);
-            if (fallbackTimer) clearTimeout(fallbackTimer);
-          };
-
-          const handleStorage = async (event) => {
-            if (event.key === 'clearform:oauth_success' && event.newValue) {
-              cleanup();
-              
-              try {
-                const session = JSON.parse(event.newValue);
-                removeKey('clearform:oauth_success'); // Clean up
-                if (session) {
-                  await supabase.auth.setSession(session);
-                }
-              } catch (err) {
-                console.error('Failed to parse oauth session', err);
-              }
-              
-              try {
-                if (!popup.closed) popup.close();
-              } catch (e) {
-                // COOP might block popup.closed check, ignore
-              }
-              
-              // Setting the session fires onAuthStateChange in SupabaseSessionBridge,
-              // which handles Redux dispatch and navigation — no hard reload needed.
-              resolve();
-            }
-          };
-
-          window.addEventListener('storage', handleStorage);
-
-          // Fallback if popup is closed or user aborts (5 mins max)
-          fallbackTimer = setTimeout(() => {
-            cleanup();
-            resolve(null);
-          }, 300000);
-        });
-      } else {
-        window.location.assign(data.url);
-      }
-    }
-  }
-
-  return null;
+  // Browser navigates away to Google; this usually never returns.
+  return data ?? null;
 }
 
 async function signInWithMicrosoftOAuth(returnTo) {
@@ -352,11 +293,16 @@ async function signInWithMicrosoftOAuth(returnTo) {
   }
   sessionStorageSafe.setItem(AUTH_REDIRECT_PENDING_KEY, 'microsoft');
 
+  // Supabase requires a real email from Azure; without `email` scope Microsoft only
+  // returns an anonymous subject and Auth fails with:
+  // "Error getting user email from external provider"
+  // CLE-46: full-page redirect (same as Google) so post-auth navigation always runs.
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: SUPABASE_MFA_PROVIDER,
     options: {
+      scopes: 'email openid profile',
       redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(redirectPath)}`,
-      skipBrowserRedirect: true,
+      skipBrowserRedirect: false,
     },
   });
 
@@ -364,67 +310,7 @@ async function signInWithMicrosoftOAuth(returnTo) {
     throw new Error(error.message);
   }
 
-  if (data?.url) {
-    if (typeof window !== 'undefined') {
-      // Mark this attempt so the callback knows it was opened by the app
-      sessionStorageSafe.setItem('clearform:oauth-intent', 'true');
-      
-      const popup = window.open(
-        data.url,
-        'clearform-oauth',
-        'width=520,height=720',
-      );
-
-      if (popup) {
-        return new Promise((resolve) => {
-          let fallbackTimer = null;
-
-          const cleanup = () => {
-            window.removeEventListener('storage', handleStorage);
-            if (fallbackTimer) clearTimeout(fallbackTimer);
-          };
-
-          const handleStorage = async (event) => {
-            if (event.key === 'clearform:oauth_success' && event.newValue) {
-              cleanup();
-              
-              try {
-                const session = JSON.parse(event.newValue);
-                removeKey('clearform:oauth_success'); // Clean up
-                if (session) {
-                  await supabase.auth.setSession(session);
-                }
-              } catch (err) {
-                console.error('Failed to parse oauth session', err);
-              }
-              
-              try {
-                if (!popup.closed) popup.close();
-              } catch (e) {
-                // COOP might block popup.closed check, ignore
-              }
-              
-              // Setting the session fires onAuthStateChange in SupabaseSessionBridge,
-              // which handles Redux dispatch and navigation — no hard reload needed.
-              resolve();
-            }
-          };
-
-          window.addEventListener('storage', handleStorage);
-
-          // Fallback if popup is closed or user aborts (5 mins max)
-          fallbackTimer = setTimeout(() => {
-            cleanup();
-            resolve(null);
-          }, 300000);
-        });
-      } else {
-        window.location.assign(data.url);
-      }
-    }
-  }
-
-  return null;
+  return data ?? null;
 }
 
 export async function startMicrosoftSignInRedirect(returnTo) {

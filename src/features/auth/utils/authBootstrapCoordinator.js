@@ -34,7 +34,10 @@ export function endRedirectHandlerNavigation() {
 
 export function shouldSessionBridgeNavigate({ pendingMicrosoft, pathname }) {
   if (redirectHandlerOwnsNavigation) return false;
-  if (pendingMicrosoft && pathname === '/signin') return false;
+  // CLE-46: do NOT block /signin when oauth pending — that left returning Google
+  // users with a success toast but no navigation until manual reload.
+  void pendingMicrosoft;
+  void pathname;
   return true;
 }
 

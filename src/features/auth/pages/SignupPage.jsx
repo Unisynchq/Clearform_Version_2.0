@@ -212,8 +212,9 @@ const SignupPage = () => {
       showToast({
         type: 'error',
         message: err?.message ?? 'Could not start Microsoft sign-in.',
-        duration: 4000,
+        duration: 6000,
       });
+    } finally {
       dispatch(setSubmitting(false));
     }
   }, [dispatch, pilotReturnTo, showToast]);
