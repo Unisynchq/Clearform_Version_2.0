@@ -1,19 +1,28 @@
 import { apiClient } from '@/api/client';
 import { API_ENDPOINTS } from '@/api/endpoints';
 import { isApiConfigured } from '@/config/env';
-import { readAuthSession } from '@/features/auth/utils/authStorage';
+import { supabase } from '@/config/supabase';
+import * as sessionStorageSafe from '@/utils/sessionStorageSafe';
 
 const ONBOARDING_SYNC_PREFIX = 'clearform:onboarding-complete-sync:';
 
-function getOnboardingSyncKey() {
-  const email = readAuthSession()?.email?.trim().toLowerCase();
-  return `${ONBOARDING_SYNC_PREFIX}${email || 'anonymous'}`;
+async function getOnboardingSyncKey() {
+  let email = 'anonymous';
+  try {
+    const { data } = await supabase?.auth.getSession();
+    const fromSession = data?.session?.user?.email?.trim()?.toLowerCase();
+    if (fromSession) email = fromSession;
+  } catch {
+    // ignore
+  }
+  return `${ONBOARDING_SYNC_PREFIX}${email}`;
 }
 
 let onboardingCompletionPromise = null;
 
 /**
  * Load DB-backed profile after Supabase sign-in (onboarding flag, plan).
+ * Auth: Bearer from Supabase getSession (see apiClient / getFreshAuthToken).
  */
 export async function fetchMe() {
   if (!isApiConfigured()) return null;
@@ -30,8 +39,8 @@ export async function fetchMe() {
 export async function markOnboardingCompleteOnServer() {
   if (!isApiConfigured()) return null;
   if (typeof window !== 'undefined') {
-    const syncKey = getOnboardingSyncKey();
-    if (sessionStorage.getItem(syncKey) === '1') {
+    const syncKey = await getOnboardingSyncKey();
+    if (sessionStorageSafe.getItem(syncKey) === '1') {
       return null;
     }
     if (onboardingCompletionPromise) {
@@ -42,7 +51,7 @@ export async function markOnboardingCompleteOnServer() {
       body: {},
     })
       .then((result) => {
-        sessionStorage.setItem(syncKey, '1');
+        sessionStorageSafe.setItem(syncKey, '1');
         return result;
       })
       .finally(() => {

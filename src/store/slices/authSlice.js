@@ -1,21 +1,18 @@
 import { createSlice } from '@reduxjs/toolkit';
-import {
-  readAuthSession,
-  writeAuthSession,
-  clearAuthSession,
-  isAuthSessionValid,
-} from '@/features/auth/utils/authStorage';
+import { clearAuthSession } from '@/features/auth/utils/authStorage';
 
-const savedSession = isAuthSessionValid() ? readAuthSession() : null;
-
+/**
+ * UI auth state is in-memory only.
+ * Real session: Supabase Auth JWT → Authorization Bearer → backend /auth/me.
+ */
 const initialState = {
-  firstName: savedSession?.firstName ?? '',
-  lastName: savedSession?.lastName ?? '',
-  email: savedSession?.email ?? '',
+  firstName: '',
+  lastName: '',
+  email: '',
   password: '',
   isSubmitting: false,
   error: null,
-  isAuthenticated: savedSession?.isAuthenticated === true,
+  isAuthenticated: false,
   isInitialized: false,
 };
 
@@ -49,7 +46,8 @@ const authSlice = createSlice({
       state.isInitialized = true;
       state.error = null;
       state.isSubmitting = false;
-      writeAuthSession({ email, firstName, lastName });
+      // Do not persist auth to localStorage — Supabase session is the source of truth.
+      clearAuthSession();
     },
     logout(state) {
       state.isAuthenticated = false;
@@ -57,6 +55,9 @@ const authSlice = createSlice({
       state.password = '';
       state.error = null;
       state.isSubmitting = false;
+      state.email = '';
+      state.firstName = '';
+      state.lastName = '';
       clearAuthSession();
     },
     resetForm(state) {

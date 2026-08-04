@@ -120,10 +120,10 @@ const SupabaseSessionBridge = () => {
           }),
         );
 
-        const guestPaths = ['/', '/signin', '/signup'];
-        if (oauthPending || guestPaths.includes(locationRef.current.pathname)) {
-          // Show the "Signed in" toast at most once per login session
-          if (oauthPending && !hasShownLoginToastRef.current) {
+        const guestPaths = ['/', '/signin', '/signup', '/auth/callback'];
+        const onGuestPath = guestPaths.includes(locationRef.current.pathname);
+        if (oauthPending || onGuestPath || fromMessage) {
+          if ((oauthPending || fromMessage) && !hasShownLoginToastRef.current) {
             hasShownLoginToastRef.current = true;
             showToastRef.current({
               type: 'success',
@@ -131,6 +131,7 @@ const SupabaseSessionBridge = () => {
               duration: 3000,
             });
           }
+          // Soft navigate — Redux is already authenticated; GuestOnly / RequireAuth pick it up.
           navigateRef.current(path, { replace: true });
         }
       });

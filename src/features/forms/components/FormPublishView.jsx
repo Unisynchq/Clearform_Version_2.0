@@ -27,8 +27,8 @@ import {
   restoreSession,
 } from '@/features/auth/services/supabaseAuthService';
 import { loginSuccess } from '@/store/slices/authSlice';
-import { isAuthSessionValid, readAuthSession } from '@/features/auth/utils/authStorage';
 import { buildEmbedCode } from '@/features/forms/utils/embedCode';
+import * as sessionStorageSafe from '@/utils/sessionStorageSafe';
 
 const FONT = { fontFamily: "'DM Sans', sans-serif" };
 
@@ -1042,23 +1042,11 @@ const FormPublishView = ({
         authed = true;
       }
     } catch {
-      // fall through to cached auth session
-    }
-
-    if (!authed && isAuthSessionValid()) {
-      const session = readAuthSession();
-      dispatch(
-        loginSuccess({
-          email: session.email,
-          firstName: session.firstName,
-          lastName: session.lastName,
-        }),
-      );
-      authed = true;
+      // Fall through — require a live Supabase session + backend /auth/me
     }
 
     if (!authed) {
-      sessionStorage.setItem(AUTH_RETURN_TO_KEY, target);
+      sessionStorageSafe.setItem(AUTH_RETURN_TO_KEY, target);
       navigate('/signin', { state: { from: target } });
       return;
     }
@@ -1066,7 +1054,7 @@ const FormPublishView = ({
     try {
       await getFreshAuthToken();
     } catch {
-      // navigate anyway when Redux says authed; token may still be in sessionStorage
+      // Token refresh best-effort; restoreSession already validated when possible
     }
 
     navigate(target);

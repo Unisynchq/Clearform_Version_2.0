@@ -11,7 +11,8 @@ export const supabase = isSupabaseConfigured()
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
-        flowType: 'implicit',
+        // PKCE works reliably with full-page OAuth redirects (CLE-46).
+        flowType: 'pkce',
       },
     })
   : null;

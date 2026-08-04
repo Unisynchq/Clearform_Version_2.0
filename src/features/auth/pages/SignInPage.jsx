@@ -1,6 +1,6 @@
-import { useState, useCallback, memo } from 'react';
+import { useState, useCallback, useEffect, memo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { FcGoogle } from 'react-icons/fc';
 import { RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
@@ -144,11 +144,23 @@ const SignInPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
   const { isSubmitting } = useSelector((state) => state.auth);
   const [formState, setFormState] = useState({ email: '', password: '' });
   const { email, password } = formState;
   const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    const oauthError = searchParams.get('oauth_error');
+    if (!oauthError) return;
+    dispatch(setSubmitting(false));
+    dispatch(setError(oauthError));
+    showToast({ type: 'error', message: oauthError, duration: 7000 });
+    const next = new URLSearchParams(searchParams);
+    next.delete('oauth_error');
+    setSearchParams(next, { replace: true });
+  }, [dispatch, searchParams, setSearchParams, showToast]);
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
@@ -245,8 +257,9 @@ const SignInPage = () => {
       showToast({
         type: 'error',
         message: err?.message ?? 'Could not start Microsoft sign-in.',
-        duration: 4000,
+        duration: 6000,
       });
+    } finally {
       dispatch(setSubmitting(false));
     }
   }, [dispatch, location.state?.from, showToast]);
