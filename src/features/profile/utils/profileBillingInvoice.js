@@ -142,7 +142,8 @@ export function buildTaxInvoice(subscription, customer = {}) {
 export function buildInvoiceFromBillingReceipt(receipt, customer = {}, billingStatus = {}) {
   if (!receipt?.paymentId) return null;
 
-  const display = getActivePlanDisplay('pro', 'pro', {
+  const planId = billingStatus.planId ?? 'pro';
+  const display = getActivePlanDisplay(planId, planId === 'starter' ? 'monthly' : 'pro', {
     expiresAt: billingStatus.expiresAt ?? billingStatus.periodEnd,
   });
   if (!display) return null;
@@ -175,9 +176,9 @@ export function buildInvoiceFromBillingReceipt(receipt, customer = {}, billingSt
     periodLabel,
     periodEndLabel: periodLabel,
     chargedOn: formatShortDate(purchasedAt),
-    planId: 'pro',
+    planId,
     planName: display.name,
-    intervalLabel: 'One-time',
+    intervalLabel: display.isOneTime ? 'One-time' : 'Monthly',
     displayTitle: display.invoiceTitle,
     stripTitle: display.stripTitle,
     stripSubtitle: display.stripSubtitle,
@@ -195,7 +196,7 @@ export function buildInvoiceFromBillingReceipt(receipt, customer = {}, billingSt
     sgstLabel: gst ? formatAmount(gst.sgst) : '—',
     gstApplies,
     currency,
-    isOneTime: true,
+    isOneTime: Boolean(display.isOneTime),
     totalPaid: amountPaid,
     totalPaidLabel: amountLabel,
     totalPaidDisplay: amountLabel,
@@ -205,7 +206,7 @@ export function buildInvoiceFromBillingReceipt(receipt, customer = {}, billingSt
     seller,
     lineItems: [
       {
-        description: 'Clearform Pro — One-time access',
+        description: display.invoiceTitle,
         subtitle: display.taxPlanSubtitle,
         qty: '1',
         unitPrice: amountPaid,

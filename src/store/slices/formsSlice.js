@@ -470,6 +470,24 @@ export const selectFormResponses = createSelector(
   },
 );
 
+/** Forms eligible for the analytics header picker — excludes archived/trash, respects workspace. */
+export const selectAnalyticsPickerForms = createSelector(
+  [selectFormsRaw, selectActiveWorkspace],
+  (forms, activeWorkspace) =>
+    forms
+      .filter((form) => {
+        if (form.status === 'archived' || form.status === 'trash') return false;
+        const formWorkspace =
+          form.workspace == null || form.workspace === '' ? '' : String(form.workspace);
+        return (
+          activeWorkspace === 'all' ||
+          formWorkspace === String(activeWorkspace) ||
+          String(form.workspaceId ?? '') === String(activeWorkspace)
+        );
+      })
+      .sort((a, b) => timeAgoToMs(a.timeAgo) - timeAgoToMs(b.timeAgo)),
+);
+
 export const selectFilteredForms = createSelector(
   [
     selectFormsRaw,

@@ -35,6 +35,7 @@ import AiTierTeaser from '@/features/billing/components/AiTierTeaser';
 import AnalyticsBestResponsesPanel from '@/components/analytics/AnalyticsBestResponsesPanel';
 import AnalyticsResponsesSubNav from '@/components/analytics/AnalyticsResponsesSubNav';
 import Topbar from '@/components/layout/Topbar';
+import { selectAnalyticsPickerForms } from '@/store/slices/formsSlice';
 
 function LiveUpdatedStamp({ updatedAt }) {
   const [, setTick] = useState(0);
@@ -72,6 +73,7 @@ const AnalyticsPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const forms = useSelector((s) => s.forms.forms);
+  const pickerFormsBase = useSelector(selectAnalyticsPickerForms);
   const hydrationReady = useHydrationFrame();
   const {
     MAIN_TABS,
@@ -85,6 +87,12 @@ const AnalyticsPage = () => {
     handleTabChange,
     handleResponsesViewChange,
   } = useAnalyticsPageState(forms);
+
+  const formMenuForms = useMemo(() => {
+    if (!selectedForm) return pickerFormsBase;
+    if (pickerFormsBase.some((f) => f.id === selectedForm.id)) return pickerFormsBase;
+    return [selectedForm, ...pickerFormsBase];
+  }, [pickerFormsBase, selectedForm]);
 
   const [formMenuOpen, setFormMenuOpen] = useState(false);
   const [rangeLabel, setRangeLabel] = useState('All time');
@@ -584,7 +592,7 @@ const AnalyticsPage = () => {
               </button>
               {formMenuOpen && (
                 <div className="absolute left-0 top-[calc(100%+6px)] z-30 min-w-[260px] max-h-[280px] overflow-y-auto bg-white border border-[#e5e3dc] rounded-[10px] shadow-[0_8px_24px_rgba(0,0,0,0.08)] py-1">
-                  {forms.map((f) => (
+                  {formMenuForms.map((f) => (
                     <button
                       key={f.id}
                       type="button"

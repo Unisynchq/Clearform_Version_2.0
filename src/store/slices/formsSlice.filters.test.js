@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import formsReducer, {
   clearAllFormFilters,
+  selectAnalyticsPickerForms,
   selectFilteredForms,
   setActiveFilter,
   setActiveWorkspace,
@@ -12,6 +13,8 @@ const sampleForms = [
   { id: 1, title: 'Alpha Survey', status: 'live', workspace: 'product', responses: 3, timeAgo: '1d ago' },
   { id: 2, title: 'Beta Draft', status: 'draft', workspace: 'hr', responses: 0, timeAgo: '2d ago' },
   { id: 3, title: 'Gamma Live', status: 'live', workspace: 'hr', responses: 1, timeAgo: '3d ago' },
+  { id: 4, title: 'Archived Form', status: 'archived', workspace: 'hr', responses: 5, timeAgo: '4d ago' },
+  { id: 5, title: 'Trashed Form', status: 'trash', workspace: 'product', responses: 0, timeAgo: '5d ago' },
 ];
 
 const buildState = (formsOverrides = {}) => ({
@@ -46,6 +49,26 @@ describe('formsSlice filters', () => {
 
     const filtered = selectFilteredForms(root);
     expect(filtered.map((f) => f.id)).toEqual([1, 2, 3]);
+  });
+
+  it('selectAnalyticsPickerForms excludes archived and trash', () => {
+    const root = buildState({
+      activeFilter: 'all',
+      activeWorkspace: 'all',
+      searchQuery: '',
+      advancedFilters: { status: [], responses: [] },
+    });
+    expect(selectAnalyticsPickerForms(root).map((f) => f.id)).toEqual([1, 2, 3]);
+  });
+
+  it('selectAnalyticsPickerForms respects activeWorkspace', () => {
+    const root = buildState({
+      activeFilter: 'all',
+      activeWorkspace: 'hr',
+      searchQuery: '',
+      advancedFilters: { status: [], responses: [] },
+    });
+    expect(selectAnalyticsPickerForms(root).map((f) => f.id)).toEqual([2, 3]);
   });
 
   it('selectFilteredForms applies search, status, workspace, and advanced filters together', () => {

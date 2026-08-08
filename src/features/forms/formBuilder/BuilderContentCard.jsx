@@ -193,7 +193,10 @@ export const PreviewCardStepNav = ({
   onGoContinue,
   showBackButton = true,
   compactLayout = false,
-}) => (
+  continueDisabled = false,
+}) => {
+  const canContinue = nextScreen && !continueDisabled;
+  return (
   <div className={`border-t border-[#cfcecd] flex items-center justify-between shrink-0 gap-2 ${cardNavPadClass(compactLayout)}`}>
     {showBackButton ? (
       <button
@@ -216,19 +219,20 @@ export const PreviewCardStepNav = ({
     <button
       type="button"
       onClick={() => onGoContinue?.()}
-      disabled={!nextScreen}
+      disabled={!canContinue}
       className={`inline-flex items-center justify-center gap-2 h-[38px] rounded-[10px] px-6 text-[14px] font-medium transition-colors ${
-        nextScreen
+        canContinue
           ? 'bg-[#1a1a18] text-white hover:bg-[#2a2a26] cursor-pointer'
           : 'bg-[#d4d2cc] text-[#a8a6a0] cursor-not-allowed'
       }`}
       style={{ fontFamily: "'DM Sans', sans-serif", fontVariationSettings: "'opsz' 14" }}
     >
       Continue
-      <RiArrowRightLine size={14} className={`shrink-0 ${nextScreen ? 'text-white' : 'text-[#a8a6a0]'}`} aria-hidden />
+      <RiArrowRightLine size={14} className={`shrink-0 ${canContinue ? 'text-white' : 'text-[#a8a6a0]'}`} aria-hidden />
     </button>
   </div>
-);
+  );
+};
 
 /** Shown beside the question title line when Continue is tapped but required preview fields are incomplete. */
 const PreviewRequiredInline = ({ show }) =>
@@ -1728,6 +1732,9 @@ const ContentCardInner = ({
     : shortTextQualityApiEnabled
       ? shortTextQuality.isLoading
       : false;
+  const responseQualityBlocksAdvance =
+    (longTextQualityApiEnabled || shortTextQualityApiEnabled) &&
+    (responseQualityLoading || responseQualityEvaluation?.level === 'red');
   const responseQualityHelperText = longTextQualityUiEnabled
     ? longTextConfig?.longTextHelperText
     : shortTextConfig?.shortTextHelperText;
@@ -3744,7 +3751,9 @@ const ContentCardInner = ({
   const scrollableLabel = isImageCard ? 'IMAGE WITH QUESTION' : 'VIDEO WITH QUESTION';
 
   const inCardPreviewNav =
-    isPreviewMode && previewStepNav ? cloneElement(previewStepNav, { compactLayout }) : null;
+    isPreviewMode && previewStepNav
+      ? cloneElement(previewStepNav, { compactLayout, continueDisabled: responseQualityBlocksAdvance })
+      : null;
 
   const builderFieldFooter = !isPreviewMode ? (
     <ContentCardFooter

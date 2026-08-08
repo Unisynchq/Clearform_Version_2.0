@@ -338,7 +338,11 @@ const ProfileBillingPanel = () => {
       return buildInvoiceFromBillingReceipt(
         apiStatus.receipt,
         { firstName, lastName, email },
-        { expiresAt: apiStatus.expiresAt, periodEnd: apiStatus.periodEnd },
+        {
+          planId: apiStatus.planId,
+          expiresAt: apiStatus.expiresAt,
+          periodEnd: apiStatus.periodEnd,
+        },
       );
     }
     if (localSubscription) {
