@@ -75,11 +75,13 @@ const FormContextMenu = () => {
 
   const handleItem = (itemId) => {
     if (itemId === 'delete') {
+      const inTrash = form?.status === 'trash';
       dispatch(
         openDeleteModal({
           formId,
           formTitle: form?.title ?? '',
-          isTrash: form?.status === 'trash',
+          // Permanent delete only from trash menu — never flip mid-modal.
+          isTrash: inTrash,
         }),
       );
     } else if (itemId === 'duplicate') {
