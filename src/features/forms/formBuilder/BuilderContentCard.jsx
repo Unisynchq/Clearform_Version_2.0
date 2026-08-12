@@ -1703,7 +1703,7 @@ const ContentCardInner = ({
     conversationHistory: qualityConversationHistory,
     maxChars: longTextMaxCap,
     previewMode: !isLiveRespondent,
-    debounceMs: isLiveRespondent ? 5500 : 400,
+    debounceMs: isLiveRespondent ? 1200 : 400,
   });
 
   const shortTextQuality = useResponseQualityEvaluation({
@@ -1718,7 +1718,7 @@ const ContentCardInner = ({
     conversationHistory: qualityConversationHistory,
     maxChars: shortTextMaxCap,
     previewMode: !isLiveRespondent,
-    debounceMs: isLiveRespondent ? 5500 : 400,
+    debounceMs: isLiveRespondent ? 1200 : 400,
   });
 
   const responseQualityEvaluation = longTextQualityApiEnabled

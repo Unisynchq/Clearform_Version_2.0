@@ -230,7 +230,7 @@ export function useResponseQualityEvaluation({
           setIsLoading(false);
         }
       }
-    }, previewMode ? Math.max(debounceMs, 900) : Math.max(debounceMs, 5500));
+    }, previewMode ? Math.max(debounceMs, 900) : Math.max(debounceMs, 1200));
 
     return () => {
       clearTimeout(timerRef.current);
