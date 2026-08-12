@@ -1557,6 +1557,8 @@ const ContentCardInner = ({
   responseQualityFormId = null,
   responseQualityEvaluateLive = true,
   qualityConversationHistory = [],
+  /** Public /f fill — longer debounce; builder preview stays fast. */
+  isLiveRespondent = false,
   isIntroScreen = false,
   compactLayout = false,
 }) => {
@@ -1700,7 +1702,8 @@ const ContentCardInner = ({
     screenId: previewScreenId,
     conversationHistory: qualityConversationHistory,
     maxChars: longTextMaxCap,
-    previewMode: true,
+    previewMode: !isLiveRespondent,
+    debounceMs: isLiveRespondent ? 5500 : 400,
   });
 
   const shortTextQuality = useResponseQualityEvaluation({
@@ -1714,7 +1717,8 @@ const ContentCardInner = ({
     screenId: previewScreenId,
     conversationHistory: qualityConversationHistory,
     maxChars: shortTextMaxCap,
-    previewMode: true,
+    previewMode: !isLiveRespondent,
+    debounceMs: isLiveRespondent ? 5500 : 400,
   });
 
   const responseQualityEvaluation = longTextQualityApiEnabled

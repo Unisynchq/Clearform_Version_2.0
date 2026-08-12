@@ -75,7 +75,13 @@ const FormContextMenu = () => {
 
   const handleItem = (itemId) => {
     if (itemId === 'delete') {
-      dispatch(openDeleteModal({ formId, formTitle: form?.title ?? '' }));
+      dispatch(
+        openDeleteModal({
+          formId,
+          formTitle: form?.title ?? '',
+          isTrash: form?.status === 'trash',
+        }),
+      );
     } else if (itemId === 'duplicate') {
       dispatch(openDuplicateModal({ formId, formTitle: form?.title ?? '' }));
     } else if (itemId === 'archive') {

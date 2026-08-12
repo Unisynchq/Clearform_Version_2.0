@@ -13,6 +13,7 @@ const initialState = {
     formId: null,
     formTitle: '',
     redirectAfterDelete: false,
+    isTrash: false,
   },
   duplicateModal: {
     open: false,
@@ -109,12 +110,29 @@ const uiSlice = createSlice({
       state.contextMenu = { open: false, formId: null, x: 0, y: 0 };
     },
     openDeleteModal(state, action) {
-      const { formId, formTitle, redirectAfterDelete = false } = action.payload;
-      state.deleteModal = { open: true, formId, formTitle, redirectAfterDelete };
+      const {
+        formId,
+        formTitle,
+        redirectAfterDelete = false,
+        isTrash = false,
+      } = action.payload;
+      state.deleteModal = {
+        open: true,
+        formId,
+        formTitle,
+        redirectAfterDelete,
+        isTrash: Boolean(isTrash),
+      };
       state.contextMenu = { open: false, formId: null, x: 0, y: 0 };
     },
     closeDeleteModal(state) {
-      state.deleteModal = { open: false, formId: null, formTitle: '', redirectAfterDelete: false };
+      state.deleteModal = {
+        open: false,
+        formId: null,
+        formTitle: '',
+        redirectAfterDelete: false,
+        isTrash: false,
+      };
     },
     openDuplicateModal(state, action) {
       const { formId, formTitle } = action.payload;

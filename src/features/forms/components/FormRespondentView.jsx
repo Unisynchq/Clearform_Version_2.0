@@ -343,6 +343,7 @@ export default function FormRespondentView({ draft, formId }) {
               onPreviewSnapChange={handlePreviewSnapChange}
               previewScreenId={activeScreen.id}
               responseQualityFormId={formId}
+              isLiveRespondent
               compactLayout={isCompact}
             />
           </div>
@@ -450,6 +451,7 @@ export default function FormRespondentView({ draft, formId }) {
             initialPreviewSnap={snapsByScreenIdRef.current[activeScreen.id]}
             responseQualityFormId={formId}
             qualityConversationHistory={qualityConversationHistory}
+            isLiveRespondent
             compactLayout={isCompact}
           />
         </div>

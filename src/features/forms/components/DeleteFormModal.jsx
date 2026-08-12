@@ -13,16 +13,23 @@ const DeleteFormModal = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const [deleting, setDeleting] = useState(false);
-  const { open, formId, formTitle, redirectAfterDelete } = useSelector((s) => s.ui.deleteModal);
+  /** Locked when confirm starts so the button never flips Moving↔Deleting. */
+  const [lockedTrash, setLockedTrash] = useState(null);
+  const { open, formId, formTitle, redirectAfterDelete, isTrash: isTrashFlag } = useSelector(
+    (s) => s.ui.deleteModal,
+  );
   const form = useSelector((s) => s.forms.forms.find((f) => f.id === formId));
 
-  const isTrash = form?.status === 'trash';
+  const resolvedTrash = Boolean(isTrashFlag) || form?.status === 'trash';
+  const isTrash = lockedTrash != null ? lockedTrash : resolvedTrash;
 
   const handleDelete = async () => {
     if (!formId || deleting) return;
+    const permanent = resolvedTrash;
+    setLockedTrash(permanent);
     setDeleting(true);
     try {
-      if (isTrash) {
+      if (permanent) {
         await permanentDeleteFormRequest({ formId });
       } else {
         await deleteFormRequest({ formId });
@@ -30,8 +37,12 @@ const DeleteFormModal = () => {
       dispatch(deleteForm(formId));
       await dispatch(loadFormsFromApi());
       dispatch(closeDeleteModal());
+      setLockedTrash(null);
       if (redirectAfterDelete) {
-        showToast({ type: 'success', message: isTrash ? 'Form deleted permanently' : 'Form moved to trash' });
+        showToast({
+          type: 'success',
+          message: permanent ? 'Form deleted permanently' : 'Form moved to trash',
+        });
         navigate('/dashboard');
       }
     } catch (err) {
@@ -42,6 +53,7 @@ const DeleteFormModal = () => {
       });
     } finally {
       setDeleting(false);
+      setLockedTrash(null);
     }
   };
 
@@ -50,13 +62,20 @@ const DeleteFormModal = () => {
   return (
     <ConfirmActionModal
       open={open}
-      onCancel={() => dispatch(closeDeleteModal())}
+      onCancel={() => {
+        setLockedTrash(null);
+        dispatch(closeDeleteModal());
+      }}
       onConfirm={handleDelete}
       isLoading={deleting}
       title={isTrash ? `Permanently delete "${formTitle}"?` : `Delete "${formTitle}"?`}
-      warning={isTrash ? "This action cannot be undone. All data and responses will be lost forever." : `Into the Trash it goes.${responseCount > 0 ? ` ${responseCount} responses` : ''} · 30 days to undo · restores as Draft`}
-      confirmLabel={isTrash ? "Delete Permanently" : "Move to Trash"}
-      loadingLabel={isTrash ? "Deleting…" : "Moving…"}
+      warning={
+        isTrash
+          ? 'This action cannot be undone. All data and responses will be lost forever.'
+          : `Into the Trash it goes.${responseCount > 0 ? ` ${responseCount} responses` : ''} · 30 days to undo · restores as Draft`
+      }
+      confirmLabel={isTrash ? 'Delete Permanently' : 'Move to Trash'}
+      loadingLabel={isTrash ? 'Deleting…' : 'Moving…'}
       confirmIcon={RiDeleteBinLine}
       isDanger={true}
     />

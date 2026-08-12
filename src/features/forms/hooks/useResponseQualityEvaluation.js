@@ -144,6 +144,7 @@ export function useResponseQualityEvaluation({
   conversationHistory,
   maxChars,
   debounceMs = 400,
+  /** Builder preview stays snappy; live respondents wait ~5–6s after typing stops. */
   previewMode = false,
 }) {
   const [evaluation, setEvaluation] = useState(null);
@@ -229,7 +230,7 @@ export function useResponseQualityEvaluation({
           setIsLoading(false);
         }
       }
-    }, previewMode ? Math.max(debounceMs, 900) : debounceMs);
+    }, previewMode ? Math.max(debounceMs, 900) : Math.max(debounceMs, 5500));
 
     return () => {
       clearTimeout(timerRef.current);

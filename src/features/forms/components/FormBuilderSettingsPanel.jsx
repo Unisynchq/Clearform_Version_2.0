@@ -129,6 +129,7 @@ export default function FormBuilderSettingsPanel({
         formId: activeFormId,
         formTitle: formTitle || 'Untitled form',
         redirectAfterDelete: true,
+        isTrash: false,
       })
     );
   };

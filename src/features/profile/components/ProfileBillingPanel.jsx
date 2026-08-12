@@ -3,7 +3,6 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
 import {
   RiArrowDownSLine,
-  RiArrowRightLine,
   RiArrowUpSLine,
   RiCheckLine,
   RiLockLine,
@@ -209,22 +208,6 @@ const ProfileBillingPanel = () => {
       !isPaid);
   const isPromoTrial = useApiBilling && isPaid && apiStatus?.source === 'PROMO';
 
-  const handleBuyPublishPass = useCallback(async () => {
-    if (!useApiBilling) return;
-    setCheckoutLoading(true);
-    try {
-      await openPublishPassRazorpayCheckout();
-    } catch (err) {
-      showToast({
-        type: 'error',
-        message: err?.message ?? 'Could not start checkout.',
-        duration: 6000,
-      });
-    } finally {
-      setCheckoutLoading(false);
-    }
-  }, [useApiBilling, showToast]);
-
   const handleBuyStarter = useCallback(async () => {
     if (!useApiBilling) return;
     setCheckoutLoading(true);
@@ -350,12 +333,6 @@ const ProfileBillingPanel = () => {
     }
     return null;
   }, [useApiBilling, apiStatus, localSubscription, firstName, lastName, email]);
-
-  /** Always surface unlock CTAs when unpaid / expired — no free tier soft-landing. */
-  const showUpgradeCta = useMemo(() => {
-    if (!useApiBilling || isPaid) return false;
-    return true;
-  }, [useApiBilling, isPaid]);
 
   const formsUnlimited = plan.formsLimit == null && isPaid;
   const isProPlan = plan.id === PRO_PLAN_ID || plan.id === PILOT_35_PLAN_ID;
@@ -566,41 +543,6 @@ const ProfileBillingPanel = () => {
 
         {useApiBilling && !isPaid ? (
           <PromoCodeRedeemBox onRedeemed={() => setBillingVersion((v) => v + 1)} />
-        ) : null}
-
-        {showUpgradeCta ? (
-          <section className="overflow-hidden rounded-[12px] border border-[#1a1a18] bg-[#1a1a18]">
-            <div className="flex flex-col gap-1 p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.88px] text-white/40">
-                Clearform pricing
-              </p>
-              <h3 className="pt-0.5 text-[18px] font-bold text-white">
-                {isPlanExpired ? 'Your plan has ended' : 'Unlock publishing'}
-              </h3>
-              <p className="pb-2 text-[13px] leading-[20.8px] text-white/50">
-                ₹99 Publish Pass · or Starter ₹499/mo for unlimited publish, embed, Sheets & AI Insights.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={handleBuyPublishPass}
-                  disabled={checkoutLoading}
-                  className="inline-flex w-fit items-center gap-1 rounded-[10px] border border-white/30 bg-transparent px-5 py-3 text-[14px] font-medium text-white transition-colors hover:bg-white/10 disabled:opacity-60"
-                >
-                  {checkoutLoading ? 'Opening…' : 'Buy ₹99'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleBuyStarter}
-                  disabled={checkoutLoading}
-                  className="inline-flex w-fit items-center gap-1 rounded-[10px] bg-white px-6 py-3 text-[14px] font-medium text-[#1a1a18] transition-colors hover:bg-[#f7f7f6] disabled:opacity-60"
-                >
-                  {checkoutLoading ? 'Opening checkout…' : 'Starter — ₹499/mo'}
-                  <RiArrowRightLine size={16} aria-hidden />
-                </button>
-              </div>
-            </div>
-          </section>
         ) : null}
 
         <section className="overflow-hidden rounded-[12px] border border-[#e8e8e6] bg-white">
